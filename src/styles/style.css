@@ -1,0 +1,480 @@
+body {
+  background-color: #f8f9fa;
+  font-family: Arial, sans-serif;
+  color: #222;
+}
+
+/* NAVBAR */
+.navbar-custom {
+  background-color: #b71c1c !important;
+}
+
+.navbar-brand-custom {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: white !important;
+  text-decoration: none;
+}
+
+.navbar-brand-custom img {
+  width: 50px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 50%;
+  background: white;
+  padding: 4px;
+}
+
+.brand-text {
+  line-height: 1.2;
+}
+
+.brand-text h5 {
+  margin: 0;
+  font-size: 18px;
+  color: white;
+}
+
+.brand-text span {
+  font-size: 12px;
+  color: #ffd6d6;
+}
+
+.navbar-nav .nav-link {
+  color: white !important;
+  margin-left: 10px;
+}
+
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link.active {
+  color: #ffe082 !important;
+}
+
+/* HERO */
+.hero-section {
+  background: linear-gradient(rgba(183, 28, 28, 0.85), rgba(211, 47, 47, 0.85)),
+    url("https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1400&q=80")
+      center/cover no-repeat;
+
+  color: white;
+  padding: 110px 20px;
+  text-align: center;
+}
+
+.hero-section h1 {
+  font-size: 42px;
+  margin-bottom: 18px;
+}
+
+.hero-section p {
+  max-width: 850px;
+  margin: auto;
+  font-size: 17px;
+  line-height: 1.7;
+}
+
+/* BUTTONS */
+.btn-custom-light {
+  background-color: white;
+  color: #b71c1c;
+  border: none;
+  padding: 12px 24px;
+  font-weight: 600;
+}
+
+.btn-custom-light:hover {
+  background-color: #ffeaea;
+}
+
+.btn-custom-outline {
+  border: 2px solid white;
+  color: white;
+  padding: 10px 24px;
+  font-weight: 600;
+}
+
+.btn-custom-outline:hover {
+  background-color: white;
+  color: #b71c1c;
+}
+
+/* SECTIONS */
+.section-title {
+  color: #b71c1c;
+  margin-bottom: 20px;
+}
+
+.highlight-section {
+  background-color: #fff3f3;
+}
+
+/* CARDS */
+.card-custom {
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  height: 100%;
+}
+
+.card-custom h4,
+.card-custom h5,
+.card-custom h3 {
+  color: #b71c1c;
+}
+
+/* ABOUT */
+.about-box {
+  background: white;
+  border-left: 5px solid #b71c1c;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* SLOT BOX */
+.slot-box {
+  max-width: 420px;
+  margin: auto;
+  text-align: center;
+  background: white;
+  border-radius: 14px;
+  padding: 30px 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-top: 5px solid #b71c1c;
+}
+
+.slot-box h3 {
+  margin-bottom: 10px;
+  font-size: 34px;
+}
+
+.slot-box p {
+  margin: 0;
+  color: #555;
+}
+
+/* OFFICIALS */
+.officials-img {
+  border-radius: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  max-height: 500px;
+  object-fit: cover;
+}
+
+/* FOOTER */
+footer {
+  background-color: #7f0000;
+  color: white;
+  padding: 20px 0;
+  text-align: center;
+  margin-top: 40px;
+}
+
+/* PAGE LAYOUT */
+.page-section {
+  padding: 40px 0;
+}
+
+.page-card {
+  background: white;
+  border: none;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 25px;
+}
+
+.sub-title {
+  color: #b71c1c;
+  font-size: 20px;
+  margin-bottom: 18px;
+}
+
+/* INFO / ALERT BOXES */
+.info-box {
+  background: #fff8f8;
+  border-left: 5px solid #b71c1c;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 20px;
+}
+
+.notice-box {
+  background: #fff3cd;
+  border-left: 5px solid #ffb300;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 20px;
+}
+
+.success-box {
+  background: #e8f5e9;
+  border-left: 5px solid #2e7d32;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 20px;
+}
+
+.error-box {
+  background: #fdecea;
+  border-left: 5px solid #c62828;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 20px;
+}
+
+/* BUTTONS */
+.btn-custom {
+  background: #b71c1c;
+  color: white;
+  border: none;
+}
+
+.btn-custom:hover {
+  background: #8e0000;
+  color: white;
+}
+
+.btn-outline-custom {
+  border: 1px solid #b71c1c;
+  color: #b71c1c;
+  background: white;
+}
+
+.btn-outline-custom:hover {
+  background: #b71c1c;
+  color: white;
+}
+
+.btn-delete {
+  border: 1px solid #dc3545;
+  color: #dc3545;
+  background: white;
+}
+
+.btn-delete:hover {
+  background: #dc3545;
+  color: white;
+}
+
+/* TABLE */
+.table thead {
+  background: #b71c1c;
+  color: white;
+}
+
+/* ACTION BUTTONS */
+.action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* STATUS BADGES */
+.status-badge {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.status-active {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+.status-inactive {
+  background: #f8d7da;
+  color: #842029;
+}
+
+.status-upcoming {
+  background: #cfe2ff;
+  color: #084298;
+}
+
+.status-ongoing {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-finished {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+/* ROLE BADGES */
+.role-applicant {
+  background: #cfe2ff;
+  color: #084298;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.role-verifier {
+  background: #fff3cd;
+  color: #856404;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.role-admin {
+  background: #e2d9f3;
+  color: #5a3d8a;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+/* REPORT BADGES */
+.badge-approved {
+  background: #d1e7dd;
+  color: #0f5132;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.badge-rejected {
+  background: #f8d7da;
+  color: #842029;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.badge-review {
+  background: #fff3cd;
+  color: #856404;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* SUMMARY CARD (Reports & Schedule) */
+.summary-card {
+  border: 1px solid #ead1d1;
+  border-radius: 10px;
+  padding: 18px;
+  background: #fff;
+  height: 100%;
+}
+
+.summary-card h6 {
+  color: #b71c1c;
+  margin-bottom: 10px;
+}
+
+/* MODAL */
+.modal-header {
+  background: #b71c1c;
+  color: white;
+}
+
+.modal-header .btn-close {
+  filter: brightness(0) invert(1);
+}
+
+/* FORMS */
+.form-label {
+  font-weight: 600;
+  color: #333;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #b71c1c;
+  box-shadow: 0 0 0 0.15rem rgba(183, 28, 28, 0.15);
+}
+
+/* VERIFIER - Summary Cards */
+.summary-card {
+  background: white;
+  border: none;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  height: 100%;
+  text-align: center;
+}
+
+.summary-card h5 {
+  color: #b71c1c;
+  margin-bottom: 10px;
+}
+
+.summary-number {
+  font-size: 32px;
+  font-weight: 700;
+  color: #222;
+}
+
+/* VERIFIER - Content Card */
+.content-card {
+  background: white;
+  border: none;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-top: 25px;
+}
+
+.content-card h4 {
+  color: #b71c1c;
+  margin-bottom: 20px;
+}
+
+/* STATUS - Verifier specific */
+.pending  { background: #fff3cd; color: #856404; }
+.review   { background: #cfe2ff; color: #084298; }
+.approved { background: #d1e7dd; color: #0f5132; }
+.rejected { background: #f8d7da; color: #842029; }
+.flagged  { background: #fce5cd; color: #9a4d00; }
+
+@media (max-width: 768px) {
+  .summary-number { font-size: 26px; }
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+  .hero-section {
+    padding: 80px 20px;
+  }
+
+  .hero-section h1 {
+    font-size: 30px;
+  }
+
+  .hero-section p {
+    font-size: 15px;
+  }
+
+  .brand-text h5 {
+    font-size: 15px;
+  }
+
+  .brand-text span {
+    font-size: 11px;
+  }
+
+  .navbar-nav .nav-link {
+    margin-left: 0;
+  }
+
+  .slot-box h3 {
+    font-size: 28px;
+  }
+}
