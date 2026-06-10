@@ -19,7 +19,7 @@ const Login = () => {
       window.location.href = "/AdminDashboard";
     } else if (username === "applicant" && password === "1234") {
       alert("Applicant login successful!");
-      window.location.href = "/Dashboard-Applicant";
+      window.location.href = "/ApplicantDashboard";
     } else if (username === "verifier" && password === "1234") {
       alert("Verifier login successful!");
       window.location.href = "/VerifierDashboard";
