@@ -1,0 +1,203 @@
+from flask import Blueprint, request, jsonify
+from app.ocr import run_ocr, get_average_confidence, get_ocr
+from app.verification import (
+    verify_voters_certificate,
+    verify_registration_form,
+    verify_school_id
+)
+import tempfile
+import os
+
+bp = Blueprint("ocr", __name__, url_prefix="/api/ocr")
+
+
+def save_temp_image(file) -> str:
+    suffix = os.path.splitext(file.filename)[1] or '.jpg'
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        file.save(tmp.name)
+        return tmp.name
+
+
+def process_form(ocr_result, school_name, page_w, page_h):
+    from app.postprocessing import parse_ocr_blocks
+    from app.normalization import get_strategy_for_school
+    
+    # This converts raw dictionary lines into a list of OcrBlock dataclass objects
+    blocks = parse_ocr_blocks(ocr_result)
+    
+    # Fast path: Keep SVCC's comprehensive structural header-matching intact
+    if school_name == "St. Vincent College of Cabuyao":
+        from app.postprocessing import extract_svcc_header_data
+        svcc_data = extract_svcc_header_data(blocks)
+        return {
+            "sy": svcc_data.get("sy"),
+            "sem": svcc_data.get("sem")
+        }
+    
+    # Standard dynamic Strategy resolution path (PNC, STI, or Base School fallback)
+    strategy = get_strategy_for_school(school_name)
+    sy = None
+    sem = None
+    
+    for block in blocks:
+        # 🔧 FIX: block is an object now, so use block.text instead of block.get("text")
+        text = block.text
+        if not sy:
+            sy = strategy.extract_school_year(text)
+        if not sem:
+            sem = strategy.extract_semester(text)
+            
+        # Break early if both values are resolved to minimize iterations
+        if sy and sem:
+            break
+            
+    return {"sy": sy, "sem": sem}
+
+
+def get_name_fields(form) -> tuple:
+    return (
+        form.get("first_name", ""),
+        form.get("middle_name", ""),
+        form.get("last_name", "")
+    )
+
+
+@bp.route("/voters-certificate", methods=["POST"])
+def process_voters_certificate():
+    tmp_path = None
+    try:
+        if "file" not in request.files:
+            return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+        tmp_path = save_temp_image(request.files["file"])
+        first_name, middle_name, last_name = get_name_fields(request.form)
+
+        ocr_result = run_ocr(tmp_path)
+        avg_confidence = get_average_confidence(ocr_result)
+        verification = verify_voters_certificate(
+            ocr_result, avg_confidence,
+            first_name, middle_name, last_name
+        )
+
+        formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
+
+        return jsonify({
+            "success": True,
+            "ocr_lines": formatted_ocr,
+            "avg_confidence": avg_confidence,
+            "verification": verification
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        if tmp_path and os.path.exists(tmp_path): 
+            os.unlink(tmp_path)
+
+
+@bp.route("/registration-form", methods=["POST"])
+def process_registration_form():
+    tmp_path = None
+    try:
+        if "file" not in request.files:
+            return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+        tmp_path = save_temp_image(request.files["file"])
+        first_name, middle_name, last_name = get_name_fields(request.form)
+        declared_school = request.form.get("declared_school", "")
+        configured_school_year = request.form.get("school_year", "")
+        configured_semester = request.form.get("semester", "")
+
+        ocr_result = run_ocr(tmp_path)
+        avg_confidence = get_average_confidence(ocr_result)
+
+        verification = verify_registration_form(
+            ocr_result, avg_confidence,
+            first_name, middle_name, last_name,
+            declared_school,
+            configured_school_year,
+            configured_semester
+        )
+
+        formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
+        return jsonify({
+            "success": True,
+            "ocr_lines": formatted_ocr,
+            "avg_confidence": avg_confidence,
+            "verification": verification
+        })
+
+    except Exception as e:
+        import traceback
+        return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@bp.route("/school-id", methods=["POST"])
+def process_school_id():
+    tmp_path = None
+    try:
+        if "file" not in request.files:
+            return jsonify({"success": False, "error": "No file uploaded"}), 400
+
+        tmp_path = save_temp_image(request.files["file"])
+        first_name, middle_name, last_name = get_name_fields(request.form)
+        declared_school = request.form.get("declared_school", "")
+
+        ocr_result = run_ocr(tmp_path)
+        avg_confidence = get_average_confidence(ocr_result)
+        verification = verify_school_id(
+            ocr_result, avg_confidence,
+            first_name, middle_name, last_name,
+            declared_school
+        )
+
+        formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
+
+        return jsonify({
+            "success": True,
+            "ocr_lines": formatted_ocr,
+            "avg_confidence": avg_confidence,
+            "verification": verification
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        if tmp_path and os.path.exists(tmp_path): 
+            os.unlink(tmp_path)
+
+
+@bp.route("/debug", methods=["POST"])
+def debug_ocr():
+    tmp_path = None
+    try:
+        if "file" not in request.files:
+            return jsonify({"error": "No file"}), 400
+        tmp_path = save_temp_image(request.files["file"])
+        
+        ocr = get_ocr()
+        results = ocr.ocr(tmp_path, cls=True)
+        
+        debug_info = []
+        if results and results[0]:
+            for i, line in enumerate(results[0]):
+                debug_info.append({
+                    "index": i,
+                    "text": line[1][0],
+                    "confidence": float(line[1][1]),
+                    "bbox": line[0]
+                })
+        
+        return jsonify({"results": debug_info})
+    except Exception as e:
+        import traceback
+        return jsonify({"error": str(e), "traceback": traceback.format_exc()}), 500
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@bp.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
