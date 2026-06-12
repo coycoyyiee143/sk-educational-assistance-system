@@ -1,147 +1,142 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
+import api from "../../services/api";
 
-// ── Data ──────────────────────────────────────────────────────────────────────
-
-const applicantInfo = [
-  ["Application ID",  "SK-EA-2026-00125"],
-  ["Applicant Name",  "Juan Dela Cruz"],
-  ["Submission Date", "April 10, 2026"],
-  ["Contact Number",  "0912-345-6789"],
-  ["Email Address",   "juandelacruz@email.com"],
-  ["Address",         "Barangay Mamatid, Cabuyao, Laguna"],
-];
-
-const educationalInfo = [
-  ["School Name",        "Pamantasan ng Cabuyao"],
-  ["Educational Level",  "College"],
-  ["Course",             "BS Information Technology"],
-  ["Year Level",         "3rd Year"],
-  ["Student ID Number",  "2023-00125"],
-];
-
-const ocrResults = [
-  { document: "School ID",                 result: "Student name and ID detected",                    status: "Passed"  },
-  { document: "Certificate of Enrollment", result: "Text partially readable. Verification uncertain.", status: "Flagged" },
-  { document: "Voter's Certificate",       result: "Resident information not detected",               status: "Failed"  },
-];
-
-const uploadedDocs = [
-  { label: "School ID",                 filename: "school-id.pdf" },
-  { label: "Certificate of Enrollment", filename: "enrollment.pdf" },
-  { label: "Voter's Certificate",       filename: "voters-certificate.pdf" },
-];
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function OcrBadge({ status }) {
-  const map = {
-    Passed:  "bg-success",
-    Flagged: "bg-warning text-dark",
-    Failed:  "bg-danger",
-  };
-  return <span className={`badge ${map[status] ?? ""}`}>{status}</span>;
+function OcrBadge({ passed }) {
+  return passed
+    ? <span className="badge bg-success">Passed</span>
+    : <span className="badge bg-danger">Failed</span>;
 }
-
-function InfoTable({ rows }) {
-  return (
-    <table className="table table-bordered info-table">
-      <tbody>
-        {rows.map(([label, value]) => (
-          <tr key={label}>
-            <th>{label}</th>
-            <td>{value}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-// ── Component ─────────────────────────────────────────────────────────────────
 
 function VerifierApplicationReview() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [app, setApp] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.get(`/verifier/applications/${id}`)
+      .then((res) => setApp(res.data))
+      .catch(() => setError("Failed to load application."))
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) return <div><VerifierNavigation /><div className="d-flex justify-content-center mt-5"><div className="spinner-border text-danger" /></div></div>;
+  if (error || !app) return <div><VerifierNavigation /><div className="container mt-4"><div className="alert alert-danger">{error || "Application not found."}</div></div></div>;
+
+  const user = app.user;
+  const profile = user?.profile;
+
   return (
     <div>
       <VerifierNavigation />
-
       <section className="page-section">
         <div className="container">
 
-          {/* Header */}
           <div className="page-card">
             <div className="d-flex justify-content-between align-items-center">
               <div>
                 <h3 className="section-title mb-2">Application Review</h3>
                 <p className="text-muted mb-0">Review the submitted application and uploaded documents.</p>
               </div>
-              <span className="status-badge">Flagged for Review</span>
+              <span className="status-badge">{app.status}</span>
             </div>
           </div>
 
-          {/* Applicant Information */}
+          {/* Applicant Info */}
           <div className="page-card">
             <h4 className="section-title">Applicant Information</h4>
-            <InfoTable rows={applicantInfo} />
+            <table className="table table-bordered info-table">
+              <tbody>
+                {[
+                  ["Application ID", `APP-${app.id}`],
+                  ["Applicant Name", `${user?.first_name} ${user?.last_name}`],
+                  ["Email", user?.email],
+                  ["Mobile", user?.mobile_number],
+                  ["Submission Date", app.submitted_at?.split("T")[0]],
+                  ["Address", profile ? `${profile.barangay ?? ""}, ${profile.city ?? ""}, ${profile.province ?? ""}` : "—"],
+                ].map(([label, value]) => (
+                  <tr key={label}><th>{label}</th><td>{value}</td></tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          {/* Educational Information */}
+          {/* Educational Info */}
           <div className="page-card">
             <h4 className="section-title">Educational Information</h4>
-            <InfoTable rows={educationalInfo} />
+            <table className="table table-bordered info-table">
+              <tbody>
+                {[
+                  ["School Name", app.school_name],
+                  ["Course", app.course],
+                  ["Year Level", app.year_level],
+                  ["Student ID", app.student_id_number],
+                  ["School Year", app.configuration?.school_year],
+                  ["Semester", app.configuration?.semester],
+                ].map(([label, value]) => (
+                  <tr key={label}><th>{label}</th><td>{value ?? "—"}</td></tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
           {/* OCR Results */}
           <div className="page-card">
-            <h4 className="section-title">System OCR Verification Result</h4>
-            <div className="table-responsive">
-              <table className="table table-bordered align-middle">
-                <thead>
-                  <tr>
-                    <th>Document</th>
-                    <th>OCR Result</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {ocrResults.map((row) => (
-                    <tr key={row.document}>
-                      <td>{row.document}</td>
-                      <td>{row.result}</td>
-                      <td><OcrBadge status={row.status} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <h4 className="section-title">System OCR Verification Results</h4>
+            {app.verification_checks?.length > 0 ? (
+              <div className="table-responsive">
+                <table className="table table-bordered align-middle">
+                  <thead>
+                    <tr><th>Check</th><th>Extracted</th><th>Expected</th><th>Status</th><th>Reason</th></tr>
+                  </thead>
+                  <tbody>
+                    {app.verification_checks.map((check) => (
+                      <tr key={check.id}>
+                        <td>{check.check_name}</td>
+                        <td>{check.extracted_value ?? "—"}</td>
+                        <td>{check.expected_value ?? "—"}</td>
+                        <td><OcrBadge passed={check.passed} /></td>
+                        <td>{check.flag_reason ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-muted">No OCR results yet — documents may still be processing.</p>
+            )}
           </div>
 
-          {/* Uploaded Documents */}
+          {/* Documents */}
           <div className="page-card">
             <h4 className="section-title">Uploaded Documents</h4>
-
             <div className="row g-3">
-              {uploadedDocs.map((doc) => (
-                <div className="col-md-4" key={doc.label}>
+              {app.documents?.map((doc) => (
+                <div className="col-md-4" key={doc.id}>
                   <div className="doc-card">
-                    <h6>{doc.label}</h6>
-                    <p className="text-muted">{doc.filename}</p>
-                    <button className="btn btn-outline-custom btn-sm">View Document</button>
+                    <h6>{doc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</h6>
+                    <p className="text-muted">{doc.file_name}</p>
+                    <span className={`badge ${doc.status === "processed" ? "bg-success" : doc.status === "failed" ? "bg-danger" : "bg-secondary"}`}>
+                      {doc.status}
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
-
-            <div className="mt-4 text-end">
-              <Link to="/VerifierVerificationAction" className="btn btn-custom">
-                Proceed to Verification Action
-              </Link>
-            </div>
+            {["for_review", "pending_prescreening", "reupload_requested"].includes(app.status) && (
+              <div className="mt-4 text-end">
+                <Link to={`/VerifierVerificationAction/${app.id}`} className="btn btn-custom">
+                  Proceed to Verification Action
+                </Link>
+              </div>
+            )}
           </div>
 
         </div>
       </section>
-
       <footer>
         <div className="container">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Verifier Panel</p>

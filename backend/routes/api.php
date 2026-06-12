@@ -26,6 +26,28 @@ Route::get('/application-config/active', [ApplicationConfigurationController::cl
 // Authenticated routes
 Route::middleware(['auth:sanctum'])->group(function () {
 
+    // Admin routes
+    Route::get('/admin/stats', [App\Http\Controllers\Api\AdminController::class, 'stats']);
+    Route::get('/admin/users', [App\Http\Controllers\Api\AdminController::class, 'users']);
+    Route::post('/admin/users/personnel', [App\Http\Controllers\Api\AdminController::class, 'createPersonnel']);
+    Route::put('/admin/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'updateUser']);
+    Route::patch('/admin/users/{id}/toggle-status', [App\Http\Controllers\Api\AdminController::class, 'toggleStatus']);
+    Route::delete('/admin/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'deleteUser']);
+    Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
+    Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
+
+    // Verifier routes
+    Route::get('/verifier/applications', [App\Http\Controllers\Api\VerifierController::class, 'index']);
+    Route::get('/verifier/applications/{id}', [App\Http\Controllers\Api\VerifierController::class, 'show']);
+    Route::post('/verifier/applications/{id}/approve', [App\Http\Controllers\Api\VerifierController::class, 'approve']);
+    Route::post('/verifier/applications/{id}/reject', [App\Http\Controllers\Api\VerifierController::class, 'reject']);
+    Route::post('/verifier/applications/{id}/reupload', [App\Http\Controllers\Api\VerifierController::class, 'requestReupload']);
+    Route::get('/verifier/stats', [App\Http\Controllers\Api\VerifierController::class, 'stats']);
+
+    // Shared profile update
+    Route::put('/user/profile', [App\Http\Controllers\Api\ProfileController::class, 'updateAccount']);
+    Route::put('/user/password', [App\Http\Controllers\Api\ProfileController::class, 'updatePassword']);
+
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
@@ -45,4 +67,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
     Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);
 
+    // Admin - Application Configuration (basic, full admin panel is Sprint 4)
+    Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
 });

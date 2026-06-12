@@ -91,12 +91,12 @@ function App() {
             <VerifierApplicationList />
           </ProtectedRoute>
         } />
-        <Route path="/VerifierApplicationReview" element={
+        <Route path="/VerifierApplicationReview/:id" element={
           <ProtectedRoute allowedRoles={["sk_verifier"]}>
             <VerifierApplicationReview />
           </ProtectedRoute>
         } />
-        <Route path="/VerifierVerificationAction" element={
+        <Route path="/VerifierVerificationAction/:id" element={
           <ProtectedRoute allowedRoles={["sk_verifier"]}>
             <VerifierVerificationAction />
           </ProtectedRoute>
