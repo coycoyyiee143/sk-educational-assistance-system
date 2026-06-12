@@ -1,23 +1,43 @@
+import { useEffect, useState } from "react";
 import ApplicantNavigation from "../components/ApplicantNavigation";
-
-// ── Data ──────────────────────────────────────────────────────────────────────
-
-const notifications = [
-  "Your application form was successfully submitted.",
-  "Please upload your Certificate of Enrollment.",
-  "Check the announcements page for updates regarding verification.",
-];
-
-const importantDates = [
-  { activity: "Application Period",      date: "April 1 – April 15, 2026",  description: "Submission of application forms and requirements." },
-  { activity: "Document Verification",   date: "April 16 – April 22, 2026", description: "Review and checking of submitted documents." },
-  { activity: "Release of Results",      date: "April 25, 2026",            description: "Posting of approved and disapproved applications." },
-  { activity: "Claiming of Assistance",  date: "April 27 – April 30, 2026", description: "Distribution of educational assistance to approved applicants." },
-];
-
-// ── Component ─────────────────────────────────────────────────────────────────
+import { useAuth } from "../../context/AuthContext";
+import api from "../../services/api";
 
 function ApplicantDashboard() {
+  const { user } = useAuth();
+  const [application, setApplication] = useState(null);
+  const [config, setConfig] = useState(null);
+  const [loadingApp, setLoadingApp] = useState(true);
+  const [loadingConfig, setLoadingConfig] = useState(true);
+
+  useEffect(() => {
+    api.get("/applications")
+      .then((res) => setApplication(res.data[0] ?? null))
+      .catch(() => { })
+      .finally(() => setLoadingApp(false));
+
+    api.get("/application-config/active")
+      .then((res) => setConfig(res.data))
+      .catch(() => { })
+      .finally(() => setLoadingConfig(false));
+  }, []);
+
+  const statusLabel = {
+    pending_prescreening: "Pending Pre-Screening",
+    for_review: "For Review",
+    approved: "Approved",
+    rejected: "Rejected",
+    reupload_requested: "Re-upload Requested",
+  };
+
+  const statusBadge = {
+    pending_prescreening: "secondary",
+    for_review: "warning",
+    approved: "success",
+    rejected: "danger",
+    reupload_requested: "info",
+  };
+
   return (
     <div>
       <ApplicantNavigation />
@@ -25,62 +45,60 @@ function ApplicantDashboard() {
       <section className="dashboard-section">
         <div className="container">
 
-          {/* Welcome */}
           <div className="welcome-box">
             <h3 className="section-title mb-2">Applicant Dashboard</h3>
-            <p className="mb-0">Monitor your application status and recent updates.</p>
+            <p className="mb-0">Welcome back, {user?.first_name}! Monitor your application status and recent updates.</p>
           </div>
 
-          {/* Cards */}
           <div className="row g-4">
 
-            <div className="col-md-4">
+            {/* Application Status */}
+            <div className="col-md-6">
               <div className="dashboard-card">
                 <h5>Current Application Status</h5>
-                <p><span className="status-badge">Pending Review</span></p>
-                <p className="mb-0 text-muted">
-                  Your application has been submitted and is currently waiting for verification by the SK personnel.
-                </p>
+                {loadingApp ? (
+                  <div className="spinner-border spinner-border-sm text-danger" />
+                ) : application ? (
+                  <>
+                    <span className={`badge bg-${statusBadge[application.status] ?? "secondary"} mb-2`}>
+                      {statusLabel[application.status] ?? application.status}
+                    </span>
+                    <p className="mb-0 text-muted">
+                      {application.status === "approved"
+                        ? "Congratulations! Your application has been approved."
+                        : application.status === "rejected"
+                          ? "Your application was not approved. Please contact the SK office."
+                          : application.status === "reupload_requested"
+                            ? "Please re-upload your documents as requested."
+                            : "Your application is currently being processed."}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-muted mb-0">You have not submitted an application yet.</p>
+                )}
               </div>
             </div>
 
-            <div className="col-md-4">
+            {/* Active Application Period */}
+            <div className="col-md-6">
               <div className="dashboard-card">
-                <h5>Recent Notifications</h5>
-                {notifications.map((note, i) => (
-                  <div className="notification-item" key={i}>{note}</div>
-                ))}
+                <h5>Application Period</h5>
+                {loadingConfig ? (
+                  <div className="spinner-border spinner-border-sm text-danger" />
+                ) : config ? (
+                  <>
+                    <p className="mb-1"><strong>School Year:</strong> {config.school_year}</p>
+                    <p className="mb-1"><strong>Semester:</strong> {config.semester}</p>
+                    <p className="mb-1"><strong>Open:</strong> {config.open_date}</p>
+                    <p className="mb-1"><strong>Close:</strong> {config.close_date}</p>
+                    <p className="mb-0"><strong>Slots Available:</strong> {config.total_slots - config.used_slots} / {config.total_slots}</p>
+                  </>
+                ) : (
+                  <p className="text-muted mb-0">No active application period at this time.</p>
+                )}
               </div>
             </div>
 
-          </div>
-
-          {/* Important Dates */}
-          <div className="highlight-section">
-            <div className="container">
-              <h4 className="section-title text-center">Important Dates</h4>
-
-              <div className="table-responsive">
-                <table className="table table-bordered table-striped align-middle bg-white">
-                  <thead>
-                    <tr>
-                      <th>Activity</th>
-                      <th>Date</th>
-                      <th>Description</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {importantDates.map((row) => (
-                      <tr key={row.activity}>
-                        <td>{row.activity}</td>
-                        <td>{row.date}</td>
-                        <td>{row.description}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </div>
 
         </div>
@@ -88,9 +106,7 @@ function ApplicantDashboard() {
 
       <footer>
         <div className="container">
-          <p className="mb-0">
-            © 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance Application System
-          </p>
+          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance Application System</p>
         </div>
       </footer>
     </div>

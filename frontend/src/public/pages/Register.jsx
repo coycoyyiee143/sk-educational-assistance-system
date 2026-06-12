@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 
 const Register = () => {
@@ -16,6 +17,7 @@ const Register = () => {
   });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
   const navigate = useNavigate();
 
   const handleChange = (e) => {
@@ -58,6 +60,12 @@ const Register = () => {
       setLoading(false);
     }
   };
+
+  if (user) {
+    if (user.role === "sk_admin") return <Navigate to="/AdminDashboard" replace />;
+    if (user.role === "sk_verifier") return <Navigate to="/VerifierDashboard" replace />;
+    return <Navigate to="/ApplicantDashboard" replace />;
+  }
 
   return (
     <>

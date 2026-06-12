@@ -1,12 +1,26 @@
 import React from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import api from "../../services/api";
 
 function VerifierNavigation() {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await api.post("/logout");
+    } catch (err) {
+      // proceed with logout even if api call fails
+    } finally {
+      logout();
+      navigate("/login");
+    }
+  };
+
   return (
     <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
       <div className="container">
-
-        {/* BRAND */}
         <NavLink className="navbar-brand-custom" to="/VerifierDashboard">
           <img src="/logo.png" alt="logo" />
           <div className="brand-text">
@@ -15,76 +29,39 @@ function VerifierNavigation() {
           </div>
         </NavLink>
 
-        {/* TOGGLER */}
-        <button
-          className="navbar-toggler bg-light"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#verifierNavbar"
-        >
+        <button className="navbar-toggler bg-light" type="button" data-bs-toggle="collapse" data-bs-target="#verifierNavbar">
           <span className="navbar-toggler-icon"></span>
         </button>
 
-        {/* LINKS */}
-        <div
-          className="collapse navbar-collapse justify-content-end"
-          id="verifierNavbar"
-        >
+        <div className="collapse navbar-collapse justify-content-end" id="verifierNavbar">
           <ul className="navbar-nav">
-
             <li className="nav-item">
-              <NavLink
-                to="/VerifierDashboard"
-                className={({ isActive }) =>
-                  isActive ? "nav-link active" : "nav-link"
-                }
-              >
+              <NavLink to="/VerifierDashboard" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
                 Dashboard
               </NavLink>
             </li>
-
             <li className="nav-item">
-              <NavLink
-                to="/VerifierApplicationList"
-                className={({ isActive }) =>
-                  isActive ? "nav-link active" : "nav-link"
-                }
-              >
+              <NavLink to="/VerifierApplicationList" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
                 Application List
               </NavLink>
             </li>
-
             <li className="nav-item">
-              <NavLink
-                to="/VerifierClaiming"
-                className={({ isActive }) =>
-                  isActive ? "nav-link active" : "nav-link"
-                }
-              >
+              <NavLink to="/VerifierClaiming" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
                 Claiming
               </NavLink>
             </li>
-
             <li className="nav-item">
-              <NavLink
-                to="/VerifierProfile"
-                className={({ isActive }) =>
-                  isActive ? "nav-link active" : "nav-link"
-                }
-              >
+              <NavLink to="/VerifierProfile" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
                 Profile
               </NavLink>
             </li>
-
             <li className="nav-item">
-              <NavLink className="nav-link" to="/">
+              <button className="nav-link btn btn-link" onClick={handleLogout}>
                 Logout
-              </NavLink>
+              </button>
             </li>
-
           </ul>
         </div>
-
       </div>
     </nav>
   );

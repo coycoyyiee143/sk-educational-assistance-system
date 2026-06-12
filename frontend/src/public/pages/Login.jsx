@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Navigate } from "react-router-dom";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 
@@ -10,7 +10,7 @@ const Login = () => {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, user } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -40,6 +40,12 @@ const Login = () => {
       setLoading(false);
     }
   };
+
+  if (user) {
+    if (user.role === "sk_admin") return <Navigate to="/AdminDashboard" replace />;
+    if (user.role === "sk_verifier") return <Navigate to="/VerifierDashboard" replace />;
+    return <Navigate to="/ApplicantDashboard" replace />;
+  }
 
   return (
     <>
