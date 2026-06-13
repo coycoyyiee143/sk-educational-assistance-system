@@ -17,6 +17,8 @@ return new class extends Migration
             $table->foreignId('verifier_id')->constrained('users');
             $table->string('action'); // approved, rejected, reupload_requested
             $table->text('notes')->nullable();
+            $table->json('reupload_details')->nullable(); 
+            
             $table->timestamps();
         });
     }
@@ -26,6 +28,7 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // Drop the entire table if this migration is rolled back
         Schema::dropIfExists('verifier_actions');
     }
 };

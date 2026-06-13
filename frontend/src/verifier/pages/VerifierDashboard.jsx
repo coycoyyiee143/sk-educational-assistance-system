@@ -2,39 +2,39 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
+import { STATUS_CONFIG } from "../../components/StatusConstants";
 
 function StatusBadge({ status }) {
-  const map = {
-    pending_prescreening: "pending",
-    for_review: "review",
-    approved: "approved",
-    rejected: "rejected",
-    reupload_requested: "flagged",
-  };
-  const labels = {
-    pending_prescreening: "Pending",
-    for_review: "For Review",
-    approved: "Approved",
-    rejected: "Rejected",
-    reupload_requested: "Re-upload Requested",
-  };
-  return <span className={`status-badge ${map[status] ?? ""}`}>{labels[status] ?? status}</span>;
+  const config = STATUS_CONFIG[status] || { label: status, class: "" };
+  return <span className={`status-badge ${config.class}`}>{config.label}</span>;
 }
 
 function VerifierDashboard() {
   const [stats, setStats] = useState({ pending: 0, review: 0, approved: 0, rejected: 0 });
   const [applications, setApplications] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // Tracks initial asset load
 
-  useEffect(() => {
+  const fetchData = () => {
     Promise.all([
       api.get("/verifier/stats"),
       api.get("/verifier/applications"),
-    ]).then(([statsRes, appsRes]) => {
-      setStats(statsRes.data);
-      setApplications(appsRes.data.filter((a) => ["for_review", "pending_prescreening"].includes(a.status)).slice(0, 10));
-    }).catch(() => { })
-      .finally(() => setLoading(false));
+    ])
+      .then(([statsRes, appsRes]) => {
+        setStats(statsRes.data);
+        // Only grab up to 10 actionable items for the dashboard stream
+        const actionable = appsRes.data.filter((a) =>
+          ["for_review", "pending_prescreening"].includes(a.status)
+        );
+        setApplications(actionable.slice(0, 10));
+      })
+      .catch(() => { })
+      .finally(() => setLoading(false)); // Ensures loading state clears out
+  };
+
+  useEffect(() => {
+    fetchData(); // Initial payload fetch
+    const interval = setInterval(fetchData, 10000); // Background polling every 10s
+    return () => clearInterval(interval);
   }, []);
 
   const cards = [
@@ -51,21 +51,29 @@ function VerifierDashboard() {
         <div className="container">
           <h3 className="section-title">Verifier Dashboard</h3>
 
+          {/* Summary Metric Cards */}
           <div className="row g-4">
             {cards.map(({ label, value, sub }) => (
               <div className="col-md-3" key={label}>
                 <div className="summary-card">
                   <h5>{label}</h5>
-                  <div className="summary-number">{loading ? "..." : value}</div>
+                  <div className="summary-number">
+                    {loading ? <span className="small text-muted">...</span> : value}
+                  </div>
                   <p className="text-muted mb-0">{sub}</p>
                 </div>
               </div>
             ))}
           </div>
 
+          {/* Actionable Queue Table */}
           <div className="content-card mt-4">
             <h4>Applications Requiring Attention</h4>
-            {loading ? <div className="spinner-border text-danger" /> : (
+            {loading ? (
+              <div className="d-flex justify-content-center py-4">
+                <div className="spinner-border text-danger" />
+              </div>
+            ) : (
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle">
                   <thead>
@@ -79,18 +87,26 @@ function VerifierDashboard() {
                   </thead>
                   <tbody>
                     {applications.length === 0 ? (
-                      <tr><td colSpan="5" className="text-center text-muted">No applications requiring attention.</td></tr>
-                    ) : applications.map((app) => (
-                      <tr key={app.id}>
-                        <td>{app.control_number ?? `APP-${app.id}`}</td>
-                        <td>{app.name}</td>
-                        <td>{app.submitted_at?.split("T")[0]}</td>
-                        <td><StatusBadge status={app.status} /></td>
-                        <td>
-                          <Link to={`/VerifierApplicationReview/${app.id}`} className="btn btn-custom btn-sm">Review</Link>
+                      <tr>
+                        <td colSpan="5" className="text-center text-muted py-3">
+                          No applications requiring attention.
                         </td>
                       </tr>
-                    ))}
+                    ) : (
+                      applications.map((app) => (
+                        <tr key={app.id}>
+                          <td>{app.control_number ?? `APP-${app.id}`}</td>
+                          <td>{app.name}</td>
+                          <td>{app.submitted_at?.split("T")[0]}</td>
+                          <td><StatusBadge status={app.status} /></td>
+                          <td>
+                            <Link to={`/VerifierApplicationReview/${app.id}`} className="btn btn-custom btn-sm">
+                              Review
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>

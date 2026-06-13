@@ -12,7 +12,7 @@ class ApplicationController extends Controller
     public function index(Request $request)
     {
         $applications = Application::where('user_id', $request->user()->id)
-            ->with('documents')
+            ->with(['documents', 'latestVerifierAction'])
             ->latest()
             ->get();
 

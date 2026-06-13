@@ -2,23 +2,11 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
+import { STATUS_CONFIG } from "../../components/StatusConstants";
 
 function StatusBadge({ status }) {
-  const map = {
-    pending_prescreening: "pending",
-    for_review: "review",
-    approved: "approved",
-    rejected: "rejected",
-    reupload_requested: "flagged",
-  };
-  const labels = {
-    pending_prescreening: "Pending",
-    for_review: "For Review",
-    approved: "Approved",
-    rejected: "Rejected",
-    reupload_requested: "Re-upload Requested",
-  };
-  return <span className={`status-badge ${map[status] ?? ""}`}>{labels[status] ?? status}</span>;
+  const config = STATUS_CONFIG[status] || { label: status, class: "secondary" };
+  return <span className={`status-badge ${config.class}`}>{config.label}</span>;
 }
 
 function VerifierApplicationList() {
@@ -26,11 +14,17 @@ function VerifierApplicationList() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
+  const fetchData = () => {
     api.get("/verifier/applications")
       .then((res) => setApplications(res.data))
       .catch(() => { })
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   const filtered = applications.filter((app) =>
@@ -57,7 +51,12 @@ function VerifierApplicationList() {
                 />
               </div>
             </div>
-            {loading ? <div className="spinner-border text-danger" /> : (
+
+            {loading ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-danger" />
+              </div>
+            ) : (
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle">
                   <thead>
@@ -70,20 +69,21 @@ function VerifierApplicationList() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map((app) => (
-                      <tr key={app.id}>
-                        <td>{app.control_number ?? `APP-${app.id}`}</td>
-                        <td>{app.name}</td>
-                        <td>{app.submitted_at?.split("T")[0]}</td>
-                        <td><StatusBadge status={app.status} /></td>
-                        <td>
-                          <Link to={`/VerifierApplicationReview/${app.id}`} className="btn btn-custom btn-sm">
-                            {["approved", "rejected"].includes(app.status) ? "View" : "Review"}
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                    {filtered.length === 0 && (
+                    {filtered.length > 0 ? (
+                      filtered.map((app) => (
+                        <tr key={app.id}>
+                          <td>{app.control_number ?? `APP-${app.id}`}</td>
+                          <td>{app.name}</td>
+                          <td>{app.submitted_at?.split("T")[0]}</td>
+                          <td><StatusBadge status={app.status} /></td>
+                          <td>
+                            <Link to={`/VerifierApplicationReview/${app.id}`} className="btn btn-custom btn-sm">
+                              {["approved", "rejected"].includes(app.status) ? "View" : "Review"}
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
                       <tr><td colSpan="5" className="text-center text-muted">No applications found.</td></tr>
                     )}
                   </tbody>
@@ -93,11 +93,6 @@ function VerifierApplicationList() {
           </div>
         </div>
       </section>
-      <footer>
-        <div className="container">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Verifier Panel</p>
-        </div>
-      </footer>
     </div>
   );
 }

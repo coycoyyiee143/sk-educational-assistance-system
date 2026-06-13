@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
+import { STATUS_CONFIG } from "../../components/StatusConstants";
 
 function OcrBadge({ passed }) {
   return passed
@@ -11,11 +12,10 @@ function OcrBadge({ passed }) {
 
 function VerifierApplicationReview() {
   const { id } = useParams();
-  const navigate = useNavigate();
   const [app, setApp] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [activeRawDocId, setActiveRawDocId] = useState(null); // Tracks which document's raw OCR text is showing
+  const [activeRawDocId, setActiveRawDocId] = useState(null);
 
   useEffect(() => {
     api.get(`/verifier/applications/${id}`)
@@ -27,12 +27,57 @@ function VerifierApplicationReview() {
   if (loading) return <div><VerifierNavigation /><div className="d-flex justify-content-center mt-5"><div className="spinner-border text-danger" /></div></div>;
   if (error || !app) return <div><VerifierNavigation /><div className="container mt-4"><div className="alert alert-danger">{error || "Application not found."}</div></div></div>;
 
+  // Extracted user information
   const user = app.user;
   const profile = user?.profile;
 
-  // Map document objects by ID for easy data cross-referencing inside the OCR table
-  const docMap = {};
-  app.documents?.forEach((doc) => { docMap[doc.id] = doc; });
+  // Time formatting helper
+  const formatTimestamp = (dateString) => {
+    if (!dateString) return "—";
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      });
+    } catch {
+      return dateString;
+    }
+  };
+
+  // Integrity checks evaluator
+  const getOverallDocStatus = (docId) => {
+    const checks = app.verification_checks?.filter(c => c.document_id === docId) || [];
+
+    if (checks.length === 0) {
+      const isProcessing = ["processing", "pending", "pending_prescreening"].includes(app.status);
+      return isProcessing
+        ? { text: "Processing Checks...", class: "bg-warning text-dark" }
+        : { text: "No Verification Data", class: "bg-secondary" };
+    }
+
+    const failed = checks.some(c => !c.passed);
+    return failed
+      ? { text: "Failed Verification", class: "bg-danger" }
+      : { text: "Processed", class: "bg-success" };
+  };
+
+  // Map out the absolute latest document ID per type to organize the UI cleanly
+  const latestDocsMap = {};
+  if (app.documents) {
+    app.documents.forEach((doc) => {
+      if (!latestDocsMap[doc.document_type] || doc.id > latestDocsMap[doc.document_type].id) {
+        latestDocsMap[doc.document_type] = doc;
+      }
+    });
+  }
+
+  const sortedDocuments = app.documents ? [...app.documents].sort((a, b) => b.id - a.id) : [];
+  const statusInfo = STATUS_CONFIG[app.status] || { label: app.status, class: "secondary" };
 
   return (
     <div>
@@ -45,9 +90,9 @@ function VerifierApplicationReview() {
             <div className="d-flex justify-content-between align-items-center">
               <div>
                 <h3 className="section-title mb-2">Application Review</h3>
-                <p className="text-muted mb-0">Review the submitted application and uploaded documents.</p>
+                <p className="text-muted mb-0">Review the submitted application details along with automated system evaluations.</p>
               </div>
-              <span className="status-badge">{app.status}</span>
+              <span className={`status-badge ${statusInfo.class || "bg-secondary text-white"}`}>{statusInfo.label}</span>
             </div>
           </div>
 
@@ -89,144 +134,160 @@ function VerifierApplicationReview() {
             </table>
           </div>
 
-          {/* Uploaded Documents (Matching VerifierClaiming View Layout) */}
+          {/* Contextualized Document Blocks Stack */}
           <div className="page-card">
-            <h4 className="section-title">Uploaded Documents</h4>
-            <div className="row g-3">
-              {app.documents?.map((doc) => {
-                const docLabel = doc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-                const fileUrl = doc.file_path ? `${process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'}/storage/${doc.file_path}` : "#";
+            <h4 className="section-title">System Document & OCR Integrity Verification</h4>
 
-                return (
-                  <div className="col-md-4" key={doc.id}>
-                    <div className="doc-check">
-                      <h6>{docLabel}</h6>
-                      <p className="text-muted text-truncate" title={doc.file_name}>{doc.file_name}</p>
+            {sortedDocuments.map((doc) => {
+              const docLabel = doc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              const fileUrl = doc.file_path ? `${process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'}/storage/${doc.file_path}` : "#";
+              const overallStatus = getOverallDocStatus(doc.id);
+              const relatedChecks = app.verification_checks?.filter(c => c.document_id === doc.id) || [];
 
-                      <div className="d-flex justify-content-between align-items-center mt-2">
-                        <span className={`badge ${doc.status === "processed" ? "bg-success" : doc.status === "failed" ? "bg-danger" : "bg-secondary"}`}>
-                          {doc.status}
-                        </span>
-                        <a
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="btn btn-outline-custom btn-sm"
-                        >
-                          View File
-                        </a>
+              // Verify if this specific loop document is the most recent one
+              const isLatestVersion = latestDocsMap[doc.document_type]?.id === doc.id;
+
+              // Left boundary style manager
+              let leftBorderColor = "#6c757d"; // Gray default for old archived files
+              if (isLatestVersion) {
+                leftBorderColor = relatedChecks.some(c => !c.passed) ? "#dc3545" : "#198754";
+              }
+
+              return (
+                <div
+                  className="border rounded p-3 mb-4"
+                  key={doc.id}
+                  style={{
+                    borderLeft: `4px solid ${leftBorderColor}`,
+                    opacity: isLatestVersion ? 1 : 0.75,
+                    backgroundColor: isLatestVersion ? '#ffffff' : '#f8f9fa'
+                  }}
+                >
+
+                  {/* Document Card Header Row */}
+                  <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
+                    <div>
+                      <div className="d-flex align-items-center gap-2 flex-wrap mb-1">
+                        <h6 className="mb-0 fw-bold text-dark">{docLabel}</h6>
+                        {isLatestVersion ? (
+                          <span className="badge bg-primary" style={{ fontSize: "0.65rem" }}>Current Version</span>
+                        ) : (
+                          <span className="badge bg-secondary" style={{ fontSize: "0.65rem" }}>Archived (v{doc.version})</span>
+                        )}
                       </div>
+
+                      <p className="text-muted text-truncate mb-0 small" title={doc.file_name} style={{ maxWidth: "400px" }}>{doc.file_name}</p>
+
+                      <small className="text-muted d-block mt-1">
+                        Uploaded & Processed: <span className="text-dark fw-medium">{formatTimestamp(doc.created_at || doc.updated_at)}</span>
+                      </small>
+
+                      {doc.ocr_result && (
+                        <small className="text-muted d-block mt-1">
+                          Confidence: <strong>
+                            {doc.ocr_result.confidence_score
+                              ? `${(doc.ocr_result.confidence_score * 100).toFixed(1)}%`
+                              : "—"}
+                          </strong>
+                          {doc.ocr_result.is_low_confidence && (
+                            <span className="badge bg-warning text-dark ms-1" style={{ fontSize: "0.65rem" }}>Low Conf</span>
+                          )}
+                        </small>
+                      )}
+                    </div>
+
+                    <div className="d-flex align-items-center gap-2">
+                      <span className={`badge ${overallStatus.class}`}>
+                        {overallStatus.text}
+                      </span>
+                      <a
+                        href={fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-outline-custom btn-sm"
+                      >
+                        View File
+                      </a>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* System OCR Verification Results */}
-          <div className="page-card">
-            <h4 className="section-title">System OCR Verification Results</h4>
-            {app.verification_checks?.length > 0 ? (
-              <div className="table-responsive">
-                <table className="table table-bordered align-middle">
-                  <thead>
-                    <tr>
-                      <th>Document Targeted</th>
-                      <th>Check Rule</th>
-                      <th>Extracted Value</th>
-                      <th>Expected Value</th>
-                      <th>Status</th>
-                      <th>Flag Reason</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {app.verification_checks.map((check) => {
-                      const associatedDoc = docMap[check.document_id];
-                      const docLabel = associatedDoc
-                        ? associatedDoc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
-                        : `Doc #${check.document_id}`;
+                  {/* Integrated Verification Rules Table for this single document */}
+                  {relatedChecks.length > 0 ? (
+                    <div className="table-responsive">
+                      <table className="table table-bordered align-middle mb-0">
+                        <thead>
+                          <tr>
+                            <th>Check Rule</th>
+                            <th>Extracted Value</th>
+                            <th>Expected Value</th>
+                            <th>Status</th>
+                            <th>Flag Reason</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {relatedChecks.map((check) => (
+                            <tr key={check.id} className={check.passed ? "" : "table-danger"}>
+                              <td><code className="small">{check.check_name}</code></td>
+                              <td>
+                                {check.extracted_value
+                                  ? <span className="text-success fw-semibold">{check.extracted_value}</span>
+                                  : <span className="text-muted fst-italic">not extracted</span>}
+                              </td>
+                              <td>{check.expected_value ?? <span className="text-muted">—</span>}</td>
+                              <td><OcrBadge passed={check.passed} /></td>
+                              <td>{check.flag_reason ?? <span className="text-muted">—</span>}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-light rounded text-muted mb-0 small fst-italic border">
+                      {["processing", "pending", "pending_prescreening"].includes(app.status) ? (
+                        <span className="d-flex align-items-center gap-2">
+                          <span className="spinner-border spinner-border-sm text-warning" role="status" />
+                          System is extracting text via OCR and verifying rules. Try refreshing shortly.
+                        </span>
+                      ) : (
+                        "No execution parameters run against this file configuration."
+                      )}
+                    </div>
+                  )}
 
-                      return (
-                        <tr key={check.id} className={check.passed ? "" : "table-danger"}>
-                          <td>
-                            <span className="fw-semibold d-block">{docLabel}</span>
-                            {associatedDoc?.ocr_result && (
-                              <small className="text-muted d-block mt-1">
-                                Confidence: <strong>
-                                  {associatedDoc.ocr_result.confidence_score
-                                    ? `${(associatedDoc.ocr_result.confidence_score * 100).toFixed(1)}%`
-                                    : "—"}
-                                </strong>
-                                {associatedDoc.ocr_result.is_low_confidence && (
-                                  <span className="badge bg-warning text-dark ms-1" style={{ fontSize: "0.65rem" }}>Low Conf</span>
-                                )}
-                              </small>
-                            )}
-                          </td>
-                          <td><code className="small">{check.check_name}</code></td>
-                          <td>
-                            {check.extracted_value
-                              ? <span className="text-success fw-semibold">{check.extracted_value}</span>
-                              : <span className="text-muted fst-italic">not extracted</span>}
-                          </td>
-                          <td>{check.expected_value ?? <span className="text-muted">—</span>}</td>
-                          <td><OcrBadge passed={check.passed} /></td>
-                          <td>{check.flag_reason ?? <span className="text-muted">—</span>}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <p className="text-muted">No OCR results yet — documents may still be processing.</p>
-            )}
-
-            {/* Raw Extracted Text Inspection Drawer */}
-            {app.documents?.some(d => d.ocr_result?.raw_text) && (
-              <div className="mt-4 border-top pt-3">
-                <h5 className="h6 text-muted mb-3">Raw OCR Data Inspection Logs</h5>
-                <div className="d-flex gap-2 flex-wrap mb-3">
-                  {app.documents.filter(d => d.ocr_result?.raw_text).map((doc) => {
-                    const docLabel = doc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-                    return (
+                  {/* Integrated Drawer Toggle & Panel Style */}
+                  {doc.ocr_result?.raw_text && (
+                    <div className="mt-3 text-end">
                       <button
-                        key={doc.id}
                         type="button"
-                        className={`btn btn-sm ${activeRawDocId === doc.id ? "btn-secondary" : "btn-outline-secondary"}`}
+                        className="btn btn-outline-secondary btn-sm"
                         onClick={() => setActiveRawDocId(activeRawDocId === doc.id ? null : doc.id)}
                       >
-                        {activeRawDocId === doc.id ? "Hide" : "View Raw Text"} ({docLabel})
+                        {activeRawDocId === doc.id ? "Hide Raw Text" : "View Raw Text"}
                       </button>
-                    );
-                  })}
-                </div>
 
-                {app.documents.map((doc) => {
-                  if (activeRawDocId !== doc.id || !doc.ocr_result?.raw_text) return null;
-
-                  let rawLines = [];
-                  try {
-                    rawLines = JSON.parse(doc.ocr_result.raw_text);
-                  } catch {
-                    rawLines = [];
-                  }
-
-                  return (
-                    <div key={doc.id} className="bg-light border rounded p-3 mb-2">
-                      <h6 className="small fw-bold mb-2 text-dark">PaddleOCR Text Output Stream:</h6>
-                      <pre className="mb-0" style={{ fontSize: "0.75rem", maxHeight: "200px", overflowY: "auto", whiteSpace: "pre-wrap" }}>
-                        {rawLines.length > 0
-                          ? rawLines.map((l, i) => `[Line ${i + 1} | Conf: ${((l.confidence ?? 0) * 100).toFixed(0)}%] ${l.text ?? ""}`).join("\n")
-                          : doc.ocr_result.raw_text}
-                      </pre>
+                      {activeRawDocId === doc.id && (
+                        <div className="bg-light border rounded p-3 mt-2 text-start">
+                          <h6 className="small fw-bold mb-2 text-dark">PaddleOCR Text Output Stream:</h6>
+                          <pre className="mb-0" style={{ fontSize: "0.75rem", maxHeight: "200px", overflowY: "auto", whiteSpace: "pre-wrap" }}>
+                            {(() => {
+                              try {
+                                const lines = JSON.parse(doc.ocr_result.raw_text);
+                                return lines.map((l, i) => `[Line ${i + 1} | Conf: ${((l.confidence ?? 0) * 100).toFixed(0)}%] ${l.text ?? ""}`).join("\n");
+                              } catch {
+                                return doc.ocr_result.raw_text;
+                              }
+                            })()}
+                          </pre>
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  )}
+                </div>
+              );
+            })}
           </div>
 
+          {/* Original Action Button Footer Restored */}
           {["for_review", "pending_prescreening", "reupload_requested"].includes(app.status) && (
             <div className="mt-4 text-end">
               <Link to={`/VerifierVerificationAction/${app.id}`} className="btn btn-custom">
@@ -235,13 +296,14 @@ function VerifierApplicationReview() {
             </div>
           )}
         </div>
-      </section >
+      </section>
+
       <footer>
         <div className="container">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Verifier Panel</p>
         </div>
       </footer>
-    </div >
+    </div>
   );
 }
 

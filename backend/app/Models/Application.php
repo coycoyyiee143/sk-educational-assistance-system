@@ -36,11 +36,21 @@ class Application extends Model
 
     public function documents()
     {
-        return $this->hasMany(ApplicationDocument::class);
+        return $this->hasMany(ApplicationDocument::class)->orderBy('version', 'desc');
     }
 
     public function verificationChecks()
     {
         return $this->hasMany(VerificationCheck::class);
+    }
+
+    public function verifierActions()
+    {
+        return $this->hasMany(VerifierAction::class);
+    }
+
+    public function latestVerifierAction()
+    {
+        return $this->hasOne(VerifierAction::class)->latestOfMany();
     }
 }

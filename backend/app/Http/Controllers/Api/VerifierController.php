@@ -45,6 +45,9 @@ class VerifierController extends Controller
             'documents.ocrResult',
             'verificationChecks',
             'configuration',
+            'verifierActions' => function($q) {
+                $q->latest()->limit(1);
+            },
         ])->findOrFail($id);
 
         return response()->json($app);
@@ -91,16 +94,20 @@ class VerifierController extends Controller
 
     public function requestReupload(Request $request, $id)
     {
-        $request->validate(['notes' => 'required|string']);
+        $request->validate([
+            'notes'            => 'required|string',
+            'reupload_details' => 'nullable|array',
+        ]);
 
         $app = Application::findOrFail($id);
         $app->update(['status' => 'reupload_requested']);
 
         VerifierAction::create([
-            'application_id' => $app->id,
-            'verifier_id'    => $request->user()->id,
-            'action'         => 'reupload_requested',
-            'notes'          => $request->notes,
+            'application_id'  => $app->id,
+            'verifier_id'     => $request->user()->id,
+            'action'          => 'reupload_requested',
+            'notes'           => $request->notes,
+            'reupload_details'=> $request->reupload_details ?? [],
         ]);
 
         return response()->json(['message' => 'Re-upload requested.']);

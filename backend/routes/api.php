@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\SkEventController;
 use App\Http\Controllers\Api\ApplicationConfigurationController;
+use App\Http\Controllers\VerifierApplicationController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);

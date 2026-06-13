@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
+import { STATUS_CONFIG } from "../../components/StatusConstants";
 
 function ApplicantDashboard() {
   const { user } = useAuth();
@@ -21,14 +22,6 @@ function ApplicantDashboard() {
       .catch(() => { })
       .finally(() => setLoadingConfig(false));
   }, []);
-
-  const statusLabel = {
-    pending_prescreening: "Pending Pre-Screening",
-    for_review: "For Review",
-    approved: "Approved",
-    rejected: "Rejected",
-    reupload_requested: "Re-upload Requested",
-  };
 
   const statusBadge = {
     pending_prescreening: "secondary",
@@ -61,7 +54,7 @@ function ApplicantDashboard() {
                 ) : application ? (
                   <>
                     <span className={`badge bg-${statusBadge[application.status] ?? "secondary"} mb-2`}>
-                      {statusLabel[application.status] ?? application.status}
+                      {STATUS_CONFIG[application.status]?.label ?? application.status}
                     </span>
                     <p className="mb-0 text-muted">
                       {application.status === "approved"

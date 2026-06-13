@@ -91,6 +91,11 @@ class DocumentController extends Controller
             'status'         => 'processing',
         ]);
 
+        // Update parent application status back to the processing queue
+        $application->update([
+            'status' => 'pending_prescreening'
+        ]);
+
         // Dispatch async OCR job with stored file path
         ProcessOcrDocument::dispatch($application, $newDocument, $path);
 

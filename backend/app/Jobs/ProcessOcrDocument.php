@@ -12,6 +12,7 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use GuzzleHttp\Client;
 
 class ProcessOcrDocument implements ShouldQueue
@@ -33,7 +34,7 @@ class ProcessOcrDocument implements ShouldQueue
     {
         try {
             // Get full path to stored file
-            $storagePath = \Storage::disk('public')->path($this->filePath);
+            $storagePath = Storage::disk('public')->path($this->filePath);
 
             if (!file_exists($storagePath)) {
                 throw new \Exception("File not found: {$storagePath}");
@@ -116,27 +117,34 @@ class ProcessOcrDocument implements ShouldQueue
 
     private function updateApplicationStatus($application): void
     {
-        $application->load('documents.verificationChecks');
+        // 1. Get the primary keys of the LATEST uploads for each document type
+        $latestDocIds = ApplicationDocument::where('application_id', $application->id)
+            ->select(DB::raw('MAX(id) as id'))
+            ->groupBy('document_type')
+            ->pluck('id');
 
-        $allDocuments = $application->documents;
-        $docTypes     = $allDocuments->pluck('status', 'document_type');
-        $requiredTypes = ['voters_certificate', 'registration_form', 'school_id'];
+        // 2. Map status checks using only these latest documents
+        $latestDocuments = ApplicationDocument::whereIn('id', $latestDocIds)->get();
+        $docTypes        = $latestDocuments->pluck('status', 'document_type');
+        $requiredTypes   = ['voters_certificate', 'registration_form', 'school_id'];
 
         foreach ($requiredTypes as $type) {
             if (!isset($docTypes[$type]) || $docTypes[$type] !== 'processed') {
-                return;
+                return; // Still waiting for one of the core types to finish processing
             }
         }
 
-        $hasFailedCheck = VerificationCheck::where('application_id', $application->id)
+        // 3. Scan for validation failures ONLY within the latest file versions
+        $hasFailedCheck = VerificationCheck::whereIn('document_id', $latestDocIds)
             ->where('passed', false)
             ->exists();
 
-        $isLowConfidence = OcrResult::whereIn(
-            'document_id',
-            $allDocuments->pluck('id')
-        )->where('is_low_confidence', true)->exists();
+        // 4. Scan for low confidence flags ONLY within the latest file versions
+        $isLowConfidence = OcrResult::whereIn('document_id', $latestDocIds)
+            ->where('is_low_confidence', true)
+            ->exists();
 
+        // 5. Route the status dynamically based on current values
         if ($hasFailedCheck || $isLowConfidence) {
             $application->update(['status' => 'for_review']);
         } else {
