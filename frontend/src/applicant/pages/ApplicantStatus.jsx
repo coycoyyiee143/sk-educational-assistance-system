@@ -54,7 +54,7 @@ function ApplicantStatus() {
                   <p className="mt-3 mb-0 text-muted">{config.message}</p>
 
                   {/* Show verifier notes for active review states */}
-                  {status !== "approved" && status !== "auto_approved" && status !== "physically_verified" && application?.latest_verifier_action?.notes && (
+                  {status !== "approved" && status !== "auto_approved" && status !== "physically_verified" && status !== "rejected" && application?.latest_verifier_action?.notes && (
                     <div className="alert alert-info mt-3 mb-0">
                       <strong>Verifier Note:</strong> {application.latest_verifier_action.notes}
                     </div>

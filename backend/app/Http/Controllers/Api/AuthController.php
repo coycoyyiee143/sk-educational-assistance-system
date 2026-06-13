@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\StudentProfile;
+use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
@@ -35,10 +36,13 @@ class AuthController extends Controller
         // Create empty profile
         StudentProfile::create(['user_id' => $user->id]);
 
+        // TRIGGER: Automatically dispatches Laravel's email verification link via your Log/Mail system
+        $user->sendEmailVerificationNotification();
+
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Registration successful.',
+            'message' => 'Registration successful. Please check your email to verify your account.',
             'token'   => $token,
             'user'    => $user,
         ], 201);
@@ -116,7 +120,9 @@ class AuthController extends Controller
             return response()->json(['message' => 'Email already verified.']);
         }
 
-        // Email sending will be wired up in Sprint 3 with the notification system
+        // TRIGGER: Manually resends verification notification on request
+        $user->sendEmailVerificationNotification();
+
         return response()->json(['message' => 'Verification email resent.']);
     }
 }

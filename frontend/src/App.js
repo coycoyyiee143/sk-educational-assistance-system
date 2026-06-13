@@ -8,6 +8,8 @@ import Announcements from "./public/pages/Announcements";
 import Events from "./public/pages/Events";
 import Login from "./public/pages/Login";
 import Register from "./public/pages/Register";
+import VerifyEmail from "./public/pages/VerifyEmail.jsx";
+import VerifyEmailNotice from "./public/pages/VerifyEmailNotice";
 
 import AdminDashboard from "./admin/pages/AdminDashboard";
 import AdminUsers from "./admin/pages/AdminUsers";
@@ -42,6 +44,8 @@ function App() {
         <Route path="/events" element={<Events />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email/:id/:hash" element={<VerifyEmail />} />
+        <Route path="/verify-email-notice" element={<VerifyEmailNotice />} />
 
         {/* Admin */}
         <Route path="/AdminDashboard" element={

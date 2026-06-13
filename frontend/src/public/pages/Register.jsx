@@ -44,8 +44,8 @@ const Register = () => {
         password: form.password,
         password_confirmation: form.confirmPassword,
       });
-      navigate("/login", {
-        state: { message: "Registration successful! Please log in." }
+      navigate("/verify-email-notice", {
+        state: { email: form.email }
       });
     } catch (err) {
       const errors = err.response?.data?.errors;

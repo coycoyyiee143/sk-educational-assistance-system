@@ -6,6 +6,7 @@ use App\Models\Application;
 use App\Models\ApplicationDocument;
 use App\Models\OcrResult;
 use App\Models\VerificationCheck;
+use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -152,6 +153,12 @@ class ProcessOcrDocument implements ShouldQueue
                 'status'         => 'approved',
                 'control_number' => $this->generateControlNumber(),
             ]);
+
+            // Trigger Automated System Approval Notification
+            $application->user->notify(new ApplicationStatusNotification(
+                'Approved (System Verified)',
+                'Congratulations! Your application has been approved. Please prepare your physical documents for submission and stay tuned for further instructions.'
+            ));
         }
     }
 

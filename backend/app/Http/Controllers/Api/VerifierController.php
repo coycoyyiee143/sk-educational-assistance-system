@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\VerifierAction;
+use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 
 class VerifierController extends Controller
@@ -26,12 +27,12 @@ class VerifierController extends Controller
             ->get()
             ->map(function ($app) {
                 return [
-                    'id'           => $app->id,
+                    'id'             => $app->id,
                     'control_number' => $app->control_number,
-                    'name'         => $app->user->first_name . ' ' . $app->user->last_name,
-                    'submitted_at' => $app->submitted_at,
-                    'status'       => $app->status,
-                    'school_name'  => $app->school_name,
+                    'name'           => $app->user->first_name . ' ' . $app->user->last_name,
+                    'submitted_at'   => $app->submitted_at,
+                    'status'         => $app->status,
+                    'school_name'    => $app->school_name,
                 ];
             });
 
@@ -55,7 +56,8 @@ class VerifierController extends Controller
 
     public function approve(Request $request, $id)
     {
-        $app = Application::findOrFail($id);
+        // Eager-loaded user relationship to make sure notification finds the recipient email
+        $app = Application::with('user')->findOrFail($id);
 
         $app->update([
             'status'         => 'approved',
@@ -69,6 +71,12 @@ class VerifierController extends Controller
             'notes'          => $request->notes ?? null,
         ]);
 
+        // Trigger Approval Notification
+        $app->user->notify(new ApplicationStatusNotification(
+            'Approved',
+            'Congratulations! Your application has been verified and approved by the SK Verifier. Please wait for announcements regarding the physical document submission and distribution schedule.'
+        ));
+
         return response()->json(['message' => 'Application approved.']);
     }
 
@@ -76,7 +84,9 @@ class VerifierController extends Controller
     {
         $request->validate(['reason' => 'required|string']);
 
-        $app = Application::findOrFail($id);
+        // Eager-loaded user relationship
+        $app = Application::with('user')->findOrFail($id);
+        
         $app->update([
             'status'           => 'rejected',
             'rejection_reason' => $request->reason,
@@ -89,6 +99,12 @@ class VerifierController extends Controller
             'notes'          => $request->reason,
         ]);
 
+        // Trigger Rejection Notification
+        $app->user->notify(new ApplicationStatusNotification(
+            'Rejected',
+            'We regret to inform you that your educational assistance application was not approved. Reason: ' . $request->reason
+        ));
+
         return response()->json(['message' => 'Application rejected.']);
     }
 
@@ -99,7 +115,9 @@ class VerifierController extends Controller
             'reupload_details' => 'nullable|array',
         ]);
 
-        $app = Application::findOrFail($id);
+        // Eager-loaded user relationship
+        $app = Application::with('user')->findOrFail($id);
+        
         $app->update(['status' => 'reupload_requested']);
 
         VerifierAction::create([
@@ -109,6 +127,12 @@ class VerifierController extends Controller
             'notes'           => $request->notes,
             'reupload_details'=> $request->reupload_details ?? [],
         ]);
+
+        // Trigger Re-upload Notification
+        $app->user->notify(new ApplicationStatusNotification(
+            'Re-upload Requested',
+            'The verifier reviewed your submission and flagged some missing or unreadable documents. Please review these notes: ' . $request->notes
+        ));
 
         return response()->json(['message' => 'Re-upload requested.']);
     }

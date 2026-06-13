@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
+use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 
 class ApplicationController extends Controller
@@ -61,6 +62,12 @@ class ApplicationController extends Controller
         ]);
 
         $config->increment('used_slots');
+
+        // Trigger Submission Confirmation Notification
+        $request->user()->notify(new ApplicationStatusNotification(
+            'Pending Pre-screening',
+            'Your educational assistance application has been submitted successfully and queued for digital document verification.'
+        ));
 
         return response()->json([
             'message'     => 'Application submitted.',
