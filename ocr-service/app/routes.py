@@ -107,6 +107,11 @@ def process_registration_form():
         configured_school_year = request.form.get("school_year", "")
         configured_semester = request.form.get("semester", "")
 
+        # Format semester according to school strategy
+        from app.normalization import get_strategy_for_school
+        strategy = get_strategy_for_school(declared_school)
+        configured_semester = strategy.format_semester(configured_semester)
+
         ocr_result = run_ocr(tmp_path)
         avg_confidence = get_average_confidence(ocr_result)
 

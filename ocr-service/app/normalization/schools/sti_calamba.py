@@ -22,6 +22,15 @@ class StiCalambaStrategy(BaseSchoolStrategy):
         return sy if sy else super().extract_school_year(text, configured_year)
 
     def extract_semester(self, text: str) -> Optional[str]:
-        # Priority: Decode the specific pattern provided
+        # STI uses exactly the "XXYY/ZT" format where Z is the term (1T or 2T)
         _, term = self.decode_sti_term_code(text)
-        return term if term else super().extract_semester(text)
+        return term
+
+    def format_semester(self, value: str) -> str:
+        """STI uses 'T' format like '1T' or '2T'."""
+        v = str(value).strip().lower()
+        if v in ('1', '1st', 'first'):
+            return '1T'
+        elif v in ('2', '2nd', 'second'):
+            return '2T'
+        return value

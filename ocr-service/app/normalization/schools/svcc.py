@@ -52,9 +52,19 @@ class StVincentCabuyaoStrategy(BaseSchoolStrategy):
         return super().extract_school_year(text, configured_year)
 
     def extract_semester(self, text: str) -> Optional[str]:
+        # SVCC uses exactly "Semester: 1st" or "Semester: 2nd"
         clean_text = text.lower()
-        if re.search(r'\b(1st|first|1)\s*(sem|semester)\b', clean_text):
+        if re.search(r'\bsemester\s*:\s*1st\b', clean_text):
             return "1"
-        if re.search(r'\b(2nd|second|2)\s*(sem|semester)\b', clean_text):
+        if re.search(r'\bsemester\s*:\s*2nd\b', clean_text):
             return "2"
-        return super().extract_semester(text)
+        return None
+
+    def format_semester(self, value: str) -> str:
+        """SVCC uses 'Semester: 1st' / 'Semester: 2nd' format."""
+        v = str(value).strip().lower()
+        if v in ('1', '1st', 'first'):
+            return 'Semester: 1st'
+        elif v in ('2', '2nd', 'second'):
+            return 'Semester: 2nd'
+        return value

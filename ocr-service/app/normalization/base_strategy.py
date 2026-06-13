@@ -52,3 +52,12 @@ class BaseSchoolStrategy:
             if re.search(p, t):
                 return '2'
         return None
+
+    def format_semester(self, value: str) -> str:
+        """Format stored semester value back to document format for verification."""
+        v = str(value).strip().lower()
+        if v in ('1', '1st', 'first'):
+            return '1'
+        elif v in ('2', '2nd', 'second'):
+            return '2'
+        return value

@@ -15,10 +15,19 @@ class PamantasanNgCabuyaoStrategy(BaseSchoolStrategy):
         return super().extract_school_year(text, configured_year)
 
     def extract_semester(self, text: str) -> Optional[str]:
-        # Targets: "Second Semester" or "1st Semester"
+        # PNC uses exactly "First Semester" or "Second Semester"
         t_lower = text.lower()
-        if re.search(r"\b(1st|first)\s*semester\b", t_lower):
+        if re.search(r"\bfirst\s*semester\b", t_lower):
             return "1"
-        if re.search(r"\b(2nd|second)\s*semester\b", t_lower):
+        if re.search(r"\bsecond\s*semester\b", t_lower):
             return "2"
-        return super().extract_semester(text)
+        return None
+
+    def format_semester(self, value: str) -> str:
+        """PNC uses 'First Semester' / 'Second Semester' format only."""
+        v = str(value).strip().lower()
+        if v in ('1', '1st', 'first'):
+            return 'First Semester'
+        elif v in ('2', '2nd', 'second'):
+            return 'Second Semester'
+        return value

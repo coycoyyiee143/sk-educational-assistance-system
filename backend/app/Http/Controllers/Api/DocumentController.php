@@ -45,7 +45,7 @@ class DocumentController extends Controller
         $path     = $file->storeAs(
             "documents/{$application->id}",
             $fileName,
-            'local'
+            'public'
         );
 
         $document = ApplicationDocument::create([
@@ -87,7 +87,7 @@ class DocumentController extends Controller
         $path     = $file->storeAs(
             "documents/{$application->id}",
             $fileName,
-            'local'
+            'public'
         );
 
         $newDocument = ApplicationDocument::create([
@@ -116,19 +116,13 @@ class DocumentController extends Controller
             $user   = $application->user;
             $config = $application->configuration;
 
-            // Build multipart form data for Flask
             $multipart = [
-                [
-                    'name'     => 'file',
-                    'contents' => fopen($filePath, 'r'),
-                    'filename' => $document->file_name,
-                ],
+                ['name' => 'file', 'contents' => fopen($filePath, 'r'), 'filename' => $document->file_name],
                 ['name' => 'first_name',  'contents' => $user->first_name],
                 ['name' => 'middle_name', 'contents' => $user->middle_name ?? ''],
                 ['name' => 'last_name',   'contents' => $user->last_name],
             ];
 
-            // Add extra fields depending on document type
             $endpoint = match($document->document_type) {
                 'voters_certificate' => '/api/ocr/voters-certificate',
                 'registration_form'  => '/api/ocr/registration-form',
@@ -145,10 +139,7 @@ class DocumentController extends Controller
                 $multipart[] = ['name' => 'declared_school', 'contents' => $application->school_name];
             }
 
-            $response = $client->post($this->getFlaskUrl() . $endpoint, [
-                'multipart' => $multipart,
-            ]);
-
+            $response = $client->post($this->getFlaskUrl() . $endpoint, ['multipart' => $multipart]);
             $result = json_decode($response->getBody()->getContents(), true);
 
             if (!$result['success']) {
@@ -156,7 +147,6 @@ class DocumentController extends Controller
                 return;
             }
 
-            // Store OCR result
             $ocrResult = OcrResult::create([
                 'document_id'      => $document->id,
                 'extracted_fields' => $result['verification'] ?? [],
@@ -165,37 +155,36 @@ class DocumentController extends Controller
                 'raw_text'         => json_encode($result['ocr_lines'] ?? []),
             ]);
 
-            // Store individual verification checks
-            $verification = $result['verification'] ?? [];
-            $allPassed    = true;
+            // FIX: Handle nested 'checks' array if present
+            $data = $result['verification'] ?? [];
+            $verification = isset($data['checks']) ? $data['checks'] : $data;
 
             foreach ($verification as $checkName => $checkData) {
-                if (!is_array($checkData)) continue;
+                // If it's a list (like in the registration form), adjust
+                if (is_int($checkName) && isset($checkData['raw'])) {
+                    $checkName = "OCR_Raw_Capture_" . $checkName;
+                }
 
-                $passed = $checkData['passed'] ?? false;
-                if (!$passed) $allPassed = false;
+                if (!is_array($checkData)) continue;
 
                 VerificationCheck::create([
                     'application_id' => $application->id,
                     'document_id'    => $document->id,
                     'ocr_result_id'  => $ocrResult->id,
-                    'check_name'     => $checkName,
-                    'passed'         => $passed,
-                    'extracted_value'=> $checkData['extracted'] ?? null,
+                    'check_name'     => is_string($checkName) ? $checkName : 'check',
+                    'passed'         => $checkData['passed'] ?? false,
+                    'extracted_value'=> $checkData['extracted'] ?? $checkData['raw'] ?? null,
                     'expected_value' => $checkData['expected'] ?? null,
                     'flag_reason'    => $checkData['reason'] ?? null,
                 ]);
             }
 
             $document->update(['status' => 'processed']);
-
-            // Update application status based on all documents
             $this->updateApplicationStatus($application);
 
-        } catch (RequestException $e) {
-            $document->update(['status' => 'failed']);
         } catch (\Exception $e) {
             $document->update(['status' => 'failed']);
+            \Log::error("OCR Processing Failed for Doc {$document->id}: " . $e->getMessage());
         }
     }
 

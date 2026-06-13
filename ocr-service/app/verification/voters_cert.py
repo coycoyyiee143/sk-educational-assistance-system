@@ -1,30 +1,33 @@
-# app/verification/voters_cert.py
-import re
-from app.verification.shared import _pass, _flag
+from app.postprocessing import parse_ocr_blocks, get_page_dimensions, extract_barangay
+from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name
 
-def verify_voters_certificate(ocr_result, first_name, middle_name, last_name):
-    """
-    Validates geographic eligibility constraints for Barangay Mamatid.
-    """
-    extracted_lines = [block.text.lower().strip() for block in ocr_result]
-    full_text = " ".join(extracted_lines)
-    
-    # 1. Verify Document Type Authenticity
-    voter_identifiers = ["voter's certificate", "certificate of registration", "comelec", "electors"]
-    if not any(idnt in full_text for idnt in voter_identifiers):
-        return _flag(reason="Invalid Document Type", details="The document does not appear to be an official Voter's Certificate.")
+def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_name, last_name, *args, **kwargs):
+    if avg_confidence < CONFIDENCE_THRESHOLD:
+        return {"document": "voters_certificate", "low_confidence": True, "flagged": True}
 
-    # 2. Strict Geofencing Rule Check
-    # Geofence target: Mamatid
-    if "mamatid" not in full_text:
-        # Detect neighbor spillover to provide contextual debugging
-        neighbor_barangays = ["banlic", "pulo", "san isidro", "gulod", "baclaran", "marinig"]
-        for neighbor in neighbor_barangays:
-            if neighbor in full_text:
-                return _flag(
-                    reason="Ineligible Residency Status",
-                    details=f"Applicant identified as a resident of neighboring Brgy. {neighbor.title()} instead of Mamatid."
-                )
-        return _flag(reason="Residency Unverified", details="Barangay Mamatid keyword could not be isolated in the document.")
+    blocks = parse_ocr_blocks(ocr_result)
+    page_w, page_h = get_page_dimensions(blocks)
 
-    return _pass(details="Residency verified: Applicant confirmed as a registered voter/resident of Barangay Mamatid.")
+    # Name check
+    name_check = _check_name(blocks, page_w, page_h, first_name, middle_name, last_name)
+
+    # Barangay check
+    brgy_res = extract_barangay(blocks)
+    if brgy_res.found and brgy_res.value == "Mamatid":
+        residency_check = _pass("residency_geofence", extracted=brgy_res.value, raw=brgy_res.raw, context=brgy_res.context, expected="Mamatid")
+    else:
+        reason = brgy_res.context if brgy_res.context else "Barangay Mamatid not found in document"
+        residency_check = _flag("residency_geofence", reason, extracted=brgy_res.value, raw=brgy_res.raw, expected="Mamatid", context=brgy_res.context)
+
+    checks = {
+        "identity_match":        name_check,
+        "residency_geofence":    residency_check,
+    }
+
+    return {
+        "document":    "voters_certificate",
+        "avg_confidence": avg_confidence,
+        "checks":      checks,
+        "flagged":     any(not c["passed"] for c in checks.values()),
+        "flag_reason": "eligibility_issues" if any(not c["passed"] for c in checks.values()) else None,
+    }

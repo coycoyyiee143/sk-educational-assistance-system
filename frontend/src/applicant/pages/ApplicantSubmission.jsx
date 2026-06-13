@@ -3,22 +3,18 @@ import ApplicantNavigation from "../components/ApplicantNavigation";
 import api from "../../services/api";
 
 const SCHOOLS = [
-  // Cabuyao
   "Pamantasan ng Cabuyao",
   "Mapúa Malayan Colleges Laguna",
   "St. Vincent College of Cabuyao",
   "Our Lady of Assumption College",
   "Colegio de Sto. Niño de Cabuyao",
-  // Calamba
   "Calamba Doctor's College",
   "STI College Calamba",
   "University of Perpetual Help System DALTA Calamba",
   "Colegio de San Juan de Letran Calamba",
   "De La Salle University Canlubang",
   "AMA Computer College Calamba",
-  // Los Baños
   "University of the Philippines Los Baños",
-  // Other Laguna
   "Lyceum of the Philippines University Laguna",
   "Laguna College of Business and Arts",
   "Dominican College of Santa Rosa",
@@ -41,6 +37,7 @@ function ApplicantSubmission() {
   const [applicationId, setApplicationId] = useState(null);
   const [step, setStep] = useState("form");
   const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [existingApp, setExistingApp] = useState(null);
@@ -97,24 +94,34 @@ function ApplicantSubmission() {
     }
 
     setLoading(true);
+
+    // Upload one doc at a time with progress label
+    const uploadDoc = async (file, documentType, label) => {
+      setUploadProgress(`Uploading ${label}...`);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("document_type", documentType);
+      // Do NOT set Content-Type header — let browser set it with boundary
+      await api.post(`/applications/${applicationId}/documents`, formData);
+    };
+
     try {
-      const uploadDoc = async (file, documentType) => {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("document_type", documentType);
-        await api.post(`/applications/${applicationId}/documents`, formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-      };
+      await uploadDoc(files.enrollment, "registration_form", "Registration Form");
+      await uploadDoc(files.schoolId, "school_id", "School ID");
+      await uploadDoc(files.voters, "voters_certificate", "Voter's Certificate");
 
-      await uploadDoc(files.enrollment, "registration_form");
-      await uploadDoc(files.schoolId, "school_id");
-      await uploadDoc(files.voters, "voters_certificate");
-
+      setUploadProgress("");
       setSuccess("Application and documents submitted successfully! Your documents are being processed.");
       setStep("done");
     } catch (err) {
-      setError("Failed to upload documents. Please try again.");
+      setUploadProgress("");
+      const msg = err.response?.data?.message || "";
+      const errors = err.response?.data?.errors;
+      if (errors) {
+        setError("Upload failed: " + Object.values(errors).flat().join(" "));
+      } else {
+        setError(`Upload failed${msg ? `: ${msg}` : ". Please check your files and try again."}`);
+      }
     } finally {
       setLoading(false);
     }
@@ -166,11 +173,9 @@ function ApplicantSubmission() {
                 <div className="sub-card mb-4">
                   <h5>Educational Information</h5>
 
-                  {/* School name warning */}
                   <div className="alert alert-warning py-2 mb-3">
-                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
-                    <strong>Important:</strong> Make sure the details you input matches exactly
-                    how it appears on your Registration Form. This is used to verify your document.
+                    <strong>Important:</strong> Make sure the details you input match exactly
+                    how they appear on your Registration Form. This is used to verify your document.
                   </div>
 
                   <div className="row">
@@ -178,34 +183,19 @@ function ApplicantSubmission() {
                       <label className="form-label">School Name <span className="text-danger">*</span></label>
                       <select className="form-select" value={form.schoolName} onChange={set("schoolName")} required>
                         <option value="" disabled>Select your school</option>
-                        {SCHOOLS.map((s) => (
-                          <option key={s} value={s}>{s}</option>
-                        ))}
+                        {SCHOOLS.map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
-                      <div className="form-text">
-                        Select the school as it appears on your Registration Form.
-                      </div>
+                      <div className="form-text">Select the school as it appears on your Registration Form.</div>
                     </div>
 
                     <div className="col-md-6 mb-3">
                       <label className="form-label">School Address</label>
-                      <input
-                        className="form-control"
-                        placeholder="Enter school address"
-                        value={form.schoolAddr}
-                        onChange={set("schoolAddr")}
-                      />
+                      <input className="form-control" placeholder="Enter school address" value={form.schoolAddr} onChange={set("schoolAddr")} />
                     </div>
 
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Course <span className="text-danger">*</span></label>
-                      <input
-                        className="form-control"
-                        placeholder="e.g. Bachelor of Science in Information Technology"
-                        value={form.course}
-                        onChange={set("course")}
-                        required
-                      />
+                      <input className="form-control" placeholder="e.g. Bachelor of Science in Information Technology" value={form.course} onChange={set("course")} required />
                     </div>
 
                     <div className="col-md-6 mb-3">
@@ -218,20 +208,13 @@ function ApplicantSubmission() {
 
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Student ID Number</label>
-                      <input
-                        className="form-control"
-                        placeholder="Enter student ID number"
-                        value={form.studentId}
-                        onChange={set("studentId")}
-                      />
+                      <input className="form-control" placeholder="Enter student ID number" value={form.studentId} onChange={set("studentId")} />
                     </div>
                   </div>
                 </div>
 
                 <div className="d-flex justify-content-end gap-2">
-                  <button type="button" className="btn btn-secondary-custom" onClick={() => setForm(emptyForm)}>
-                    Clear
-                  </button>
+                  <button type="button" className="btn btn-secondary-custom" onClick={() => setForm(emptyForm)}>Clear</button>
                   <button type="submit" className="btn btn-submit" disabled={loading}>
                     {loading ? "Submitting..." : "Next: Upload Documents"}
                   </button>
@@ -249,9 +232,7 @@ function ApplicantSubmission() {
                     These will be automatically verified by the system.
                   </p>
 
-                  {/* Document upload warning */}
                   <div className="alert alert-warning py-2 mb-3">
-                    <i className="bi bi-exclamation-triangle-fill me-2"></i>
                     <strong>Reminder:</strong> Upload clear, readable photos or scans.
                     Blurry or low-quality images may cause your application to be flagged for manual review.
                     Supported formats: JPG, PNG, PDF. Max size: 5MB per file.
@@ -260,60 +241,43 @@ function ApplicantSubmission() {
                   <div className="row g-3">
                     <div className="col-md-4">
                       <label className="form-label fw-semibold">
-                        Certificate of Enrollment / Registration Form
-                        <span className="text-danger"> *</span>
+                        Certificate of Enrollment / Registration Form <span className="text-danger">*</span>
                       </label>
-                      <input
-                        type="file"
-                        className="form-control"
-                        accept=".jpg,.jpeg,.png,.pdf"
-                        onChange={setFile("enrollment")}
-                        required
-                      />
-                      <div className="form-text">
-                        Must show your name, school, school year, and semester.
-                      </div>
+                      <input type="file" className="form-control" accept=".jpg,.jpeg,.png,.pdf" onChange={setFile("enrollment")} />
+                      <div className="form-text">Must show your name, school, school year, and semester.</div>
+                      {files.enrollment && <small className="text-success">✓ {files.enrollment.name}</small>}
                     </div>
 
                     <div className="col-md-4">
                       <label className="form-label fw-semibold">
-                        School ID
-                        <span className="text-danger"> *</span>
+                        School ID <span className="text-danger">*</span>
                       </label>
-                      <input
-                        type="file"
-                        className="form-control"
-                        accept=".jpg,.jpeg,.png,.pdf"
-                        onChange={setFile("schoolId")}
-                        required
-                      />
-                      <div className="form-text">
-                        Must show your name and school name.
-                      </div>
+                      <input type="file" className="form-control" accept=".jpg,.jpeg,.png,.pdf" onChange={setFile("schoolId")} />
+                      <div className="form-text">Must show your name and school name.</div>
+                      {files.schoolId && <small className="text-success">✓ {files.schoolId.name}</small>}
                     </div>
 
                     <div className="col-md-4">
                       <label className="form-label fw-semibold">
-                        Voter's Certificate
-                        <span className="text-danger"> *</span>
+                        Voter's Certificate <span className="text-danger">*</span>
                       </label>
-                      <input
-                        type="file"
-                        className="form-control"
-                        accept=".jpg,.jpeg,.png,.pdf"
-                        onChange={setFile("voters")}
-                        required
-                      />
-                      <div className="form-text">
-                        Must show your name and Barangay Mamatid as your registered barangay.
-                      </div>
+                      <input type="file" className="form-control" accept=".jpg,.jpeg,.png,.pdf" onChange={setFile("voters")} />
+                      <div className="form-text">Must show your name and Barangay Mamatid as your registered barangay.</div>
+                      {files.voters && <small className="text-success">✓ {files.voters.name}</small>}
                     </div>
                   </div>
                 </div>
 
+                {uploadProgress && (
+                  <div className="alert alert-info mt-3 mb-0">
+                    <div className="spinner-border spinner-border-sm me-2" role="status" />
+                    {uploadProgress}
+                  </div>
+                )}
+
                 <div className="d-flex justify-content-end gap-2 mt-4">
                   <button type="submit" className="btn btn-submit" disabled={loading}>
-                    {loading ? "Uploading and processing documents..." : "Submit Documents"}
+                    {loading ? "Uploading..." : "Submit Documents"}
                   </button>
                 </div>
               </form>
