@@ -50,11 +50,25 @@ function AdminSettings() {
     setSuccess("");
     setSaving(true);
     try {
+      let response;
       if (config) {
-        await api.put(`/admin/application-configs/${config.id}`, form);
+        response = await api.put(`/admin/application-configs/${config.id}`, form);
       } else {
-        await api.post("/application-config", form);
+        response = await api.post("/application-config", form);
       }
+
+      // Update config to reflect saved changes
+      const updatedConfig = response.data.config;
+      setConfig(updatedConfig);
+      setForm({
+        school_year: updatedConfig.school_year,
+        semester: updatedConfig.semester,
+        open_date: updatedConfig.open_date,
+        close_date: updatedConfig.close_date,
+        total_slots: updatedConfig.total_slots,
+        is_active: updatedConfig.is_active,
+      });
+
       setSuccess("Settings saved successfully.");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save settings.");
