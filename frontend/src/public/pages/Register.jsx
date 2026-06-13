@@ -15,6 +15,8 @@ const Register = () => {
     password: "",
     confirmPassword: "",
   });
+  const [showPass, setShowPass] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
@@ -27,12 +29,10 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
-
     setLoading(true);
     try {
       await api.post("/register", {
@@ -44,11 +44,9 @@ const Register = () => {
         password: form.password,
         password_confirmation: form.confirmPassword,
       });
-
       navigate("/login", {
         state: { message: "Registration successful! Please log in." }
       });
-
     } catch (err) {
       const errors = err.response?.data?.errors;
       if (errors) {
@@ -69,7 +67,6 @@ const Register = () => {
 
   return (
     <>
-      {/* NAVBAR */}
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
           <a className="navbar-brand navbar-brand-custom" href="/">
@@ -95,7 +92,6 @@ const Register = () => {
         </div>
       </nav>
 
-      {/* REGISTER FORM */}
       <section className="py-5">
         <div className="container">
           <div className="row justify-content-center">
@@ -109,72 +105,74 @@ const Register = () => {
                 <form onSubmit={handleSubmit}>
                   <div className="row">
                     <div className="col-md-4 mb-3">
-                      <input
-                        name="firstName"
-                        className="form-control"
-                        placeholder="First Name"
-                        onChange={handleChange}
-                        required
-                      />
+                      <label className="form-label">First Name <span className="text-danger">*</span></label>
+                      <input name="firstName" className="form-control" placeholder="First Name" onChange={handleChange} required />
                     </div>
                     <div className="col-md-4 mb-3">
-                      <input
-                        name="middleName"
-                        className="form-control"
-                        placeholder="Middle Name"
-                        onChange={handleChange}
-                      />
+                      <label className="form-label">Middle Name</label>
+                      <input name="middleName" className="form-control" placeholder="Middle Name" onChange={handleChange} />
                     </div>
                     <div className="col-md-4 mb-3">
-                      <input
-                        name="lastName"
-                        className="form-control"
-                        placeholder="Last Name"
-                        onChange={handleChange}
-                        required
-                      />
+                      <label className="form-label">Last Name <span className="text-danger">*</span></label>
+                      <input name="lastName" className="form-control" placeholder="Last Name" onChange={handleChange} required />
                     </div>
                   </div>
+
                   <div className="row">
                     <div className="col-md-6 mb-3">
-                      <input
-                        name="mobile"
-                        className="form-control"
-                        placeholder="Mobile Number"
-                        onChange={handleChange}
-                      />
+                      <label className="form-label">Mobile Number</label>
+                      <input name="mobile" className="form-control" placeholder="e.g. 09XXXXXXXXX" onChange={handleChange} />
                     </div>
                     <div className="col-md-6 mb-3">
+                      <label className="form-label">Email <span className="text-danger">*</span></label>
+                      <input type="email" name="email" className="form-control" placeholder="Email" onChange={handleChange} required />
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label">Password <span className="text-danger">*</span></label>
+                    <div className="input-group">
                       <input
-                        type="email"
-                        name="email"
+                        type={showPass ? "text" : "password"}
+                        name="password"
                         className="form-control"
-                        placeholder="Email"
+                        placeholder="Password (min. 8 characters)"
                         onChange={handleChange}
                         required
                       />
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => setShowPass(!showPass)}
+                        tabIndex={-1}
+                      >
+                        {showPass ? "Hide" : "Show"}
+                      </button>
                     </div>
                   </div>
+
                   <div className="mb-3">
-                    <input
-                      type="password"
-                      name="password"
-                      className="form-control"
-                      placeholder="Password"
-                      onChange={handleChange}
-                      required
-                    />
+                    <label className="form-label">Confirm Password <span className="text-danger">*</span></label>
+                    <div className="input-group">
+                      <input
+                        type={showConfirm ? "text" : "password"}
+                        name="confirmPassword"
+                        className="form-control"
+                        placeholder="Confirm Password"
+                        onChange={handleChange}
+                        required
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => setShowConfirm(!showConfirm)}
+                        tabIndex={-1}
+                      >
+                        {showConfirm ? "Hide" : "Show"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="mb-3">
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      className="form-control"
-                      placeholder="Confirm Password"
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
+
                   <button className="btn btn-danger w-100" type="submit" disabled={loading}>
                     {loading ? "Registering..." : "Register"}
                   </button>
@@ -188,7 +186,6 @@ const Register = () => {
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer>
         <div className="container text-center">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance System</p>

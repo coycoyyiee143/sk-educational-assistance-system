@@ -8,6 +8,7 @@ import { useAuth } from "../../context/AuthContext";
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login, user } = useAuth();
@@ -16,24 +17,18 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-
     if (!email.trim() || !password.trim()) {
       setError("Please fill in both fields.");
       return;
     }
-
     setLoading(true);
     try {
       const response = await api.post("/login", { email, password });
       const { token, user } = response.data;
-
       login(user, token);
-
-      // Redirect based on role
       if (user.role === "sk_admin") navigate("/AdminDashboard");
       else if (user.role === "sk_verifier") navigate("/VerifierDashboard");
       else navigate("/ApplicantDashboard");
-
     } catch (err) {
       setError(err.response?.data?.message || "Invalid credentials.");
     } finally {
@@ -49,7 +44,6 @@ const Login = () => {
 
   return (
     <>
-      {/* NAVBAR */}
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
           <a className="navbar-brand navbar-brand-custom" href="/">
@@ -75,7 +69,6 @@ const Login = () => {
         </div>
       </nav>
 
-      {/* LOGIN FORM */}
       <section className="py-5">
         <div className="container">
           <div className="row justify-content-center">
@@ -83,7 +76,7 @@ const Login = () => {
               <div className="card card-custom p-4 text-center">
                 <img src="/logo.png" alt="logo" style={{ width: "80px", marginBottom: "10px" }} />
                 <h3 className="text-danger">Applicant Login</h3>
-                <p className="text-muted small">Login using your email or mobile number.</p>
+                <p className="text-muted small">Login using your registered email address.</p>
 
                 {error && <div className="alert alert-danger">{error}</div>}
 
@@ -100,13 +93,23 @@ const Login = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Password</label>
-                    <input
-                      type="password"
-                      className="form-control"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter password"
-                    />
+                    <div className="input-group">
+                      <input
+                        type={showPass ? "text" : "password"}
+                        className="form-control"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Enter password"
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary"
+                        onClick={() => setShowPass(!showPass)}
+                        tabIndex={-1}
+                      >
+                        {showPass ? "Hide" : "Show"}
+                      </button>
+                    </div>
                   </div>
                   <div className="text-end mb-3">
                     <a href="/forgot-password" className="small">Forgot Password?</a>
@@ -124,7 +127,6 @@ const Login = () => {
         </div>
       </section>
 
-      {/* FOOTER */}
       <footer>
         <div className="container text-center">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance System</p>
