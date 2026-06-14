@@ -149,9 +149,10 @@ class ProcessOcrDocument implements ShouldQueue
         if ($hasFailedCheck || $isLowConfidence) {
             $application->update(['status' => 'for_review']);
         } else {
+            // Updated to call your centralized model method
             $application->update([
                 'status'         => 'approved',
-                'control_number' => $this->generateControlNumber(),
+                'control_number' => \App\Models\Application::generateControlNumber($application->config_id),
             ]);
 
             // Trigger Automated System Approval Notification
@@ -160,10 +161,5 @@ class ProcessOcrDocument implements ShouldQueue
                 'Congratulations! Your application has been approved. Please prepare your physical documents for submission and stay tuned for further instructions.'
             ));
         }
-    }
-
-    private function generateControlNumber(): string
-    {
-        return 'SK-' . date('Y') . '-' . strtoupper(substr(uniqid(), -6));
     }
 }

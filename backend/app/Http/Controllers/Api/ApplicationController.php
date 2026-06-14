@@ -84,4 +84,21 @@ class ApplicationController extends Controller
 
         return response()->json($application);
     }
+
+    public function claimingSchedule(Request $request)
+    {
+        $application = Application::where('user_id', $request->user()->id)
+            ->with(['user', 'claimingAssignment.lane', 'claimingAssignment.schedule'])
+            ->latest()
+            ->first();
+
+        if (!$application || !$application->claimingAssignment) {
+            return response()->json(['message' => 'No claiming schedule assigned yet.'], 404);
+        }
+
+        return response()->json([
+            'application' => $application,
+            'assignment'  => $application->claimingAssignment,
+        ]);
+    }
 }

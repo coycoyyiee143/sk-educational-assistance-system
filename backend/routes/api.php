@@ -8,7 +8,9 @@ use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\AnnouncementController;
 use App\Http\Controllers\Api\SkEventController;
 use App\Http\Controllers\Api\ApplicationConfigurationController;
-use App\Http\Controllers\VerifierApplicationController;
+use App\Http\Controllers\Api\AdminScheduleController;
+use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\VerifierController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -28,26 +30,41 @@ Route::get('/application-config/active', [ApplicationConfigurationController::cl
 Route::middleware(['auth:sanctum'])->group(function () {
 
     // Admin routes
-    Route::get('/admin/stats', [App\Http\Controllers\Api\AdminController::class, 'stats']);
-    Route::get('/admin/users', [App\Http\Controllers\Api\AdminController::class, 'users']);
-    Route::post('/admin/users/personnel', [App\Http\Controllers\Api\AdminController::class, 'createPersonnel']);
-    Route::put('/admin/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'updateUser']);
-    Route::patch('/admin/users/{id}/toggle-status', [App\Http\Controllers\Api\AdminController::class, 'toggleStatus']);
-    Route::delete('/admin/users/{id}', [App\Http\Controllers\Api\AdminController::class, 'deleteUser']);
+    Route::get('/admin/stats', [AdminController::class, 'stats']);
+    Route::get('/admin/users', [AdminController::class, 'users']);
+    Route::post('/admin/users/personnel', [AdminController::class, 'createPersonnel']);
+    Route::put('/admin/users/{id}', [AdminController::class, 'updateUser']);
+    Route::patch('/admin/users/{id}/toggle-status', [AdminController::class, 'toggleStatus']);
+    Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
     Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
     Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
+    Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
+    Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
+    Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
+    Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
 
     // Verifier routes
-    Route::get('/verifier/applications', [App\Http\Controllers\Api\VerifierController::class, 'index']);
-    Route::get('/verifier/applications/{id}', [App\Http\Controllers\Api\VerifierController::class, 'show']);
-    Route::post('/verifier/applications/{id}/approve', [App\Http\Controllers\Api\VerifierController::class, 'approve']);
-    Route::post('/verifier/applications/{id}/reject', [App\Http\Controllers\Api\VerifierController::class, 'reject']);
-    Route::post('/verifier/applications/{id}/reupload', [App\Http\Controllers\Api\VerifierController::class, 'requestReupload']);
-    Route::get('/verifier/stats', [App\Http\Controllers\Api\VerifierController::class, 'stats']);
+    Route::get('/verifier/applications', [VerifierController::class, 'index']);
+    Route::get('/verifier/applications/{id}', [VerifierController::class, 'show']);
+    Route::post('/verifier/applications/{id}/approve', [VerifierController::class, 'approve']);
+    Route::post('/verifier/applications/{id}/reject', [VerifierController::class, 'reject']);
+    Route::post('/verifier/applications/{id}/reupload', [VerifierController::class, 'requestReupload']);
+    Route::get('/verifier/stats', [VerifierController::class, 'stats']);
+    Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
+    Route::post('/verifier/claiming/{id}/status', [VerifierController::class, 'updateClaimStatus']);
+    
+    // Applicants routes
+    Route::get('/applications', [ApplicationController::class, 'index']);
+    Route::get('/applications/claiming-schedule', [ApplicationController::class, 'claimingSchedule']); // Placed above {id}
+    Route::post('/applications', [ApplicationController::class, 'store']);
+    Route::get('/applications/{id}', [ApplicationController::class, 'show']);
+    Route::post('/applications/{id}/documents', [DocumentController::class, 'upload']);
+    Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
+    Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);
 
     // Shared profile update
-    Route::put('/user/profile', [App\Http\Controllers\Api\ProfileController::class, 'updateAccount']);
-    Route::put('/user/password', [App\Http\Controllers\Api\ProfileController::class, 'updatePassword']);
+    Route::put('/user/profile', [ProfileController::class, 'updateAccount']);
+    Route::put('/user/password', [ProfileController::class, 'updatePassword']);
 
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -57,17 +74,4 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'store']);
     Route::put('/profile', [ProfileController::class, 'update']);
-
-    // Applications
-    Route::get('/applications', [ApplicationController::class, 'index']);
-    Route::post('/applications', [ApplicationController::class, 'store']);
-    Route::get('/applications/{id}', [ApplicationController::class, 'show']);
-
-    // Documents
-    Route::post('/applications/{id}/documents', [DocumentController::class, 'upload']);
-    Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
-    Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);
-
-    // Admin - Application Configuration (basic, full admin panel is Sprint 4)
-    Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
 });

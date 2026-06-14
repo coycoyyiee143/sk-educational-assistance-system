@@ -53,4 +53,20 @@ class Application extends Model
     {
         return $this->hasOne(VerifierAction::class)->latestOfMany();
     }
+
+    public function claimingAssignment()
+    {
+        return $this->hasOne(ClaimingAssignment::class);
+    }
+
+    public static function generateControlNumber($configId): string
+    {
+        $count = self::where('config_id', $configId)
+            ->whereNotNull('control_number')
+            ->count();
+
+        $sequence = $count + 1;
+
+        return 'SK-' . date('Y') . '-' . str_pad($sequence, 4, '0', STR_PAD_LEFT);
+    }
 }

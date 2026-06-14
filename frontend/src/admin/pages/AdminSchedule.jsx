@@ -1,46 +1,77 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AdminNavigation from "../components/AdminNavigation";
+import api from "../../services/api";
 
-// ── Static data ───────────────────────────────────────────────────────────────
-
-const initialLanes = [
-  { lane: "Lane 1", from: "0001", to: "0100", batch: "Morning",   date: "2026-05-20" },
-  { lane: "Lane 2", from: "0101", to: "0200", batch: "Afternoon", date: "2026-05-20" },
-  { lane: "Lane 3", from: "0201", to: "0300", batch: "Morning",   date: "2026-05-21" },
-  { lane: "Lane 4", from: "0301", to: "0400", batch: "Afternoon", date: "2026-05-21" },
-];
-
-const laneLists = [
-  { lane: "Lane 1", batch: "Morning",   date: "May 20, 2026", range: "0001 - 0100", count: 100 },
-  { lane: "Lane 2", batch: "Afternoon", date: "May 20, 2026", range: "0101 - 0200", count: 100 },
-  { lane: "Lane 3", batch: "Morning",   date: "May 21, 2026", range: "0201 - 0300", count: 100 },
-  { lane: "Lane 4", batch: "Afternoon", date: "May 21, 2026", range: "0301 - 0400", count: 20  },
-];
-
-const summaryItems = [
-  { label: "Total Approved Applicants", value: "320" },
-  { label: "Total Lanes",               value: "4" },
-  { label: "Claiming Dates",            value: "May 20–21, 2026" },
-  { label: "Grace Period Date",         value: "May 23, 2026" },
-];
+const emptyLane = () => ({
+  lane_name: "",
+  control_number_from: "",
+  control_number_to: "",
+  batch: "morning",
+  claiming_date: "",
+});
 
 const emptyForm = {
-  date1: "2026-05-20",
-  date2: "2026-05-21",
-  morningStart: "07:00",
-  morningEnd: "12:00",
-  afternoonStart: "13:00",
-  afternoonEnd: "17:00",
   location: "Barangay Mamatid Hall",
-  gracePeriod: "2026-05-23",
+  morning_start: "07:00",
+  morning_end: "12:00",
+  afternoon_start: "13:00",
+  afternoon_end: "17:00",
+  grace_period_date: "",
 };
 
-// ── Component ─────────────────────────────────────────────────────────────────
-
 function AdminSchedule() {
-  const [hasApproved] = useState(true); // toggle to false to show notice state
+  const [config, setConfig] = useState(null);
+  const [approvedCount, setApprovedCount] = useState(0);
+  const [schedule, setSchedule] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [lanes, setLanes] = useState(initialLanes);
+  const [lanes, setLanes] = useState([emptyLane()]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => { loadSchedule(); }, []);
+
+  function loadSchedule() {
+    setLoading(true);
+    api.get("/admin/claiming-schedule")
+      .then((res) => {
+        setConfig(res.data.config);
+        setApprovedCount(res.data.approved_count);
+        const sched = res.data.schedule;
+        setSchedule(sched);
+
+        if (sched) {
+          setForm({
+            location: sched.location,
+            morning_start: sched.morning_start?.slice(0, 5) ?? "07:00",
+            morning_end: sched.morning_end?.slice(0, 5) ?? "12:00",
+            afternoon_start: sched.afternoon_start?.slice(0, 5) ?? "13:00",
+            afternoon_end: sched.afternoon_end?.slice(0, 5) ?? "17:00",
+            grace_period_date: sched.grace_period_date ?? "",
+          });
+
+          setLanes(sched.lanes?.length > 0
+            ? sched.lanes.map(l => ({
+              lane_name: l.lane_name,
+              control_number_from: l.control_number_from,
+              control_number_to: l.control_number_to,
+              batch: l.batch,
+              claiming_date: l.claiming_date,
+            }))
+            : [emptyLane()]);
+        }
+      })
+      .catch((err) => {
+        if (err.response?.status !== 404) {
+          setError("Failed to load schedule data.");
+        } else {
+          setConfig(null);
+        }
+      })
+      .finally(() => setLoading(false));
+  }
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -48,20 +79,74 @@ function AdminSchedule() {
     setLanes((prev) => prev.map((l, i) => i === index ? { ...l, [key]: value } : l));
   }
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    // TODO: connect to backend
-    console.log("Schedule saved:", { form, lanes });
+  function addLane() {
+    setLanes((prev) => [...prev, emptyLane()]);
   }
+
+  function removeLane(index) {
+    setLanes((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+
+    if (lanes.length === 0) {
+      setError("Please add at least one lane.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const res = await api.post("/admin/claiming-schedule", { ...form, lanes });
+      setSchedule(res.data.schedule);
+      setSuccess("Schedule saved successfully.");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to save schedule.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePublish() {
+    if (!schedule) return;
+    if (!window.confirm("Publish this claiming schedule? Approved applicants will be notified and the schedule can no longer be edited.")) return;
+
+    setPublishing(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await api.post(`/admin/claiming-schedule/${schedule.id}/publish`);
+      setSuccess(res.data.message);
+      setSchedule(res.data.schedule);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to publish schedule.");
+    } finally {
+      setPublishing(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div>
+        <AdminNavigation />
+        <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
+          <div className="spinner-border text-danger" role="status" />
+        </div>
+      </div>
+    );
+  }
+
+  const isPublished = schedule?.is_published;
+  const hasApproved = approvedCount > 0;
 
   return (
     <div>
       <AdminNavigation />
-
       <section className="page-section">
         <div className="container">
 
-          {/* Header */}
           <div className="page-card">
             <h3 className="section-title mb-2">Claiming Schedule Management</h3>
             <p className="text-muted mb-0">
@@ -69,202 +154,192 @@ function AdminSchedule() {
             </p>
           </div>
 
-          {/* Approved Applicant Check */}
-          <div className="page-card">
-            <h4 className="sub-title">Approved Applicant Check</h4>
-            {hasApproved ? (
-              <div className="success-box">
-                The system found approved applicants with assigned control numbers. You may now configure the claiming schedule.
-              </div>
-            ) : (
-              <div className="notice-box">
-                No approved applicants with assigned control numbers were found. Claiming schedule setup is not yet available.
-              </div>
-            )}
-          </div>
+          {error && <div className="alert alert-danger">{error}</div>}
+          {success && <div className="alert alert-success">{success}</div>}
 
-          {/* Create Claiming Schedule */}
-          <div className="page-card">
-            <h4 className="sub-title">Create Claiming Schedule</h4>
-
-            <div className="info-box">
-              Configure the claiming schedule carefully. The system will validate the date, lane ranges, batch setup, and grace period before saving.
+          {!config ? (
+            <div className="page-card">
+              <div className="notice-box">No active application period found. Set up an application configuration first.</div>
             </div>
-
-            <form onSubmit={handleSubmit}>
-              <div className="row g-3">
-
-                <div className="col-md-6">
-                  <label className="form-label">Claiming Date 1</label>
-                  <input type="date" className="form-control" value={form.date1} onChange={set("date1")} />
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Claiming Date 2</label>
-                  <input type="date" className="form-control" value={form.date2} onChange={set("date2")} />
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Morning Batch Time</label>
-                  <div className="row g-2">
-                    <div className="col-6">
-                      <input type="time" className="form-control" value={form.morningStart} onChange={set("morningStart")} />
-                    </div>
-                    <div className="col-6">
-                      <input type="time" className="form-control" value={form.morningEnd} onChange={set("morningEnd")} />
-                    </div>
+          ) : (
+            <>
+              <div className="page-card">
+                <h4 className="sub-title">Approved Applicant Check</h4>
+                {hasApproved ? (
+                  <div className="success-box">
+                    The system found {approvedCount} approved applicant(s) with assigned control numbers for {config.school_year} — {config.semester}. You may now configure the claiming schedule.
                   </div>
-                  <small className="text-muted">Default morning batch: 7:00 AM to 12:00 PM</small>
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Afternoon Batch Time</label>
-                  <div className="row g-2">
-                    <div className="col-6">
-                      <input type="time" className="form-control" value={form.afternoonStart} onChange={set("afternoonStart")} />
-                    </div>
-                    <div className="col-6">
-                      <input type="time" className="form-control" value={form.afternoonEnd} onChange={set("afternoonEnd")} />
-                    </div>
+                ) : (
+                  <div className="notice-box">
+                    No approved applicants with assigned control numbers were found yet. You may still prepare the schedule, but it cannot be published until applicants are approved.
                   </div>
-                  <small className="text-muted">Default afternoon batch: 1:00 PM to 5:00 PM</small>
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Claiming Location</label>
-                  <input type="text" className="form-control" value={form.location} onChange={set("location")} />
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Grace Period Date</label>
-                  <input type="date" className="form-control" value={form.gracePeriod} onChange={set("gracePeriod")} />
-                </div>
-
+                )}
               </div>
 
-              <hr className="my-4" />
-
-              <h5 className="sub-title mb-3" style={{ fontSize: "18px" }}>Lane Control Number Range</h5>
-
-              <div className="table-responsive">
-                <table className="table table-bordered align-middle">
-                  <thead>
-                    <tr>
-                      <th>Lane</th>
-                      <th>Control Number From</th>
-                      <th>Control Number To</th>
-                      <th>Batch</th>
-                      <th>Claiming Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lanes.map((lane, i) => (
-                      <tr key={lane.lane}>
-                        <td>{lane.lane}</td>
-                        <td>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={lane.from}
-                            onChange={(e) => setLane(i, "from", e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <input
-                            type="text"
-                            className="form-control"
-                            value={lane.to}
-                            onChange={(e) => setLane(i, "to", e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <select
-                            className="form-select"
-                            value={lane.batch}
-                            onChange={(e) => setLane(i, "batch", e.target.value)}
-                          >
-                            <option>Morning</option>
-                            <option>Afternoon</option>
-                          </select>
-                        </td>
-                        <td>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={lane.date}
-                            onChange={(e) => setLane(i, "date", e.target.value)}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
-                <button type="button" className="btn btn-secondary" onClick={() => { setForm(emptyForm); setLanes(initialLanes); }}>Clear</button>
-                <button type="submit" className="btn btn-custom">Save Schedule</button>
-              </div>
-            </form>
-          </div>
-
-          {/* Schedule Summary */}
-          <div className="page-card">
-            <h4 className="sub-title">Schedule Summary</h4>
-            <div className="row g-3">
-              {summaryItems.map(({ label, value }) => (
-                <div className="col-md-3" key={label}>
-                  <div className="summary-card">
-                    <h6>{label}</h6>
-                    <p className="mb-0 fs-5">{value}</p>
+              {isPublished && (
+                <div className="page-card">
+                  <div className="alert alert-success mb-0">
+                    This schedule was published on {new Date(schedule.published_at).toLocaleString()}. It can no longer be edited.
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
+              )}
 
-          {/* Generated Lane Lists */}
-          <div className="page-card">
-            <h4 className="sub-title">Generated Lane Lists</h4>
+              <div className="page-card">
+                <h4 className="sub-title">Create Claiming Schedule</h4>
+                <div className="info-box">
+                  Lanes are assigned based on the numeric portion of each applicant's control number
+                  (e.g. SK-2026-0001 falls under control number 0001).
+                </div>
 
-            <div className="table-responsive">
-              <table className="table table-bordered table-striped align-middle">
-                <thead>
-                  <tr>
-                    <th>Lane</th>
-                    <th>Batch</th>
-                    <th>Date</th>
-                    <th>Control Number Range</th>
-                    <th>Assigned Applicants</th>
-                    <th>Printable List</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {laneLists.map((row) => (
-                    <tr key={row.lane}>
-                      <td>{row.lane}</td>
-                      <td>{row.batch}</td>
-                      <td>{row.date}</td>
-                      <td>{row.range}</td>
-                      <td>{row.count}</td>
-                      <td>
-                        <button className="btn btn-outline-custom btn-sm">Print Lane List</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                <form onSubmit={handleSubmit}>
+                  <fieldset disabled={isPublished}>
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label">Claiming Location</label>
+                        <input type="text" className="form-control" value={form.location} onChange={set("location")} required />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Grace Period Date</label>
+                        <input type="date" className="form-control" value={form.grace_period_date} onChange={set("grace_period_date")} />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Morning Batch Time</label>
+                        <div className="row g-2">
+                          <div className="col-6">
+                            <input type="time" className="form-control" value={form.morning_start} onChange={set("morning_start")} />
+                          </div>
+                          <div className="col-6">
+                            <input type="time" className="form-control" value={form.morning_end} onChange={set("morning_end")} />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Afternoon Batch Time</label>
+                        <div className="row g-2">
+                          <div className="col-6">
+                            <input type="time" className="form-control" value={form.afternoon_start} onChange={set("afternoon_start")} />
+                          </div>
+                          <div className="col-6">
+                            <input type="time" className="form-control" value={form.afternoon_end} onChange={set("afternoon_end")} />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
 
-            <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
-              <button className="btn btn-outline-custom">Review Schedule</button>
-              <button className="btn btn-custom">Publish Schedule</button>
-            </div>
-          </div>
+                    <hr className="my-4" />
+                    <h5 className="sub-title mb-3" style={{ fontSize: "18px" }}>Lane Control Number Range</h5>
 
+                    <div className="table-responsive">
+                      <table className="table table-bordered align-middle">
+                        <thead>
+                          <tr>
+                            <th>Lane Name</th>
+                            <th>Control Number From</th>
+                            <th>Control Number To</th>
+                            <th>Batch</th>
+                            <th>Claiming Date</th>
+                            {!isPublished && <th></th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lanes.map((lane, i) => (
+                            <tr key={i}>
+                              <td>
+                                <input type="text" className="form-control" placeholder={`Lane ${i + 1}`} value={lane.lane_name} onChange={(e) => setLane(i, "lane_name", e.target.value)} required />
+                              </td>
+                              <td>
+                                <input type="text" className="form-control" placeholder="0001" value={lane.control_number_from} onChange={(e) => setLane(i, "control_number_from", e.target.value)} required />
+                              </td>
+                              <td>
+                                <input type="text" className="form-control" placeholder="0100" value={lane.control_number_to} onChange={(e) => setLane(i, "control_number_to", e.target.value)} required />
+                              </td>
+                              <td>
+                                <select className="form-select" value={lane.batch} onChange={(e) => setLane(i, "batch", e.target.value)}>
+                                  <option value="morning">Morning</option>
+                                  <option value="afternoon">Afternoon</option>
+                                </select>
+                              </td>
+                              <td>
+                                <input type="date" className="form-control" value={lane.claiming_date} onChange={(e) => setLane(i, "claiming_date", e.target.value)} required />
+                              </td>
+                              {!isPublished && (
+                                <td>
+                                  <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeLane(i)} disabled={lanes.length === 1}>
+                                    Remove
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {!isPublished && (
+                      <button type="button" className="btn btn-outline-custom btn-sm mb-3" onClick={addLane}>
+                        + Add Lane
+                      </button>
+                    )}
+                  </fieldset>
+
+                  {!isPublished && (
+                    <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
+                      <button type="submit" className="btn btn-custom" disabled={saving}>
+                        {saving ? "Saving..." : "Save Schedule"}
+                      </button>
+                    </div>
+                  )}
+                </form>
+              </div>
+
+              {schedule && (
+                <div className="page-card">
+                  <h4 className="sub-title">Generated Lane Lists</h4>
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-striped align-middle">
+                      <thead>
+                        <tr>
+                          <th>Lane</th>
+                          <th>Batch</th>
+                          <th>Date</th>
+                          <th>Control Number Range</th>
+                          <th>Assigned Applicants</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {schedule.lanes?.map((lane) => (
+                          <tr key={lane.id}>
+                            <td>{lane.lane_name}</td>
+                            <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
+                            <td>{lane.claiming_date}</td>
+                            <td>{lane.control_number_from} - {lane.control_number_to}</td>
+                            <td>{lane.assignments_count ?? 0}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {!isPublished && (
+                    <>
+                      <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
+                        <button className="btn btn-custom" onClick={handlePublish} disabled={publishing || !hasApproved}>
+                          {publishing ? "Publishing..." : "Publish Schedule"}
+                        </button>
+                      </div>
+                      {!hasApproved && (
+                        <p className="text-muted small mt-2 mb-0 text-end">
+                          Publishing is disabled until there are approved applicants.
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
+            </>
+          )}
         </div>
       </section>
-
       <footer>
         <div className="container">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Admin Panel</p>

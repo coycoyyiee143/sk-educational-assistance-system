@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\VerifierAction;
+use App\Models\ClaimingAssignment;
 use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 
@@ -61,7 +62,7 @@ class VerifierController extends Controller
 
         $app->update([
             'status'         => 'approved',
-            'control_number' => $app->control_number ?? ('SK-' . date('Y') . '-' . strtoupper(substr(uniqid(), -6))),
+            'control_number' => $app->control_number ?? \App\Models\Application::generateControlNumber($app->config_id),
         ]);
 
         VerifierAction::create([
@@ -135,5 +136,74 @@ class VerifierController extends Controller
         ));
 
         return response()->json(['message' => 'Re-upload requested.']);
+    }
+
+    public function searchClaiming(Request $request)
+    {
+        $controlNumber = $request->query('control_number');
+        $name          = $request->query('name');
+
+        $query = Application::with(['user', 'documents', 'claimingAssignment.lane'])
+            ->whereIn('status', ['approved', 'claimed', 'not_cleared', 'unclaimed'])
+            ->whereHas('claimingAssignment');
+
+        if ($controlNumber) {
+            $query->where('control_number', 'like', "%{$controlNumber}%");
+        }
+
+        if ($name) {
+            $query->whereHas('user', function ($q) use ($name) {
+                $q->where('first_name', 'like', "%{$name}%")
+                ->orWhere('last_name', 'like', "%{$name}%");
+            });
+        }
+
+        $results = $query->get();
+
+        if ($results->isEmpty()) {
+            return response()->json(['message' => 'No matching approved applicant found.'], 404);
+        }
+
+        return response()->json($results);
+    }
+
+    public function updateClaimStatus(Request $request, $id)
+    {
+        $request->validate([
+            'claim_status'       => 'required|in:claimed,not_cleared,unclaimed',
+            'verified_documents' => 'nullable|array',
+            'notes'              => 'nullable|string',
+        ]);
+
+        $assignment = ClaimingAssignment::where('application_id', $id)->firstOrFail();
+
+        $assignment->update([
+            'claim_status'       => $request->claim_status,
+            'verified_documents' => $request->verified_documents ?? [],
+            'verifier_notes'     => $request->notes,
+            'verified_by'        => $request->user()->id,
+            'verified_at'        => now(),
+        ]);
+
+        $app = Application::with('user')->findOrFail($id);
+        $app->update(['status' => $request->claim_status]);
+
+        $messages = [
+            'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
+            'not_cleared' => 'Your physical documents did not match your application record on claiming day. Please coordinate with the SK office.',
+            'unclaimed'   => 'You were marked as unclaimed for your assigned claiming schedule. Please coordinate with the SK office regarding the grace period.',
+        ];
+        $labels = [
+            'claimed'     => 'Claimed',
+            'not_cleared' => 'Not Cleared',
+            'unclaimed'   => 'Unclaimed',
+        ];
+
+        $app->user->notify(new ApplicationStatusNotification(
+            $labels[$request->claim_status],
+            $messages[$request->claim_status]
+        ));
+
+        return response()->json(['message' => 'Claiming status updated.', 'assignment' => $assignment]);
     }
 }
