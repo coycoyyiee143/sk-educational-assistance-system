@@ -2,7 +2,7 @@
 
 Web-Based Sangguniang Kabataan Educational Assistance System with Optical Character Recognition Rule-Based Automated Verification.
 
-This guide covers how to set up the project locally and how to test the current features, including the **Claiming Schedule** module.
+This guide covers how to set up the project locally and how to test the current features, including the **Claiming Schedule**, **Announcements/Events**, and **Admin Reports** modules.
 
 ---
 
@@ -133,6 +133,8 @@ php artisan serve
 php artisan queue:work
 ```
 
+> 💡 **Routing Check:** If you need to verify the exact URL mappings for the new Announcements, Events, or Admin Report endpoints, run `php artisan route:list --path=api` inside the backend directory.
+
 > ⚠️ Document uploads and email notifications are processed via Laravel's database queue. If `queue:work` is not running, uploaded documents will stay stuck on "pending" forever and emails won't write to the log.
 
 ---
@@ -238,7 +240,7 @@ These are created automatically by the seeder:
 
 ## 11. Testing the Claiming Schedule Feature
 
-This is the most recently added feature and has not been tested end-to-end yet.
+This is a recently added feature and has not been tested end-to-end yet.
 
 ### Step 1 — Get applicants to "approved" status with control numbers
 You need at least 1-2 applications with status `approved` and a `control_number` like `SK-2026-0001`. Use the flow above (submit → auto-approve or verifier-approve) to get a few approved applicants.
@@ -286,7 +288,34 @@ This sends a reminder email to anyone whose `claiming_date` is **tomorrow** and 
 
 ---
 
-## 12. Notes When Testing
+## 12. Testing Announcements, Events, and Admin Reports
+
+This is the most recently added feature and has not been tested end-to-end yet.
+
+### Step 1 — Announcements & Events CRUD
+1. Login as `admin@skmamatid.com`
+2. Go to **Announcements** or **Events** management views (`AdminAnnouncements.jsx` / `AdminEvents.jsx`).
+3. Create new records, edit existing ones, or delete test content.
+   - For **Events**: Upload a feature cover image file. The display state indicator is auto-calculated dynamically from the `event_date` instead of setting it manually.
+4. Open the public `/announcements` and `/events` routing pages on the frontend. Newly configured entries will show up there automatically because `is_published` resolves to true on creation.
+
+> ⚠️ **Image Upload Prerequisite:** Ensure `php artisan storage:link` was successfully run during setup so local storage links like `http://localhost:8000/storage/events/...` can resolve asset files correctly in the client view.
+
+### Step 2 — Live Summaries & Budget Forecasting
+1. Go to the **Admin Reports** page (`AdminReports.jsx`).
+2. Verify the system lists running aggregate metric summaries (Total Applicants, Pending, Approved, Rejection rates, etc.).
+3. Look at the **Budget Forecast** metrics block. 
+
+> **Note on Forecasting Behavior:** If your installation only contains a single active configuration period with no historical records marked complete (`is_active = false`), the calculator algorithm defaults to compiling projections against your active session's running dataset. To simulate complete multi-period analytical variations, use `php artisan tinker` to seed an alternate inactive `ApplicationConfiguration` containing a collection of sample records under its relation block.
+
+### Step 3 — CSV Export Data Verification
+1. From the reports viewer panel, click **Export CSV**.
+2. Save the output string file, then view its records inside an editor like Microsoft Excel or Google Sheets.
+3. Validate row parameters match the default database entry maps (IDs, Control Numbers, Course parameters, Timestamps, and Status strings).
+
+---
+
+## 13. Notes When Testing
 
 When testing, keep an eye on:
 - Any error messages shown on screen (screenshot if possible)
@@ -303,7 +332,7 @@ If something breaks, check (in this order):
 
 ---
 
-## 13. Common Issues
+## 14. Common Issues
 
 | Problem | Fix |
 |---|---|
@@ -313,10 +342,12 @@ If something breaks, check (in this order):
 | File upload returns 422 error | Don't manually set `Content-Type` header for FormData requests |
 | Login says invalid credentials but you're sure it's right | Re-run `php artisan migrate:fresh --seed` for a clean DB |
 | CORS error in browser console | Make sure frontend runs on port 3000 (not 5173) — backend CORS only allows `localhost:3000` |
+| Broken event image links or 404 errors | Ensure `php artisan storage:link` ran successfully and check your backend `.env` `APP_URL` match |
+| Report/Forecast statistics look inaccurate or stale | Re-run `php artisan migrate:fresh --seed` to reset live benchmark tallies |
 
 ---
 
-## 14. Branch & Commit Etiquette
+## 15. Branch & Commit Etiquette
 
 - Current working branch: `feature/backend`
 - Pull before you start: `git pull`

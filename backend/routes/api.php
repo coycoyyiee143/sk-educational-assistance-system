@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\SkEventController;
 use App\Http\Controllers\Api\ApplicationConfigurationController;
 use App\Http\Controllers\Api\AdminScheduleController;
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\VerifierController;
 
 // Public routes
@@ -42,6 +43,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
     Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
     Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
+    Route::get('/admin/announcements', [AnnouncementController::class, 'adminIndex']);
+    Route::post('/admin/announcements', [AnnouncementController::class, 'store']);
+    Route::put('/admin/announcements/{id}', [AnnouncementController::class, 'update']);
+    Route::delete('/admin/announcements/{id}', [AnnouncementController::class, 'destroy']);
+    Route::get('/admin/events', [SkEventController::class, 'adminIndex']);
+    Route::post('/admin/events', [SkEventController::class, 'store']);
+    Route::post('/admin/events/{id}', [SkEventController::class, 'update']); // POST + _method=PUT for multipart
+    Route::delete('/admin/events/{id}', [SkEventController::class, 'destroy']);
+    Route::get('/admin/reports/summary', [AdminReportController::class, 'summary']);
+    Route::get('/admin/reports/applications', [AdminReportController::class, 'applications']);
+    Route::get('/admin/reports/export', [AdminReportController::class, 'export']);
+    Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
 
     // Verifier routes
     Route::get('/verifier/applications', [VerifierController::class, 'index']);
