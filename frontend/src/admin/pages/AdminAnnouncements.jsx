@@ -1,14 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AdminNavigation from "../components/AdminNavigation";
-
-// ── Data ──────────────────────────────────────────────────────────────────────
-
-const initialAnnouncements = [
-  { id: "ANN-001", title: "Opening of Educational Assistance Application", category: "Educational Assistance", date: "April 1, 2026" },
-  { id: "ANN-002", title: "Reminder for Complete Submission of Documents",  category: "Reminder",              date: "April 5, 2026" },
-  { id: "ANN-003", title: "Upcoming SK Youth Development Activity",         category: "SK Activity",           date: "April 8, 2026" },
-  { id: "ANN-004", title: "Claiming Schedule Update for Approved Applicants", category: "Schedule Update",    date: "April 10, 2026" },
-];
+import api from "../../services/api";
 
 const categories = [
   "Educational Assistance",
@@ -19,21 +11,29 @@ const categories = [
 
 const emptyForm = { title: "", date: "", category: "", content: "" };
 
-// ── Edit Modal ────────────────────────────────────────────────────────────────
+function formatDate(dateStr) {
+  if (!dateStr) return "";
+  return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
 
-function EditAnnouncementModal({ announcement, onClose, onSave }) {
+function toInputDate(dateStr) {
+  if (!dateStr) return "";
+  return dateStr.slice(0, 10);
+}
+
+// ── Edit Modal ────────────────────────────────────────────────────────────────
+function EditAnnouncementModal({ announcement, onClose, onSave, saving }) {
   const [form, setForm] = useState({
-    title:    announcement.title,
-    date:     announcement.date,
-    category: announcement.category,
-    content:  "",
+    title: announcement.title,
+    date: toInputDate(announcement.published_at),
+    category: announcement.category ?? "",
+    content: announcement.content,
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   function handleSubmit(e) {
     e.preventDefault();
-    onSave({ ...announcement, ...form });
-    onClose();
+    onSave(announcement.id, form);
   }
 
   return (
@@ -64,13 +64,15 @@ function EditAnnouncementModal({ announcement, onClose, onSave }) {
                 </div>
                 <div className="col-12">
                   <label className="form-label">Announcement Content</label>
-                  <textarea className="form-control" rows="6" value={form.content} onChange={set("content")} placeholder="Enter announcement details" />
+                  <textarea className="form-control" rows="6" value={form.content} onChange={set("content")} placeholder="Enter announcement details" required />
                 </div>
               </div>
             </div>
             <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn btn-custom">Update Announcement</button>
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+              <button type="submit" className="btn btn-custom" disabled={saving}>
+                {saving ? "Updating..." : "Update Announcement"}
+              </button>
             </div>
           </form>
         </div>
@@ -80,38 +82,80 @@ function EditAnnouncementModal({ announcement, onClose, onSave }) {
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-
 function AdminAnnouncements() {
-  const [announcements, setAnnouncements] = useState(initialAnnouncements);
+  const [announcements, setAnnouncements] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editTarget, setEditTarget] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => { loadAnnouncements(); }, []);
+
+  function loadAnnouncements() {
+    setLoading(true);
+    api.get("/admin/announcements")
+      .then((res) => setAnnouncements(res.data))
+      .catch(() => setError("Failed to load announcements."))
+      .finally(() => setLoading(false));
+  }
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    const newId = `ANN-${String(announcements.length + 1).padStart(3, "0")}`;
-    const formatted = new Date(form.date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    setAnnouncements((prev) => [...prev, { id: newId, title: form.title, category: form.category, date: formatted }]);
-    setForm(emptyForm);
+    setError("");
+    setSuccess("");
+    setSaving(true);
+    try {
+      await api.post("/admin/announcements", form);
+      setForm(emptyForm);
+      setSuccess("Announcement posted successfully.");
+      loadAnnouncements();
+    } catch (err) {
+      const errors = err.response?.data?.errors;
+      setError(errors ? Object.values(errors).flat().join(" ") : err.response?.data?.message || "Failed to save announcement.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function deleteAnnouncement(id) {
-    setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+  async function deleteAnnouncement(id) {
+    if (!window.confirm("Delete this announcement?")) return;
+    setError("");
+    setSuccess("");
+    try {
+      await api.delete(`/admin/announcements/${id}`);
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete announcement.");
+    }
   }
 
-  function saveEdit(updated) {
-    setAnnouncements((prev) => prev.map((a) => a.id === updated.id ? updated : a));
+  async function saveEdit(id, data) {
+    setError("");
+    setSuccess("");
+    setSaving(true);
+    try {
+      await api.put(`/admin/announcements/${id}`, data);
+      setEditTarget(null);
+      setSuccess("Announcement updated successfully.");
+      loadAnnouncements();
+    } catch (err) {
+      const errors = err.response?.data?.errors;
+      setError(errors ? Object.values(errors).flat().join(" ") : err.response?.data?.message || "Failed to update announcement.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div>
       <AdminNavigation />
-
       <section className="page-section">
         <div className="container">
 
-          {/* Header */}
           <div className="page-card">
             <h3 className="section-title mb-2">Announcements Management</h3>
             <p className="text-muted mb-0">
@@ -119,26 +163,24 @@ function AdminAnnouncements() {
             </p>
           </div>
 
-          {/* Create Announcement */}
+          {error && <div className="alert alert-danger">{error}</div>}
+          {success && <div className="alert alert-success">{success}</div>}
+
           <div className="page-card">
             <h4 className="sub-title">Create Announcement</h4>
-
             <div className="info-box">
-              Announcements posted here may appear in the public section of the system to inform applicants about application opening dates, reminders, updates, and other important notices.
+              Announcements posted here will appear in the public section of the system to inform applicants about application opening dates, reminders, updates, and other important notices.
             </div>
-
             <form onSubmit={handleSubmit}>
               <div className="row g-3">
                 <div className="col-md-8">
                   <label className="form-label">Announcement Title</label>
                   <input type="text" className="form-control" placeholder="Enter announcement title" value={form.title} onChange={set("title")} required />
                 </div>
-
                 <div className="col-md-6">
                   <label className="form-label">Posting Date</label>
                   <input type="date" className="form-control" value={form.date} onChange={set("date")} required />
                 </div>
-
                 <div className="col-md-6">
                   <label className="form-label">Category</label>
                   <select className="form-select" value={form.category} onChange={set("category")} required>
@@ -146,56 +188,60 @@ function AdminAnnouncements() {
                     {categories.map((c) => <option key={c}>{c}</option>)}
                   </select>
                 </div>
-
                 <div className="col-12">
                   <label className="form-label">Announcement Content</label>
-                  <textarea className="form-control" rows="6" placeholder="Enter announcement details" value={form.content} onChange={set("content")} />
+                  <textarea className="form-control" rows="6" placeholder="Enter announcement details" value={form.content} onChange={set("content")} required />
                 </div>
               </div>
-
               <div className="mt-4 d-flex justify-content-end gap-2">
-                <button type="button" className="btn btn-secondary" onClick={() => setForm(emptyForm)}>Clear</button>
-                <button type="submit" className="btn btn-custom">Save Announcement</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setForm(emptyForm)} disabled={saving}>Clear</button>
+                <button type="submit" className="btn btn-custom" disabled={saving}>
+                  {saving ? "Saving..." : "Save Announcement"}
+                </button>
               </div>
             </form>
           </div>
 
-          {/* Existing Announcements */}
           <div className="page-card">
             <h4 className="sub-title">Existing Announcements</h4>
-
-            <div className="table-responsive">
-              <table className="table table-bordered table-striped align-middle">
-                <thead>
-                  <tr>
-                    <th>Announcement ID</th>
-                    <th>Title</th>
-                    <th>Category</th>
-                    <th>Posting Date</th>
-                    <th style={{ width: 180 }}>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {announcements.map((a) => (
-                    <tr key={a.id}>
-                      <td>{a.id}</td>
-                      <td>{a.title}</td>
-                      <td>{a.category}</td>
-                      <td>{a.date}</td>
-                      <td>
-                        <button className="btn btn-outline-secondary btn-sm me-1" onClick={() => setEditTarget(a)}>Edit</button>
-                        <button className="btn btn-outline-danger btn-sm" onClick={() => deleteAnnouncement(a.id)}>Delete</button>
-                      </td>
+            {loading ? (
+              <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>Announcement ID</th>
+                      <th>Title</th>
+                      <th>Category</th>
+                      <th>Posting Date</th>
+                      <th style={{ width: 180 }}>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {announcements.map((a) => (
+                      <tr key={a.id}>
+                        <td>ANN-{String(a.id).padStart(3, "0")}</td>
+                        <td>{a.title}</td>
+                        <td>{a.category}</td>
+                        <td>{formatDate(a.published_at)}</td>
+                        <td>
+                          <button className="btn btn-outline-secondary btn-sm me-1" onClick={() => setEditTarget(a)}>Edit</button>
+                          <button className="btn btn-outline-danger btn-sm" onClick={() => deleteAnnouncement(a.id)}>Delete</button>
+                        </td>
+                      </tr>
+                    ))}
+                    {announcements.length === 0 && (
+                      <tr><td colSpan="5" className="text-center text-muted">No announcements posted yet.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
         </div>
       </section>
-
       <footer>
         <div className="container">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Admin Panel</p>
@@ -207,6 +253,7 @@ function AdminAnnouncements() {
           announcement={editTarget}
           onClose={() => setEditTarget(null)}
           onSave={saveEdit}
+          saving={saving}
         />
       )}
     </div>

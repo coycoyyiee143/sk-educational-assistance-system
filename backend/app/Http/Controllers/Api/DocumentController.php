@@ -5,20 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationDocument;
-use App\Models\OcrResult;
-use App\Models\VerificationCheck;
-use App\Models\AuditLog;
+use App\Jobs\ProcessOcrDocument;
 use Illuminate\Http\Request;
-use GuzzleHttp\Client;
-use GuzzleHttp\Exception\RequestException;
 
 class DocumentController extends Controller
 {
-    private function getFlaskUrl(): string
-    {
-        return env('OCR_SERVICE_URL', 'http://localhost:5000');
-    }
-
     public function index(Request $request, $id)
     {
         $application = Application::where('id', $id)
@@ -45,7 +36,7 @@ class DocumentController extends Controller
         $path     = $file->storeAs(
             "documents/{$application->id}",
             $fileName,
-            'local'
+            'public'
         );
 
         $document = ApplicationDocument::create([
@@ -58,11 +49,11 @@ class DocumentController extends Controller
             'status'         => 'processing',
         ]);
 
-        // Trigger OCR
-        $this->processOcr($application, $document, $file->getRealPath());
+        // Dispatch async OCR job with stored file path
+        ProcessOcrDocument::dispatch($application, $document, $path);
 
         return response()->json([
-            'message'  => 'Document uploaded.',
+            'message'  => 'Document uploaded and queued for processing.',
             'document' => $document->fresh(),
         ], 201);
     }
@@ -87,7 +78,7 @@ class DocumentController extends Controller
         $path     = $file->storeAs(
             "documents/{$application->id}",
             $fileName,
-            'local'
+            'public'
         );
 
         $newDocument = ApplicationDocument::create([
@@ -100,144 +91,17 @@ class DocumentController extends Controller
             'status'         => 'processing',
         ]);
 
-        // Trigger OCR
-        $this->processOcr($application, $newDocument, $file->getRealPath());
+        // Update parent application status back to the processing queue
+        $application->update([
+            'status' => 'pending_prescreening'
+        ]);
+
+        // Dispatch async OCR job with stored file path
+        ProcessOcrDocument::dispatch($application, $newDocument, $path);
 
         return response()->json([
-            'message'  => 'Document re-uploaded.',
+            'message'  => 'Document re-uploaded and queued for processing.',
             'document' => $newDocument->fresh(),
         ], 201);
-    }
-
-    private function processOcr($application, $document, $filePath): void
-    {
-        try {
-            $client = new Client(['timeout' => 60]);
-            $user   = $application->user;
-            $config = $application->configuration;
-
-            // Build multipart form data for Flask
-            $multipart = [
-                [
-                    'name'     => 'file',
-                    'contents' => fopen($filePath, 'r'),
-                    'filename' => $document->file_name,
-                ],
-                ['name' => 'first_name',  'contents' => $user->first_name],
-                ['name' => 'middle_name', 'contents' => $user->middle_name ?? ''],
-                ['name' => 'last_name',   'contents' => $user->last_name],
-            ];
-
-            // Add extra fields depending on document type
-            $endpoint = match($document->document_type) {
-                'voters_certificate' => '/api/ocr/voters-certificate',
-                'registration_form'  => '/api/ocr/registration-form',
-                'school_id'          => '/api/ocr/school-id',
-            };
-
-            if ($document->document_type === 'registration_form') {
-                $multipart[] = ['name' => 'declared_school', 'contents' => $application->school_name];
-                $multipart[] = ['name' => 'school_year',     'contents' => $config->school_year];
-                $multipart[] = ['name' => 'semester',        'contents' => $config->semester];
-            }
-
-            if ($document->document_type === 'school_id') {
-                $multipart[] = ['name' => 'declared_school', 'contents' => $application->school_name];
-            }
-
-            $response = $client->post($this->getFlaskUrl() . $endpoint, [
-                'multipart' => $multipart,
-            ]);
-
-            $result = json_decode($response->getBody()->getContents(), true);
-
-            if (!$result['success']) {
-                $document->update(['status' => 'failed']);
-                return;
-            }
-
-            // Store OCR result
-            $ocrResult = OcrResult::create([
-                'document_id'      => $document->id,
-                'extracted_fields' => $result['verification'] ?? [],
-                'confidence_score' => $result['avg_confidence'] ?? null,
-                'is_low_confidence'=> ($result['avg_confidence'] ?? 1) < 0.7,
-                'raw_text'         => json_encode($result['ocr_lines'] ?? []),
-            ]);
-
-            // Store individual verification checks
-            $verification = $result['verification'] ?? [];
-            $allPassed    = true;
-
-            foreach ($verification as $checkName => $checkData) {
-                if (!is_array($checkData)) continue;
-
-                $passed = $checkData['passed'] ?? false;
-                if (!$passed) $allPassed = false;
-
-                VerificationCheck::create([
-                    'application_id' => $application->id,
-                    'document_id'    => $document->id,
-                    'ocr_result_id'  => $ocrResult->id,
-                    'check_name'     => $checkName,
-                    'passed'         => $passed,
-                    'extracted_value'=> $checkData['extracted'] ?? null,
-                    'expected_value' => $checkData['expected'] ?? null,
-                    'flag_reason'    => $checkData['reason'] ?? null,
-                ]);
-            }
-
-            $document->update(['status' => 'processed']);
-
-            // Update application status based on all documents
-            $this->updateApplicationStatus($application);
-
-        } catch (RequestException $e) {
-            $document->update(['status' => 'failed']);
-        } catch (\Exception $e) {
-            $document->update(['status' => 'failed']);
-        }
-    }
-
-    private function updateApplicationStatus($application): void
-    {
-        $application->load('documents.verificationChecks');
-
-        $allDocuments = $application->documents;
-
-        // Check if all 3 documents are uploaded and processed
-        $docTypes     = $allDocuments->pluck('status', 'document_type');
-        $requiredTypes = ['voters_certificate', 'registration_form', 'school_id'];
-
-        foreach ($requiredTypes as $type) {
-            if (!isset($docTypes[$type]) || $docTypes[$type] !== 'processed') {
-                // Not all documents uploaded yet, leave status as is
-                return;
-            }
-        }
-
-        // All documents processed — check if any verification check failed
-        $hasFailedCheck = VerificationCheck::where('application_id', $application->id)
-            ->where('passed', false)
-            ->exists();
-
-        $isLowConfidence = OcrResult::whereIn(
-            'document_id',
-            $allDocuments->pluck('id')
-        )->where('is_low_confidence', true)->exists();
-
-        if ($hasFailedCheck || $isLowConfidence) {
-            $application->update(['status' => 'for_review']);
-        } else {
-            $application->update([
-                'status'         => 'approved',
-                'control_number' => $this->generateControlNumber(),
-            ]);
-        }
-    }
-
-    private function generateControlNumber(): string
-    {
-        return 'SK-' . date('Y') . '-' . strtoupper(substr(uniqid(), -6));
     }
 }

@@ -1,201 +1,169 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AdminNavigation from "../components/AdminNavigation";
+import api from "../../services/api";
 
-// ── Static display data ───────────────────────────────────────────────────────
-
-const currentSettings = [
-  ["School Year", "2026 - 2027"],
-  ["Application Status", "Open"],
-  ["Opening Date", "April 1, 2026"],
-  ["Closing Date", "April 15, 2026"],
-  ["Slot Availability", "Limited"],
-  ["Number of Available Slots", "100"],
-];
-
-const requiredDocuments = [
-  "School ID",
-  "Certificate of Enrollment / Registration Form",
-  "Barangay Certificate / Proof of Residency",
-  "Birth Certificate",
-  "2x2 Picture",
-];
-
-const eligibilityRules = [
-  "Applicant must be a resident of Barangay Mamatid.",
-  "Applicant must be currently enrolled.",
-  "Applicant must submit complete requirements.",
-  "Applicant must apply within the official application period.",
-];
-
-// ── Initial form state ────────────────────────────────────────────────────────
-
-const emptyForm = {
-  schoolYear: "",
-  appStatus: "",
-  openingDate: "",
-  closingDate: "",
-  slotAvailability: "",
-  slotCount: "",
-};
-
-// ── Component ─────────────────────────────────────────────────────────────────
+const SEMESTERS = ["1st Semester", "2nd Semester", "Summer"];
 
 function AdminSettings() {
-  const [form, setForm] = useState(emptyForm);
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [config, setConfig] = useState(null);
+  const [form, setForm] = useState({
+    school_year: "",
+    semester: "",
+    open_date: "",
+    close_date: "",
+    total_slots: "",
+    is_active: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
 
-  function handleSubmit(e) {
+  useEffect(() => {
+    api.get("/admin/application-configs")
+      .then((res) => {
+        const active = res.data.find((c) => c.is_active) ?? res.data[0] ?? null;
+        if (active) {
+          setConfig(active);
+          setForm({
+            school_year: active.school_year,
+            semester: active.semester,
+            open_date: active.open_date,
+            close_date: active.close_date,
+            total_slots: active.total_slots,
+            is_active: active.is_active,
+          });
+        }
+      })
+      .catch(() => { })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const set = (k) => (e) => setForm((f) => ({
+    ...f,
+    [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value
+  }));
+
+  async function handleSubmit(e) {
     e.preventDefault();
-    console.log("Saved settings:", form);
+    setError("");
+    setSuccess("");
+    setSaving(true);
+    try {
+      let response;
+      if (config) {
+        response = await api.put(`/admin/application-configs/${config.id}`, form);
+      } else {
+        response = await api.post("/application-config", form);
+      }
+
+      // Update config to reflect saved changes
+      const updatedConfig = response.data.config;
+      setConfig(updatedConfig);
+      setForm({
+        school_year: updatedConfig.school_year,
+        semester: updatedConfig.semester,
+        open_date: updatedConfig.open_date,
+        close_date: updatedConfig.close_date,
+        total_slots: updatedConfig.total_slots,
+        is_active: updatedConfig.is_active,
+      });
+
+      setSuccess("Settings saved successfully.");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to save settings.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div>
       <AdminNavigation />
-
       <section className="page-section">
         <div className="container">
 
-          {/* Header */}
           <div className="page-card">
             <h3 className="section-title mb-2">Application Settings</h3>
-            <p className="text-muted mb-0">
-              Configure the application period, school year, applicant slot availability, and other important settings for the educational assistance program.
-            </p>
+            <p className="text-muted mb-0">Configure the application period and slot availability.</p>
           </div>
 
-          {/* Program Configuration Form */}
           <div className="page-card">
             <h4 className="sub-title">Program Configuration</h4>
 
-            <div className="info-box">
-              These settings control the availability and basic parameters of the educational assistance application process.
-            </div>
+            {success && <div className="alert alert-success">{success}</div>}
+            {error && <div className="alert alert-danger">{error}</div>}
 
-            <form onSubmit={handleSubmit}>
-              <div className="row g-3">
-
-                <div className="col-md-6">
-                  <label className="form-label">School Year</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="e.g. 2026 - 2027"
-                    value={form.schoolYear}
-                    onChange={set("schoolYear")}
-                  />
+            {loading ? (
+              <div className="spinner-border text-danger" />
+            ) : (
+              <form onSubmit={handleSubmit}>
+                <div className="row g-3">
+                  <div className="col-md-6">
+                    <label className="form-label">School Year</label>
+                    <input className="form-control" placeholder="e.g. 2025-2026" value={form.school_year} onChange={set("school_year")} required />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Semester</label>
+                    <select className="form-select" value={form.semester} onChange={set("semester")} required>
+                      <option value="" disabled>Select semester</option>
+                      {SEMESTERS.map((s) => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Opening Date</label>
+                    <input type="date" className="form-control" value={form.open_date} onChange={set("open_date")} required />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Closing Date</label>
+                    <input type="date" className="form-control" value={form.close_date} onChange={set("close_date")} required />
+                  </div>
+                  <div className="col-md-6">
+                    <label className="form-label">Total Slots</label>
+                    <input type="number" className="form-control" placeholder="e.g. 2000" value={form.total_slots} onChange={set("total_slots")} required />
+                  </div>
+                  <div className="col-md-6 d-flex align-items-center mt-4">
+                    <div className="form-check">
+                      <input type="checkbox" className="form-check-input" id="isActive" checked={form.is_active} onChange={set("is_active")} />
+                      <label className="form-check-label" htmlFor="isActive">
+                        Set as Active Application Period
+                      </label>
+                    </div>
+                  </div>
                 </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Application Status</label>
-                  <select className="form-select" value={form.appStatus} onChange={set("appStatus")}>
-                    <option value="" disabled>Select application status</option>
-                    <option>Open</option>
-                    <option>Closed</option>
-                  </select>
+                <div className="mt-4 d-flex justify-content-end gap-2">
+                  <button type="submit" className="btn btn-custom" disabled={saving}>
+                    {saving ? "Saving..." : "Save Settings"}
+                  </button>
                 </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Application Opening Date</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={form.openingDate}
-                    onChange={set("openingDate")}
-                  />
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Application Closing Date</label>
-                  <input
-                    type="date"
-                    className="form-control"
-                    value={form.closingDate}
-                    onChange={set("closingDate")}
-                  />
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Slot Availability</label>
-                  <select className="form-select" value={form.slotAvailability} onChange={set("slotAvailability")}>
-                    <option value="" disabled>Select slot type</option>
-                    <option>Unlimited</option>
-                    <option>Limited</option>
-                  </select>
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label">Number of Available Slots</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    placeholder="Enter number of slots"
-                    value={form.slotCount}
-                    onChange={set("slotCount")}
-                  />
-                </div>
-
-              </div>
-
-              <div className="mt-4 d-flex justify-content-end gap-2">
-                <button type="button" className="btn btn-secondary" onClick={() => setForm(emptyForm)}>Clear</button>
-                <button type="submit" className="btn btn-custom">Save Settings</button>
-              </div>
-            </form>
+              </form>
+            )}
           </div>
 
-          {/* Current Settings Table */}
-          <div className="page-card">
-            <h4 className="sub-title">Current Application Settings</h4>
-
-            <div className="table-responsive">
-              <table className="table table-bordered table-striped align-middle">
-                <thead>
-                  <tr>
-                    <th>Setting</th>
-                    <th>Current Value</th>
-                  </tr>
-                </thead>
+          {config && (
+            <div className="page-card">
+              <h4 className="sub-title">Current Application Settings</h4>
+              <table className="table table-bordered table-striped">
+                <thead><tr><th>Setting</th><th>Value</th></tr></thead>
                 <tbody>
-                  {currentSettings.map(([setting, value]) => (
-                    <tr key={setting}>
-                      <td>{setting}</td>
-                      <td>{value}</td>
-                    </tr>
+                  {[
+                    ["School Year", config.school_year],
+                    ["Semester", config.semester],
+                    ["Opening Date", config.open_date],
+                    ["Closing Date", config.close_date],
+                    ["Total Slots", config.total_slots],
+                    ["Used Slots", config.used_slots],
+                    ["Status", config.is_active ? "Active" : "Inactive"],
+                  ].map(([k, v]) => (
+                    <tr key={k}><td>{k}</td><td>{v}</td></tr>
                   ))}
                 </tbody>
               </table>
             </div>
-          </div>
-
-          {/* Documents & Eligibility */}
-          <div className="page-card">
-            <h4 className="sub-title">Required Documents and Eligibility Rules</h4>
-
-            <div className="info-box">
-              The following list represents the current requirements and eligibility conditions used by the system during application processing.
-            </div>
-
-            <div className="row g-4">
-              <div className="col-md-6">
-                <h6 className="mb-3" style={{ color: "#b71c1c" }}>Required Documents</h6>
-                <ul className="mb-0">
-                  {requiredDocuments.map((doc) => <li key={doc}>{doc}</li>)}
-                </ul>
-              </div>
-
-              <div className="col-md-6">
-                <h6 className="mb-3" style={{ color: "#b71c1c" }}>Eligibility Rules</h6>
-                <ul className="mb-0">
-                  {eligibilityRules.map((rule) => <li key={rule}>{rule}</li>)}
-                </ul>
-              </div>
-            </div>
-          </div>
+          )}
 
         </div>
       </section>
-
       <footer>
         <div className="container">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Admin Panel</p>

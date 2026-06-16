@@ -107,6 +107,15 @@ def process_registration_form():
         configured_school_year = request.form.get("school_year", "")
         configured_semester = request.form.get("semester", "")
 
+        # Format semester according to school strategy
+        from app.normalization import get_strategy_for_school
+        strategy = get_strategy_for_school(declared_school)
+        formatted_semester = strategy.format_semester(configured_semester)
+
+        # Debug logging
+        import sys
+        print(f"DEBUG: School='{declared_school}' | Strategy={strategy.__class__.__name__} | Config Sem='{configured_semester}' | Formatted='{formatted_semester}'", file=sys.stderr)
+
         ocr_result = run_ocr(tmp_path)
         avg_confidence = get_average_confidence(ocr_result)
 
@@ -115,7 +124,7 @@ def process_registration_form():
             first_name, middle_name, last_name,
             declared_school,
             configured_school_year,
-            configured_semester
+            formatted_semester
         )
 
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]

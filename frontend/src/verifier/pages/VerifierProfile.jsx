@@ -1,134 +1,127 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
-
-// ── Component ─────────────────────────────────────────────────────────────────
+import { useAuth } from "../../context/AuthContext";
+import api from "../../services/api";
 
 function VerifierProfile() {
-  const [profile, setProfile] = useState({
-    name:    "Juan Dela Cruz",
-    email:   "verifier@email.com",
-    contact: "09123456789",
-  });
+  const { user, login, token } = useAuth();
+  const [form, setForm] = useState({ first_name: "", last_name: "", mobile_number: "" });
+  const [passwords, setPasswords] = useState({ current_password: "", password: "", password_confirmation: "" });
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState("");
+  const [error, setError] = useState("");
 
-  const [passwords, setPasswords] = useState({
-    current: "",
-    newPass: "",
-    confirm: "",
-  });
+  useEffect(() => {
+    if (user) {
+      setForm({
+        first_name: user.first_name ?? "",
+        last_name: user.last_name ?? "",
+        mobile_number: user.mobile_number ?? "",
+      });
+    }
+  }, [user]);
 
-  const setProfile_ = (k) => (e) => setProfile((f) => ({ ...f, [k]: e.target.value }));
-  const setPass     = (k) => (e) => setPasswords((f) => ({ ...f, [k]: e.target.value }));
+  const setF = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const setP = (k) => (e) => setPasswords((f) => ({ ...f, [k]: e.target.value }));
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
-    // TODO: connect to backend
-    console.log("Saved:", { profile, passwords });
+    setError("");
+    setSuccess("");
+    setSaving(true);
+    try {
+      const res = await api.put("/user/profile", form);
+      login(res.data.user, token);
+      setSuccess("Profile updated.");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update profile.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handlePasswordChange(e) {
+    e.preventDefault();
+    setError("");
+    setSuccess("");
+    setSaving(true);
+    try {
+      await api.put("/user/password", passwords);
+      setSuccess("Password updated.");
+      setPasswords({ current_password: "", password: "", password_confirmation: "" });
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update password.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div>
       <VerifierNavigation />
-
       <section className="page-section">
         <div className="container">
-
           <h3 className="section-title">Verifier Profile</h3>
+
+          {success && <div className="alert alert-success">{success}</div>}
+          {error && <div className="alert alert-danger">{error}</div>}
 
           <div className="content-card">
             <h4>Profile Information</h4>
-
-            <div className="info-box">
-              Update your verifier account information and change your password if needed.
-            </div>
-
             <form onSubmit={handleSubmit}>
               <div className="row g-3">
                 <div className="col-md-6">
-                  <label className="form-label">Full Name</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={profile.name}
-                    onChange={setProfile_("name")}
-                  />
+                  <label className="form-label">First Name</label>
+                  <input className="form-control" value={form.first_name} onChange={setF("first_name")} required />
                 </div>
-
                 <div className="col-md-6">
-                  <label className="form-label">Email Address</label>
-                  <input
-                    type="email"
-                    className="form-control"
-                    value={profile.email}
-                    onChange={setProfile_("email")}
-                  />
+                  <label className="form-label">Last Name</label>
+                  <input className="form-control" value={form.last_name} onChange={setF("last_name")} required />
                 </div>
-
                 <div className="col-md-6">
-                  <label className="form-label">Contact Number</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={profile.contact}
-                    onChange={setProfile_("contact")}
-                  />
+                  <label className="form-label">Mobile Number</label>
+                  <input className="form-control" value={form.mobile_number} onChange={setF("mobile_number")} />
                 </div>
-
+                <div className="col-md-6">
+                  <label className="form-label">Email</label>
+                  <input className="form-control" value={user?.email ?? ""} disabled />
+                </div>
                 <div className="col-md-6">
                   <label className="form-label">Role</label>
-                  <input type="text" className="form-control" value="SK Verifier" disabled />
+                  <input className="form-control" value="SK Verifier" disabled />
                 </div>
               </div>
+              <div className="mt-4 d-flex gap-2">
+                <button type="submit" className="btn btn-custom" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</button>
+              </div>
+            </form>
 
-              <hr className="my-4" />
+            <hr className="my-4" />
 
-              <h4 className="mb-3">Change Password</h4>
-
+            <h4>Change Password</h4>
+            <form onSubmit={handlePasswordChange}>
               <div className="row g-3">
                 <div className="col-md-4">
                   <label className="form-label">Current Password</label>
-                  <input
-                    type="password"
-                    className="form-control"
-                    placeholder="Enter current password"
-                    value={passwords.current}
-                    onChange={setPass("current")}
-                  />
+                  <input type="password" className="form-control" value={passwords.current_password} onChange={setP("current_password")} required />
                 </div>
-
                 <div className="col-md-4">
                   <label className="form-label">New Password</label>
-                  <input
-                    type="password"
-                    className="form-control"
-                    placeholder="Enter new password"
-                    value={passwords.newPass}
-                    onChange={setPass("newPass")}
-                  />
+                  <input type="password" className="form-control" value={passwords.password} onChange={setP("password")} required />
                 </div>
-
                 <div className="col-md-4">
                   <label className="form-label">Confirm New Password</label>
-                  <input
-                    type="password"
-                    className="form-control"
-                    placeholder="Confirm new password"
-                    value={passwords.confirm}
-                    onChange={setPass("confirm")}
-                  />
+                  <input type="password" className="form-control" value={passwords.password_confirmation} onChange={setP("password_confirmation")} required />
                 </div>
               </div>
-
-              <div className="mt-4 d-flex gap-2">
-                <button type="submit" className="btn btn-custom">Save Changes</button>
-                <Link to="/VerifierDashboard" className="btn btn-secondary">Cancel</Link>
+              <div className="mt-4">
+                <button type="submit" className="btn btn-custom" disabled={saving}>{saving ? "Saving..." : "Update Password"}</button>
               </div>
             </form>
           </div>
-
         </div>
       </section>
-
       <footer>
         <div className="container">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Verifier Panel</p>

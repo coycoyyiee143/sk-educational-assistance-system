@@ -1,22 +1,36 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import api from "../../services/api";
 
 const navLinks = [
-  { label: "Dashboard",            to: "/ApplicantDashboard" },
-  { label: "Profile",              to: "/ApplicantProfile" },
+  { label: "Dashboard", to: "/ApplicantDashboard" },
+  { label: "Profile", to: "/ApplicantProfile" },
   { label: "Application Submission", to: "/ApplicantSubmission" },
-  { label: "Application Status",   to: "/ApplicantStatus" },
-  { label: "Claiming Schedule",    to: "/ApplicantClaimingSchedule" },
+  { label: "Application Status", to: "/ApplicantStatus" },
+  { label: "Claiming Schedule", to: "/ApplicantClaimingSchedule" },
 ];
 
 function ApplicantNavigation() {
   const [navOpen, setNavOpen] = useState(false);
   const location = useLocation();
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await api.post("/logout");
+    } catch (err) {
+      // proceed with logout even if api call fails
+    } finally {
+      logout();
+      navigate("/login");
+    }
+  };
 
   return (
     <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
       <div className="container">
-
         <Link className="navbar-brand-custom" to="/ApplicantDashboard">
           <img src="/logo.png" alt="SK Logo" />
           <div className="brand-text">
@@ -48,13 +62,12 @@ function ApplicantNavigation() {
               </li>
             ))}
             <li className="nav-item">
-              <Link className="nav-link" to="/login" onClick={() => setNavOpen(false)}>
+              <button className="nav-link btn btn-link" onClick={handleLogout}>
                 Logout
-              </Link>
+              </button>
             </li>
           </ul>
         </div>
-
       </div>
     </nav>
   );

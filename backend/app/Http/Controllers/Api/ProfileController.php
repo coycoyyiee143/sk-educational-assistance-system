@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class ProfileController extends Controller
 {
@@ -44,6 +45,37 @@ class ProfileController extends Controller
             'message' => 'Profile updated.',
             'profile' => $request->user()->profile,
         ]);
+    }
+
+    public function updateAccount(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'first_name'    => 'sometimes|string',
+            'last_name'     => 'sometimes|string',
+            'mobile_number' => 'sometimes|string|unique:users,mobile_number,' . $user->id,
+        ]);
+
+        $user->update($data);
+
+        return response()->json(['message' => 'Account updated.', 'user' => $user]);
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $request->validate([
+            'current_password' => 'required|string',
+            'password'         => 'required|string|min:8|confirmed',
+        ]);
+
+        if (!Hash::check($request->current_password, $request->user()->password)) {
+            return response()->json(['message' => 'Current password is incorrect.'], 422);
+        }
+
+        $request->user()->update(['password' => Hash::make($request->password)]);
+
+        return response()->json(['message' => 'Password updated.']);
     }
 
     private function validateProfile(Request $request): array

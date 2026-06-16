@@ -1,106 +1,68 @@
-import React from "react";
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import AdminNavigation from "../components/AdminNavigation";
+import api from "../../services/api";
 
 function AdminDashboard() {
+  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get("/admin/stats")
+      .then((res) => setStats(res.data))
+      .catch(() => { })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const cards = [
+    { label: "Total Applications", value: stats.total },
+    { label: "Pending Review", value: stats.pending },
+    { label: "Approved Applications", value: stats.approved },
+    { label: "Rejected Applications", value: stats.rejected },
+  ];
+
   return (
     <div>
-
-      {/* NAVIGATION */}
       <AdminNavigation />
-
-      {/* MAIN CONTENT */}
       <section className="page-section">
         <div className="container">
-
-          {/* PAGE TITLE */}
           <h3 className="section-title">Admin Dashboard</h3>
 
-          {/* STATS */}
           <div className="row g-4">
-
-            <div className="col-md-3">
-              <div className="dashboard-card">
-                <h2>125</h2>
-                <p>Total Applications</p>
+            {cards.map(({ label, value }) => (
+              <div className="col-md-3" key={label}>
+                <div className="dashboard-card">
+                  <h2>{loading ? "..." : value}</h2>
+                  <p>{label}</p>
+                </div>
               </div>
-            </div>
-
-            <div className="col-md-3">
-              <div className="dashboard-card">
-                <h2>34</h2>
-                <p>Pending Review</p>
-              </div>
-            </div>
-
-            <div className="col-md-3">
-              <div className="dashboard-card">
-                <h2>70</h2>
-                <p>Approved Applications</p>
-              </div>
-            </div>
-
-            <div className="col-md-3">
-              <div className="dashboard-card">
-                <h2>21</h2>
-                <p>Rejected Applications</p>
-              </div>
-            </div>
-
+            ))}
           </div>
 
-          {/* SYSTEM MANAGEMENT */}
           <div className="mt-5">
-
             <h4 className="section-title">System Management</h4>
-
             <div className="row g-3">
-
-              <div className="col-md-4">
-                <a className="admin-link" href="/AdminUsers">
-                  User Management
-                </a>
-              </div>
-
-              <div className="col-md-4">
-                <a className="admin-link" href="/AdminSettings">
-                  Application Settings
-                </a>
-              </div>
-
-              <div className="col-md-4">
-                <a className="admin-link" href="/AdminSchedules">
-                  Schedule Management
-                </a>
-              </div>
-
-              <div className="col-md-4">
-                <a className="admin-link" href="/AdminAnnouncements">
-                  Announcements Management
-                </a>
-              </div>
-
-              <div className="col-md-4">
-                <a className="admin-link" href="/AdminReports">
-                  Generate Reports
-                </a>
-              </div>
-
+              {[
+                { label: "User Management", to: "/AdminUsers" },
+                { label: "Application Settings", to: "/AdminSettings" },
+                { label: "Schedule Management", to: "/AdminSchedule" },
+                { label: "Announcements Management", to: "/AdminAnnouncements" },
+                { label: "Events Management", to: "/AdminEvents" },
+                { label: "Generate Reports", to: "/AdminReports" },
+              ].map(({ label, to }) => (
+                <div className="col-md-4" key={label}>
+                  <Link className="admin-link" to={to}>{label}</Link>
+                </div>
+              ))}
             </div>
-
           </div>
-
         </div>
       </section>
-
-      {/* FOOTER */}
       <footer>
         <div className="container">
-          <p className="mb-0">
-            © 2026 Sangguniang Kabataan of Barangay Mamatid | Admin Panel
-          </p>
+          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Admin Panel</p>
         </div>
       </footer>
-
     </div>
   );
 }

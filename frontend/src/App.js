@@ -1,5 +1,6 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import ProtectedRoute from "./components/ProtectedRoute";
 
 import Home from "./public/pages/Home";
 import Requirements from "./public/pages/Requirements";
@@ -7,6 +8,8 @@ import Announcements from "./public/pages/Announcements";
 import Events from "./public/pages/Events";
 import Login from "./public/pages/Login";
 import Register from "./public/pages/Register";
+import VerifyEmail from "./public/pages/VerifyEmail.jsx";
+import VerifyEmailNotice from "./public/pages/VerifyEmailNotice";
 
 import AdminDashboard from "./admin/pages/AdminDashboard";
 import AdminUsers from "./admin/pages/AdminUsers";
@@ -41,30 +44,104 @@ function App() {
         <Route path="/events" element={<Events />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email/:id/:hash" element={<VerifyEmail />} />
+        <Route path="/verify-email-notice" element={<VerifyEmailNotice />} />
 
         {/* Admin */}
-        <Route path="/AdminDashboard" element={<AdminDashboard />} />
-        <Route path="/AdminUsers" element={<AdminUsers />} />
-        <Route path="/AdminSettings" element={<AdminSettings />} />
-        <Route path="/AdminSchedule" element={<AdminSchedule />} />
-        <Route path="/AdminAnnouncements" element={<AdminAnnouncements />} />
-        <Route path="/AdminEvents" element={<AdminEvents />} />
-        <Route path="/AdminReports" element={<AdminReports />} />
+        <Route path="/AdminDashboard" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/AdminUsers" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminUsers />
+          </ProtectedRoute>
+        } />
+        <Route path="/AdminSettings" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminSettings />
+          </ProtectedRoute>
+        } />
+        <Route path="/AdminSchedule" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminSchedule />
+          </ProtectedRoute>
+        } />
+        <Route path="/AdminAnnouncements" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminAnnouncements />
+          </ProtectedRoute>
+        } />
+        <Route path="/AdminEvents" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminEvents />
+          </ProtectedRoute>
+        } />
+        <Route path="/AdminReports" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminReports />
+          </ProtectedRoute>
+        } />
 
         {/* Verifier */}
-        <Route path="/VerifierDashboard" element={<VerifierDashboard />} />
-        <Route path="/VerifierApplicationList" element={<VerifierApplicationList />} />
-        <Route path="/VerifierApplicationReview" element={<VerifierApplicationReview />} />
-        <Route path="/VerifierVerificationAction" element={<VerifierVerificationAction />} />
-        <Route path="/VerifierClaiming" element={<VerifierClaiming />} />
-        <Route path="/VerifierProfile" element={<VerifierProfile />} />
+        <Route path="/VerifierDashboard" element={
+          <ProtectedRoute allowedRoles={["sk_verifier"]}>
+            <VerifierDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/VerifierApplicationList" element={
+          <ProtectedRoute allowedRoles={["sk_verifier"]}>
+            <VerifierApplicationList />
+          </ProtectedRoute>
+        } />
+        <Route path="/VerifierApplicationReview/:id" element={
+          <ProtectedRoute allowedRoles={["sk_verifier"]}>
+            <VerifierApplicationReview />
+          </ProtectedRoute>
+        } />
+        <Route path="/VerifierVerificationAction/:id" element={
+          <ProtectedRoute allowedRoles={["sk_verifier"]}>
+            <VerifierVerificationAction />
+          </ProtectedRoute>
+        } />
+        <Route path="/VerifierClaiming" element={
+          <ProtectedRoute allowedRoles={["sk_verifier"]}>
+            <VerifierClaiming />
+          </ProtectedRoute>
+        } />
+        <Route path="/VerifierProfile" element={
+          <ProtectedRoute allowedRoles={["sk_verifier"]}>
+            <VerifierProfile />
+          </ProtectedRoute>
+        } />
 
         {/* Applicant */}
-        <Route path="/ApplicantDashboard" element={<ApplicantDashboard />} />
-        <Route path="/ApplicantProfile" element={<ApplicantProfile />} />
-        <Route path="/ApplicantSubmission" element={<ApplicantSubmission />} />
-        <Route path="/ApplicantStatus" element={<ApplicantStatus />} />
-        <Route path="/ApplicantClaimingSchedule" element={<ApplicantClaimingSchedule />} />
+        <Route path="/ApplicantDashboard" element={
+          <ProtectedRoute allowedRoles={["applicant"]}>
+            <ApplicantDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/ApplicantProfile" element={
+          <ProtectedRoute allowedRoles={["applicant"]}>
+            <ApplicantProfile />
+          </ProtectedRoute>
+        } />
+        <Route path="/ApplicantSubmission" element={
+          <ProtectedRoute allowedRoles={["applicant"]}>
+            <ApplicantSubmission />
+          </ProtectedRoute>
+        } />
+        <Route path="/ApplicantStatus" element={
+          <ProtectedRoute allowedRoles={["applicant"]}>
+            <ApplicantStatus />
+          </ProtectedRoute>
+        } />
+        <Route path="/ApplicantClaimingSchedule" element={
+          <ProtectedRoute allowedRoles={["applicant"]}>
+            <ApplicantClaimingSchedule />
+          </ProtectedRoute>
+        } />
 
       </Routes>
     </BrowserRouter>

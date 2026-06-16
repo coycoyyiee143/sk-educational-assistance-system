@@ -36,11 +36,37 @@ class Application extends Model
 
     public function documents()
     {
-        return $this->hasMany(ApplicationDocument::class);
+        return $this->hasMany(ApplicationDocument::class)->orderBy('version', 'desc');
     }
 
     public function verificationChecks()
     {
         return $this->hasMany(VerificationCheck::class);
+    }
+
+    public function verifierActions()
+    {
+        return $this->hasMany(VerifierAction::class);
+    }
+
+    public function latestVerifierAction()
+    {
+        return $this->hasOne(VerifierAction::class)->latestOfMany();
+    }
+
+    public function claimingAssignment()
+    {
+        return $this->hasOne(ClaimingAssignment::class);
+    }
+
+    public static function generateControlNumber($configId): string
+    {
+        $count = self::where('config_id', $configId)
+            ->whereNotNull('control_number')
+            ->count();
+
+        $sequence = $count + 1;
+
+        return 'SK-' . date('Y') . '-' . str_pad($sequence, 4, '0', STR_PAD_LEFT);
     }
 }
