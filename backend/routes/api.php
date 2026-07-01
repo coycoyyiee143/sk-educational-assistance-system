@@ -49,7 +49,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/admin/announcements/{id}', [AnnouncementController::class, 'destroy']);
     Route::get('/admin/events', [SkEventController::class, 'adminIndex']);
     Route::post('/admin/events', [SkEventController::class, 'store']);
-    Route::post('/admin/events/{id}', [SkEventController::class, 'update']); // POST + _method=PUT for multipart
+    Route::put('/admin/events/{id}', [SkEventController::class, 'update']); // POST + _method=PUT for multipart // PUT - JAS
     Route::delete('/admin/events/{id}', [SkEventController::class, 'destroy']);
     Route::get('/admin/reports/summary', [AdminReportController::class, 'summary']);
     Route::get('/admin/reports/applications', [AdminReportController::class, 'applications']);
