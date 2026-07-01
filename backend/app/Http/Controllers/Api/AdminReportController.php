@@ -138,50 +138,56 @@ class AdminReportController extends Controller
     public function budgetForecast()
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
-
         $historical = $configs->map(function ($config) {
             $total    = Application::where('config_id', $config->id)->count();
             $approved = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->approvedStatuses())
                 ->count();
-
             return [
-                'config_id'             => $config->id,
-                'school_year'           => $config->school_year,
-                'semester'              => $config->semester,
-                'is_active'             => $config->is_active,
-                'total_applications'    => $total,
-                'approved_count'        => $approved,
-                'pass_rate'             => $total > 0 ? round($approved / $total, 4) : 0,
-                'total_slots'           => $config->total_slots,
-                'estimated_disbursement'=> $approved * self::ASSISTANCE_AMOUNT,
+                'config_id'              => $config->id,
+                'school_year'            => $config->school_year,
+                'semester'               => $config->semester,
+                'is_active'              => $config->is_active,
+                'total_applications'     => $total,
+                'approved_count'         => $approved,
+                'pass_rate'              => $total > 0 ? round($approved / $total, 4) : 0,
+                'is_unlimited'           => $config->is_unlimited,
+                'slot_limit'             => $config->slot_limit,
+                'estimated_disbursement' => $approved * self::ASSISTANCE_AMOUNT,
             ];
         });
 
-        // Forecast baseline uses completed (non-active) periods with at least one application
         $completed = $historical->where('is_active', false)->where('total_applications', '>', 0);
-
         if ($completed->count() > 0) {
             $avgApproved = $completed->avg('approved_count');
             $avgPassRate = $completed->avg('pass_rate');
         } else {
-            // Fallback: use the current active period's running data
             $current     = $historical->firstWhere('is_active', true);
             $avgApproved = $current['approved_count'] ?? 0;
             $avgPassRate = $current['pass_rate'] ?? 0;
         }
 
-        $activeConfig   = $configs->firstWhere('is_active', true);
-        $projectedSlots = $activeConfig->total_slots ?? 2000;
+        $activeConfig = $configs->firstWhere('is_active', true);
+
+        // If active period is unlimited, there's no hard cap to project against —
+        // fall back to average approved count as the projection ceiling instead.
+        $projectedSlots = $activeConfig && !$activeConfig->is_unlimited
+            ? $activeConfig->slot_limit
+            : null;
+
+        $projectedApproved = $projectedSlots
+            ? min($projectedSlots, round($avgApproved))
+            : round($avgApproved);
 
         return response()->json([
             'historical' => $historical->values(),
             'forecast' => [
                 'average_pass_rate'        => round($avgPassRate, 4),
                 'average_approved_count'   => round($avgApproved),
+                'is_unlimited'             => $activeConfig->is_unlimited ?? false,
                 'projected_slots'          => $projectedSlots,
-                'projected_approved'       => min($projectedSlots, round($avgApproved)),
-                'projected_budget'         => round(min($projectedSlots, $avgApproved)) * self::ASSISTANCE_AMOUNT,
+                'projected_approved'       => $projectedApproved,
+                'projected_budget'         => round($projectedApproved) * self::ASSISTANCE_AMOUNT,
                 'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
             ],
         ]);

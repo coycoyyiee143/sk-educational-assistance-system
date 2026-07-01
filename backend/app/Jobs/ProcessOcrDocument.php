@@ -157,7 +157,7 @@ class ProcessOcrDocument implements ShouldQueue
 
             // Trigger Automated System Approval Notification
             $application->user->notify(new ApplicationStatusNotification(
-                'Approved (System Verified)',
+                'Approved',
                 'Congratulations! Your application has been approved. Please prepare your physical documents for submission and stay tuned for further instructions.'
             ));
         }

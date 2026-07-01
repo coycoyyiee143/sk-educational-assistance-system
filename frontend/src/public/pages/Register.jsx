@@ -121,7 +121,7 @@ const Register = () => {
                   <div className="row">
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Mobile Number</label>
-                      <input name="mobile" className="form-control" placeholder="e.g. 09XXXXXXXXX" onChange={handleChange} />
+                      <input name="mobile" className="form-control" placeholder="Mobile Number" onChange={handleChange} />
                     </div>
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Email <span className="text-danger">*</span></label>

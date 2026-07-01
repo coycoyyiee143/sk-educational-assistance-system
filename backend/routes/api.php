@@ -71,6 +71,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/applications/claiming-schedule', [ApplicationController::class, 'claimingSchedule']); // Placed above {id}
     Route::post('/applications', [ApplicationController::class, 'store']);
     Route::get('/applications/{id}', [ApplicationController::class, 'show']);
+    Route::put('/applications/{id}', [ApplicationController::class, 'update']);
     Route::post('/applications/{id}/documents', [DocumentController::class, 'upload']);
     Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
     Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);

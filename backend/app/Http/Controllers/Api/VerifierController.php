@@ -75,7 +75,7 @@ class VerifierController extends Controller
         // Trigger Approval Notification
         $app->user->notify(new ApplicationStatusNotification(
             'Approved',
-            'Congratulations! Your application has been verified and approved by the SK Verifier. Please wait for announcements regarding the physical document submission and distribution schedule.'
+            'Congratulations! Your application has been approved. Please wait for announcements regarding the physical document submission and distribution schedule.'
         ));
 
         return response()->json(['message' => 'Application approved.']);
@@ -190,7 +190,7 @@ class VerifierController extends Controller
 
         $messages = [
             'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
-            'not_cleared' => 'Your physical documents did not match your application record on claiming day. Please coordinate with the SK office.',
+            'not_cleared' => 'Your physical documents did not match your application record on claiming day.',
             'unclaimed'   => 'You were marked as unclaimed for your assigned claiming schedule. Please coordinate with the SK office regarding the grace period.',
         ];
         $labels = [

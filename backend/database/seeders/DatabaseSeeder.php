@@ -9,12 +9,8 @@ use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // Test Admin Account
         $admin = User::create([
             'first_name'        => 'SK Admin',
             'middle_name'       => 'Mamatid',
@@ -27,7 +23,6 @@ class DatabaseSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        // Test Verifier Account
         User::create([
             'first_name'        => 'SK Verifier',
             'middle_name'       => 'Mamatid',
@@ -40,16 +35,16 @@ class DatabaseSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        // Active Application Period — required before anyone can submit an application
         ApplicationConfiguration::create([
-            'school_year' => '2025-2026',
-            'semester'    => '2nd Semester',
-            'open_date'   => now()->subDays(5),
-            'close_date'  => now()->addDays(30),
-            'total_slots' => 2000,
-            'used_slots'  => 0,
-            'is_active'   => true,
-            'created_by'  => $admin->id,
+            'school_year'  => '2025-2026',
+            'semester'     => '2nd Semester',
+            'open_date'    => now()->subDays(1)->startOfDay(),
+            'close_date'   => now()->addDays(13)->endOfDay(),
+            'slot_limit'   => 2000,
+            'slots_filled' => 0,
+            'is_unlimited' => false,
+            'is_active'    => true,
+            'created_by'   => $admin->id,
         ]);
     }
 }
