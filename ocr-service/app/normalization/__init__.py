@@ -8,7 +8,7 @@ from app.normalization.schools.svcc import StVincentCabuyaoStrategy
 SCHOOL_STRATEGY_REGISTRY = {
     "STI College Calamba": StiCalambaStrategy(),
     "Pamantasan ng Cabuyao": PamantasanNgCabuyaoStrategy(),
-    "University of Cabuyao": PamantasanNgCabuyaoStrategy(), # Handles alternative UI naming aliases
+    "University of Cabuyao": PamantasanNgCabuyaoStrategy(),
     "St. Vincent College of Cabuyao": StVincentCabuyaoStrategy(),
     "SVCC": StVincentCabuyaoStrategy(),
 }

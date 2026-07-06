@@ -11,12 +11,3 @@ class PamantasanNgCabuyaoStrategy(BaseSchoolStrategy):
         if match:
             return f"{match.group(1)}-{match.group(2)}"
         return super().extract_school_year(text, sy_format_hint)
-
-    def extract_semester(self, text: str) -> Optional[str]:
-        # PNC uses exactly "First Semester" or "Second Semester"
-        t_lower = text.lower()
-        if re.search(r"\bfirst\s*semester\b", t_lower):
-            return "1"
-        if re.search(r"\bsecond\s*semester\b", t_lower):
-            return "2"
-        return None

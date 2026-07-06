@@ -32,19 +32,20 @@ def process_voters_certificate():
     try:
         if "file" not in request.files:
             return jsonify({"success": False, "error": "No file uploaded"}), 400
-
         tmp_path = save_temp_image(request.files["file"])
         first_name, middle_name, last_name = get_name_fields(request.form)
+
+        enforce_cert_year = request.form.get("enforce_cert_year", "false").lower() == "true"
+        configured_cert_year = request.form.get("cert_year", None)
 
         ocr_result = run_ocr(tmp_path)
         avg_confidence = get_average_confidence(ocr_result)
         verification = verify_voters_certificate(
             ocr_result, avg_confidence,
-            first_name, middle_name, last_name
+            first_name, middle_name, last_name,
+            enforce_cert_year, configured_cert_year
         )
-
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
-
         return jsonify({
             "success": True,
             "ocr_lines": formatted_ocr,
@@ -54,7 +55,7 @@ def process_voters_certificate():
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
     finally:
-        if tmp_path and os.path.exists(tmp_path): 
+        if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
 
@@ -69,10 +70,6 @@ def process_registration_form():
         first_name, middle_name, last_name = get_name_fields(request.form)
         declared_school = request.form.get("declared_school", "")
         configured_school_year = request.form.get("school_year", "")
-        configured_semester = request.form.get("semester", "")
-
-        # Debug logging
-        import sys
 
         ocr_result = run_ocr(tmp_path)
         avg_confidence = get_average_confidence(ocr_result)
@@ -81,8 +78,7 @@ def process_registration_form():
             ocr_result, avg_confidence,
             first_name, middle_name, last_name,
             declared_school,
-            configured_school_year,
-            configured_semester
+            configured_school_year
         )
 
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]

@@ -1,17 +1,16 @@
-from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_barangay
+from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_barangay, extract_cert_year
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name
 
-def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_name, last_name, *args, **kwargs):
+def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_name, last_name,
+                               enforce_cert_year=False, configured_cert_year=None, *args, **kwargs):
     if avg_confidence < CONFIDENCE_THRESHOLD:
         return {"document": "voters_certificate", "low_confidence": True, "flagged": True}
 
     blocks = parse_ocr_blocks(ocr_result)
     page_w, page_h = get_page_dimensions(blocks)
 
-    # Name check
     name_check = _check_name(blocks, page_w, page_h, first_name, middle_name, last_name)
 
-    # Barangay check
     brgy_res = extract_barangay(blocks)
     if brgy_res.found and brgy_res.value == "Mamatid":
         residency_check = _pass("residency_geofence", extracted=brgy_res.value, raw=brgy_res.raw, context=brgy_res.context, expected="Mamatid")
@@ -20,14 +19,28 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
         residency_check = _flag("residency_geofence", reason, extracted=brgy_res.value, raw=brgy_res.raw, expected="Mamatid", context=brgy_res.context)
 
     checks = {
-        "identity_match":        name_check,
-        "residency_geofence":    residency_check,
+        "identity_match":     name_check,
+        "residency_geofence": residency_check,
     }
 
+    # Cert year: informational by default. SK's own posted requirements don't
+    # consistently specify a year for this document, so we don't hard-gate on it
+    # unless the admin explicitly turns on enforcement for a given cycle.
+    cert_year_res = extract_cert_year(blocks)
+    cert_year_display = cert_year_res.value if cert_year_res.found else None
+
+    if enforce_cert_year and configured_cert_year:
+        if cert_year_res.found and cert_year_res.value == str(configured_cert_year):
+            checks["cert_year_match"] = _pass("cert_year_match", extracted=cert_year_res.value, raw=cert_year_res.raw, context=cert_year_res.context, expected=str(configured_cert_year))
+        else:
+            reason = "Certificate year not found — please verify manually" if not cert_year_res.found else "Certificate year does not match current cycle"
+            checks["cert_year_match"] = _flag("cert_year_match", reason, extracted=cert_year_res.value, raw=cert_year_res.raw, expected=str(configured_cert_year), context=cert_year_res.context)
+
     return {
-        "document":    "voters_certificate",
-        "avg_confidence": avg_confidence,
-        "checks":      checks,
-        "flagged":     any(not c["passed"] for c in checks.values()),
-        "flag_reason": "eligibility_issues" if any(not c["passed"] for c in checks.values()) else None,
+        "document":          "voters_certificate",
+        "avg_confidence":    avg_confidence,
+        "checks":            checks,
+        "cert_year_extracted": cert_year_display,   # always shown to verifier, regardless of enforcement
+        "flagged":           any(not c["passed"] for c in checks.values()),
+        "flag_reason":       "eligibility_issues" if any(not c["passed"] for c in checks.values()) else None,
     }

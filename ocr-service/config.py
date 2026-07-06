@@ -43,84 +43,52 @@ class Config:
         "PUP Santa Rosa",
     ]
 
-    # Per-school format rules
-    # sy_pattern: what school year format to expect
-    # sem_pattern: what semester format to expect
-    # sem_keywords: what labels/keywords appear near the semester value
+    # Per-school format reference — DOCUMENTATION ONLY.
+    # Not read at runtime; actual extraction logic lives in normalization/base_strategy.py
+    # and normalization/schools/*.py. Only confirmed-format schools are listed here;
+    # add entries back once a real sample form is reviewed for each remaining school.
     SCHOOL_FORMAT_RULES = {
         "Pamantasan ng Cabuyao": {
+            # Format: First/Second Semester, Academic Year 20XX-20XX
             "sy_format": "YYYY-YYYY",
-            "sem_format": "word",
-            "sem_keywords": ["semester"],
-            "sy_keywords": ["academic year", "a.y.", "ay"],
+            "sy_keywords": ["academic year"],
         },
         "University of Cabuyao": {
+            # Format: First/Second Semester, Academic Year 20XX-20XX
             "sy_format": "YYYY-YYYY",
-            "sem_format": "word",
-            "sem_keywords": ["semester"],
-            "sy_keywords": ["academic year", "a.y.", "ay"],
+            "sy_keywords": ["academic year"],
         },
         "St. Vincent College of Cabuyao": {
+            # Format: School Year: 20XX | Semester: 1st/2nd
             "sy_format": "single_year_as_start",
-            "sem_format": "ordinal",
-            "sem_keywords": ["semester"],
-            "sy_keywords": ["school year", "s.y.", "sy", "year"],
+            "sy_keywords": ["school year"],
         },
         "Calamba Doctor's College": {
-            # Form shows: "2nd Semester AY 2025 - 2026"
+            # Format: "1st/2nd Semester AY 20XX - 20XX"
             "sy_format": "YYYY-YYYY",
-            "sem_format": "ordinal",
-            "sem_keywords": ["semester"],
-            "sy_keywords": ["ay", "a.y.", "academic year"],
+            "sy_keywords": ["ay"],
         },
         "Calamba Doctors College": {
+            # Format: "1st/2nd Semester AY 20XX - 20XX"
             "sy_format": "YYYY-YYYY",
-            "sem_format": "ordinal",
-            "sem_keywords": ["semester"],
-            "sy_keywords": ["ay", "a.y.", "academic year"],
+            "sy_keywords": ["ay"],
         },
         "STI College Calamba": {
-            # Form shows: "2526/2T"
-            "sy_format": "YYYY-YYYY",
-            "sem_format": "sis_code",
-            "sem_keywords": ["term", "semester"],
-            "sy_keywords": ["school year", "term"],
+            # Format: "SY & Term: 2X2X/XT" (e.g. "2526/2T") — handled by dedicated
+            # decode_sti_term_code() regex, NOT the generic YYYY-YYYY pattern
+            "sy_format": "sis_code",
+            "sy_keywords": ["sy", "term"],
         },
         "University of Perpetual Help System DALTA Calamba": {
-            # Form shows: Sem: 1st, Sch. Yr.: 2025-2026
+            # Format: Sem   Sch. Yr.
+            #         1st/2nd   20XX-20XX
             "sy_format": "YYYY-YYYY",
-            "sem_format": "ordinal",
-            "sem_keywords": ["sem", "semester"],
-            "sy_keywords": ["sch. yr.", "sch yr", "school year", "sy"],
+            "sy_keywords": ["sch. yr.", "sch yr"],
         },
         "Perpetual Help Calamba": {
+            # Format: Sem   Sch. Yr.
+            #         1st/2nd   20XX-20XX
             "sy_format": "YYYY-YYYY",
-            "sem_format": "ordinal",
-            "sem_keywords": ["sem", "semester"],
-            "sy_keywords": ["sch. yr.", "sch yr", "school year", "sy"],
-        },
-        "Mapúa Malayan Colleges Laguna": {
-            "sy_format": "YYYY-YYYY",
-            "sem_format": "ordinal",
-            "sem_keywords": ["semester", "term"],
-            "sy_keywords": ["school year", "s.y.", "sy", "academic year"],
-        },
-        "Mapua Malayan Colleges Laguna": {
-            "sy_format": "YYYY-YYYY",
-            "sem_format": "ordinal",
-            "sem_keywords": ["semester", "term"],
-            "sy_keywords": ["school year", "s.y.", "sy", "academic year"],
-        },
-        "Lyceum of the Philippines University Laguna": {
-            "sy_format": "YYYY-YYYY",
-            "sem_format": "ordinal",
-            "sem_keywords": ["semester", "term"],
-            "sy_keywords": ["school year", "s.y."],
-        },
-        "De La Salle University Canlubang": {
-            "sy_format": "YYYY-YYYY",
-            "sem_format": "ordinal",
-            "sem_keywords": ["school year sem", "semester"],
-            "sy_keywords": ["school year sem", "ay", "a.y."],
+            "sy_keywords": ["sch. yr.", "sch yr"],
         },
     }

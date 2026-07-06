@@ -26,26 +26,3 @@ class BaseSchoolStrategy:
                 return f"{int(single)-1}-{single}"
 
         return None
-
-    def extract_semester(self, text: str) -> Optional[str]:
-        if not text:
-            return None
-        text = fix_ocr_symbols(text)
-        t = text.lower().strip()
-
-        first_patterns = [
-            r'\b1st\b', r'\bfirst\b', r'\bsem\s*[\-:]?\s*1\b',
-            r'\bsemester\s*[\-:]?\s*1\b', r'\b1\s*st\s*sem', r'\bsemester\s*i\b'
-        ]
-        second_patterns = [
-            r'\b2nd\b', r'\bsecond\b', r'\bsem\s*[\-:]?\s*2\b',
-            r'\bsemester\s*[\-:]?\s*2\b', r'\b2\s*nd\s*sem', r'\bsemester\s*ii\b'
-        ]
-
-        for p in first_patterns:
-            if re.search(p, t):
-                return '1'
-        for p in second_patterns:
-            if re.search(p, t):
-                return '2'
-        return None
