@@ -1,4 +1,4 @@
-from app.postprocessing import parse_ocr_blocks, get_page_dimensions, extract_barangay
+from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_barangay
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name
 
 def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_name, last_name, *args, **kwargs):

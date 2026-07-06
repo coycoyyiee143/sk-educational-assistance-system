@@ -16,10 +16,9 @@ class StiCalambaStrategy(BaseSchoolStrategy):
             return f"{year1}-{year2}", term
         return None, None
 
-    def extract_school_year(self, text: str, configured_year: Optional[str] = None) -> Optional[str]:
-        # Priority: Decode the specific pattern provided
+    def extract_school_year(self, text: str, sy_format_hint: Optional[str] = None) -> Optional[str]:
         sy, _ = self.decode_sti_term_code(text)
-        return sy if sy else super().extract_school_year(text, configured_year)
+        return sy if sy else super().extract_school_year(text, sy_format_hint)
 
     def extract_semester(self, text: str) -> Optional[str]:
         # STI uses exactly the "XXYY/ZT" format where Z is the term (1T or 2T)

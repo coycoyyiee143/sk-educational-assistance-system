@@ -1,4 +1,4 @@
-from app.postprocessing import parse_ocr_blocks, get_page_dimensions, extract_school_year, extract_semester
+from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_school_year, extract_semester
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name, _check_school
 
 def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school, configured_school_year, configured_semester, *args, **kwargs):

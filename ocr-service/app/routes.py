@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.ocr import run_ocr, get_average_confidence, get_ocr
+from app.ocr_engine import run_ocr, get_average_confidence, get_ocr
 from app.verification import (
     verify_voters_certificate,
     verify_registration_form,
@@ -16,42 +16,6 @@ def save_temp_image(file) -> str:
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         file.save(tmp.name)
         return tmp.name
-
-
-def process_form(ocr_result, school_name, page_w, page_h):
-    from app.postprocessing import parse_ocr_blocks
-    from app.normalization import get_strategy_for_school
-    
-    # This converts raw dictionary lines into a list of OcrBlock dataclass objects
-    blocks = parse_ocr_blocks(ocr_result)
-    
-    # Fast path: Keep SVCC's comprehensive structural header-matching intact
-    if school_name == "St. Vincent College of Cabuyao":
-        from app.postprocessing import extract_svcc_header_data
-        svcc_data = extract_svcc_header_data(blocks)
-        return {
-            "sy": svcc_data.get("sy"),
-            "sem": svcc_data.get("sem")
-        }
-    
-    # Standard dynamic Strategy resolution path (PNC, STI, or Base School fallback)
-    strategy = get_strategy_for_school(school_name)
-    sy = None
-    sem = None
-    
-    for block in blocks:
-        # 🔧 FIX: block is an object now, so use block.text instead of block.get("text")
-        text = block.text
-        if not sy:
-            sy = strategy.extract_school_year(text)
-        if not sem:
-            sem = strategy.extract_semester(text)
-            
-        # Break early if both values are resolved to minimize iterations
-        if sy and sem:
-            break
-            
-    return {"sy": sy, "sem": sem}
 
 
 def get_name_fields(form) -> tuple:
@@ -107,14 +71,8 @@ def process_registration_form():
         configured_school_year = request.form.get("school_year", "")
         configured_semester = request.form.get("semester", "")
 
-        # Format semester according to school strategy
-        from app.normalization import get_strategy_for_school
-        strategy = get_strategy_for_school(declared_school)
-        formatted_semester = strategy.format_semester(configured_semester)
-
         # Debug logging
         import sys
-        print(f"DEBUG: School='{declared_school}' | Strategy={strategy.__class__.__name__} | Config Sem='{configured_semester}' | Formatted='{formatted_semester}'", file=sys.stderr)
 
         ocr_result = run_ocr(tmp_path)
         avg_confidence = get_average_confidence(ocr_result)
@@ -124,7 +82,7 @@ def process_registration_form():
             first_name, middle_name, last_name,
             declared_school,
             configured_school_year,
-            formatted_semester
+            configured_semester
         )
 
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]

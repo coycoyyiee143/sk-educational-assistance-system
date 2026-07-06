@@ -43,13 +43,12 @@ class StVincentCabuyaoStrategy(BaseSchoolStrategy):
                         
         return data
 
-    def extract_school_year(self, text: str, configured_year: Optional[str] = None) -> Optional[str]:
-        # Support single year extraction in fallback as well
+    def extract_school_year(self, text: str, sy_format_hint: Optional[str] = None) -> Optional[str]:
         match = re.search(r"\b(20\d{2})\b", text)
         if match:
             end_year = int(match.group(1))
-            return f"{end_year - 1}-{end_year}"
-        return super().extract_school_year(text, configured_year)
+            return f"{end_year - 1}-{end_year}"  # ⚠️ still the blocked SVCC bug, don't touch yet
+        return super().extract_school_year(text, sy_format_hint)
 
     def extract_semester(self, text: str) -> Optional[str]:
         # SVCC uses exactly "Semester: 1st" or "Semester: 2nd"
@@ -59,12 +58,3 @@ class StVincentCabuyaoStrategy(BaseSchoolStrategy):
         if re.search(r'\bsemester\s*:\s*2nd\b', clean_text):
             return "2"
         return None
-
-    def format_semester(self, value: str) -> str:
-        """SVCC uses 'Semester: 1st' / 'Semester: 2nd' format."""
-        v = str(value).strip().lower()
-        if v in ('1', '1st', 'first'):
-            return 'Semester: 1st'
-        elif v in ('2', '2nd', 'second'):
-            return 'Semester: 2nd'
-        return value
