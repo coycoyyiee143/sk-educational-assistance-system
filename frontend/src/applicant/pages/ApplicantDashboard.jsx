@@ -81,7 +81,6 @@ function ApplicantDashboard() {
                 ) : config ? (
                   <>
                     <p className="mb-1"><strong>School Year:</strong> {config.school_year}</p>
-                    <p className="mb-1"><strong>Semester:</strong> {config.semester}</p>
                     <p className="mb-1">
                       <strong>Application Period:</strong>{" "}
                       {new Date(config.open_date).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}

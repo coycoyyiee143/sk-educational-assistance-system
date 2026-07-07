@@ -37,7 +37,6 @@ class DatabaseSeeder extends Seeder
 
         ApplicationConfiguration::create([
             'school_year'  => '2025-2026',
-            'semester'     => '2nd Semester',
             'open_date'    => now()->subDays(1)->startOfDay(),
             'close_date'   => now()->addDays(13)->endOfDay(),
             'slot_limit'   => 2000,

@@ -28,7 +28,7 @@ const DOC_FIELDS = [
     key: "enrollment",
     type: "registration_form",
     label: "Certificate of Enrollment / Registration Form",
-    hint: "Must show your name, school, school year, and semester.",
+    hint: "Must show your name, school, and school year.",
   },
   {
     key: "schoolId",
@@ -342,8 +342,8 @@ function ApplicantSubmission() {
                   {activeConfig && (
                     <div className="alert alert-secondary py-2 mb-3">
                       <strong>Note:</strong> Your Registration Form must be for{" "}
-                      <strong>{activeConfig.semester} Semester, A.Y. {activeConfig.school_year}</strong> — the most
-                      recent enrollment period. Registration forms from a different semester or school year will
+                      <strong>A.Y. {activeConfig.school_year}</strong> — the most
+                      recent enrollment period. Registration forms from a different school year will
                       not be accepted.
                     </div>
                   )}
@@ -496,8 +496,8 @@ function ApplicantSubmission() {
                   {activeConfig && (
                     <div className="alert alert-secondary py-2 mb-3">
                       <strong>Note:</strong> Your Registration Form must be for{" "}
-                      <strong>{activeConfig.semester} Semester, A.Y. {activeConfig.school_year}</strong> — the most
-                      recent enrollment period. Registration forms from a different semester or school year will
+                      <strong>A.Y. {activeConfig.school_year}</strong> — the most
+                      recent enrollment period. Registration forms from a different school year will
                       not be accepted.
                     </div>
                   )}

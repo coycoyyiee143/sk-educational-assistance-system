@@ -120,7 +120,7 @@ php artisan storage:link
 This creates a clean database with:
 - An SK Admin account
 - An SK Verifier account
-- An active application period (2025-2026, 2nd Semester)
+- An active application period
 
 See section 9 for the seeded login credentials.
 

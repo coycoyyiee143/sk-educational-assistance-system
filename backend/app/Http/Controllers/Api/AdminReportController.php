@@ -146,7 +146,6 @@ class AdminReportController extends Controller
             return [
                 'config_id'              => $config->id,
                 'school_year'            => $config->school_year,
-                'semester'               => $config->semester,
                 'is_active'              => $config->is_active,
                 'total_applications'     => $total,
                 'approved_count'         => $approved,

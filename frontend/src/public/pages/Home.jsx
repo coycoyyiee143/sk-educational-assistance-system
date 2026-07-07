@@ -82,12 +82,12 @@ const Home = () => {
                 {config.is_unlimited ? (
                   <>
                     <h3>Unlimited Slots</h3>
-                    <p>No slot cap for {config.school_year} — {config.semester}</p>
+                    <p>No slot cap for {config.school_year}</p>
                   </>
                 ) : (
                   <>
                     <h3>{slotsRemaining} Slots Remaining</h3>
-                    <p>Out of {config.slot_limit} total slots for {config.school_year} — {config.semester}</p>
+                    <p>Out of {config.slot_limit} total slots for {config.school_year}</p>
                   </>
                 )}
                 {config.is_active ? (
@@ -180,7 +180,7 @@ const Home = () => {
               <div className="col-md-4">
                 <div className="card card-custom p-4">
                   <h5>School Year</h5>
-                  <p className="mb-0">{config.school_year} — {config.semester}</p>
+                  <p className="mb-0">{config.school_year}</p>
                 </div>
               </div>
               <div className="col-md-4">

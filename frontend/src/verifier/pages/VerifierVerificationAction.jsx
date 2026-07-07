@@ -209,7 +209,7 @@ function VerifierVerificationAction() {
                         </label>
                         <input
                           className="form-control form-control-sm"
-                          placeholder="e.g. Text is unreadable, wrong semester displayed, or blurred edges..."
+                          placeholder="e.g. Text is unreadable or blurred edges..."
                           value={docData.reason}
                           onChange={(e) => setDocReason(doc.key, e.target.value)}
                           required

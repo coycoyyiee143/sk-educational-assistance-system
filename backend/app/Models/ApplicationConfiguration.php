@@ -8,7 +8,6 @@ class ApplicationConfiguration extends Model
 {
     protected $fillable = [
         'school_year',
-        'semester',
         'open_date',
         'close_date',
         'slot_limit',

@@ -11,7 +11,6 @@ return new class extends Migration
         Schema::create('application_configurations', function (Blueprint $table) {
             $table->id();
             $table->string('school_year');
-            $table->string('semester');
             $table->dateTime('open_date');
             $table->dateTime('close_date');
             $table->integer('slot_limit')->nullable();

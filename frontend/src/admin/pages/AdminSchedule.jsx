@@ -167,7 +167,7 @@ function AdminSchedule() {
                 <h4 className="sub-title">Approved Applicant Check</h4>
                 {hasApproved ? (
                   <div className="success-box">
-                    The system found {approvedCount} approved applicant(s) with assigned control numbers for {config.school_year} — {config.semester}. You may now configure the claiming schedule.
+                    The system found {approvedCount} approved applicant(s) with assigned control numbers for {config.school_year}. You may now configure the claiming schedule.
                   </div>
                 ) : (
                   <div className="notice-box">

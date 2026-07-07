@@ -23,21 +23,18 @@ class ApplicationConfigurationController extends Controller
     {
         $request->validate([
             'school_year'  => 'required|string',
-            'semester'     => 'required|string',
             'open_date'    => 'required|date',
             'close_date'   => 'required|date',
             'is_unlimited' => 'boolean',
             'slot_limit'   => 'required_if:is_unlimited,false|nullable|integer|min:1',
         ]);
 
-        // Deactivate any existing active config
         ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
 
         $isUnlimited = $request->boolean('is_unlimited');
 
         $config = ApplicationConfiguration::create([
             'school_year'  => $request->school_year,
-            'semester'     => $request->semester,
             'open_date'    => $request->open_date,
             'close_date'   => $request->close_date,
             'is_unlimited' => $isUnlimited,
@@ -64,7 +61,6 @@ class ApplicationConfigurationController extends Controller
 
         $data = $request->validate([
             'school_year'  => 'required|string',
-            'semester'     => 'required|string',
             'open_date'    => 'required|date',
             'close_date'   => 'required|date',
             'is_unlimited' => 'boolean',
@@ -78,7 +74,6 @@ class ApplicationConfigurationController extends Controller
             $data['slot_limit'] = null;
         }
 
-        // If setting active, deactivate others
         if (!empty($data['is_active']) && $data['is_active']) {
             ApplicationConfiguration::where('id', '!=', $id)->update(['is_active' => false]);
         }

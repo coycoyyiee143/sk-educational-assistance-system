@@ -59,7 +59,7 @@ const Login = () => {
           <div className="collapse navbar-collapse justify-content-end" id="mainNavbar">
             <ul className="navbar-nav">
               <li className="nav-item"><a className="nav-link" href="/">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="/requirements">Application</a></li>
+              <li className="nav-item"><a className="nav-link" href="/requirements">Requirements</a></li>
               <li className="nav-item"><a className="nav-link" href="/announcements">Announcements</a></li>
               <li className="nav-item"><a className="nav-link" href="/events">Events</a></li>
               <li className="nav-item"><a className="nav-link active" href="/login">Login</a></li>

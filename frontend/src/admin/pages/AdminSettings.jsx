@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import AdminNavigation from "../components/AdminNavigation";
 import api from "../../services/api";
 
-const SEMESTERS = ["1st Semester", "2nd Semester", "Summer"];
-
 function formatDateTime(value) {
   if (!value) return "—";
   return new Date(value).toLocaleString("en-PH", {
@@ -17,7 +15,6 @@ function formatDateTime(value) {
 
 const emptyForm = {
   school_year: "",
-  semester: "",
   open_date: "",
   close_date: "",
   slot_limit: "",
@@ -41,7 +38,6 @@ function AdminSettings() {
           setConfig(active);
           setForm({
             school_year: active.school_year,
-            semester: active.semester,
             open_date: active.open_date,
             close_date: active.close_date,
             slot_limit: active.slot_limit ?? "",
@@ -82,7 +78,6 @@ function AdminSettings() {
       setConfig(updated);
       setForm({
         school_year: updated.school_year,
-        semester: updated.semester,
         open_date: updated.open_date,
         close_date: updated.close_date,
         slot_limit: updated.slot_limit ?? "",
@@ -100,7 +95,6 @@ function AdminSettings() {
   const currentSettings = config
     ? [
       ["School Year", config.school_year],
-      ["Semester", config.semester],
       ["Application Status", config.is_active ? "Open" : "Closed"],
       ["Opening Date", formatDateTime(config.open_date)],
       ["Closing Date", formatDateTime(config.close_date)],
@@ -126,17 +120,14 @@ function AdminSettings() {
               Configure the application period, school year, applicant slot availability, and other important settings for the educational assistance program.
             </p>
           </div>
-
           {/* Program Configuration Form */}
           <div className="page-card">
             <h4 className="sub-title">Program Configuration</h4>
             <div className="info-box">
               These settings control the availability and basic parameters of the educational assistance application process.
             </div>
-
             {success && <div className="alert alert-success">{success}</div>}
             {error && <div className="alert alert-danger">{error}</div>}
-
             {loading ? (
               <div className="spinner-border text-danger" />
             ) : (
@@ -152,13 +143,6 @@ function AdminSettings() {
                       onChange={set("school_year")}
                       required
                     />
-                  </div>
-                  <div className="col-md-6">
-                    <label className="form-label">Semester</label>
-                    <select className="form-select" value={form.semester} onChange={set("semester")} required>
-                      <option value="" disabled>Select semester</option>
-                      {SEMESTERS.map((s) => <option key={s}>{s}</option>)}
-                    </select>
                   </div>
                   <div className="col-md-6">
                     <label className="form-label">Application Opening Date</label>
@@ -233,7 +217,6 @@ function AdminSettings() {
               </form>
             )}
           </div>
-
           {/* Current Settings Table */}
           <div className="page-card">
             <h4 className="sub-title">Current Application Settings</h4>
