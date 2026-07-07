@@ -90,6 +90,9 @@ DB_DATABASE=skeas_db
 DB_USERNAME=root
 DB_PASSWORD=your_mysql_password_here
 
+# Prevents PaddleOCR job timeouts
+DB_QUEUE_RETRY_AFTER=300
+
 SESSION_DRIVER=database
 SESSION_LIFETIME=120
 
@@ -97,7 +100,7 @@ QUEUE_CONNECTION=database
 CACHE_STORE=file
 
 MAIL_MAILER=log
-MAIL_FROM_ADDRESS="no-reply@skeas-mamatid.com"
+MAIL_FROM_ADDRESS="no-reply@example.com"
 MAIL_FROM_NAME="Mamatid SK Educational Assistance System"
 
 FRONTEND_URL=http://localhost:3000

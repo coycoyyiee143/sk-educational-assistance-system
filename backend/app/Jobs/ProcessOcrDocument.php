@@ -41,7 +41,11 @@ class ProcessOcrDocument implements ShouldQueue
                 throw new \Exception("File not found: {$storagePath}");
             }
 
-            $client = new Client(['timeout' => 60]);
+            // Update the timeout to 180 seconds to accommodate heavy PaddleOCR models
+            $client = new Client([
+                'timeout'         => 180, 
+                'connect_timeout' => 10 // Optional: fail fast if the server is completely down
+            ]);
             $user   = $this->application->user;
             $config = $this->application->configuration;
 
