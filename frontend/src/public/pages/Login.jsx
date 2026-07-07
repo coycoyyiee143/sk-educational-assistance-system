@@ -75,8 +75,8 @@ const Login = () => {
             <div className="col-md-5">
               <div className="card card-custom p-4 text-center">
                 <img src="/logo.png" alt="logo" style={{ width: "80px", marginBottom: "10px" }} />
-                <h3 className="text-danger">Applicant Login</h3>
-                <p className="text-muted small">Login using your registered email address.</p>
+                <h3 className="text-danger">Login</h3>
+                <p className="text-muted small">Login using your email address.</p>
 
                 {error && <div className="alert alert-danger">{error}</div>}
 

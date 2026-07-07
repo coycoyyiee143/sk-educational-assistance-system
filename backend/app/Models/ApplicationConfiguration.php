@@ -11,16 +11,18 @@ class ApplicationConfiguration extends Model
         'semester',
         'open_date',
         'close_date',
-        'total_slots',
-        'used_slots',
+        'slot_limit',
+        'slots_filled',
+        'is_unlimited',
         'is_active',
         'created_by',
     ];
 
     protected $casts = [
-        'open_date' => 'date',
-        'close_date' => 'date',
-        'is_active' => 'boolean',
+        'open_date'    => 'datetime',
+        'close_date'   => 'datetime',
+        'is_active'    => 'boolean',
+        'is_unlimited' => 'boolean',
     ];
 
     public function applications()

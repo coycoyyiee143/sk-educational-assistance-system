@@ -12,10 +12,11 @@ return new class extends Migration
             $table->id();
             $table->string('school_year');
             $table->string('semester');
-            $table->date('open_date');
-            $table->date('close_date');
-            $table->integer('total_slots');
-            $table->integer('used_slots')->default(0);
+            $table->dateTime('open_date');
+            $table->dateTime('close_date');
+            $table->integer('slot_limit')->nullable();
+            $table->integer('slots_filled')->default(0);
+            $table->boolean('is_unlimited')->default(false);
             $table->boolean('is_active')->default(false);
             $table->foreignId('created_by')->constrained('users');
             $table->timestamps();

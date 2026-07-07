@@ -11,10 +11,10 @@ export const STATUS_CONFIG = {
 
     // --- AUTO-SCREENING PHASE ---
     auto_approved: {
-        label: "Pre-screening Approved",
+        label: "Approved",
         boxClass: "status-box-approved",
         badgeClass: "status-approved",
-        message: "All OCR and rule checks passed! Your application has been pre-screened successfully and a control number has been assigned.",
+        message: "Congratulations! Your application has been approved and a control number has been assigned.",
         showClaiming: true,
         showReupload: false,
     },
@@ -45,7 +45,7 @@ export const STATUS_CONFIG = {
         showReupload: true,
     },
     approved: {
-        label: "Pre-screening Approved",
+        label: "Approved",
         boxClass: "status-box-approved",
         badgeClass: "status-approved",
         message: "Congratulations! Your educational assistance application has been approved by the Sangguniang Kabataan of Barangay Mamatid. You may now proceed to view your assigned claiming schedule.",

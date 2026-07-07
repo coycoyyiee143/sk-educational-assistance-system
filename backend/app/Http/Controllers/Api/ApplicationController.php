@@ -36,7 +36,7 @@ class ApplicationController extends Controller
             return response()->json(['message' => 'No active application period.'], 400);
         }
 
-        if ($config->used_slots >= $config->total_slots) {
+        if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
             return response()->json(['message' => 'No more slots available.'], 400);
         }
 
@@ -61,12 +61,12 @@ class ApplicationController extends Controller
             'submitted_at'      => now(),
         ]);
 
-        $config->increment('used_slots');
+        $config->increment('slots_filled');
 
         // Trigger Submission Confirmation Notification
         $request->user()->notify(new ApplicationStatusNotification(
-            'Pending Pre-screening',
-            'Your educational assistance application has been submitted successfully and queued for digital document verification.'
+            'Pending',
+            'Your educational assistance application has been submitted successfully and queued for document verification.'
         ));
 
         return response()->json([
@@ -83,6 +83,41 @@ class ApplicationController extends Controller
             ->firstOrFail();
 
         return response()->json($application);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $application = Application::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        // Only allow edits before any document has actually been processed.
+        if ($application->status !== 'pending_prescreening') {
+            return response()->json([
+                'message' => 'This application can no longer be edited because it has already entered document verification.',
+            ], 400);
+        }
+
+        $request->validate([
+            'school_name'       => 'required|string',
+            'school_address'    => 'nullable|string',
+            'course'            => 'required|string',
+            'year_level'        => 'required|string',
+            'student_id_number' => 'nullable|string',
+        ]);
+
+        $application->update([
+            'school_name'       => $request->school_name,
+            'school_address'    => $request->school_address,
+            'course'            => $request->course,
+            'year_level'        => $request->year_level,
+            'student_id_number' => $request->student_id_number,
+        ]);
+
+        return response()->json([
+            'message'     => 'Application updated.',
+            'application' => $application,
+        ]);
     }
 
     public function claimingSchedule(Request $request)
@@ -102,3 +137,4 @@ class ApplicationController extends Controller
         ]);
     }
 }
+
