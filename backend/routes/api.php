@@ -42,6 +42,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
     Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
     Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
+    Route::get('/admin/claiming-schedule/{id}/preview', [AdminScheduleController::class, 'preview']);
+    Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
     Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
     Route::get('/admin/announcements', [AnnouncementController::class, 'adminIndex']);
     Route::post('/admin/announcements', [AnnouncementController::class, 'store']);
