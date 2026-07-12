@@ -81,10 +81,19 @@ function ApplicantDashboard() {
                 ) : config ? (
                   <>
                     <p className="mb-1"><strong>School Year:</strong> {config.school_year}</p>
-                    <p className="mb-1"><strong>Semester:</strong> {config.semester}</p>
-                    <p className="mb-1"><strong>Open:</strong> {config.open_date}</p>
-                    <p className="mb-1"><strong>Close:</strong> {config.close_date}</p>
-                    <p className="mb-0"><strong>Slots Available:</strong> {config.total_slots - config.used_slots} / {config.total_slots}</p>
+                    <p className="mb-1">
+                      <strong>Application Period:</strong>{" "}
+                      {new Date(config.open_date).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}
+                      {" – "}
+                      {new Date(config.close_date).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}
+                    </p>
+                    <p className="mb-0">
+                      {config.is_unlimited ? (
+                        <span><strong>Slots:</strong> Unlimited — apply anytime within the period.</span>
+                      ) : (
+                        <span><strong>Slots Available:</strong> {config.slot_limit - config.slots_filled} / {config.slot_limit}</span>
+                      )}
+                    </p>
                   </>
                 ) : (
                   <p className="text-muted mb-0">No active application period at this time.</p>

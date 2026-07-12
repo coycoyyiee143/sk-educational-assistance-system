@@ -23,22 +23,23 @@ class ApplicationConfigurationController extends Controller
     {
         $request->validate([
             'school_year'  => 'required|string',
-            'semester'     => 'required|string',
             'open_date'    => 'required|date',
             'close_date'   => 'required|date',
-            'total_slots'  => 'required|integer|min:1',
+            'is_unlimited' => 'boolean',
+            'slot_limit'   => 'required_if:is_unlimited,false|nullable|integer|min:1',
         ]);
 
-        // Deactivate any existing active config
         ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
+
+        $isUnlimited = $request->boolean('is_unlimited');
 
         $config = ApplicationConfiguration::create([
             'school_year'  => $request->school_year,
-            'semester'     => $request->semester,
             'open_date'    => $request->open_date,
             'close_date'   => $request->close_date,
-            'total_slots'  => $request->total_slots,
-            'used_slots'   => 0,
+            'is_unlimited' => $isUnlimited,
+            'slot_limit'   => $isUnlimited ? null : $request->slot_limit,
+            'slots_filled' => 0,
             'is_active'    => true,
             'created_by'   => $request->user()->id,
         ]);
@@ -59,15 +60,20 @@ class ApplicationConfigurationController extends Controller
         $config = ApplicationConfiguration::findOrFail($id);
 
         $data = $request->validate([
-            'school_year' => 'required|string',
-            'semester'    => 'required|string',
-            'open_date'   => 'required|date',
-            'close_date'  => 'required|date',
-            'total_slots' => 'required|integer|min:1',
-            'is_active'   => 'boolean',
+            'school_year'  => 'required|string',
+            'open_date'    => 'required|date',
+            'close_date'   => 'required|date',
+            'is_unlimited' => 'boolean',
+            'slot_limit'   => 'required_if:is_unlimited,false|nullable|integer|min:1',
+            'is_active'    => 'boolean',
         ]);
 
-        // If setting active, deactivate others
+        $data['is_unlimited'] = $request->boolean('is_unlimited');
+
+        if ($data['is_unlimited']) {
+            $data['slot_limit'] = null;
+        }
+
         if (!empty($data['is_active']) && $data['is_active']) {
             ApplicationConfiguration::where('id', '!=', $id)->update(['is_active' => false]);
         }

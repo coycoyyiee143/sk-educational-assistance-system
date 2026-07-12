@@ -82,7 +82,7 @@ const Register = () => {
           <div className="collapse navbar-collapse justify-content-end" id="mainNavbar">
             <ul className="navbar-nav">
               <li className="nav-item"><a className="nav-link" href="/">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="/requirements">Application</a></li>
+              <li className="nav-item"><a className="nav-link" href="/requirements">Requirements</a></li>
               <li className="nav-item"><a className="nav-link" href="/announcements">Announcements</a></li>
               <li className="nav-item"><a className="nav-link" href="/events">Events</a></li>
               <li className="nav-item"><a className="nav-link" href="/login">Login</a></li>
@@ -121,7 +121,7 @@ const Register = () => {
                   <div className="row">
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Mobile Number</label>
-                      <input name="mobile" className="form-control" placeholder="e.g. 09XXXXXXXXX" onChange={handleChange} />
+                      <input name="mobile" className="form-control" placeholder="Mobile Number" onChange={handleChange} />
                     </div>
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Email <span className="text-danger">*</span></label>

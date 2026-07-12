@@ -126,7 +126,6 @@ function VerifierApplicationReview() {
                   ["Year Level", app.year_level],
                   ["Student ID", app.student_id_number],
                   ["School Year", app.configuration?.school_year],
-                  ["Semester", app.configuration?.semester],
                 ].map(([label, value]) => (
                   <tr key={label}><th>{label}</th><td>{value ?? "—"}</td></tr>
                 ))}

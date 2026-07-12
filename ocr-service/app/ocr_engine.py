@@ -7,7 +7,7 @@ _ocr = None
 def get_ocr():
     global _ocr
     if _ocr is None:
-        _ocr = PaddleOCR(lang='en')
+        _ocr = PaddleOCR(lang='en', use_angle_cls=True, show_log=False)
     return _ocr
 
 

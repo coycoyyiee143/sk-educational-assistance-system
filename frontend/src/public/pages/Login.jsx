@@ -59,7 +59,7 @@ const Login = () => {
           <div className="collapse navbar-collapse justify-content-end" id="mainNavbar">
             <ul className="navbar-nav">
               <li className="nav-item"><a className="nav-link" href="/">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="/requirements">Application</a></li>
+              <li className="nav-item"><a className="nav-link" href="/requirements">Requirements</a></li>
               <li className="nav-item"><a className="nav-link" href="/announcements">Announcements</a></li>
               <li className="nav-item"><a className="nav-link" href="/events">Events</a></li>
               <li className="nav-item"><a className="nav-link active" href="/login">Login</a></li>
@@ -75,8 +75,8 @@ const Login = () => {
             <div className="col-md-5">
               <div className="card card-custom p-4 text-center">
                 <img src="/logo.png" alt="logo" style={{ width: "80px", marginBottom: "10px" }} />
-                <h3 className="text-danger">Applicant Login</h3>
-                <p className="text-muted small">Login using your registered email address.</p>
+                <h3 className="text-danger">Login</h3>
+                <p className="text-muted small">Login using your email address.</p>
 
                 {error && <div className="alert alert-danger">{error}</div>}
 

@@ -9,8 +9,7 @@ class ClaimingLane extends Model
     protected $fillable = [
         'claiming_schedule_id',
         'lane_name',
-        'control_number_from',
-        'control_number_to',
+        'capacity',
         'batch',
         'claiming_date',
     ];

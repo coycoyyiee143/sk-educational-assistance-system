@@ -18,7 +18,9 @@ const Home = () => {
     }).finally(() => setLoading(false));
   }, []);
 
-  const slotsRemaining = config ? config.total_slots - config.used_slots : null;
+  const slotsRemaining = config && !config.is_unlimited
+    ? config.slot_limit - config.slots_filled
+    : null;
 
   return (
     <>
@@ -77,8 +79,17 @@ const Home = () => {
               <div className="spinner-border text-danger" role="status" />
             ) : config ? (
               <>
-                <h3>{slotsRemaining} Slots Remaining</h3>
-                <p>Out of {config.total_slots} total slots for {config.school_year} — {config.semester}</p>
+                {config.is_unlimited ? (
+                  <>
+                    <h3>Unlimited Slots</h3>
+                    <p>No slot cap for {config.school_year}</p>
+                  </>
+                ) : (
+                  <>
+                    <h3>{slotsRemaining} Slots Remaining</h3>
+                    <p>Out of {config.slot_limit} total slots for {config.school_year}</p>
+                  </>
+                )}
                 {config.is_active ? (
                   <span className="badge bg-success">Application Open</span>
                 ) : (
@@ -169,7 +180,7 @@ const Home = () => {
               <div className="col-md-4">
                 <div className="card card-custom p-4">
                   <h5>School Year</h5>
-                  <p className="mb-0">{config.school_year} — {config.semester}</p>
+                  <p className="mb-0">{config.school_year}</p>
                 </div>
               </div>
               <div className="col-md-4">
@@ -182,8 +193,14 @@ const Home = () => {
               <div className="col-md-4">
                 <div className="card card-custom p-4">
                   <h5>Slots</h5>
-                  <p className="mb-1"><strong>Total:</strong> {config.total_slots}</p>
-                  <p className="mb-0"><strong>Remaining:</strong> {slotsRemaining}</p>
+                  {config.is_unlimited ? (
+                    <p className="mb-0">Unlimited slots for this period.</p>
+                  ) : (
+                    <>
+                      <p className="mb-1"><strong>Total:</strong> {config.slot_limit}</p>
+                      <p className="mb-0"><strong>Remaining:</strong> {slotsRemaining}</p>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

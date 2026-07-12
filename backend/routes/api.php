@@ -42,6 +42,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
     Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
     Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
+    Route::get('/admin/claiming-schedule/{id}/preview', [AdminScheduleController::class, 'preview']);
+    Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
     Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
     Route::get('/admin/announcements', [AnnouncementController::class, 'adminIndex']);
     Route::post('/admin/announcements', [AnnouncementController::class, 'store']);
@@ -49,7 +51,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::delete('/admin/announcements/{id}', [AnnouncementController::class, 'destroy']);
     Route::get('/admin/events', [SkEventController::class, 'adminIndex']);
     Route::post('/admin/events', [SkEventController::class, 'store']);
-    Route::post('/admin/events/{id}', [SkEventController::class, 'update']); // POST + _method=PUT for multipart
+    Route::put('/admin/events/{id}', [SkEventController::class, 'update']); // POST + _method=PUT for multipart // PUT - JAS
     Route::delete('/admin/events/{id}', [SkEventController::class, 'destroy']);
     Route::get('/admin/reports/summary', [AdminReportController::class, 'summary']);
     Route::get('/admin/reports/applications', [AdminReportController::class, 'applications']);
@@ -71,6 +73,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/applications/claiming-schedule', [ApplicationController::class, 'claimingSchedule']); // Placed above {id}
     Route::post('/applications', [ApplicationController::class, 'store']);
     Route::get('/applications/{id}', [ApplicationController::class, 'show']);
+    Route::put('/applications/{id}', [ApplicationController::class, 'update']);
     Route::post('/applications/{id}/documents', [DocumentController::class, 'upload']);
     Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
     Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);

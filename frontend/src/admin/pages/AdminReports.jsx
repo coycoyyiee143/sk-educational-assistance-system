@@ -135,7 +135,7 @@ function AdminReports() {
               Application Summary
               {summary?.config && (
                 <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>
-                  {" "}— {summary.config.school_year}, {summary.config.semester}
+                  {" "}— {summary.config.school_year}
                 </span>
               )}
             </h4>
@@ -283,7 +283,6 @@ function AdminReports() {
                     <thead>
                       <tr>
                         <th>School Year</th>
-                        <th>Semester</th>
                         <th>Total Applications</th>
                         <th>Approved</th>
                         <th>Pass Rate</th>
@@ -295,7 +294,6 @@ function AdminReports() {
                       {forecast.historical.map((h) => (
                         <tr key={h.config_id}>
                           <td>{h.school_year}</td>
-                          <td>{h.semester}</td>
                           <td>{h.total_applications}</td>
                           <td>{h.approved_count}</td>
                           <td>{(h.pass_rate * 100).toFixed(1)}%</td>

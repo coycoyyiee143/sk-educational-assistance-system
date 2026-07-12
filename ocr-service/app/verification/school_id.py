@@ -1,4 +1,4 @@
-from app.postprocessing import parse_ocr_blocks, get_page_dimensions
+from app.extraction import parse_ocr_blocks, get_page_dimensions
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name, _check_school
 
 def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school, *args, **kwargs):

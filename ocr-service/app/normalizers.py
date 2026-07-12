@@ -63,3 +63,14 @@ def fuzzy_match_school(extracted: str, expected: str, threshold: int = 85) -> di
         return {"score": 0, "passed": False}
     score = max(fuzz.token_sort_ratio(e1, e2), fuzz.partial_ratio(e1, e2))
     return {"score": score, "passed": score >= threshold}
+
+def combine_confidence(ocr_confidence: float, similarity_score: float,
+                        weight_ocr: float = 0.4, weight_similarity: float = 0.6) -> float:
+    """
+    Blends raw OCR confidence (0-1) with a fuzzy similarity score (0-100)
+    into one 0-1 confidence value.
+    Weights are a starting default — tune against Sprint 5 eval set results,
+    don't treat 0.4/0.6 as final.
+    """
+    normalized_similarity = similarity_score / 100.0
+    return round((ocr_confidence * weight_ocr) + (normalized_similarity * weight_similarity), 4)

@@ -1,6 +1,6 @@
 # app/utils/spatial.py
 from typing import List, Optional
-from app.core.models import OcrBlock
+from app.models import OcrBlock
 
 def get_blocks_in_region(blocks: List[OcrBlock], page_w: float, page_h: float, region: str) -> List[OcrBlock]:
     regions = {

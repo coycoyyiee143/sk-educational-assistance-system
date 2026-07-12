@@ -67,10 +67,15 @@ const Requirements = () => {
                   ? <span className="text-success">Application is Open</span>
                   : <span className="text-danger">Application is Closed</span>}
               </h4>
-              <p className="mt-3 mb-1"><strong>School Year:</strong> {config.school_year} — {config.semester}</p>
+              <p className="mt-3 mb-1"><strong>School Year:</strong> {config.school_year}</p>
               <p className="mb-1"><strong>Opening Date:</strong> {formatDate(config.open_date)}</p>
               <p className="mb-3"><strong>Closing Date:</strong> {formatDate(config.close_date)}</p>
-              <p className="mb-3"><strong>Available Slots:</strong> {config.total_slots - config.used_slots} of {config.total_slots}</p>
+              <p className="mb-3">
+                <strong>Available Slots:</strong>{" "}
+                {config.is_unlimited
+                  ? "Unlimited"
+                  : `${config.slot_limit - config.slots_filled} of ${config.slot_limit}`}
+              </p>
               {config.is_active && (
                 <a href="/register" className="btn btn-custom">Apply Now</a>
               )}

@@ -1,4 +1,4 @@
-# app/core/models.py
+# app/models.py
 from dataclasses import dataclass, field
 from typing import Optional, Dict
 
@@ -25,7 +25,7 @@ class ExtractionResult:
     value: Optional[str]
     raw: Optional[str]
     method: str
-    confidence: float
+    confidence: float  # ALWAYS normalized to 0.0-1.0 — never a raw 0-100 fuzzy score
     context: str
     found: bool = True
     metadata: Dict = field(default_factory=dict)

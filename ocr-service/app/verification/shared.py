@@ -1,5 +1,5 @@
 # app/verification/shared.py
-from app.postprocessing import extract_name, extract_school
+from app.extraction import extract_name, extract_school
 
 CONFIDENCE_THRESHOLD = 0.75
 

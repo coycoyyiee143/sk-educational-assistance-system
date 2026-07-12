@@ -20,6 +20,12 @@ class ProcessOcrDocument implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    // Allow the job to run up to 4 minutes before Laravel forces a timeout
+    public $timeout = 240;
+
+    // Limit retries so it doesn't slam your Python API if something breaks
+    public $tries = 2;
+
     protected $application;
     protected $document;
     protected $filePath;
@@ -41,7 +47,11 @@ class ProcessOcrDocument implements ShouldQueue
                 throw new \Exception("File not found: {$storagePath}");
             }
 
-            $client = new Client(['timeout' => 60]);
+            // Update the timeout to 180 seconds to accommodate heavy PaddleOCR models
+            $client = new Client([
+                'timeout'         => 180, 
+                'connect_timeout' => 10 // Optional: fail fast if the server is completely down
+            ]);
             $user   = $this->application->user;
             $config = $this->application->configuration;
 
@@ -61,7 +71,6 @@ class ProcessOcrDocument implements ShouldQueue
             if ($this->document->document_type === 'registration_form') {
                 $multipart[] = ['name' => 'declared_school', 'contents' => $this->application->school_name];
                 $multipart[] = ['name' => 'school_year',     'contents' => $config->school_year];
-                $multipart[] = ['name' => 'semester',        'contents' => $config->semester];
             }
 
             if ($this->document->document_type === 'school_id') {

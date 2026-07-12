@@ -38,7 +38,7 @@ function VerifierDashboard() {
   }, []);
 
   const cards = [
-    { label: "Pending Applications", value: stats.pending, sub: "Awaiting pre-screening" },
+    { label: "Pending Applications", value: stats.pending, sub: "Awaiting verification" },
     { label: "For Review", value: stats.review, sub: "Flagged for manual review" },
     { label: "Approved", value: stats.approved, sub: "Eligible applications" },
     { label: "Rejected", value: stats.rejected, sub: "Did not meet requirements" },

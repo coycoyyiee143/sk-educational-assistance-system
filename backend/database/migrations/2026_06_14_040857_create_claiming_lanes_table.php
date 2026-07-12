@@ -12,8 +12,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('claiming_schedule_id')->constrained('claiming_schedules')->onDelete('cascade');
             $table->string('lane_name');
-            $table->string('control_number_from');
-            $table->string('control_number_to');
+            $table->integer('capacity')->nullable(); // null = auto-split whatever's left evenly
             $table->enum('batch', ['morning', 'afternoon']);
             $table->date('claiming_date');
             $table->timestamps();
