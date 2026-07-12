@@ -65,6 +65,11 @@ class VerifierController extends Controller
             'control_number' => $app->control_number ?? \App\Models\Application::generateControlNumber($app->config_id),
         ]);
 
+         // Slot is consumed here, at approval time, not at submission.
+         // This ensures slots_filled only reflects applicants who actually
+         // passed eligibility verification.
+        $app->configuration()->increment('slots_filled'); 
+
         VerifierAction::create([
             'application_id' => $app->id,
             'verifier_id'    => $request->user()->id,
