@@ -74,6 +74,14 @@ function ApplicantSubmission() {
   const setReupload = (k) => (e) => setReuploadFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
   const [activeConfig, setActiveConfig] = useState(null);
 
+  // Preview modal state
+  const [previewFile, setPreviewFile] = useState(null);
+  const STORAGE_BASE = "http://localhost:8000/storage/";
+  function isImageFile(doc) {
+  if (doc?.mime_type) return doc.mime_type.startsWith("image/");
+  return /\.(jpg|jpeg|png)$/i.test(doc?.file_name || "");
+}
+
   useEffect(() => {
     api.get("/application-config/active")
       .then((res) => setActiveConfig(res.data))
@@ -99,18 +107,16 @@ function ApplicantSubmission() {
             studentId: app.student_id_number ?? "",
           });
 
+          // fetch existing documents for reupload flow
+          const docsRes = await api.get(`/applications/${app.id}/documents`);
+          setExistingDocs(docsRes.data);
+
           if (app.status === "reupload_requested") {
-            const docsRes = await api.get(`/applications/${app.id}/documents`);
-            setExistingDocs(docsRes.data);
             setStep("reupload");
+          } else if (docsRes.data.length < 3) {
+            setStep("documents");
           } else {
-            const docsRes = await api.get(`/applications/${app.id}/documents`);
-            if (docsRes.data.length < 3) {
-              // application row exists but documents were never finished
-              setStep("documents");
-            } else {
-              setStep("done");
-            }
+            setStep("done");
           }
         }
       })
@@ -268,16 +274,100 @@ function ApplicantSubmission() {
 
             {/* Already applied - done state */}
             {step === "done" && !success && (
-              <div className="alert alert-info">
-                You have already submitted an application for this period.
-                {existingApp && (
-                  <p className="mb-0 mt-2">
-                    <strong>Status:</strong> {existingApp.status}
-                  </p>
-                )}
-              </div>
-            )}
+              <>
+                <div className="alert alert-info">
+                  You have already submitted an application for this period.
+                  {existingApp && (
+                    <p className="mb-0 mt-2">
+                      <strong>Status:</strong> {existingApp.status}
+                    </p>
+                  )}
+                </div>
 
+                {/* Educational Info Recap */}
+                <div className="sub-card mb-4">
+                  <h5>Educational Information</h5>
+                  <div className="row">
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label text-muted">School Name</label>
+                      <div className="fw-semibold">{form.schoolName || "—"}</div>
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label text-muted">School Address</label>
+                      <div className="fw-semibold">{form.schoolAddr || "—"}</div>
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label text-muted">Course / Program</label>
+                      <div className="fw-semibold">{form.course || "—"}</div>
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label text-muted">Year Level</label>
+                      <div className="fw-semibold">{form.yearLevel || "—"}</div>
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label text-muted">Student ID Number</label>
+                      <div className="fw-semibold">{form.studentId || "—"}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Uploaded Documents Recap */}
+                <div className="sub-card">
+                  <h5>Uploaded Documents</h5>
+                  <div className="row g-3">
+                    {DOC_FIELDS.map((field) => {
+                      const doc = existingDocs.find((d) => d.document_type === field.type);
+                      if (!doc) return null;
+
+                      const fileUrl = STORAGE_BASE + doc.file_path;
+
+                      return (
+                        <div className="col-md-4" key={field.key}>
+                          <div className="upload-box">
+                            <label className="form-label fw-semibold">{field.label}</label>
+
+                            <div
+                              className="position-relative border rounded overflow-hidden"
+                              style={{ height: "180px", background: "#f8f9fa", cursor: "pointer" }}
+                              onClick={() => setPreviewFile({ url: fileUrl, isImage: isImageFile(doc), name: doc.file_name })}
+                            >
+                              {isImageFile(doc) ? (
+                                <img
+                                  src={fileUrl}
+                                  alt={field.label}
+                                  className="w-100 h-100"
+                                  style={{ objectFit: "cover" }}
+                                />
+                              ) : (
+                                <div className="d-flex flex-column justify-content-center align-items-center h-100 text-muted">
+                                  <span style={{ fontSize: "2rem" }}>📄</span>
+                                  <small>PDF Document</small>
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-light position-absolute"
+                                style={{ top: "6px", right: "6px" }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPreviewFile({ url: fileUrl, isImage: isImageFile(doc), name: doc.file_name });
+                                }}
+                              >
+                                ⤢
+                              </button>
+                            </div>
+
+                            <div className="form-text mt-1">
+                              {doc.file_name}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+)}
             {/* Re-upload form */}
             {step === "reupload" && (
               <form onSubmit={handleReupload}>
@@ -312,16 +402,7 @@ function ApplicantSubmission() {
                               <td>{field.label}</td>
                               <td>{doc?.file_name ?? "—"}</td>
                               <td>
-                                {doc &&
-                                  (docReason ? (
-                                    <span className="badge bg-danger">Re-upload Required</span>
-                                  ) : doc.status === "processed" ? (
-                                    <span className="badge bg-success">Passed</span>
-                                  ) : doc.status === "failed" ? (
-                                    <span className="badge bg-danger">Failed</span>
-                                  ) : (
-                                    <span className="badge bg-secondary">{doc.status}</span>
-                                  ))}
+                                {doc && doc.status}
                               </td>
                               <td>
                                 {docReason ? (
@@ -359,7 +440,6 @@ function ApplicantSubmission() {
                           <div className="upload-box">
                             <label className={`form-label fw-semibold ${isRequested ? "text-danger" : ""}`}>
                               {field.label}
-                              {isRequested && <span className="badge bg-danger ms-1">Re-upload Required</span>}
                             </label>
                             <input
                               type="file"
@@ -557,6 +637,36 @@ function ApplicantSubmission() {
           </div>
         </div>
       </section>
+      
+      {/* File preview modal */}
+      {previewFile && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+          style={{ background: "rgba(0,0,0,0.8)", zIndex: 1050 }}
+          onClick={() => setPreviewFile(null)}
+        >
+          <div
+            className="bg-white rounded p-3"
+            style={{ maxWidth: "90vw", maxHeight: "90vh", overflow: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="d-flex justify-content-between align-items-center mb-2">
+              <strong>{previewFile.name}</strong>
+              <button type="button" className="btn-close" onClick={() => setPreviewFile(null)} />
+            </div>
+            {previewFile.isImage ? (
+              <img src={previewFile.url} alt={previewFile.name} style={{ maxWidth: "100%", maxHeight: "75vh" }} />
+            ) : (
+              <div className="text-center p-4">
+                <p>PDF preview is not embedded. Click below to open the full file.</p>
+                <a href={previewFile.url} target="_blank" rel="noopener noreferrer" className="btn btn-submit">
+                  Open Full PDF
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <footer>
         <div className="container">
