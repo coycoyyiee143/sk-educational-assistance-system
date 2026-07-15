@@ -41,16 +41,18 @@ class AnnouncementController extends Controller
             'title'    => 'required|string|max:255',
             'content'  => 'required|string',
             'category' => 'nullable|string',
-            'date'     => 'required|date',
         ]);
 
+        // Posting date is now auto-timestamped at the moment of submission,
+        // matching the real-world workflow where SK admins post announcements
+        // immediately rather than scheduling them for a future date.
         $announcement = Announcement::create([
             'title'        => $request->title,
             'content'      => $request->content,
             'category'     => $request->category,
             'is_published' => true,
             'posted_by'    => $request->user()->id,
-            'published_at' => $request->date,
+            'published_at' => now(),
         ]);
 
         return response()->json([
@@ -67,21 +69,21 @@ class AnnouncementController extends Controller
             'title'    => 'required|string|max:255',
             'content'  => 'required|string',
             'category' => 'nullable|string',
-            'date'     => 'required|date',
         ]);
 
+        // published_at is intentionally NOT updated here — editing an
+        // announcement's content should not change its original posting date.
         $announcement->update([
-            'title'        => $request->title,
-            'content'      => $request->content,
-            'category'     => $request->category,
-            'published_at' => $request->date,
+            'title'    => $request->title,
+            'content'  => $request->content,
+            'category' => $request->category,
         ]);
 
         return response()->json([
             'message'      => 'Announcement updated.',
             'announcement' => $announcement,
         ]);
-    }
+}
 
     public function destroy($id)
     {

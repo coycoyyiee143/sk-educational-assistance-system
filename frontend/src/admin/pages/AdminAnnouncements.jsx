@@ -9,23 +9,17 @@ const categories = [
   "SK Activity",
 ];
 
-const emptyForm = { title: "", date: "", category: "", content: "" };
+const emptyForm = { title: "", category: "", content: "" };
 
 function formatDate(dateStr) {
   if (!dateStr) return "";
   return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
 
-function toInputDate(dateStr) {
-  if (!dateStr) return "";
-  return dateStr.slice(0, 10);
-}
-
 // ── Edit Modal ────────────────────────────────────────────────────────────────
 function EditAnnouncementModal({ announcement, onClose, onSave, saving }) {
   const [form, setForm] = useState({
     title: announcement.title,
-    date: toInputDate(announcement.published_at),
     category: announcement.category ?? "",
     content: announcement.content,
   });
@@ -47,20 +41,21 @@ function EditAnnouncementModal({ announcement, onClose, onSave, saving }) {
           <form onSubmit={handleSubmit}>
             <div className="modal-body">
               <div className="row g-3">
-                <div className="col-md-8">
+              <div className="col-md-8">
                   <label className="form-label">Announcement Title</label>
-                  <input className="form-control" value={form.title} onChange={set("title")} required />
+                  <input type="text" className="form-control" placeholder="Enter announcement title" value={form.title} onChange={set("title")} required />
                 </div>
-                <div className="col-md-6">
-                  <label className="form-label">Posting Date</label>
-                  <input type="date" className="form-control" value={form.date} onChange={set("date")} required />
-                </div>
-                <div className="col-md-6">
+                <div className="col-md-4">
                   <label className="form-label">Category</label>
                   <select className="form-select" value={form.category} onChange={set("category")} required>
                     <option value="" disabled>Select category</option>
                     {categories.map((c) => <option key={c}>{c}</option>)}
                   </select>
+                </div>
+                <div className="col-12">
+                  <small className="text-muted">
+                    Posted on: <strong>{formatDate(announcement.published_at)}</strong> (posting date cannot be changed when editing)
+                  </small>
                 </div>
                 <div className="col-12">
                   <label className="form-label">Announcement Content</label>
@@ -177,11 +172,7 @@ function AdminAnnouncements() {
                   <label className="form-label">Announcement Title</label>
                   <input type="text" className="form-control" placeholder="Enter announcement title" value={form.title} onChange={set("title")} required />
                 </div>
-                <div className="col-md-6">
-                  <label className="form-label">Posting Date</label>
-                  <input type="date" className="form-control" value={form.date} onChange={set("date")} required />
-                </div>
-                <div className="col-md-6">
+                <div className="col-md-4">
                   <label className="form-label">Category</label>
                   <select className="form-select" value={form.category} onChange={set("category")} required>
                     <option value="" disabled>Select category</option>
