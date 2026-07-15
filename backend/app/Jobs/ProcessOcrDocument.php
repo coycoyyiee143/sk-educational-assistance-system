@@ -164,6 +164,11 @@ class ProcessOcrDocument implements ShouldQueue
                 'control_number' => \App\Models\Application::generateControlNumber($application->config_id),
             ]);
 
+                // Slot is consumed here too, since this is the auto-approval path —
+                // an application that passes all OCR/rule-based checks automatically
+                // becomes "approved" without going through VerifierController@approve.
+                $application->configuration()->increment('slots_filled');
+
             // Trigger Automated System Approval Notification
             $application->user->notify(new ApplicationStatusNotification(
                 'Approved (System Verified)',
