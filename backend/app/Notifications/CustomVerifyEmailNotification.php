@@ -27,9 +27,10 @@ class CustomVerifyEmailNotification extends Notification implements ShouldQueue
     {
         return (new MailMessage)
             ->subject('Verify Your Educational Assistance Account')
-            ->greeting('Dangal Greetings ' . $notifiable->first_name . ',')
+            ->greeting('Good day! ' . $notifiable->first_name . ',')
             ->line('Thank you for registering. Please verify your email address to complete your application profile.')
             ->action('Verify Email Address', $this->verificationUrl)
-            ->line('If you did not create an account, no further action is required.');
+            ->line('If you did not create an account, no further action is required.')
+            ->salutation("Regards,  \nSangguniang Kabataan of Barangay Mamatid");
     }
 }

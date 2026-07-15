@@ -60,8 +60,8 @@ class ApplicationController extends Controller
             'status'            => 'pending_prescreening',
             'submitted_at'      => now(),
         ]);
-
-        $config->increment('slots_filled');
+        // comment out the incrementing of slots_filled here because it should only be incremented when the application is approved, not when it is submitted.
+        //$config->increment('slots_filled');
 
         // Trigger Submission Confirmation Notification
         $request->user()->notify(new ApplicationStatusNotification(

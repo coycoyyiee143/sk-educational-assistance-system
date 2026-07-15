@@ -36,7 +36,7 @@ class ClaimingScheduleNotification extends Notification implements ShouldQueue
 
         return (new MailMessage)
             ->subject('Your Claiming Schedule Has Been Released')
-            ->greeting('Dangal Greetings ' . $notifiable->first_name . ',')
+            ->greeting('Good day! ' . $notifiable->first_name . ',')
             ->line('Your educational assistance application has been approved and your claiming schedule is now available.')
             ->line('**Control Number:** ' . $this->application->control_number)
             ->line('**Claiming Date:** ' . Carbon::parse($this->lane->claiming_date)->format('F j, Y'))
@@ -44,6 +44,7 @@ class ClaimingScheduleNotification extends Notification implements ShouldQueue
             ->line('**Lane:** ' . $this->lane->lane_name)
             ->line('**Venue:** ' . $this->schedule->location)
             ->action('View Claiming Schedule', url('http://localhost:3000/ApplicantClaimingSchedule'))
-            ->line('Please bring valid identification and the original copies of your submitted documents.');
+            ->line('Please bring valid identification and the original copies of your submitted documents.')
+            ->salutation("Regards,  \nSangguniang Kabataan of Barangay Mamatid");
     }
 }
