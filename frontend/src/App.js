@@ -26,6 +26,7 @@ import VerifierVerificationAction from "./verifier/pages/VerifierVerificationAct
 import VerifierClaiming from "./verifier/pages/VerifierClaiming.jsx";
 import VerifierProfile from "./verifier/pages/VerifierProfile.jsx";
 
+
 import ApplicantDashboard from "./applicant/pages/ApplicantDashboard.jsx";
 import ApplicantProfile from "./applicant/pages/ApplicantProfile.jsx";
 import ApplicantSubmission from "./applicant/pages/ApplicantSubmission.jsx";
@@ -115,6 +116,7 @@ function App() {
             <VerifierProfile />
           </ProtectedRoute>
         } />
+  
 
         {/* Applicant */}
         <Route path="/ApplicantDashboard" element={

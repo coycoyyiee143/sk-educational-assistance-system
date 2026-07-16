@@ -41,6 +41,7 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+      
         return response()->json([
             'message' => 'Registration successful. Please check your email to verify your account.',
             'token'   => $token,
@@ -58,6 +59,15 @@ class AuthController extends Controller
         $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
+
+            // Log the failed attempt (useful for spotting brute-force attempts)
+            \App\Models\AuditLog::create([
+                'user_id'     => $user->id ?? null,
+                'action'      => 'login_failed',
+                'description' => "Failed login attempt for: {$request->email}",
+                'ip_address'  => $request->ip(),
+            ]);
+
             throw ValidationException::withMessages([
                 'email' => ['Invalid credentials.'],
             ]);
@@ -69,6 +79,15 @@ class AuthController extends Controller
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
+          // Log this login for the audit trail
+        \App\Models\AuditLog::create([
+            'user_id'     => $user->id,
+            'action'      => 'login',
+            'description' => "{$user->first_name} {$user->last_name} logged in",
+            'ip_address'  => $request->ip(),
+        ]);
+
+
         return response()->json([
             'message' => 'Login successful.',
             'token'   => $token,
@@ -78,6 +97,16 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
+         $user = $request->user();
+
+        // Log this logout for the audit trail
+        \App\Models\AuditLog::create([
+            'user_id'     => $user->id,
+            'action'      => 'logout',
+            'description' => "{$user->first_name} {$user->last_name} logged out",
+            'ip_address'  => $request->ip(),
+        ]);
+
         $request->user()->currentAccessToken()->delete();
 
         return response()->json(['message' => 'Logged out successfully.']);

@@ -65,6 +65,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
     });
 
+    Route::middleware(['auth:sanctum', 'log.visit'])->group(function () {
+    // ── Admin routes ────────────────────────────────────────────────
+    Route::middleware(['role:sk_admin'])->group(function () {
+    });
+
+    // ── Verifier routes ─────────────────────────────────────────────
+    Route::middleware(['role:sk_verifier'])->group(function () {
+    });
+
+    // ── Applicant routes ────────────────────────────────────────────
+    Route::middleware(['role:applicant'])->group(function () {
+    });
+
+});
+
     // ── Verifier routes ─────────────────────────────────────────────
     Route::middleware(['role:sk_verifier'])->group(function () {
         Route::get('/verifier/applications', [VerifierController::class, 'index']);
@@ -75,6 +90,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
         Route::post('/verifier/claiming/{id}/status', [VerifierController::class, 'updateClaimStatus']);
+        Route::get('/verifier/activity-log', [VerifierController::class, 'activityLog']);
     });
 
     // ── Applicant routes ────────────────────────────────────────────
