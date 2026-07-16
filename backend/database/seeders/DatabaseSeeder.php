@@ -37,7 +37,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $config = ApplicationConfiguration::create([
-            'school_year'  => '2024-2025',
+            'school_year'  => '2025-2026',
             'open_date'    => now()->subDays(1)->startOfDay(),
             'close_date'   => now()->addDays(13)->endOfDay(),
             'slot_limit'   => 2000,
