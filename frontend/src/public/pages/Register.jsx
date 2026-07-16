@@ -4,6 +4,8 @@ import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
+import Footer from "../../components/Footer";
+
 
 const Register = () => {
   const [form, setForm] = useState({
@@ -186,11 +188,7 @@ const Register = () => {
         </div>
       </section>
 
-      <footer>
-        <div className="container text-center">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance System</p>
-        </div>
-      </footer>
+      <Footer />
     </>
   );
 };

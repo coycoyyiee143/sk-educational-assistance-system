@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import Footer from "../../components/Footer";
+
 
 export default function VerifyEmail() {
     const { id, hash } = useParams();
@@ -74,11 +76,7 @@ export default function VerifyEmail() {
                 </div>
             </section>
 
-            <footer>
-                <div className="container text-center">
-                    <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance System</p>
-                </div>
-            </footer>
+            <Footer />
         </>
     );
 }

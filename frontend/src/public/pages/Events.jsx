@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
+import Footer from "../../components/Footer";
+
 
 const Events = () => {
   const [events, setEvents] = useState([]);
@@ -118,11 +120,7 @@ const Events = () => {
         </div>
       </section>
 
-      <footer>
-        <div className="container text-center">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance System</p>
-        </div>
-      </footer>
+      <Footer />
     </>
   );
 };
