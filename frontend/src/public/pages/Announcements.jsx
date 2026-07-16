@@ -2,10 +2,12 @@ import React, { useEffect, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
+import Footer from "../../components/Footer";
 
 const Announcements = () => {
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState(null); // announcement currently open sa modal
 
   useEffect(() => {
     api.get("/announcements")
@@ -13,6 +15,11 @@ const Announcements = () => {
       .catch(() => { })
       .finally(() => setLoading(false));
   }, []);
+
+  const formatDate = (date) =>
+    date
+      ? new Date(date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      : "";
 
   return (
     <>
@@ -52,7 +59,6 @@ const Announcements = () => {
       <section className="py-5">
         <div className="container">
           <h2 className="section-title text-center">Latest Updates</h2>
-
           {loading ? (
             <div className="text-center py-5">
               <div className="spinner-border text-danger" role="status" />
@@ -63,15 +69,27 @@ const Announcements = () => {
             <div className="row g-4">
               {announcements.map((a) => (
                 <div className="col-md-4" key={a.id}>
-                  <div className="card card-custom p-4 h-100">
+                  <div className="card card-custom announcement-card p-3">
                     {a.category && (
                       <span className="badge bg-danger mb-2" style={{ width: "fit-content" }}>{a.category}</span>
                     )}
                     <div className="text-muted small mb-2">
-                      {a.published_at ? new Date(a.published_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : ""}
+                      {formatDate(a.published_at)}
                     </div>
                     <h5>{a.title}</h5>
-                    <p className="mb-0">{a.content}</p>
+                    <p className="announcement-preview mb-0">
+                      {a.content && a.content.length > 90
+                        ? a.content.slice(0, 90).trim() + "... "
+                        : a.content}
+                      {a.content && a.content.length > 90 && (
+                        <span
+                          className="read-more-link"
+                          onClick={() => setSelected(a)}
+                        >
+                          Read more
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -80,11 +98,32 @@ const Announcements = () => {
         </div>
       </section>
 
-      <footer>
-        <div className="container text-center">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance System</p>
+      {/* Read more modal */}
+      {selected && (
+        <div className="modal fade show announcement-modal-backdrop" style={{ display: "block" }} tabIndex="-1">
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content announcement-modal-content">
+              <div className="announcement-modal-titlebar">
+                <h4 className="announcement-modal-title">{selected.title}</h4>
+                <button
+                  type="button"
+                  className="announcement-modal-close"
+                  onClick={() => setSelected(null)}
+                  aria-label="Close"
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="modal-body announcement-modal-body">
+                <p className="mb-0" style={{ whiteSpace: "pre-wrap" }}>{selected.content}</p>
+              </div>
+            </div>
+          </div>
         </div>
-      </footer>
+      )}
+      {selected && <div className="modal-backdrop fade show" onClick={() => setSelected(null)}></div>}
+
+      <Footer />
     </>
   );
 };

@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useLocation } from "react-router-dom";
 import api from "../../services/api";
+import Footer from "../../components/Footer";
+
 
 export default function VerifyEmailNotice() {
     const location = useLocation();
@@ -82,11 +84,7 @@ export default function VerifyEmailNotice() {
                 </div>
             </section>
 
-            <footer>
-                <div className="container text-center">
-                    <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance System</p>
-                </div>
-            </footer>
+            <Footer />
         </>
     );
 }

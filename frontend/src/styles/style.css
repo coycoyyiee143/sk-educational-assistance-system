@@ -123,6 +123,94 @@ body {
   color: #b71c1c;
 }
 
+/* ANNOUNCEMENT CARD - fixed size/Preview */
+.announcement-card {
+  height: 200px !important;
+  max-height: 200px !important;
+  min-height: 200px !important;
+  box-sizing: border-box !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+}
+.announcement-preview {
+  color: #444;
+  font-size: 13.5px;
+  line-height: 1.45;
+  margin-top: 4px;
+  flex: 1;
+  overflow: hidden;
+}
+.read-more-link {
+  color: #b71c1c;
+  font-weight: 400;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.read-more-link:hover {
+  text-decoration: underline;
+}
+
+/* ANNOUNCEMENT MODAL */
+.announcement-modal-backdrop {
+  z-index: 1055;
+}
+.announcement-modal-content {
+  border-radius: 12px;
+  overflow: hidden;
+}
+.announcement-modal-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 3px solid #b71c1c;
+}
+.announcement-modal-title {
+  color: #1a1a1a;
+  font-weight: 700;
+  font-size: 20px;
+  margin: 0;
+  padding-right: 16px;
+}
+.announcement-modal-close {
+  background: #f2f2f2;
+  border: none;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 50%;
+  font-size: 20px;
+  line-height: 1;
+  color: #555;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.announcement-modal-close:hover {
+  background: #b71c1c;
+  color: #ffffff;
+}
+.announcement-modal-body {
+  max-height: 65vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 24px 28px;
+  font-size: 16px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+.announcement-modal-body p {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  text-align: justify;
+  text-justify: inter-word;
+  line-height: 1.8;
+}
+
 /* ABOUT */
 .about-box {
   background: white;
@@ -162,13 +250,120 @@ body {
   object-fit: cover;
 }
 
-/* FOOTER */
-footer {
-  background-color: #7f0000;
-  color: white;
-  padding: 20px 0;
-  text-align: center;
+/* SITE FOOTER */
+.site-footer {
+  background: #7f0000;
+  color: #ffffff;
+  padding: 50px 0 25px;
   margin-top: 40px;
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+}
+.footer-logo {
+  width: 64px;
+  height: 64px;
+  object-fit: cover;
+  border-radius: 50%;
+  margin-bottom: 14px;
+  background: #fff;
+  padding: 4px;
+
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.footer-desc {
+  color: #ffd6d6;
+  font-size: 15.5px;
+  line-height: 1.75;
+  max-width: 420px;
+  font-weight: 400;
+
+  text-align: justify;
+  text-justify: inter-word;
+}
+.footer-heading {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.2px;
+  margin-bottom: 16px;
+}
+.footer-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.footer-links li {
+  margin-bottom: 12px;
+}
+.footer-links a {
+  color: #ffd6d6;
+  text-decoration: none;
+  font-size: 15px;
+  font-weight: 400;
+}
+.footer-links a:hover {
+  color: #ffffff;
+}
+.footer-divider {
+  border: 0;
+  height: 2.5px;
+  background: rgba(255, 255, 255, 0.65);
+  margin: 30px 0 20px;
+}
+.footer-bottom {
+  text-align: center;
+}
+.footer-attribution {
+  color: #ffd6d6;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 14px;
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.footer-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.footer-copyright {
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+}
+.footer-socials {
+  display: flex;
+  gap: 10px;
+}
+.footer-social-icon {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  border-radius: 6px;
+}
+.footer-social-icon:hover {
+  background: #ffffff;
+  color: #7f0000;
+}
+.footer-address {
+  color: #ffd6d6;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+.footer-links-group {
+  gap: 48px;
+}
+.footer-links-col {
+  min-width: 140px;
 }
 
 /* PAGE LAYOUT */
@@ -427,7 +622,6 @@ footer {
   background: white;
   border: none;
   border-radius: 12px;
-  padding: 25px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   margin-top: 25px;
 }
