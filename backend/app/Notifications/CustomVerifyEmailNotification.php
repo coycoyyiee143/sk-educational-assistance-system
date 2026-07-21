@@ -1,30 +1,22 @@
 <?php
-
 namespace App\Notifications;
-
 use Illuminate\Bus\Queueable;
-use Illuminate\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
-
 class CustomVerifyEmailNotification extends Notification implements ShouldQueue
 {
     use Queueable;
-
     protected $verificationUrl;
-
-    public $queue = 'notifications';
-
     public function __construct($verificationUrl)
     {
         $this->verificationUrl = $verificationUrl;
+        $this->onQueue('notifications');
     }
-
     public function via($notifiable)
     {
         return ['mail'];
     }
-
     public function toMail($notifiable)
     {
         return (new MailMessage)
