@@ -20,6 +20,8 @@ class ProcessOcrDocument implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public $queue = 'ocr';
+
     // Allow the job to run up to 4 minutes before Laravel forces a timeout
     public $timeout = 240;
 

@@ -14,6 +14,8 @@ class ApplicationStatusNotification extends Notification implements ShouldQueue
     protected $status;
     protected $messageText;
 
+    public $queue = 'notifications';
+
     // Receive the status label and message dynamically from your controller
     public function __construct($status, $messageText)
     {

@@ -13,6 +13,8 @@ class CustomVerifyEmailNotification extends Notification implements ShouldQueue
 
     protected $verificationUrl;
 
+    public $queue = 'notifications';
+
     public function __construct($verificationUrl)
     {
         $this->verificationUrl = $verificationUrl;

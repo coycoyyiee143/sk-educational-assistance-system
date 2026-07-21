@@ -16,6 +16,8 @@ class ClaimingScheduleNotification extends Notification implements ShouldQueue
     protected $lane;
     protected $schedule;
 
+    public $queue = 'notifications';
+
     public function __construct($application, $lane, $schedule)
     {
         $this->application = $application;
