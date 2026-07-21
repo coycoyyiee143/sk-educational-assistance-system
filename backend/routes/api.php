@@ -92,6 +92,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // ── Shared routes (any authenticated role) ─────────────────────
     Route::put('/user/profile', [ProfileController::class, 'updateAccount']);
     Route::put('/user/password', [ProfileController::class, 'updatePassword']);
+    Route::get('/applications/{id}/documents/{docId}/file', [DocumentController::class, 'show']);
 
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);

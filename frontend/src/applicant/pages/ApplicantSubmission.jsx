@@ -84,9 +84,33 @@ function ApplicantSubmission() {
     setReuploadFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
   const [activeConfig, setActiveConfig] = useState(null);
 
+  const [docUrls, setDocUrls] = useState({});
+
+  useEffect(() => {
+    let createdUrls = [];
+    async function loadDocUrls() {
+      const urls = {};
+      for (const doc of existingDocs) {
+        try {
+          const res = await api.get(
+            `/applications/${applicationId}/documents/${doc.id}/file`,
+            { responseType: "blob" }
+          );
+          const url = URL.createObjectURL(res.data);
+          urls[doc.id] = url;
+          createdUrls.push(url);
+        } catch {
+          // skip on failure, recap will show a fallback
+        }
+      }
+      setDocUrls(urls);
+    }
+    if (applicationId && existingDocs.length > 0) loadDocUrls();
+    return () => createdUrls.forEach((u) => URL.revokeObjectURL(u));
+  }, [existingDocs, applicationId]);
+
   // Preview modal state
   const [previewFile, setPreviewFile] = useState(null);
-  const STORAGE_BASE = "http://localhost:8000/storage/";
   function isImageFile(doc) {
     if (doc?.mime_type) return doc.mime_type.startsWith("image/");
     return /\.(jpg|jpeg|png)$/i.test(doc?.file_name || "");
@@ -96,7 +120,7 @@ function ApplicantSubmission() {
     api
       .get("/application-config/active")
       .then((res) => setActiveConfig(res.data))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Resume in-progress application on load
@@ -131,7 +155,7 @@ function ApplicantSubmission() {
           }
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setCheckingApp(false));
   }, []);
 
@@ -391,7 +415,15 @@ function ApplicantSubmission() {
                       const doc = existingDocs.find((d) => d.document_type === field.type);
                       if (!doc) return null;
 
-                      const fileUrl = STORAGE_BASE + doc.file_path;
+                      const fileUrl = docUrls[doc.id];
+                      if (!fileUrl) return (
+                        <div className="col-md-4" key={field.key}>
+                          <div className="upload-box d-flex align-items-center justify-content-center" style={{ height: "280px" }}>
+                            <div className="spinner-border spinner-border-sm text-danger" role="status" />
+                          </div>
+                        </div>
+                      );
+
                       const imageDoc = isImageFile(doc);
 
                       return (

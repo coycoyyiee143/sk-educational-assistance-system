@@ -139,7 +139,21 @@ function VerifierApplicationReview() {
 
             {sortedDocuments.map((doc) => {
               const docLabel = doc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-              const fileUrl = doc.file_path ? `${process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000'}/storage/${doc.file_path}` : "#";
+
+              async function handleViewFile(docId) {
+                try {
+                  const res = await api.get(`/applications/${app.id}/documents/${docId}/file`, {
+                    responseType: "blob",
+                  });
+                  const url = URL.createObjectURL(res.data);
+                  window.open(url, "_blank");
+                  // Optional cleanup after a delay since the tab needs time to load it
+                  setTimeout(() => URL.revokeObjectURL(url), 60000);
+                } catch {
+                  alert("Failed to load document.");
+                }
+              }
+
               const overallStatus = getOverallDocStatus(doc.id);
               const relatedChecks = app.verification_checks?.filter(c => c.document_id === doc.id) || [];
 
@@ -199,14 +213,13 @@ function VerifierApplicationReview() {
                       <span className={`badge ${overallStatus.class}`}>
                         {overallStatus.text}
                       </span>
-                      <a
-                        href={fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
                         className="btn btn-outline-custom btn-sm"
+                        onClick={() => handleViewFile(doc.id)}
                       >
                         View File
-                      </a>
+                      </button>
                     </div>
                   </div>
 
