@@ -97,12 +97,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::middleware(['role:applicant'])->group(function () {
         Route::get('/applications', [ApplicationController::class, 'index']);
         Route::get('/applications/claiming-schedule', [ApplicationController::class, 'claimingSchedule']); // Placed above {id}
+        Route::get('/applications/activity-log', [ApplicationController::class, 'activityLog']);
         Route::post('/applications', [ApplicationController::class, 'store']);
         Route::get('/applications/{id}', [ApplicationController::class, 'show']);
         Route::put('/applications/{id}', [ApplicationController::class, 'update']);
         Route::post('/applications/{id}/documents', [DocumentController::class, 'upload']);
         Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
         Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);
+       
     });
 
     // ── Shared routes (any authenticated role) ─────────────────────
