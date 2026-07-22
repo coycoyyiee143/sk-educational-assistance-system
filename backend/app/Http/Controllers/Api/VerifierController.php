@@ -14,7 +14,7 @@ class VerifierController extends Controller
     public function stats()
     {
         return response()->json([
-            'pending'  => Application::whereIn('status', ['pending_prescreening'])->count(),
+            'pending'  => Application::whereIn('status', ['pending_prescreening'])->whereHas('documents')->count(),
             'review'   => Application::where('status', 'for_review')->count(),
             'approved' => Application::where('status', 'approved')->count(),
             'rejected' => Application::where('status', 'rejected')->count(),
@@ -24,6 +24,7 @@ class VerifierController extends Controller
     public function index(Request $request)
     {
         $applications = Application::with(['user'])
+            ->whereHas('documents')
             ->orderBy('submitted_at', 'desc')
             ->get()
             ->map(function ($app) {
@@ -36,7 +37,6 @@ class VerifierController extends Controller
                     'school_name'    => $app->school_name,
                 ];
             });
-
         return response()->json($applications);
     }
 

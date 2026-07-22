@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
+use App\Models\ApplicationDocument;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -60,7 +61,7 @@ class DatabaseSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        Application::create([
+        $approvedApp = Application::create([
             'user_id'            => $approvedApplicant->id,
             'config_id'          => $config->id,
             'school_name'        => 'Laguna State Polytechnic University',
@@ -71,6 +72,27 @@ class DatabaseSeeder extends Seeder
             'control_number'     => Application::generateControlNumber($config->id),
             'submitted_at'       => now()->subDays(2),
         ]);
+
+        // Placeholder documents so this applicant appears in the verifier's
+        // application list (which now correctly filters to only show
+        // applications with at least one document — see whereHas('documents')
+        // fix). These file_path values do NOT correspond to real files on
+        // disk. This applicant exists to test the claiming schedule flow
+        // (lane assignment, control number, claim status updates), not
+        // document review. Clicking "View File" on these will 404 — that's
+        // expected. Use a real end-to-end upload for testing document
+        // viewing/OCR specifically.
+        foreach (['registration_form', 'school_id', 'voters_certificate'] as $docType) {
+            ApplicationDocument::create([
+                'application_id' => $approvedApp->id,
+                'document_type'  => $docType,
+                'file_path'      => "documents/{$approvedApp->id}/seeded_placeholder_{$docType}.jpg",
+                'file_name'      => "seeded_placeholder_{$docType}.jpg",
+                'mime_type'      => 'image/jpeg',
+                'version'        => 1,
+                'status'         => 'processed',
+            ]);
+        }
 
         // Applicant #2 — registered account only, no application submitted yet
         User::create([
