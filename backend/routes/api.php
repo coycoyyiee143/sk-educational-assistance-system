@@ -63,7 +63,24 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/applications', [AdminReportController::class, 'applications']);
         Route::get('/admin/reports/export', [AdminReportController::class, 'export']);
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
+        Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
+        Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
     });
+
+    Route::middleware(['auth:sanctum', 'log.visit'])->group(function () {
+    // ── Admin routes ────────────────────────────────────────────────
+    Route::middleware(['role:sk_admin'])->group(function () {
+    });
+
+    // ── Verifier routes ─────────────────────────────────────────────
+    Route::middleware(['role:sk_verifier'])->group(function () {
+    });
+
+    // ── Applicant routes ────────────────────────────────────────────
+    Route::middleware(['role:applicant'])->group(function () {
+    });
+
+});
 
     // ── Verifier routes ─────────────────────────────────────────────
     Route::middleware(['role:sk_verifier'])->group(function () {
@@ -75,18 +92,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
         Route::post('/verifier/claiming/{id}/status', [VerifierController::class, 'updateClaimStatus']);
+        Route::get('/verifier/activity-log', [VerifierController::class, 'activityLog']);
     });
 
     // ── Applicant routes ────────────────────────────────────────────
     Route::middleware(['role:applicant'])->group(function () {
         Route::get('/applications', [ApplicationController::class, 'index']);
         Route::get('/applications/claiming-schedule', [ApplicationController::class, 'claimingSchedule']); // Placed above {id}
+        Route::get('/applications/activity-log', [ApplicationController::class, 'activityLog']);
         Route::post('/applications', [ApplicationController::class, 'store']);
         Route::get('/applications/{id}', [ApplicationController::class, 'show']);
         Route::put('/applications/{id}', [ApplicationController::class, 'update']);
         Route::post('/applications/{id}/documents', [DocumentController::class, 'upload']);
         Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
         Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);
+       
     });
 
     // ── Shared routes (any authenticated role) ─────────────────────

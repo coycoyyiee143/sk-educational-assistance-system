@@ -56,6 +56,8 @@ class AdminController extends Controller
             'is_active'  => $request->is_active ?? true,
         ]);
 
+        
+
         return response()->json(['message' => 'Personnel created.', 'user' => $user], 201);
     }
 
@@ -78,13 +80,32 @@ class AdminController extends Controller
 
         $user->update($data);
 
-        return response()->json(['message' => 'User updated.', 'user' => $user]);
+        $changes = $user->getChanges();
+        unset($changes['updated_at'], $changes['password']);
+
+        if (!empty($changes)) {
+            $fieldList = implode(', ', array_keys($changes));   
+            \App\Models\AuditLog::record(
+                'personnel_updated',
+                $user,
+                "Updated {$user->first_name} {$user->last_name}'s fields: {$fieldList}"
+            );
+        }
+
+        return response()->json(['message' => 'User updated.', 'user' => $user]);  
     }
 
     public function toggleStatus($id)
     {
         $user = User::findOrFail($id);
         $user->update(['is_active' => !$user->is_active]);
+
+        $statusLabel = $user->is_active ? 'activated' : 'deactivated';
+        \App\Models\AuditLog::record(
+            'personnel_status_changed',
+            $user,
+            "{$statusLabel} account: {$user->first_name} {$user->last_name}"
+        );
 
         return response()->json([
             'message'   => 'Status updated.',
@@ -94,7 +115,48 @@ class AdminController extends Controller
 
     public function deleteUser($id)
     {
-        User::findOrFail($id)->delete();
+        $user = User::findOrFail($id);
+        $name = "{$user->first_name} {$user->last_name}";
+        $email = $user->email;
+
+        $user->delete();
+
+        // Note: no $subject model passed since the record is now deleted
+        \App\Models\AuditLog::record(
+            'personnel_deleted',
+            null,
+            "Deleted account: {$name} ({$email})"
+        );
+
         return response()->json(['message' => 'User deleted.']);
+    }
+    // Returns the logged-in admin's own activity history
+    public function activityLog(Request $request)
+    {
+        $logs = \App\Models\AuditLog::where('user_id', $request->user()->id)
+            ->latest()
+            ->paginate(50);
+
+        return response()->json($logs);
+    }
+
+    // Returns ALL activity logs from Admin and Verifier accounts only.
+    // Applicant logs are intentionally excluded from this view.
+    public function masterActivityLog(Request $request)
+    {
+        $query = \App\Models\AuditLog::whereHas('user', function ($q) {
+            $q->whereIn('role', ['sk_admin', 'sk_verifier']);
+        })->with('user:id,first_name,last_name,email,role');
+
+        // Optional filter: ?role=sk_verifier or ?role=sk_admin
+        if ($request->has('role') && in_array($request->role, ['sk_admin', 'sk_verifier'])) {
+            $query->whereHas('user', function ($q) use ($request) {
+                $q->where('role', $request->role);
+            });
+        }
+
+        $logs = $query->latest()->paginate(50);
+
+        return response()->json($logs);
     }
 }

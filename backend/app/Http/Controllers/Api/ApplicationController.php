@@ -63,6 +63,13 @@ class ApplicationController extends Controller
         // comment out the incrementing of slots_filled here because it should only be incremented when the application is approved, not when it is submitted.
         //$config->increment('slots_filled');
 
+        // Log the application submission for the audit trail
+        \App\Models\AuditLog::record(
+            'application_submitted',
+            $application,
+            "You submitted an application."
+        );
+
         // Trigger Submission Confirmation Notification
         $request->user()->notify(new ApplicationStatusNotification(
             'Pending',
@@ -114,6 +121,13 @@ class ApplicationController extends Controller
             'student_id_number' => $request->student_id_number,
         ]);
 
+        // Log the application edit for the audit trail
+        \App\Models\AuditLog::record(
+            'application_updated',
+            $application,
+            "Updated application details for {$application->school_name}"
+        );
+
         return response()->json([
             'message'     => 'Application updated.',
             'application' => $application,
@@ -136,5 +150,17 @@ class ApplicationController extends Controller
             'assignment'  => $application->claimingAssignment,
         ]);
     }
+
+    // Returns the logged-in applicant's own activity history
+    public function activityLog(Request $request)
+    {
+        $logs = \App\Models\AuditLog::where('user_id', $request->user()->id)
+            ->latest()
+            ->paginate(50);
+
+        return response()->json($logs);
+    }
 }
+
+
 

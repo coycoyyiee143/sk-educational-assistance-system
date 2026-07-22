@@ -18,6 +18,7 @@ import AdminSchedule from "./admin/pages/AdminSchedule";
 import AdminAnnouncements from "./admin/pages/AdminAnnouncements.jsx";
 import AdminEvents from "./admin/pages/AdminEvents.jsx";
 import AdminReports from "./admin/pages/AdminReports.jsx";
+import AdminMasterActivityLog from "./admin/pages/AdminMasterActivityLog";
 
 import VerifierDashboard from "./verifier/pages/VerifierDashboard.jsx";
 import VerifierApplicationList from "./verifier/pages/VerifierApplicationList.jsx";
@@ -25,6 +26,7 @@ import VerifierApplicationReview from "./verifier/pages/VerifierApplicationRevie
 import VerifierVerificationAction from "./verifier/pages/VerifierVerificationAction.jsx";
 import VerifierClaiming from "./verifier/pages/VerifierClaiming.jsx";
 import VerifierProfile from "./verifier/pages/VerifierProfile.jsx";
+
 
 import ApplicantDashboard from "./applicant/pages/ApplicantDashboard.jsx";
 import ApplicantProfile from "./applicant/pages/ApplicantProfile.jsx";
@@ -84,6 +86,12 @@ function App() {
           </ProtectedRoute>
         } />
 
+        <Route path="/AdminMasterActivityLog" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminMasterActivityLog />
+          </ProtectedRoute>
+        } />
+
         {/* Verifier */}
         <Route path="/VerifierDashboard" element={
           <ProtectedRoute allowedRoles={["sk_verifier"]}>
@@ -115,6 +123,7 @@ function App() {
             <VerifierProfile />
           </ProtectedRoute>
         } />
+  
 
         {/* Applicant */}
         <Route path="/ApplicantDashboard" element={

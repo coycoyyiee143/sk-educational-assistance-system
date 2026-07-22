@@ -81,6 +81,13 @@ class VerifierController extends Controller
             'notes'          => $request->notes ?? null,
         ]);
 
+         // Log this approval for the audit trail
+        \App\Models\AuditLog::record(
+            'application_approved',
+            $app,
+            "Approved application #{$app->id} ({$app->user->first_name} {$app->user->last_name})"
+        );
+
         // Trigger Approval Notification
         $app->user->notify(new ApplicationStatusNotification(
             'Approved',
@@ -108,6 +115,13 @@ class VerifierController extends Controller
             'action'         => 'rejected',
             'notes'          => $request->reason,
         ]);
+
+        // Log this rejection for the audit trail
+        \App\Models\AuditLog::record(
+            'application_rejected',
+            $app,
+            "Rejected application #{$app->id}. Reason: {$request->reason}"
+        );
 
         // Trigger Rejection Notification
         $app->user->notify(new ApplicationStatusNotification(
@@ -137,6 +151,13 @@ class VerifierController extends Controller
             'notes'           => $request->notes,
             'reupload_details'=> $request->reupload_details ?? [],
         ]);
+
+        // Log the re-upload request for the audit trail
+        \App\Models\AuditLog::record(
+            'application_reupload_requested',
+            $app,
+            "Requested document re-upload for application #{$app->id}. Notes: {$request->notes}"
+        );
 
         // Trigger Re-upload Notification
         $app->user->notify(new ApplicationStatusNotification(
@@ -197,6 +218,13 @@ class VerifierController extends Controller
         $app = Application::with('user')->findOrFail($id);
         $app->update(['status' => $request->claim_status]);
 
+         // Log the claim status change (claimed / not cleared / unclaimed) for the audit trail
+        \App\Models\AuditLog::record(
+            'claim_status_updated',
+            $app,
+            "Marked application #{$app->id} as {$request->claim_status}"
+        );
+
         $messages = [
             'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
             'not_cleared' => 'Your physical documents did not match your application record on claiming day.',
@@ -214,5 +242,15 @@ class VerifierController extends Controller
         ));
 
         return response()->json(['message' => 'Claiming status updated.', 'assignment' => $assignment]);
+    }
+
+    // Returns the logged-in verifier's own activity history
+    public function activityLog(Request $request)
+    {
+        $logs = \App\Models\AuditLog::where('user_id', $request->user()->id)
+            ->latest()
+            ->paginate(50);
+
+        return response()->json($logs);
     }
 }

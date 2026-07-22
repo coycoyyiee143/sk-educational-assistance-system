@@ -8,6 +8,7 @@ export default function VerifyEmail() {
     const { id, hash } = useParams();
     const [status, setStatus] = useState("verifying");
     const [message, setMessage] = useState("Verifying your email address...");
+    const [countdown, setCountdown] = useState(3);
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -15,13 +16,25 @@ export default function VerifyEmail() {
             .then((res) => {
                 setStatus("success");
                 setMessage(res.data.message || "Email verified successfully!");
-                setTimeout(() => navigate("/login"), 3000);
             })
             .catch((err) => {
                 setStatus("error");
                 setMessage(err.response?.data?.message || "Verification failed. The link may be invalid or expired.");
             });
-    }, [id, hash, navigate]);
+    }, [id, hash]);
+
+    // Only starts counting down once verification succeeds
+    useEffect(() => {
+        if (status !== "success") return;
+
+        if (countdown === 0) {
+            navigate("/login");
+            return;
+        }
+
+        const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
+        return () => clearTimeout(timer);
+    }, [status, countdown, navigate]);
 
     return (
         <>
@@ -57,7 +70,9 @@ export default function VerifyEmail() {
                                         <div className="text-success mb-3" style={{ fontSize: "48px" }}>✓</div>
                                         <h4 className="text-success">Email Verified!</h4>
                                         <p className="text-muted">{message}</p>
-                                        <p className="text-muted small">Redirecting to login in 3 seconds...</p>
+                                        <p className="text-muted small">
+                                            Redirecting to login in {countdown} second{countdown !== 1 ? "s" : ""}...
+                                        </p>
                                         <a href="/login" className="btn btn-custom mt-2">Go to Login</a>
                                     </>
                                 )}

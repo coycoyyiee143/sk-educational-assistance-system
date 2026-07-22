@@ -15,6 +15,8 @@ class ProfileController extends Controller
 
     public function store(Request $request)
     {
+
+        
         $user = $request->user();
 
         if ($user->profile && $user->profile->is_profile_complete) {
@@ -29,6 +31,14 @@ class ProfileController extends Controller
             $data
         );
 
+        // Log the initial profile setup
+        \App\Models\AuditLog::record(
+            'profile_completed',
+            $profile,
+            'Completed initial profile setup'
+        );
+
+
         return response()->json([
             'message' => 'Profile saved.',
             'profile' => $profile,
@@ -39,7 +49,21 @@ class ProfileController extends Controller
     {
         $data = $this->validateProfile($request);
 
-        $request->user()->profile()->update($data);
+        $profile = $request->user()->profile;
+        $profile->update($data);
+
+        // Log which specific fields were changed, so the trail is meaningful
+        $changes = $profile->getChanges();
+        unset($changes['updated_at']);
+
+        if (!empty($changes)) {
+            $fieldList = implode(', ', array_keys($changes));
+            \App\Models\AuditLog::record(
+                'profile_updated',
+                $profile,
+                "Updated profile fields: {$fieldList}"
+            );
+        }
 
         return response()->json([
             'message' => 'Profile updated.',
@@ -59,6 +83,18 @@ class ProfileController extends Controller
 
         $user->update($data);
 
+        $changes = $user->getChanges();
+        unset($changes['updated_at']);
+
+        if (!empty($changes)) {
+            $fieldList = implode(', ', array_keys($changes));
+            \App\Models\AuditLog::record(
+                'account_updated',
+                $user,
+                "Updated account fields: {$fieldList}"
+            );
+        }
+
         return response()->json(['message' => 'Account updated.', 'user' => $user]);
     }
 
@@ -74,6 +110,13 @@ class ProfileController extends Controller
         }
 
         $request->user()->update(['password' => Hash::make($request->password)]);
+
+        // Log the password change without exposing any password content
+        \App\Models\AuditLog::record(
+            'password_changed',
+            $request->user(),
+            'Password was changed'
+        );
 
         return response()->json(['message' => 'Password updated.']);
     }
