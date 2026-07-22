@@ -74,6 +74,206 @@ body {
   line-height: 1.7;
 }
 
+/* (HOME)REQUIREMENTS PREVIEW SECTION */
+.req-card {
+  border: 1px solid #e5e5e5 !important;
+  border-radius: 12px;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 2.5rem 2rem !important;
+  min-height: 320px;
+}
+
+.req-basic h4,
+.req-process h4 {
+  color: #1a1a1a !important;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid #e5e5e5;
+  font-weight: 700;
+}
+
+/* Custom sparkle icon list for Basic Requirements */
+.req-basic ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.req-basic ul li {
+  color: #333;
+  font-weight: 600;
+  line-height: 2.3;
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.req-icon {
+  width: 18px !important;
+  height: 18px !important;
+  min-width: 18px;
+  max-width: 18px;
+  color: #b71c1c;
+  flex-shrink: 0;
+}
+
+.req-process ol li {
+  color: #333;
+  font-weight: 600;
+  line-height: 2.3;
+  font-size: 17px;
+}
+
+.req-reminder {
+  background: linear-gradient(160deg, #7f0000 0%, #b71c1c 100%) !important;
+  border: none !important;
+}
+
+.req-reminder h4 {
+  color: #ffffff !important;
+  padding-bottom: 16px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+  font-weight: 700;
+}
+
+.req-reminder p {
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  line-height: 1.8;
+  font-size: 17px;
+}
+
+/* APPLICATION SCHEDULE SECTION */
+.schedule-section {
+  background: linear-gradient(180deg, #fff3f3 0%, #fdf7f7 100%);
+}
+
+.schedule-card {
+  color: #1a1a1a !important;
+  padding-bottom: 16px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid #e5e5e5;
+  font-weight: 700;
+  font-size: 19px;
+  width: 100% !important;
+  flex: 1 1 100%;
+}
+
+.schedule-card h5 {
+  color: #1a1a1a !important;
+  padding-bottom: 16px;
+  margin-bottom: 22px;
+  border-bottom: 1px solid #e5e5e5;
+  font-weight: 700;
+  font-size: 19px;
+  width: 100%;
+}
+
+.schedule-center {
+  align-items: center;
+  text-align: center;
+}
+
+.schedule-center .schedule-year-row {
+  justify-content: center;
+}
+
+.schedule-line {
+  color: #333;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 2;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px !important;
+}
+
+.schedule-line strong {
+  color: #b71c1c;
+  font-weight: 700;
+}
+
+.schedule-icon {
+  width: 20px;
+  height: 20px;
+  color: #b71c1c;
+  flex-shrink: 0;
+}
+
+.live-badge {
+  background: #2e7d32;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 5px 12px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.schedule-year-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.schedule-year {
+  font-size: 38px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.schedule-year-icon {
+  width: 30px;
+  height: 30px;
+  color: #b71c1c;
+}
+
+.remaining-count {
+  color: #2e7d32;
+  font-weight: 700;
+}
+
+.slot-progress-track {
+  width: 100%;
+  height: 10px;
+  background: #eee;
+  border-radius: 20px;
+  overflow: hidden;
+  margin-top: 14px;
+}
+
+.slot-progress-fill {
+  height: 100%;
+  border-radius: 20px;
+  transition: width 0.4s ease;
+}
+
+.schedule-btn {
+  background: #b71c1c !important;
+  color: #ffffff !important;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 11px 18px;
+  border-radius: 8px;
+  margin-top: 22px;
+  align-self: flex-start;
+  text-align: center;
+  text-decoration: none !important;
+  border: none !important;
+  display: inline-block;
+}
+
+.schedule-btn:hover {
+  background: #8e0000 !important;
+  color: #ffffff !important;
+}
+
 /* BUTTONS */
 .btn-custom-light {
   background-color: white;
