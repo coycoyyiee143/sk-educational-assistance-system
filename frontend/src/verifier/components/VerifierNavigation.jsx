@@ -3,12 +3,14 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import VerifierActivityLogModal from "../pages/VerifierActivityModal";
+import VerifierChangePasswordModal from "../pages/VerifierChangePasswordModal";
 
 function VerifierNavigation() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [showActivityLog, setShowActivityLog] = React.useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = React.useState(false);
+  const [showChangePassword, setShowChangePassword] = React.useState(false);
 
   const handleLogout = async () => {
     try {
@@ -76,6 +78,17 @@ function VerifierNavigation() {
                       <button
                         className="dropdown-item"
                         onClick={() => {
+                          setShowChangePassword(true);
+                          setProfileMenuOpen(false);
+                        }}
+                      >
+                        Change Password
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        className="dropdown-item"
+                        onClick={() => {
                           setShowActivityLog(true);
                           setProfileMenuOpen(false);
                         }}
@@ -96,6 +109,7 @@ function VerifierNavigation() {
       </div>
     </nav>
     <VerifierActivityLogModal show={showActivityLog} onClose={() => setShowActivityLog(false)} />
+    <VerifierChangePasswordModal show={showChangePassword} onClose={() => setShowChangePassword(false)} />
     </>
   );
 }

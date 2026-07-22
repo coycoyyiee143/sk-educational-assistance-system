@@ -7,7 +7,6 @@ import api from "../../services/api";
 function VerifierProfile() {
   const { user, login, token } = useAuth();
   const [form, setForm] = useState({ first_name: "", last_name: "", mobile_number: "" });
-  const [passwords, setPasswords] = useState({ current_password: "", password: "", password_confirmation: "" });
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
@@ -23,7 +22,6 @@ function VerifierProfile() {
   }, [user]);
 
   const setF = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const setP = (k) => (e) => setPasswords((f) => ({ ...f, [k]: e.target.value }));
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -41,21 +39,7 @@ function VerifierProfile() {
     }
   }
 
-  async function handlePasswordChange(e) {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    setSaving(true);
-    try {
-      await api.put("/user/password", passwords);
-      setSuccess("Password updated.");
-      setPasswords({ current_password: "", password: "", password_confirmation: "" });
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to update password.");
-    } finally {
-      setSaving(false);
-    }
-  }
+
 
   return (
     <div>
@@ -94,29 +78,6 @@ function VerifierProfile() {
               </div>
               <div className="mt-4 d-flex gap-2">
                 <button type="submit" className="btn btn-custom" disabled={saving}>{saving ? "Saving..." : "Save Changes"}</button>
-              </div>
-            </form>
-
-            <hr className="my-4" />
-
-            <h4>Change Password</h4>
-            <form onSubmit={handlePasswordChange}>
-              <div className="row g-3">
-                <div className="col-md-4">
-                  <label className="form-label">Current Password</label>
-                  <input type="password" className="form-control" value={passwords.current_password} onChange={setP("current_password")} required />
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label">New Password</label>
-                  <input type="password" className="form-control" value={passwords.password} onChange={setP("password")} required />
-                </div>
-                <div className="col-md-4">
-                  <label className="form-label">Confirm New Password</label>
-                  <input type="password" className="form-control" value={passwords.password_confirmation} onChange={setP("password_confirmation")} required />
-                </div>
-              </div>
-              <div className="mt-4">
-                <button type="submit" className="btn btn-custom" disabled={saving}>{saving ? "Saving..." : "Update Password"}</button>
               </div>
             </form>
           </div>
