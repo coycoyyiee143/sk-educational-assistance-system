@@ -3,14 +3,12 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import AdminChangePasswordModal from "../pages/AdminChangePasswordModal";
-import AdminActivityLogModal from "../pages/AdminActivityLogModal";
 
 function AdminNavigation() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [usersMenuOpen, setUsersMenuOpen] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [showActivityLog, setShowActivityLog] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -78,17 +76,6 @@ function AdminNavigation() {
                       <button
                         className="dropdown-item"
                         onClick={() => {
-                          setShowActivityLog(true);
-                          setUsersMenuOpen(false);
-                        }}
-                      >
-                        Your Activity Log
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        className="dropdown-item"
-                        onClick={() => {
                           setShowChangePassword(true);
                           setUsersMenuOpen(false);
                         }}
@@ -127,7 +114,6 @@ function AdminNavigation() {
       </nav>
 
       <AdminChangePasswordModal show={showChangePassword} onClose={() => setShowChangePassword(false)} />
-      <AdminActivityLogModal show={showActivityLog} onClose={() => setShowActivityLog(false)} />
     </>
   );
 }

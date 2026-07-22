@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import AdminNavigation from "../components/AdminNavigation";
 import api from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
 
 const ACTION_CONFIG = {
   login: { label: "Logged In", badge: "bg-primary" },
@@ -50,6 +51,20 @@ function formatTimestamp(dateString) {
   }
 }
 
+// Replaces the user's full name at the start of the description with "You"
+// when the log entry belongs to the currently logged-in admin.
+function formatDescription(log, currentUser) {
+  if (!log.description || !log.user || !currentUser) return log.description;
+  if (log.user.id !== currentUser.id) return log.description;
+
+  const fullName = `${log.user.first_name} ${log.user.last_name}`;
+  if (log.description.startsWith(fullName)) {
+    return "You" + log.description.slice(fullName.length);
+  }
+
+  return log.description;
+}
+
 // Combined activity log for Admin and Verifier accounts only.
 // Applicant activity is intentionally excluded from this view.
 function AdminMasterActivityLog() {
@@ -59,6 +74,7 @@ function AdminMasterActivityLog() {
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
+  const { user: currentUser } = useAuth();
 
   useEffect(() => {
     setLoading(true);
@@ -78,10 +94,14 @@ function AdminMasterActivityLog() {
         log.ip_address?.includes(query) ||
         `${log.user?.first_name} ${log.user?.last_name}`.toLowerCase().includes(query.toLowerCase());
       const matchesAction = actionFilter === "all" || log.action === actionFilter;
-      const matchesRole = roleFilter === "all" || log.user?.role === roleFilter;
-      return matchesQuery && matchesAction && matchesRole;
+      const matchesRole =
+        roleFilter === "all" ||
+        (roleFilter === "me" && log.user?.id === currentUser?.id) ||
+        (roleFilter === "sk_admin" && log.user?.role === "sk_admin" && log.user?.id !== currentUser?.id) ||
+        (roleFilter === "sk_verifier" && log.user?.role === "sk_verifier");
+        return matchesQuery && matchesAction && matchesRole;
     });
-  }, [logs, query, actionFilter, roleFilter]);
+  }, [logs, query, actionFilter, roleFilter, currentUser]);
 
   return (
     <div>
@@ -93,7 +113,7 @@ function AdminMasterActivityLog() {
           <div className="page-card">
             <h3 className="section-title mb-2">System Activity Log</h3>
             <p className="text-muted mb-0">
-              Combined activity log from Admin and Verifier accounts.
+              Combined activity from Admin and Verifier accounts. Applicant activity is tracked separately.
             </p>
           </div>
 
@@ -101,7 +121,7 @@ function AdminMasterActivityLog() {
 
           <div className="search-box mb-4">
             <div className="row g-3">
-              <div className="col-md-5">
+              <div className="col-md-6">
                 <label className="form-label">Search</label>
                 <input
                   type="text"
@@ -111,7 +131,7 @@ function AdminMasterActivityLog() {
                   onChange={(e) => setQuery(e.target.value)}
                 />
               </div>
-              <div className="col-md-4">
+              <div className="col-md-3">
                 <label className="form-label">Action Type</label>
                 <select
                   className="form-select"
@@ -134,6 +154,7 @@ function AdminMasterActivityLog() {
                   onChange={(e) => setRoleFilter(e.target.value)}
                 >
                   <option value="all">All Roles</option>
+                  <option value="me">Me (Admin)</option>
                   <option value="sk_admin">Admin</option>
                   <option value="sk_verifier">Verifier</option>
                 </select>
@@ -172,12 +193,14 @@ function AdminMasterActivityLog() {
                           <td>{formatTimestamp(log.created_at)}</td>
                           <td>
                             {log.user
-                              ? `${log.user.first_name} ${log.user.last_name}`
+                              ? (log.user.id === currentUser?.id
+                                  ? "You"
+                                  : `${log.user.first_name} ${log.user.last_name}`)
                               : <span className="text-muted fst-italic">Deleted user</span>}
                           </td>
                           <td>{log.user && <RoleBadge role={log.user.role} />}</td>
                           <td><ActionBadge action={log.action} /></td>
-                          <td>{log.description}</td>
+                          <td>{formatDescription(log, currentUser)}</td>
                           <td><code className="small">{log.ip_address}</code></td>
                         </tr>
                       ))
