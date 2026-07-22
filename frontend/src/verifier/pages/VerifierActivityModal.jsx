@@ -16,6 +16,16 @@ function ActionBadge({ action }) {
   const config = ACTION_CONFIG[action] || { label: action, badge: "bg-secondary" };
   return <span className={`badge ${config.badge}`}>{config.label}</span>;
 }
+// Every log entry in this modal belongs to the current user, so we can
+// simply replace their full name at the start of the description with "You"
+function formatDescription(description) {
+  if (!description) return description;
+  const match = description.match(/^([A-Za-zÀ-ÖØ-öø-ÿ.'-]+(?:\s[A-Za-zÀ-ÖØ-öø-ÿ.'-]+){1,3})\s(logged|approved|rejected|updated|requested|marked)/);
+  if (match) {
+    return "You " + description.slice(match[1].length + 1);
+  }
+  return description;
+}
 
 function formatTimestamp(dateString) {
   if (!dateString) return "—";
@@ -144,7 +154,7 @@ function VerifierActivityLogModal({ show, onClose }) {
                           <tr key={log.id}>
                             <td>{formatTimestamp(log.created_at)}</td>
                             <td><ActionBadge action={log.action} /></td>
-                            <td>{log.description}</td>
+                            <td>{formatDescription(log.description)}</td>
                             <td><code className="small">{log.ip_address}</code></td>
                           </tr>
                         ))
