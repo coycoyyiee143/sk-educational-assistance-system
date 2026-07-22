@@ -60,6 +60,10 @@ class VerifierController extends Controller
         // Eager-loaded user relationship to make sure notification finds the recipient email
         $app = Application::with('user')->findOrFail($id);
 
+        if ($app->status === 'approved') {
+            return response()->json(['message' => 'Application already approved.'], 400);
+        }
+
         $app->update([
             'status'         => 'approved',
             'control_number' => $app->control_number ?? \App\Models\Application::generateControlNumber($app->config_id),
