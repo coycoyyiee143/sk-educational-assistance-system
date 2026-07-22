@@ -99,6 +99,15 @@ class DocumentController extends Controller
         // Dispatch async OCR job with stored file path
         ProcessOcrDocument::dispatch($application, $newDocument, $path);
 
+        // Log the document re-upload for the audit trail
+        $documentLabel = str_replace('_', ' ', $newDocument->document_type);
+        \App\Models\AuditLog::record(
+            'document_reuploaded',
+            $newDocument,
+            "{$request->user()->first_name} {$request->user()->last_name} re-uploaded {$documentLabel} for application #{$application->id}"
+        );
+
+
         return response()->json([
             'message'  => 'Document re-uploaded and queued for processing.',
             'document' => $newDocument->fresh(),

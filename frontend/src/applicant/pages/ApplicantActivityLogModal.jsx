@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import api from "../../services/api";
+import { useAuth } from "../../context/AuthContext";
 
 const ACTION_CONFIG = {
   login: { label: "Logged In", badge: "bg-primary" },
@@ -8,6 +9,8 @@ const ACTION_CONFIG = {
   page_visited: { label: "Page Visit", badge: "bg-secondary" },
   application_submitted: { label: "Application Submitted", badge: "bg-success" },
   application_updated: { label: "Application Updated", badge: "bg-primary" },
+  document_uploaded: { label: "Document Uploaded", badge: "bg-success" },
+  document_reuploaded: { label: "Document Re-uploaded", badge: "bg-warning text-dark" },
   profile_completed: { label: "Profile Completed", badge: "bg-success" },
   profile_updated: { label: "Profile Updated", badge: "bg-primary" },
   account_updated: { label: "Account Updated", badge: "bg-primary" },
@@ -18,6 +21,18 @@ function ActionBadge({ action }) {
   const config = ACTION_CONFIG[action] || { label: action, badge: "bg-secondary" };
   return <span className={`badge ${config.badge}`}>{config.label}</span>;
 }
+
+// Every log entry in this modal belongs to the current user, so we replace
+// their exact full name (from AuthContext) at the start of the description with "You"
+function formatDescription(description, currentUser) {
+  if (!description || !currentUser) return description;
+  const fullName = `${currentUser.first_name} ${currentUser.last_name}`;
+  if (description.startsWith(fullName)) {
+    return "You" + description.slice(fullName.length);
+  }
+  return description;
+}
+
 
 function formatTimestamp(dateString) {
   if (!dateString) return "—";
@@ -37,6 +52,7 @@ function formatTimestamp(dateString) {
 
 // Modal version of the Activity Log. Only fetches data when opened (show === true).
 function ApplicantActivityLogModal({ show, onClose }) {
+  const { user: currentUser } = useAuth();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -141,7 +157,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                           <tr key={log.id}>
                             <td>{formatTimestamp(log.created_at)}</td>
                             <td><ActionBadge action={log.action} /></td>
-                            <td>{log.description}</td>
+                            <td>{formatDescription(log.description, currentUser)}</td>
                             <td><code className="small">{log.ip_address}</code></td>
                           </tr>
                         ))

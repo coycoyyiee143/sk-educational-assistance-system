@@ -67,7 +67,7 @@ class ApplicationController extends Controller
         \App\Models\AuditLog::record(
             'application_submitted',
             $application,
-            "Submitted application for {$application->school_name}"
+            "You submitted an application."
         );
 
         // Trigger Submission Confirmation Notification
