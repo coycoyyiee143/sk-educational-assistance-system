@@ -63,6 +63,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/applications', [AdminReportController::class, 'applications']);
         Route::get('/admin/reports/export', [AdminReportController::class, 'export']);
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
+        Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
+        Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
     });
 
     Route::middleware(['auth:sanctum', 'log.visit'])->group(function () {
