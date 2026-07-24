@@ -50,6 +50,19 @@ function AdminSettings() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Once the opening date has passed, core parameters (school year, open
+  // date, slot limit, unlimited toggle) are locked server-side. Mirror
+  // that here so the form clearly reflects what's actually editable.
+  const hasStarted = config?.open_date
+    ? new Date() >= new Date(config.open_date)
+    : false;
+
+  // Warn (don't block) if the admin tries to reactivate a period that's
+  // already at capacity — reactivating alone won't let new applicants in
+  // unless the slot limit is also raised.
+  const isAtCapacity =
+    config && !config.is_unlimited && config.slots_filled >= config.slot_limit;
+
   const set = (k) => (e) =>
     setForm((f) => ({
       ...f,
@@ -120,14 +133,35 @@ function AdminSettings() {
               Configure the application period, school year, applicant slot availability, and other important settings for the educational assistance program.
             </p>
           </div>
+
           {/* Program Configuration Form */}
           <div className="page-card">
             <h4 className="sub-title">Program Configuration</h4>
             <div className="info-box">
               These settings control the availability and basic parameters of the educational assistance application process.
             </div>
+
+            {hasStarted && (
+              <div className="alert alert-warning">
+                <strong>This application period has already started.</strong>{" "}
+                School Year, Opening Date, Number of Available Slots, and the
+                Unlimited Slots toggle can no longer be changed to protect
+                data integrity for applicants who have already applied.
+                Closing Date and Active status can still be updated.
+              </div>
+            )}
+
+            {/* Capacity warning when trying to reactivate an already-full period */}
+            {form.is_active && isAtCapacity && (
+              <div className="alert alert-warning">
+                This period is already at capacity ({config.slots_filled}/{config.slot_limit} slots filled).
+                Reactivating it will not allow new applicants to apply unless you also increase the slot limit.
+              </div>
+            )}
+
             {success && <div className="alert alert-success">{success}</div>}
             {error && <div className="alert alert-danger">{error}</div>}
+
             {loading ? (
               <div className="spinner-border text-danger" />
             ) : (
@@ -141,6 +175,7 @@ function AdminSettings() {
                       placeholder="e.g. 2026 - 2027"
                       value={form.school_year}
                       onChange={set("school_year")}
+                      disabled={hasStarted}
                       required
                     />
                   </div>
@@ -151,6 +186,7 @@ function AdminSettings() {
                       className="form-control"
                       value={form.open_date ? form.open_date.slice(0, 10) : ""}
                       onChange={set("open_date")}
+                      disabled={hasStarted}
                       required
                     />
                   </div>
@@ -172,7 +208,7 @@ function AdminSettings() {
                       placeholder="e.g. 2000"
                       value={form.slot_limit}
                       onChange={set("slot_limit")}
-                      disabled={form.is_unlimited}
+                      disabled={form.is_unlimited || hasStarted}
                       required={!form.is_unlimited}
                       min={1}
                     />
@@ -185,6 +221,7 @@ function AdminSettings() {
                         id="isUnlimited"
                         checked={form.is_unlimited}
                         onChange={set("is_unlimited")}
+                        disabled={hasStarted}
                       />
                       <label className="form-check-label" htmlFor="isUnlimited">
                         Unlimited Slots (no cap during application period)
@@ -217,6 +254,7 @@ function AdminSettings() {
               </form>
             )}
           </div>
+
           {/* Current Settings Table */}
           <div className="page-card">
             <h4 className="sub-title">Current Application Settings</h4>

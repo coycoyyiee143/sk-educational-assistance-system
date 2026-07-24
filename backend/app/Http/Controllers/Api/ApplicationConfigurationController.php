@@ -58,7 +58,7 @@ class ApplicationConfigurationController extends Controller
     public function update(Request $request, $id)
     {
         $config = ApplicationConfiguration::findOrFail($id);
-
+    
         $data = $request->validate([
             'school_year'  => 'required|string',
             'open_date'    => 'required|date',
@@ -67,19 +67,51 @@ class ApplicationConfigurationController extends Controller
             'slot_limit'   => 'required_if:is_unlimited,false|nullable|integer|min:1',
             'is_active'    => 'boolean',
         ]);
-
+    
         $data['is_unlimited'] = $request->boolean('is_unlimited');
-
+    
         if ($data['is_unlimited']) {
             $data['slot_limit'] = null;
         }
-
+    
+        // Once the application period has started (opening date has passed),
+        // parameters that affect applicant eligibility or slot counting can no
+        // longer be changed — this protects data integrity for anyone who has
+        // already applied under the original terms. close_date and is_active
+        // remain editable at any time (extending a deadline or closing the
+        // period early are both legitimate admin actions mid-period).
+        $hasStarted = now()->gte($config->open_date);
+    
+        if ($hasStarted) {
+            $lockedFields = [];
+    
+            if ($data['school_year'] !== $config->school_year) {
+                $lockedFields[] = 'school_year';
+            }
+            if (!\Carbon\Carbon::parse($data['open_date'])->eq(\Carbon\Carbon::parse($config->open_date))) {
+                $lockedFields[] = 'open_date';
+            }
+            if ($data['is_unlimited'] !== (bool) $config->is_unlimited) {
+                $lockedFields[] = 'is_unlimited';
+            }
+            if (!$data['is_unlimited'] && (int) $data['slot_limit'] !== (int) $config->slot_limit) {
+                $lockedFields[] = 'slot_limit';
+            }
+    
+            if (!empty($lockedFields)) {
+                return response()->json([
+                    'message' => 'This application period has already started. School year, opening date, slot limit, and slot type (unlimited/limited) can no longer be changed once the period is open.',
+                    'locked_fields' => $lockedFields,
+                ], 400);
+            }
+        }
+    
         if (!empty($data['is_active']) && $data['is_active']) {
             ApplicationConfiguration::where('id', '!=', $id)->update(['is_active' => false]);
         }
-
+    
         $config->update($data);
-
+    
         return response()->json(['message' => 'Configuration updated.', 'config' => $config]);
     }
 }

@@ -26,12 +26,15 @@ class DocumentController extends Controller
             'document_type' => 'required|in:voters_certificate,registration_form,school_id',
             'file'          => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
-
         $application = Application::where('id', $id)
             ->where('user_id', $request->user()->id)
             ->with(['user.profile', 'configuration'])
             ->firstOrFail();
-
+    
+        if (now()->gt($application->configuration->close_date)) {
+            return response()->json(['message' => 'The application period has closed. Document uploads are no longer accepted.'], 400);
+        }
+    
         $file     = $request->file('file');
         $fileName = time() . '_' . $file->getClientOriginalName();
         $path     = $file->storeAs(
@@ -73,12 +76,15 @@ class DocumentController extends Controller
         $request->validate([
             'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
-
         $application = Application::where('id', $id)
             ->where('user_id', $request->user()->id)
             ->with(['user.profile', 'configuration'])
             ->firstOrFail();
-
+    
+        if (now()->gt($application->configuration->close_date)) {
+            return response()->json(['message' => 'The application period has closed. Document uploads are no longer accepted.'], 400);
+        }
+    
         $oldDocument = ApplicationDocument::where('id', $docId)
             ->where('application_id', $application->id)
             ->firstOrFail();

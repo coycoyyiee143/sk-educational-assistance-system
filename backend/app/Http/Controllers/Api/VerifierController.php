@@ -58,42 +58,43 @@ class VerifierController extends Controller
     public function approve(Request $request, $id)
     {
         // Eager-loaded user relationship to make sure notification finds the recipient email
-        $app = Application::with('user')->findOrFail($id);
-
+        $app = Application::with(['user', 'configuration'])->findOrFail($id);
         if ($app->status === 'approved') {
             return response()->json(['message' => 'Application already approved.'], 400);
         }
-
+    
+        // Prevent approving past the configured slot limit. Not fully race-condition-safe
+        // for simultaneous approvals, but closes the gap where no check existed at all.
+        $config = $app->configuration;
+        if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
+            return response()->json(['message' => 'No more slots available for this application period.'], 400);
+        }
+    
         $app->update([
             'status'         => 'approved',
             'control_number' => $app->control_number ?? \App\Models\Application::generateControlNumber($app->config_id),
         ]);
-
          // Slot is consumed here, at approval time, not at submission.
          // This ensures slots_filled only reflects applicants who actually
          // passed eligibility verification.
         $app->configuration()->increment('slots_filled'); 
-
         VerifierAction::create([
             'application_id' => $app->id,
             'verifier_id'    => $request->user()->id,
             'action'         => 'approved',
             'notes'          => $request->notes ?? null,
         ]);
-
          // Log this approval for the audit trail
         \App\Models\AuditLog::record(
             'application_approved',
             $app,
             "Approved application #{$app->id} ({$app->user->first_name} {$app->user->last_name})"
         );
-
         // Trigger Approval Notification
         $app->user->notify(new ApplicationStatusNotification(
             'Approved',
             'Congratulations! Your application has been approved. Please wait for announcements regarding the physical document submission and distribution schedule.'
         ));
-
         return response()->json(['message' => 'Application approved.']);
     }
 
