@@ -46,10 +46,8 @@ const DOC_FIELDS = [
 
 const emptyForm = {
   schoolName: "",
-  schoolAddr: "",
   course: "",
   yearLevel: "",
-  studentId: "",
 };
 
 // Component
@@ -136,10 +134,8 @@ function ApplicantSubmission() {
           // pre-fill form so Back button shows what they entered
           setForm({
             schoolName: app.school_name ?? "",
-            schoolAddr: app.school_address ?? "",
             course: app.course ?? "",
             yearLevel: app.year_level ?? "",
-            studentId: app.student_id_number ?? "",
           });
 
           // fetch existing documents for reupload flow
@@ -179,10 +175,8 @@ function ApplicantSubmission() {
     try {
       const payload = {
         school_name: form.schoolName,
-        school_address: form.schoolAddr,
         course: form.course,
         year_level: form.yearLevel,
-        student_id_number: form.studentId,
       };
 
       if (applicationId) {
@@ -380,14 +374,6 @@ function ApplicantSubmission() {
                     </div>
                     <div className="col-md-6 mb-3">
                       <label className="form-label text-muted">
-                        School Address
-                      </label>
-                      <div className="fw-semibold">
-                        {form.schoolAddr || "—"}
-                      </div>
-                    </div>
-                    <div className="col-md-6 mb-3">
-                      <label className="form-label text-muted">
                         Course / Program
                       </label>
                       <div className="fw-semibold">{form.course || "—"}</div>
@@ -397,12 +383,6 @@ function ApplicantSubmission() {
                         Year Level
                       </label>
                       <div className="fw-semibold">{form.yearLevel || "—"}</div>
-                    </div>
-                    <div className="col-md-6 mb-3">
-                      <label className="form-label text-muted">
-                        Student ID Number
-                      </label>
-                      <div className="fw-semibold">{form.studentId || "—"}</div>
                     </div>
                   </div>
                 </div>
@@ -660,15 +640,6 @@ function ApplicantSubmission() {
                           </div>
                         </div>
                         <div className="col-md-6 mb-3">
-                          <label className="form-label">School Address</label>
-                          <input
-                            className="form-control"
-                            placeholder="Enter school address"
-                            value={form.schoolAddr}
-                            onChange={set("schoolAddr")}
-                          />
-                        </div>
-                        <div className="col-md-6 mb-3">
                           <label className="form-label">
                             Course / Program{" "}
                             <span className="text-danger">*</span>
@@ -698,17 +669,6 @@ function ApplicantSubmission() {
                               <option key={y}>{y}</option>
                             ))}
                           </select>
-                        </div>
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label">
-                            Student ID Number
-                          </label>
-                          <input
-                            className="form-control"
-                            placeholder="Enter student ID number"
-                            value={form.studentId}
-                            onChange={set("studentId")}
-                          />
                         </div>
                       </div>
                     </div>
