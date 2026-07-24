@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
-use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 
 class ApplicationController extends Controller
@@ -69,12 +68,6 @@ class ApplicationController extends Controller
             $application,
             "You submitted an application."
         );
-
-        // Trigger Submission Confirmation Notification
-        $request->user()->notify(new ApplicationStatusNotification(
-            'Pending',
-            'Your educational assistance application has been submitted successfully and queued for document verification.'
-        ));
 
         return response()->json([
             'message'     => 'Application submitted.',

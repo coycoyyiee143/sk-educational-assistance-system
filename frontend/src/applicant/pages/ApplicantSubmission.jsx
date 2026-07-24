@@ -356,15 +356,16 @@ function ApplicantSubmission() {
             {/* Already applied - done state */}
             {step === "done" && (
               <>
-                <div className="alert alert-info">
-                  You have already submitted an application for this period.
-                  {existingApp && (
-                    <p className="mb-0 mt-2">
-                      <strong>Status:</strong> {existingApp.status}
-                    </p>
-                  )}
-                </div>
-
+                {!success && (
+                  <div className="alert alert-info">
+                    You have already submitted an application for this period.
+                    {existingApp && (
+                      <p className="mb-0 mt-2">
+                        <strong>Status:</strong> {existingApp.status}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {/* Educational Info Recap */}
                 <div className="sub-card mb-4">
                   <h5>Educational Information</h5>

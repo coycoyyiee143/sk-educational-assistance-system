@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
@@ -147,25 +146,25 @@ const Home = () => {
 
       {/* Live announcements */}
       <section className="py-5">
-  <div className="container">
-    <h2 className="section-title text-center">Latest Announcements</h2>
-    {loading ? (
-      <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
-    ) : announcements.length === 0 ? (
-      <div className="alert alert-info text-center">No announcements at this time.</div>
-    ) : (
-      <div className="row g-4">
-        {announcements.map((a) => (
-          <div className="col-md-4" key={a.id}>
-            <div className="card card-custom p-4 h-100">
-              {a.category && (
-                <span
-                  className="badge bg-danger mb-2"
-                  style={{ width: "fit-content" }}
-                >
-                  {a.category}
-                </span>
-              )}
+        <div className="container">
+          <h2 className="section-title text-center">Latest Announcements</h2>
+          {loading ? (
+            <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
+          ) : announcements.length === 0 ? (
+            <div className="alert alert-info text-center">No announcements at this time.</div>
+          ) : (
+            <div className="row g-4">
+              {announcements.map((a) => (
+                <div className="col-md-4" key={a.id}>
+                  <div className="card card-custom p-4 h-100">
+                    {a.category && (
+                      <span
+                        className="badge bg-danger mb-2"
+                        style={{ width: "fit-content" }}
+                      >
+                        {a.category}
+                      </span>
+                    )}
 
                     <small className="text-muted d-block mb-2">
                       {new Date(a.created_at).toLocaleDateString("en-US", {
@@ -181,7 +180,7 @@ const Home = () => {
 
                     <p className="announcement-preview mb-0">
                       {a.content && a.content.length > 90
-                        ? a.content.slice(0,90).trim() + "... "
+                        ? a.content.slice(0, 90).trim() + "... "
                         : a.content}
                       {a.content && a.content.length > 90 && (
                         <span
@@ -256,28 +255,28 @@ const Home = () => {
         </div>
       </section>
 
-      
+
 
       {selected && (
         <>
-        <div className="modal fade show announcement-modal-backdrop" style={{display:"block"}} tabIndex="-1">
-          <div className="modal-dialog modal-dialog-centered modal-lg">
-            <div className="modal-content announcement-modal-content">
-              <div className="announcement-modal-titlebar">
-                <h4 className="announcement-modal-title">{selected.title}</h4>
-                <button className="announcement-modal-close" onClick={()=>setSelected(null)}>&times;</button>
-              </div>
-              <div className="modal-body announcement-modal-body">
-                <p style={{whiteSpace:"pre-wrap"}}>{selected.content}</p>
+          <div className="modal fade show announcement-modal-backdrop" style={{ display: "block" }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content announcement-modal-content">
+                <div className="announcement-modal-titlebar">
+                  <h4 className="announcement-modal-title">{selected.title}</h4>
+                  <button className="announcement-modal-close" onClick={() => setSelected(null)}>&times;</button>
+                </div>
+                <div className="modal-body announcement-modal-body">
+                  <p style={{ whiteSpace: "pre-wrap" }}>{selected.content}</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div className="modal-backdrop fade show" onClick={()=>setSelected(null)}></div>
+          <div className="modal-backdrop fade show" onClick={() => setSelected(null)}></div>
         </>
       )}
 
-       <Footer />
+      <Footer />
     </>
   );
 };

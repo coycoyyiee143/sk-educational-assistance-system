@@ -20,8 +20,6 @@ class ProcessOcrDocument implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public $queue = 'ocr';
-
     // Allow the job to run up to 4 minutes before Laravel forces a timeout
     public $timeout = 240;
 
@@ -37,13 +35,14 @@ class ProcessOcrDocument implements ShouldQueue
         $this->application = $application;
         $this->document = $document;
         $this->filePath = $filePath;
+        $this->onQueue('ocr');
     }
 
     public function handle()
     {
         try {
             // Get full path to stored file
-            $storagePath = Storage::disk('public')->path($this->filePath);
+            $storagePath = Storage::disk('local')->path($this->filePath);
 
             if (!file_exists($storagePath)) {
                 throw new \Exception("File not found: {$storagePath}");
@@ -173,7 +172,7 @@ class ProcessOcrDocument implements ShouldQueue
 
             // Trigger Automated System Approval Notification
             $application->user->notify(new ApplicationStatusNotification(
-                'Approved (System Verified)',
+                'Approved',
                 'Congratulations! Your application has been approved. Please prepare your physical documents for submission and stay tuned for further instructions.'
             ));
         }

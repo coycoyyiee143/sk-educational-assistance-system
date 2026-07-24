@@ -52,6 +52,16 @@ class DocumentController extends Controller
 
         ProcessOcrDocument::dispatch($application, $document, $path);
 
+        // Fire the "Pending" confirmation only once all 3 required documents exist —
+        // an application isn't meaningfully "submitted" until documents are attached.
+        $documentCount = $application->documents()->count();
+        if ($documentCount === 3) {
+            $request->user()->notify(new \App\Notifications\ApplicationStatusNotification(
+                'Pending',
+                'Your educational assistance application has been submitted successfully and queued for document verification.'
+            ));
+        }
+
         return response()->json([
             'message'  => 'Document uploaded and queued for processing.',
             'document' => $document->fresh(),
