@@ -64,6 +64,10 @@ function AdminSettings() {
     ? new Date() >= new Date(config.open_date)
     : false;
 
+  const hasClosed = config?.close_date
+    ? new Date() > new Date(config.close_date)
+    : false;
+
   const isAtCapacity =
     config && !config.is_unlimited && config.slots_filled >= config.slot_limit;
 
@@ -100,10 +104,26 @@ function AdminSettings() {
     return !hasStarted;
   }
 
+  function startNewPeriod() {
+    setConfig(null);
+    setForm(emptyForm);
+    setSuccess("");
+    setError("");
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSuccess("");
+
+    if (form.open_date && form.close_date) {
+      const openTime = new Date(form.open_date).getTime();
+      const closeTime = new Date(`${form.close_date.slice(0, 10)}T23:59:59`).getTime();
+      if (closeTime <= openTime) {
+        setError("Closing Date must be after the Opening Date.");
+        return;
+      }
+    }
 
     if (needsConfirmation()) {
       setShowConfirmModal(true);
@@ -152,10 +172,12 @@ function AdminSettings() {
       [
         "Application Status",
         !config.is_active
-          ? "Closed"
-          : hasStarted
-            ? "Open"
-            : `Scheduled — opens ${formatDateTime(config.open_date)}`,
+          ? "Superseded"
+          : hasClosed
+            ? "Closed"
+            : hasStarted
+              ? "Open"
+              : `Scheduled — opens ${formatDateTime(config.open_date)}`,
       ],
       ["Opening Date", formatDateTime(config.open_date)],
       ["Closing Date", formatDateTime(config.close_date)],
@@ -187,13 +209,32 @@ function AdminSettings() {
               These settings control the availability and basic parameters of the educational assistance application process.
             </div>
 
-            {hasStarted && (
+            {hasStarted && !hasClosed && (
               <div className="alert alert-warning">
                 <strong>This application period has already started.</strong>{" "}
                 School Year, Opening Date, Number of Available Slots, and
                 Slot Type can no longer be changed to protect data integrity
                 for applicants who have already applied. Closing Date can
                 still be updated.
+              </div>
+            )}
+
+            {hasClosed && (
+              <div className="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <div>
+                  <strong>This application period has closed.</strong>{" "}
+                  Applicants can no longer submit new applications. Extend the
+                  Closing Date below to reopen submissions under this same
+                  period, or start a new period entirely for a different
+                  school year.
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-danger flex-shrink-0"
+                  onClick={startNewPeriod}
+                >
+                  Start New Application Period
+                </button>
               </div>
             )}
 
