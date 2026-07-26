@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import api from "../../services/api";
 
@@ -19,6 +19,67 @@ const SCHOOLS = [
   "Laguna College of Business and Arts",
   "Dominican College of Santa Rosa",
   "Polytechnic University of the Philippines Santa Rosa",
+];
+
+const COURSES = [
+  "AB Communication",
+  "AB English Language Studies",
+  "AB History",
+  "AB Journalism",
+  "AB Political Science",
+  "AB Psychology",
+  "AB Sociology",
+  "BS Accountancy",
+  "BS Accounting Information System",
+  "BS Agribusiness",
+  "BS Agriculture",
+  "BS Architecture",
+  "BS Biology",
+  "BS Business Administration",
+  "BS Chemical Engineering",
+  "BS Chemistry",
+  "BS Civil Engineering",
+  "BS Computer Engineering",
+  "BS Computer Science",
+  "BS Criminology",
+  "BS Customs Administration",
+  "BS Economics",
+  "BS Education",
+  "BS Electrical Engineering",
+  "BS Electronics Engineering",
+  "BS Elementary Education",
+  "BS Entrepreneurship",
+  "BS Environmental Science",
+  "BS Fisheries",
+  "BS Food Technology",
+  "BS Forestry",
+  "BS Hospitality Management",
+  "BS Hotel and Restaurant Management",
+  "BS Industrial Engineering",
+  "BS Information Systems",
+  "BS Information Technology",
+  "BS Interior Design",
+  "BS Legal Management",
+  "BS Marine Biology",
+  "BS Marine Transportation",
+  "BS Marketing Management",
+  "BS Mathematics",
+  "BS Mechanical Engineering",
+  "BS Medical Technology",
+  "BS Midwifery",
+  "BS Nursing",
+  "BS Nutrition and Dietetics",
+  "BS Occupational Therapy",
+  "BS Pharmacy",
+  "BS Physical Therapy",
+  "BS Public Administration",
+  "BS Radiologic Technology",
+  "BS Real Estate Management",
+  "BS Secondary Education",
+  "BS Social Work",
+  "BS Statistics",
+  "BS Tourism Management",
+  "Other",
 ];
 
 const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
@@ -44,12 +105,25 @@ const DOC_FIELDS = [
   },
 ];
 
+const STATUS_LABELS = {
+  pending_prescreening: "Pending Prescreening",
+  for_review: "For Review",
+  approved: "Approved",
+  rejected: "Rejected",
+  reupload_requested: "Re-upload Requested",
+  claimed: "Claimed",
+  not_cleared: "Not Cleared",
+  unclaimed: "Unclaimed",
+};
+
+function formatStatus(status) {
+  return STATUS_LABELS[status] || status;
+}
+
 const emptyForm = {
   schoolName: "",
-  schoolAddr: "",
   course: "",
   yearLevel: "",
-  studentId: "",
 };
 
 // Component
@@ -77,7 +151,27 @@ function ApplicantSubmission() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const [otherCourse, setOtherCourse] = useState("");
+  const [courseSearch, setCourseSearch] = useState("");
+  const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
+  const [showOtherCourseInput, setShowOtherCourseInput] = useState(false);
+  const otherCourseInputRef = useRef(null);
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false);
+  const filteredSchools = SCHOOLS.filter((s) =>
+    s.toLowerCase().includes(schoolSearch.toLowerCase())
+  );
+  const [yearLevelDropdownOpen, setYearLevelDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    if (showOtherCourseInput && otherCourseInputRef.current) {
+      otherCourseInputRef.current.focus();
+    }
+  }, [showOtherCourseInput]);
+  const filteredCourses = COURSES.filter(
+    (c) => c !== "Other" && c.toLowerCase().includes(courseSearch.toLowerCase())
+  );
   const setFile = (k) => (e) =>
     setFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
   const setReupload = (k) => (e) =>
@@ -136,10 +230,8 @@ function ApplicantSubmission() {
           // pre-fill form so Back button shows what they entered
           setForm({
             schoolName: app.school_name ?? "",
-            schoolAddr: app.school_address ?? "",
             course: app.course ?? "",
             yearLevel: app.year_level ?? "",
-            studentId: app.student_id_number ?? "",
           });
 
           // fetch existing documents for reupload flow
@@ -179,10 +271,8 @@ function ApplicantSubmission() {
     try {
       const payload = {
         school_name: form.schoolName,
-        school_address: form.schoolAddr,
         course: form.course,
         year_level: form.yearLevel,
-        student_id_number: form.studentId,
       };
 
       if (applicationId) {
@@ -361,7 +451,7 @@ function ApplicantSubmission() {
                     You have already submitted an application for this period.
                     {existingApp && (
                       <p className="mb-0 mt-2">
-                        <strong>Status:</strong> {existingApp.status}
+                        <strong>Status:</strong> {formatStatus(existingApp.status)}
                       </p>
                     )}
                   </div>
@@ -380,14 +470,6 @@ function ApplicantSubmission() {
                     </div>
                     <div className="col-md-6 mb-3">
                       <label className="form-label text-muted">
-                        School Address
-                      </label>
-                      <div className="fw-semibold">
-                        {form.schoolAddr || "—"}
-                      </div>
-                    </div>
-                    <div className="col-md-6 mb-3">
-                      <label className="form-label text-muted">
                         Course / Program
                       </label>
                       <div className="fw-semibold">{form.course || "—"}</div>
@@ -397,12 +479,6 @@ function ApplicantSubmission() {
                         Year Level
                       </label>
                       <div className="fw-semibold">{form.yearLevel || "—"}</div>
-                    </div>
-                    <div className="col-md-6 mb-3">
-                      <label className="form-label text-muted">
-                        Student ID Number
-                      </label>
-                      <div className="fw-semibold">{form.studentId || "—"}</div>
                     </div>
                   </div>
                 </div>
@@ -639,76 +715,222 @@ function ApplicantSubmission() {
                           <label className="form-label">
                             School Name <span className="text-danger">*</span>
                           </label>
-                          <select
-                            className="form-select"
-                            value={form.schoolName}
-                            onChange={set("schoolName")}
-                            required
-                          >
-                            <option value="" disabled>
-                              Select your school
-                            </option>
-                            {SCHOOLS.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ))}
-                          </select>
+
+                          <div style={{ position: "relative" }}>
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="Search or select your school"
+                              value={schoolDropdownOpen ? schoolSearch : form.schoolName}
+                              onFocus={() => {
+                                setSchoolDropdownOpen(true);
+                                setSchoolSearch("");
+                              }}
+                              onChange={(e) => {
+                                setSchoolSearch(e.target.value);
+                                setSchoolDropdownOpen(true);
+                              }}
+                              onBlur={() => {
+                                setTimeout(() => setSchoolDropdownOpen(false), 150);
+                              }}
+                              required={!form.schoolName}
+                              autoComplete="off"
+                            />
+
+                            {schoolDropdownOpen && (
+                              <div
+                                className="border rounded bg-white shadow-sm"
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  left: 0,
+                                  right: 0,
+                                  zIndex: 20,
+                                  maxHeight: "220px",
+                                  overflowY: "auto",
+                                  marginTop: "2px",
+                                }}
+                              >
+                                {filteredSchools.length === 0 ? (
+                                  <div className="px-3 py-2 text-muted small">
+                                    No matching school found.
+                                  </div>
+                                ) : (
+                                  filteredSchools.map((s) => (
+                                    <div
+                                      key={s}
+                                      className="px-3 py-2"
+                                      style={{ cursor: "pointer" }}
+                                      onMouseDown={() => {
+                                        setForm((f) => ({ ...f, schoolName: s }));
+                                        setSchoolDropdownOpen(false);
+                                        setSchoolSearch("");
+                                      }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#fff3f3")}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                                    >
+                                      {s}
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+
                           <div className="form-text">
                             Select the school as it appears on your Registration
                             Form.
                           </div>
                         </div>
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label">School Address</label>
-                          <input
-                            className="form-control"
-                            placeholder="Enter school address"
-                            value={form.schoolAddr}
-                            onChange={set("schoolAddr")}
-                          />
+                          <div className="col-md-6 mb-3">
+                          <label className="form-label">
+                            Year Level <span className="text-danger">*</span>
+                          </label>
+
+                          <div style={{ position: "relative" }}>
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="Select year level"
+                              value={form.yearLevel}
+                              readOnly
+                              onFocus={() => setYearLevelDropdownOpen(true)}
+                              onBlur={() => {
+                                setTimeout(() => setYearLevelDropdownOpen(false), 150);
+                              }}
+                              required={!form.yearLevel}
+                              style={{ cursor: "pointer", backgroundColor: "#fff" }}
+                            />
+
+                            {yearLevelDropdownOpen && (
+                              <div
+                                className="border rounded bg-white shadow-sm"
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  left: 0,
+                                  right: 0,
+                                  zIndex: 20,
+                                  marginTop: "2px",
+                                }}
+                              >
+                                {YEAR_LEVELS.map((y) => (
+                                  <div
+                                    key={y}
+                                    className="px-3 py-2"
+                                    style={{ cursor: "pointer" }}
+                                    onMouseDown={() => {
+                                      setForm((f) => ({ ...f, yearLevel: y }));
+                                      setYearLevelDropdownOpen(false);
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = "#fff3f3")}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                                  >
+                                    {y}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="col-md-6 mb-3">
                           <label className="form-label">
                             Course / Program{" "}
                             <span className="text-danger">*</span>
                           </label>
-                          <input
-                            className="form-control"
-                            placeholder="Enter your course or program"
-                            value={form.course}
-                            onChange={set("course")}
-                            required
-                          />
+
+                          <div style={{ position: "relative" }}>
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="Search or select your course"
+                              value={courseDropdownOpen ? courseSearch : (showOtherCourseInput ? "Other" : form.course)}
+                              onFocus={() => {
+                                setCourseDropdownOpen(true);
+                                setCourseSearch("");
+                              }}
+                              onChange={(e) => {
+                                setCourseSearch(e.target.value);
+                                setCourseDropdownOpen(true);
+                              }}
+                              onBlur={() => {
+                                // Delay closing so onClick on list items can register first
+                                setTimeout(() => setCourseDropdownOpen(false), 150);
+                              }}
+                              required={!form.course}
+                              autoComplete="off"
+                            />
+
+                            {courseDropdownOpen && (
+                              <div
+                                className="border rounded bg-white shadow-sm"
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  left: 0,
+                                  right: 0,
+                                  zIndex: 20,
+                                  maxHeight: "220px",
+                                  overflowY: "auto",
+                                  marginTop: "2px",
+                                }}
+                              >
+                                {filteredCourses.length === 0 && courseSearch !== "" ? (
+                                  <div className="px-3 py-2 text-muted small">
+                                    No matching course found.
+                                  </div>
+                                ) : (
+                                  filteredCourses.map((c) => (
+                                    <div
+                                      key={c}
+                                      className="px-3 py-2"
+                                      style={{ cursor: "pointer" }}
+                                      onMouseDown={() => {
+                                        setShowOtherCourseInput(false);
+                                        setForm((f) => ({ ...f, course: c }));
+                                        setCourseDropdownOpen(false);
+                                        setCourseSearch("");
+                                      }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#fff3f3")}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                                    >
+                                      {c}
+                                    </div>
+                                  ))
+                                )}
+                                <div
+                                  className="px-3 py-2 border-top fw-semibold"
+                                  style={{ cursor: "pointer" }}
+                                  onMouseDown={() => {
+                                    setShowOtherCourseInput(true);
+                                    setForm((f) => ({ ...f, course: otherCourse }));
+                                    setCourseDropdownOpen(false);
+                                    setCourseSearch("");
+                                  }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#fff3f3")}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                                >
+                                  Other
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {showOtherCourseInput && (
+                            <div className="mt-2">
+                              <input
+                                ref={otherCourseInputRef}
+                                className="form-control"
+                                placeholder="e.g. BS Information Technology"
+                                value={otherCourse}
+                                onChange={(e) => {
+                                  setOtherCourse(e.target.value);
+                                  setForm((f) => ({ ...f, course: e.target.value }));
+                                }}
+                                required
+                              />
                         </div>
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label">
-                            Year Level <span className="text-danger">*</span>
-                          </label>
-                          <select
-                            className="form-select"
-                            value={form.yearLevel}
-                            onChange={set("yearLevel")}
-                            required
-                          >
-                            <option value="" disabled>
-                              Select year level
-                            </option>
-                            {YEAR_LEVELS.map((y) => (
-                              <option key={y}>{y}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label">
-                            Student ID Number
-                          </label>
-                          <input
-                            className="form-control"
-                            placeholder="Enter student ID number"
-                            value={form.studentId}
-                            onChange={set("studentId")}
-                          />
+                          )}
                         </div>
                       </div>
                     </div>

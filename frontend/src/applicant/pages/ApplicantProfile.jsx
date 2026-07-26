@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 
 function ApplicantProfile() {
-  const { user } = useAuth();
+  const { user, login, token } = useAuth();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -64,22 +64,49 @@ function ApplicantProfile() {
     e.preventDefault();
     setSuccess("");
     setError("");
+
+    // Contact number is now required, same as First/Last Name
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.contact.trim()) {
+      setError("First Name, Last Name, and Contact Number cannot be empty.");
+      return;
+    }
+
     setSaving(true);
     try {
-      await api.put("/profile", {
-        birthdate: form.dob,
-        gender: form.gender.toLowerCase(),
-        civil_status: form.civilStatus.toLowerCase(),
-        house_no: form.houseNo,
-        street: form.street,
-        purok: form.purok,
-        barangay: form.barangay,
-        city: form.city,
-        province: form.province,
-        guardian_name: form.guardianName,
-        guardian_relationship: form.guardianRelationship,
-        guardian_contact: form.guardianContact,
+      // Account info (name, contact) is a separate endpoint from profile info
+      const accountRes =await api.put("/user/profile", {
+        first_name: form.firstName,
+        last_name: form.lastName,
+        middle_name: form.middleName,
+        mobile_number: form.contact,
       });
+
+      // Refresh the cached user in AuthContext so "Welcome back, X" and
+      // other name displays update immediately without needing to re-login
+      login(accountRes.data.user, token)
+
+       
+
+      // Only send profile fields that actually have a value, so partial
+      // edits (e.g. just fixing the barangay) don't require filling everything
+      const profilePayload = {};
+      if (form.dob) profilePayload.birthdate = form.dob;
+      if (form.gender) profilePayload.gender = form.gender.toLowerCase();
+      if (form.civilStatus) profilePayload.civil_status = form.civilStatus.toLowerCase();
+      if (form.houseNo) profilePayload.house_no = form.houseNo;
+      if (form.street) profilePayload.street = form.street;
+      if (form.purok) profilePayload.purok = form.purok;
+      if (form.barangay) profilePayload.barangay = form.barangay;
+      if (form.city) profilePayload.city = form.city;
+      if (form.province) profilePayload.province = form.province;
+      if (form.guardianName) profilePayload.guardian_name = form.guardianName;
+      if (form.guardianRelationship) profilePayload.guardian_relationship = form.guardianRelationship;
+      if (form.guardianContact) profilePayload.guardian_contact = form.guardianContact;
+
+      if (Object.keys(profilePayload).length > 0) {
+        await api.put("/profile", profilePayload);
+      }
+
       setSuccess("Profile updated successfully.");
     } catch (err) {
       const errors = err.response?.data?.errors;
@@ -130,17 +157,17 @@ function ApplicantProfile() {
 
                     <div className="col-md-6">
                       <label className="form-label">First Name</label>
-                      <input className="form-control" value={form.firstName} disabled />
+                      <input className="form-control" value={form.firstName} onChange={set("firstName")} required />
                     </div>
 
                     <div className="col-md-6">
                       <label className="form-label">Last Name</label>
-                      <input className="form-control" value={form.lastName} disabled />
+                      <input className="form-control" value={form.lastName} onChange={set("lastName")} required />
                     </div>
 
                     <div className="col-md-6">
                       <label className="form-label">Middle Name</label>
-                      <input className="form-control" value={form.middleName} disabled />
+                      <input className="form-control" value={form.middleName} onChange={set("middleName")} />
                     </div>
 
                     <div className="col-md-6">
@@ -150,7 +177,7 @@ function ApplicantProfile() {
 
                     <div className="col-md-6">
                       <label className="form-label">Contact Number</label>
-                      <input className="form-control" value={form.contact} disabled />
+                      <input className="form-control" value={form.contact} onChange={set("contact")} required />
                     </div>
 
                     <div className="col-md-6">

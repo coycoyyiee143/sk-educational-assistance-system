@@ -11,6 +11,12 @@ export default function VerifyEmail() {
     const [countdown, setCountdown] = useState(3);
     const navigate = useNavigate();
 
+    // Fallback "verify by code" form state
+    const [email, setEmail] = useState("");
+    const [code, setCode] = useState("");
+    const [codeSubmitting, setCodeSubmitting] = useState(false);
+    const [codeError, setCodeError] = useState("");
+
     useEffect(() => {
         api.post(`/email/verify/${id}/${hash}`)
             .then((res) => {
@@ -35,6 +41,21 @@ export default function VerifyEmail() {
         const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
         return () => clearTimeout(timer);
     }, [status, countdown, navigate]);
+
+    async function handleCodeSubmit(e) {
+        e.preventDefault();
+        setCodeError("");
+        setCodeSubmitting(true);
+        try {
+            const res = await api.post("/email/verify-by-code", { email, code });
+            setStatus("success");
+            setMessage(res.data.message || "Email verified successfully!");
+        } catch (err) {
+            setCodeError(err.response?.data?.message || "Invalid or expired code. Please try again.");
+        } finally {
+            setCodeSubmitting(false);
+        }
+    }
 
     return (
         <>
@@ -68,7 +89,9 @@ export default function VerifyEmail() {
                                 {status === "success" && (
                                     <>
                                         <div className="text-success mb-3" style={{ fontSize: "48px" }}>✓</div>
-                                        <h4 className="text-success">Email Verified!</h4>
+                                        <h4 className="text-success">
+                                            {message === "Email already verified." ? "Already Verified" : "Email Verified!"}
+                                        </h4>
                                         <p className="text-muted">{message}</p>
                                         <p className="text-muted small">
                                             Redirecting to login in {countdown} second{countdown !== 1 ? "s" : ""}...
@@ -82,7 +105,46 @@ export default function VerifyEmail() {
                                         <div className="text-danger mb-3" style={{ fontSize: "48px" }}>✕</div>
                                         <h4 className="text-danger">Verification Failed</h4>
                                         <p className="text-muted">{message}</p>
-                                        <a href="/login" className="btn btn-custom mt-2">Go to Login</a>
+
+                                        <hr className="my-3" />
+
+                                        <p className="text-muted small mb-2">
+                                            Opened this email on a different device? Enter your email and the
+                                            6-digit code sent to your inbox instead.
+                                        </p>
+
+                                        {codeError && <div className="alert alert-danger py-2">{codeError}</div>}
+
+                                        <form onSubmit={handleCodeSubmit} className="text-start">
+                                            <div className="mb-2">
+                                                <label className="form-label small">Email</label>
+                                                <input
+                                                    type="email"
+                                                    className="form-control"
+                                                    value={email}
+                                                    onChange={(e) => setEmail(e.target.value)}
+                                                    required
+                                                />
+                                            </div>
+                                            <div className="mb-3">
+                                                <label className="form-label small">6-Digit Code</label>
+                                                <input
+                                                    type="text"
+                                                    className="form-control"
+                                                    value={code}
+                                                    onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                                    maxLength={6}
+                                                    inputMode="numeric"
+                                                    placeholder="123456"
+                                                    required
+                                                />
+                                            </div>
+                                            <button type="submit" className="btn btn-custom w-100" disabled={codeSubmitting}>
+                                                {codeSubmitting ? "Verifying..." : "Verify with Code"}
+                                            </button>
+                                        </form>
+
+                                        <a href="/login" className="btn btn-outline-custom mt-3">Go to Login</a>
                                     </>
                                 )}
                             </div>
