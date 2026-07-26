@@ -40,6 +40,7 @@ function AdminSettings() {
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showStartNewModal, setShowStartNewModal] = useState(false);
 
   useEffect(() => {
     api.get("/admin/application-configs")
@@ -105,6 +106,11 @@ function AdminSettings() {
   }
 
   function startNewPeriod() {
+    setShowStartNewModal(true);
+  }
+
+  function confirmStartNewPeriod() {
+    setShowStartNewModal(false);
     setConfig(null);
     setForm(emptyForm);
     setSuccess("");
@@ -450,6 +456,47 @@ function AdminSettings() {
                 disabled={saving}
               >
                 {saving ? "Saving..." : "Confirm & Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal — Start New Application Period */}
+      {showStartNewModal && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+          style={{ background: "rgba(0,0,0,0.5)", zIndex: 1055 }}
+        >
+          <div
+            className="bg-white rounded shadow"
+            style={{ maxWidth: "480px", width: "90%" }}
+          >
+            <div className="modal-header p-3 rounded-top">
+              <h5 className="mb-0">Start New Application Period</h5>
+            </div>
+            <div className="p-4">
+              <p className="mb-0">
+                This will clear the form below so you can set up a new
+                application period. The current period's data will remain
+                saved and accessible in your records — it will not be
+                deleted or altered.
+              </p>
+            </div>
+            <div className="d-flex justify-content-end gap-2 p-3 border-top">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => setShowStartNewModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-custom"
+                onClick={confirmStartNewPeriod}
+              >
+                Start New Period
               </button>
             </div>
           </div>
