@@ -24,7 +24,7 @@ class ApplicationConfigurationController extends Controller
         $request->validate([
             'school_year'  => 'required|string',
             'open_date'    => 'required|date',
-            'close_date'   => 'required|date',
+            'close_date'   => 'required|date|after:open_date',
             'is_unlimited' => 'boolean',
             'slot_limit'   => 'required_if:is_unlimited,false|nullable|integer|min:1',
         ]);
@@ -62,7 +62,7 @@ class ApplicationConfigurationController extends Controller
         $data = $request->validate([
             'school_year'  => 'required|string',
             'open_date'    => 'required|date',
-            'close_date'   => 'required|date',
+            'close_date'   => 'required|date|after:open_date',
             'is_unlimited' => 'boolean',
             'slot_limit'   => 'required_if:is_unlimited,false|nullable|integer|min:1',
             'is_active'    => 'boolean',
