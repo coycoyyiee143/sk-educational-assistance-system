@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
-
+import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 
 const Home = () => {
   const [config, setConfig] = useState(null);
@@ -23,6 +23,8 @@ const Home = () => {
   const slotsRemaining = config && !config.is_unlimited
     ? config.slot_limit - config.slots_filled
     : null;
+
+  const periodStatus = getApplicationPeriodStatus(config);
 
   return (
     <>
@@ -92,9 +94,15 @@ const Home = () => {
                     <p>Out of {config.slot_limit} total slots for {config.school_year}</p>
                   </>
                 )}
-                {config.is_active ? (
+                {periodStatus === "open" && (
                   <span className="badge bg-success">Application Open</span>
-                ) : (
+                )}
+                {periodStatus === "scheduled" && (
+                  <span className="badge bg-warning text-dark">
+                    Opens {new Date(config.open_date).toLocaleString("en-PH", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </span>
+                )}
+                {(periodStatus === "closed" || periodStatus === "inactive") && (
                   <span className="badge bg-secondary">Application Closed</span>
                 )}
               </>
@@ -165,7 +173,6 @@ const Home = () => {
                         {a.category}
                       </span>
                     )}
-
                     <small className="text-muted d-block mb-2">
                       {new Date(a.created_at).toLocaleDateString("en-US", {
                         month: "long",
@@ -173,11 +180,9 @@ const Home = () => {
                         year: "numeric",
                       })}
                     </small>
-
                     <h5 className="announcement-title">
                       {a.title}
                     </h5>
-
                     <p className="announcement-preview mb-0">
                       {a.content && a.content.length > 90
                         ? a.content.slice(0, 90).trim() + "... "
@@ -221,7 +226,7 @@ const Home = () => {
               <div className="col-md-4">
                 <div className="card card-custom p-4">
                   <h5>Application Period</h5>
-                  <p className="mb-1"><strong>Opens:</strong> {new Date(config.open_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
+                  <p className="mb-1"><strong>Opens:</strong> {new Date(config.open_date).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" })}</p>
                   <p className="mb-0"><strong>Closes:</strong> {new Date(config.close_date).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}</p>
                 </div>
               </div>
@@ -254,8 +259,6 @@ const Home = () => {
           <p className="text-muted mt-3 mb-0">Official organizational chart of the Sangguniang Kabataan of Barangay Mamatid.</p>
         </div>
       </section>
-
-
 
       {selected && (
         <>

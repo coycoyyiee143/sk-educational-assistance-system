@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
-
+import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 
 const Requirements = () => {
   const [config, setConfig] = useState(null);
@@ -19,6 +19,13 @@ const Requirements = () => {
     if (!dateStr) return "—";
     return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   }
+
+  function formatDateTime(dateStr) {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  const periodStatus = getApplicationPeriodStatus(config);
 
   return (
     <>
@@ -64,12 +71,18 @@ const Requirements = () => {
           ) : config ? (
             <div className="status-box">
               <h4>
-                {config.is_active
-                  ? <span className="text-success">Application is Open</span>
-                  : <span className="text-danger">Application is Closed</span>}
+                {periodStatus === "open" && <span className="text-success">Application is Open</span>}
+                {periodStatus === "scheduled" && (
+                  <span className="text-warning">
+                    Application Opens {formatDateTime(config.open_date)}
+                  </span>
+                )}
+                {(periodStatus === "closed" || periodStatus === "inactive") && (
+                  <span className="text-danger">Application is Closed</span>
+                )}
               </h4>
               <p className="mt-3 mb-1"><strong>School Year:</strong> {config.school_year}</p>
-              <p className="mb-1"><strong>Opening Date:</strong> {formatDate(config.open_date)}</p>
+              <p className="mb-1"><strong>Opening Date:</strong> {formatDateTime(config.open_date)}</p>
               <p className="mb-3"><strong>Closing Date:</strong> {formatDate(config.close_date)}</p>
               <p className="mb-3">
                 <strong>Available Slots:</strong>{" "}
@@ -77,7 +90,7 @@ const Requirements = () => {
                   ? "Unlimited"
                   : `${config.slot_limit - config.slots_filled} of ${config.slot_limit}`}
               </p>
-              {config.is_active && (
+              {periodStatus === "open" && (
                 <a href="/register" className="btn btn-custom">Apply Now</a>
               )}
             </div>

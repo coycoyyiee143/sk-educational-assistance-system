@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import api from "../../services/api";
 
@@ -83,6 +84,8 @@ function ApplicantSubmission() {
   const setReupload = (k) => (e) =>
     setReuploadFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
   const [activeConfig, setActiveConfig] = useState(null);
+
+  const periodStatus = getApplicationPeriodStatus(activeConfig);
 
   const [docUrls, setDocUrls] = useState({});
 
@@ -622,6 +625,22 @@ function ApplicantSubmission() {
               </form>
             )}
 
+            {periodStatus === "scheduled" && activeConfig && (
+              <div className="alert alert-warning">
+                <strong>Applications are not open yet.</strong> This application period
+                opens on{" "}
+                {new Date(activeConfig.open_date).toLocaleString("en-PH", {
+                  month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit"
+                })}. You can review the form below, but submissions will not be accepted until then.
+              </div>
+            )}
+
+            {periodStatus === "closed" && activeConfig && (
+              <div className="alert alert-warning">
+                <strong>This application period has closed.</strong> New submissions are no longer being accepted.
+              </div>
+            )}
+
             {/* Step 1: Application Form */}
             {step === "form" && (
               <form onSubmit={handleSubmitForm}>
@@ -726,7 +745,7 @@ function ApplicantSubmission() {
                   <button
                     type="submit"
                     className="btn btn-submit"
-                    disabled={loading}
+                    disabled={loading || periodStatus === "scheduled" || periodStatus === "closed"}
                   >
                     {loading ? "Submitting..." : "Next: Upload Documents"}
                   </button>
