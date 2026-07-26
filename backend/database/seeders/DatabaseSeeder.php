@@ -99,7 +99,7 @@ class DatabaseSeeder extends Seeder
             'first_name'        => 'Regina Grace',
             'middle_name'       => 'Antido',
             'last_name'         => 'Ayes',
-            'email'             => 'reginaga88@gmail.com',
+            'email'             => 'myemail@gmail.com',
             'mobile_number'     => '09222222222',
             'password'          => Hash::make('12345678'),
             'role'              => 'applicant',
