@@ -22,13 +22,16 @@ function ActionBadge({ action }) {
   return <span className={`badge ${config.badge}`}>{config.label}</span>;
 }
 
-// Every log entry in this modal belongs to the current user, so we replace
-// their exact full name (from AuthContext) at the start of the description with "You"
-function formatDescription(description, currentUser) {
-  if (!description || !currentUser) return description;
-  const fullName = `${currentUser.first_name} ${currentUser.last_name}`;
-  if (description.startsWith(fullName)) {
-    return "You" + description.slice(fullName.length);
+// Since this modal only ever shows the current user's own logs, we can
+// safely replace ANY leading name-like text with "You" — this stays correct
+// even if the user's name changes after old log entries were recorded.
+function formatDescription(description) {
+  if (!description) return description;
+  const match = description.match(
+    /^([A-Za-zÀ-ÖØ-öø-ÿ.'-]+(?:\s[A-Za-zÀ-ÖØ-öø-ÿ.'-]+){0,3})\s(logged|submitted|updated|completed|approved|rejected|requested|marked|uploaded|re-uploaded|changed|created|reset)\b/i
+  );
+  if (match) {
+    return "You " + description.slice(match[1].length + 1);
   }
   return description;
 }
@@ -157,7 +160,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                           <tr key={log.id}>
                             <td>{formatTimestamp(log.created_at)}</td>
                             <td><ActionBadge action={log.action} /></td>
-                            <td>{formatDescription(log.description, currentUser)}</td>
+                            <td>{formatDescription(log.description)}</td>
                             <td><code className="small">{log.ip_address}</code></td>
                           </tr>
                         ))
