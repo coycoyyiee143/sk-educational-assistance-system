@@ -76,9 +76,10 @@ class ProfileController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'first_name'    => 'sometimes|string',
-            'last_name'     => 'sometimes|string',
-            'mobile_number' => 'sometimes|string|unique:users,mobile_number,' . $user->id,
+            'first_name'    => 'required|string',
+            'last_name'     => 'required|string',
+            'middle_name'   => 'sometimes|nullable|string',
+            'mobile_number' => 'required|string|unique:users,mobile_number,' . $user->id,
         ]);
 
         $user->update($data);
@@ -124,15 +125,15 @@ class ProfileController extends Controller
     private function validateProfile(Request $request): array
     {
         return $request->validate([
-            'birthdate'             => 'required|date',
-            'gender'                => 'required|in:male,female,other',
-            'civil_status'          => 'required|in:single,married,widowed,separated',
+            'birthdate'             => 'nullable|date',
+            'gender'                => 'nullable|in:male,female,other',
+            'civil_status'          => 'nullable|in:single,married,widowed,separated',
             'house_no'              => 'nullable|string',
             'street'                => 'nullable|string',
             'purok'                 => 'nullable|string',
-            'barangay'              => 'required|string',
-            'city'                  => 'required|string',
-            'province'              => 'required|string',
+            'barangay'              => 'nullable|string',
+            'city'                  => 'nullable|string',
+            'province'              => 'nullable|string',
             'guardian_name'         => 'nullable|string',
             'guardian_relationship' => 'nullable|string',
             'guardian_contact'      => 'nullable|string',

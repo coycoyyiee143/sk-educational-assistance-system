@@ -117,25 +117,35 @@ class AuthController extends Controller
         return response()->json($request->user()->load('profile'));
     }
 
-    public function verifyEmail(Request $request, $id, $hash)
+    public function verifyEmail(Request $request, $id, $token)
     {
         $user = User::findOrFail($id);
-
-        if (!hash_equals((string) $hash, sha1($user->email))) {
-            return response()->json(['message' => 'Invalid verification link.'], 400);
-        }
 
         if ($user->email_verified_at) {
             return response()->json(['message' => 'Email already verified.']);
         }
 
-        $user->email_verified_at = now();
-        $user->save();
+        if (!$user->verification_token || !hash_equals((string) $user->verification_token, (string) $token)) {
+            return response()->json(['message' => 'This verification link is invalid. Please request a new one.'], 400);
+        }
+
+        if (!$user->verification_token_expires_at || now()->greaterThan($user->verification_token_expires_at)) {
+            return response()->json(['message' => 'This verification link has expired. Please request a new one.'], 400);
+        }
+
+        $user->forceFill([
+            'email_verified_at'             => now(),
+            'verification_code'             => null,
+            'verification_code_expires_at'  => null,
+            'verification_token'            => null,
+            'verification_token_expires_at' => null,
+        ])->save();
 
         return response()->json(['message' => 'Email verified successfully.']);
     }
 
-    public function resendVerification(Request $request)
+    
+public function resendVerification(Request $request)
     {
         $request->validate(['email' => 'required|email']);
 
@@ -153,5 +163,44 @@ class AuthController extends Controller
         $user->sendEmailVerificationNotification();
 
         return response()->json(['message' => 'Verification email resent.']);
+    }
+
+    // Fallback verification path: lets the applicant type the 6-digit code
+    // instead of clicking the link, for when the email is opened on a
+    // different device than the one they're verifying on.
+    public function verifyEmailByCode(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'code'  => 'required|string|size:6',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return response()->json(['message' => 'User not found.'], 404);
+        }
+
+        if ($user->email_verified_at) {
+            return response()->json(['message' => 'Email already verified.']);
+        }
+
+        if (!$user->verification_code || $user->verification_code !== $request->code) {
+            return response()->json(['message' => 'Invalid verification code.'], 400);
+        }
+
+        if (!$user->verification_code_expires_at || now()->greaterThan($user->verification_code_expires_at)) {
+            return response()->json(['message' => 'This code has expired. Please request a new one.'], 400);
+        }
+
+        $user->forceFill([
+            'email_verified_at'             => now(),
+            'verification_code'             => null,
+            'verification_code_expires_at'  => null,
+            'verification_token'            => null,
+            'verification_token_expires_at' => null,
+        ])->save();
+
+        return response()->json(['message' => 'Email verified successfully.']);
     }
 }

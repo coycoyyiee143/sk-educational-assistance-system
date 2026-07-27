@@ -126,7 +126,31 @@ const Register = () => {
                     </div>
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Email <span className="text-danger">*</span></label>
-                      <input type="email" name="email" className="form-control" placeholder="Email" onChange={handleChange} required />
+                      <div style={{ position: "relative" }}>
+                        <input
+                          type="email"
+                          name="email"
+                          className="form-control"
+                          placeholder="Email"
+                          onChange={handleChange}
+                          required
+                          style={{ paddingRight: "32px" }}
+                        />
+                        <span
+                          title="Please use an active email address. We'll send verification and important notifications to this email."
+                          style={{
+                            position: "absolute",
+                            right: "10px",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            cursor: "help",
+                            color: "#5100ff",
+                            fontSize: "18px",
+                          }}
+                        >
+                          ⓘ
+                        </span>
+                      </div>
                     </div>
                   </div>
 

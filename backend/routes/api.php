@@ -19,6 +19,7 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
     ->name('verification.verify');
 Route::post('/email/resend', [AuthController::class, 'resendVerification']);
+Route::post('/email/verify-by-code', [AuthController::class, 'verifyEmailByCode']);
 
 // Public info routes
 Route::get('/announcements', [AnnouncementController::class, 'index']);
