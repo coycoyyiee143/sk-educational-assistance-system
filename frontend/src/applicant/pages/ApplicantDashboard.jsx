@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
@@ -10,6 +11,7 @@ function ApplicantDashboard() {
   const [config, setConfig] = useState(null);
   const [loadingApp, setLoadingApp] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  const periodStatus = getApplicationPeriodStatus(config);
 
   useEffect(() => {
     api.get("/applications")
@@ -76,6 +78,9 @@ function ApplicantDashboard() {
             <div className="col-md-6">
               <div className="dashboard-card">
                 <h5>Application Period</h5>
+                {periodStatus === "open" && <span className="badge bg-success mb-2">Open Now</span>}
+                {periodStatus === "scheduled" && <span className="badge bg-warning text-dark mb-2">Not Yet Open</span>}
+                {periodStatus === "closed" && <span className="badge bg-secondary mb-2">Closed</span>}
                 {loadingConfig ? (
                   <div className="spinner-border spinner-border-sm text-danger" />
                 ) : config ? (

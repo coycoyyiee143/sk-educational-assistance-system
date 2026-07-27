@@ -35,6 +35,16 @@ class ApplicationController extends Controller
             return response()->json(['message' => 'No active application period.'], 400);
         }
 
+        // is_active identifies WHICH config currently governs applications;
+        // the dates determine WHETHER it's actually open right now. Both
+        // must hold for a submission to be accepted.
+        if (now()->lt($config->open_date)) {
+            return response()->json(['message' => 'This application period has not opened yet.'], 400);
+        }
+        if (now()->gt($config->close_date)) {
+            return response()->json(['message' => 'This application period has closed.'], 400);
+        }
+
         if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
             return response()->json(['message' => 'No more slots available.'], 400);
         }
@@ -59,8 +69,6 @@ class ApplicationController extends Controller
             'status'            => 'pending_prescreening',
             'submitted_at'      => now(),
         ]);
-        // comment out the incrementing of slots_filled here because it should only be incremented when the application is approved, not when it is submitted.
-        //$config->increment('slots_filled');
 
         // Log the application submission for the audit trail
         \App\Models\AuditLog::record(

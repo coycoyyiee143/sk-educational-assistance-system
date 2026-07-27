@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class Application extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'user_id',
         'config_id',
@@ -61,12 +64,9 @@ class Application extends Model
 
     public static function generateControlNumber($configId): string
     {
-        $count = self::where('config_id', $configId)
-            ->whereNotNull('control_number')
+        $count = self::whereNotNull('control_number')
             ->count();
-
         $sequence = $count + 1;
-
         return 'SK-' . date('Y') . '-' . str_pad($sequence, 4, '0', STR_PAD_LEFT);
     }
 }
