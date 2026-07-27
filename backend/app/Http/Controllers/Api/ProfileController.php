@@ -61,7 +61,7 @@ class ProfileController extends Controller
             \App\Models\AuditLog::record(
                 'profile_updated',
                 $profile,
-                "Updated profile fields: {$fieldList}"
+                "You updated your profile information"
             );
         }
 
@@ -92,7 +92,7 @@ class ProfileController extends Controller
             \App\Models\AuditLog::record(
                 'account_updated',
                 $user,
-                "Updated account fields: {$fieldList}"
+                "You updated your profile information"
             );
         }
 
