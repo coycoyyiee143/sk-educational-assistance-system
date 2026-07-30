@@ -16,12 +16,17 @@ def extract_cert_year(blocks: List[OcrBlock]) -> ExtractionResult:
     blind whole-document year scan, since that risks matching an
     unrelated 4-digit number (birth year, precinct number, etc.) instead
     of the actual issuance year.
+
+    The year regex uses a negative lookbehind instead of \\b before the
+    digits, since OCR frequently drops the space between a preceding
+    word and the year (e.g. "May2026"), which a strict word-boundary
+    match would silently miss.
     """
     # 1. Labeled "Date Issued" field
     result = extract_via_keyword(blocks, "date_issued")
     if result:
         raw, context, matched_block = result
-        match = re.search(r'\b(20\d{2})\b', raw)
+        match = re.search(r'(?<!\d)(20\d{2})\b', raw)
         if match:
             return ExtractionResult(value=match.group(1), raw=raw, method="keyword",
                                      confidence=matched_block.confidence, context=f'found {context}')
@@ -31,7 +36,7 @@ def extract_cert_year(blocks: List[OcrBlock]) -> ExtractionResult:
     #    somehow didn't match) — still anchored, not a blind scan.
     for block in blocks:
         if "issued" in block.text.lower():
-            match = re.search(r'\b(20\d{2})\b', block.text)
+            match = re.search(r'(?<!\d)(20\d{2})\b', block.text)
             if match:
                 return ExtractionResult(value=match.group(1), raw=block.text, method="pattern_scan",
                                          confidence=block.confidence, context=f'found near "issued": "{block.text[:50]}"')

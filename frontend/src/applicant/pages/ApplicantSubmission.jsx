@@ -85,6 +85,39 @@ const COURSES = [
 
 const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
+// Minimum resolution threshold per the paper's stated Limitation: "a
+// minimum resolution threshold for uploaded files" as part of client-side
+// pre-validation (Fig 7.3). Measured on the shorter dimension so both
+// portrait and landscape photos are treated fairly. Only applies to image
+// files — PDFs are allowed through without a resolution check, since
+// checking PDF page dimensions client-side would require a heavy
+// rendering library that isn't justified for this.
+const MIN_SHORT_SIDE_PX = 800;
+
+function checkImageResolution(file) {
+  if (file.type === "application/pdf") {
+    return Promise.resolve({ valid: true, skipped: true });
+  }
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const shortSide = Math.min(img.width, img.height);
+      resolve({
+        valid: shortSide >= MIN_SHORT_SIDE_PX,
+        width: img.width,
+        height: img.height,
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ valid: false, unreadable: true });
+    };
+    img.src = url;
+  });
+}
+
 function getDocFields(isMinor) {
   return [
     {
@@ -141,10 +174,20 @@ function ApplicantSubmission() {
     schoolId: null,
     voters: null,
   });
+  const [fileErrors, setFileErrors] = useState({
+    enrollment: "",
+    schoolId: "",
+    voters: "",
+  });
   const [reuploadFiles, setReuploadFiles] = useState({
     enrollment: null,
     schoolId: null,
     voters: null,
+  });
+  const [reuploadFileErrors, setReuploadFileErrors] = useState({
+    enrollment: "",
+    schoolId: "",
+    voters: "",
   });
 
   const [applicationId, setApplicationId] = useState(null);
@@ -180,10 +223,57 @@ function ApplicantSubmission() {
   const filteredCourses = COURSES.filter(
     (c) => c !== "Other" && c.toLowerCase().includes(courseSearch.toLowerCase())
   );
-  const setFile = (k) => (e) =>
-    setFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
-  const setReupload = (k) => (e) =>
-    setReuploadFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
+
+  // Both setFile and setReupload now run the resolution check before
+  // accepting a file into state. If the check fails, the file is rejected
+  // (state stays null, input is cleared) and an inline error explains why —
+  // matching the paper's "client-side pre-validation" step in Fig 7.3.
+  const setFile = (k) => async (e) => {
+    const file = e.target.files[0] ?? null;
+    if (!file) {
+      setFiles((f) => ({ ...f, [k]: null }));
+      setFileErrors((fe) => ({ ...fe, [k]: "" }));
+      return;
+    }
+    const result = await checkImageResolution(file);
+    if (!result.valid) {
+      setFileErrors((fe) => ({
+        ...fe,
+        [k]: result.unreadable
+          ? "Could not read this file. Please try a different image."
+          : `Image resolution too low (${result.width}×${result.height}px). Minimum required: ${MIN_SHORT_SIDE_PX}px on the shortest side. Please retake or rescan at a higher quality.`,
+      }));
+      setFiles((f) => ({ ...f, [k]: null }));
+      e.target.value = "";
+      return;
+    }
+    setFileErrors((fe) => ({ ...fe, [k]: "" }));
+    setFiles((f) => ({ ...f, [k]: file }));
+  };
+
+  const setReupload = (k) => async (e) => {
+    const file = e.target.files[0] ?? null;
+    if (!file) {
+      setReuploadFiles((f) => ({ ...f, [k]: null }));
+      setReuploadFileErrors((fe) => ({ ...fe, [k]: "" }));
+      return;
+    }
+    const result = await checkImageResolution(file);
+    if (!result.valid) {
+      setReuploadFileErrors((fe) => ({
+        ...fe,
+        [k]: result.unreadable
+          ? "Could not read this file. Please try a different image."
+          : `Image resolution too low (${result.width}×${result.height}px). Minimum required: ${MIN_SHORT_SIDE_PX}px on the shortest side. Please retake or rescan at a higher quality.`,
+      }));
+      setReuploadFiles((f) => ({ ...f, [k]: null }));
+      e.target.value = "";
+      return;
+    }
+    setReuploadFileErrors((fe) => ({ ...fe, [k]: "" }));
+    setReuploadFiles((f) => ({ ...f, [k]: file }));
+  };
+
   const [activeConfig, setActiveConfig] = useState(null);
 
   const periodStatus = getApplicationPeriodStatus(activeConfig);
@@ -698,6 +788,11 @@ function ApplicantSubmission() {
                               onChange={setReupload(field.key)}
                             />
                             <div className="form-text">{field.hint}</div>
+                            {reuploadFileErrors[field.key] && (
+                              <small className="text-danger d-block mt-1">
+                                {reuploadFileErrors[field.key]}
+                              </small>
+                            )}
                             {reuploadFiles[field.key] && (
                               <small className="text-success">
                                 ✓ {reuploadFiles[field.key].name}
@@ -1055,10 +1150,12 @@ function ApplicantSubmission() {
                     system.
                   </p>
                   <div className="alert alert-warning py-2 mb-3">
-                    <strong>Reminder:</strong> Upload clear, readable photos or
-                    scans. Blurry or low-quality images may cause your
-                    application to be requested for a reupload. Supported
-                    formats: JPG, PNG, PDF. Max size: 5MB per file.
+                    <strong>Image Quality Guidelines:</strong> Upload clear,
+                    readable photos or scans. Ensure good lighting, avoid
+                    blur, and keep the full document in frame. Images below{" "}
+                    {MIN_SHORT_SIDE_PX}px on the shortest side will be
+                    rejected automatically. Supported formats: JPG, PNG, PDF.
+                    Max size: 5MB per file.
                   </div>
                   <div className="row g-3">
                     {DOC_FIELDS.map((field) => (
@@ -1074,6 +1171,11 @@ function ApplicantSubmission() {
                             onChange={setFile(field.key)}
                           />
                           <div className="form-text">{field.hint}</div>
+                          {fileErrors[field.key] && (
+                            <small className="text-danger d-block mt-1">
+                              {fileErrors[field.key]}
+                            </small>
+                          )}
                           {files[field.key] && (
                             <small className="text-success">
                               ✓ {files[field.key].name}
