@@ -283,11 +283,6 @@ function ApplicantSubmission() {
   }, []);
 
   const isMinor = profile?.is_minor ?? false;
-  const guardianFullName = profile
-    ? [profile.guardian_first_name, profile.guardian_middle_name, profile.guardian_last_name]
-      .filter(Boolean)
-      .join(" ")
-    : "";
   const DOC_FIELDS = getDocFields(isMinor);
 
   // Reupload validation

@@ -103,7 +103,7 @@ class ActivePeriodSeeder extends Seeder
         }
 
         // Applicant #2 — registered account only, no application submitted yet
-        User::create([
+        $loginApplicant = User::create([
             'first_name'        => 'Regina Grace',
             'middle_name'       => 'Antido',
             'last_name'         => 'Ayes',
@@ -113,6 +113,13 @@ class ActivePeriodSeeder extends Seeder
             'role'              => 'applicant',
             'is_active'         => true,
             'email_verified_at' => now(),
+        ]);
+
+        StudentProfile::create([
+            'user_id'             => $loginApplicant->id,
+            'birthdate'           => '2002-08-08',
+            'barangay'            => 'Mamatid',
+            'is_profile_complete' => true,
         ]);
 
         // Applicant #3 — MINOR applicant, complete profile including
@@ -139,7 +146,7 @@ class ActivePeriodSeeder extends Seeder
 
         StudentProfile::create([
             'user_id'               => $minorApplicant->id,
-            'birthdate'             => now()->subYears(16)->subDays(120),
+            'birthdate'             => '2010-10-09',
             'barangay'              => 'Mamatid',
             'guardian_first_name'   => 'Elena',
             'guardian_middle_name'  => 'Marie',

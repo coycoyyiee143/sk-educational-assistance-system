@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 
 function ApplicantProfile() {
-  const { user, login, token } = useAuth();
+  const { login, token } = useAuth();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -28,7 +28,7 @@ function ApplicantProfile() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState("");
+  const [showSavedPopup, setShowSavedPopup] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -79,7 +79,6 @@ function ApplicantProfile() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    setSuccess("");
     setError("");
 
     // Contact number is now required, same as First/Last Name
@@ -126,7 +125,8 @@ function ApplicantProfile() {
         await api.put("/profile", profilePayload);
       }
 
-      setSuccess("Profile updated successfully.");
+      setShowSavedPopup(true);
+      setTimeout(() => setShowSavedPopup(false), 1500);
     } catch (err) {
       const errors = err.response?.data?.errors;
       if (errors) {
@@ -168,7 +168,6 @@ function ApplicantProfile() {
                   </p>
                 </div>
 
-                {success && <div className="alert alert-success">{success}</div>}
                 {error && <div className="alert alert-danger">{error}</div>}
 
                 <form onSubmit={handleSubmit}>
@@ -304,6 +303,20 @@ function ApplicantProfile() {
           </div>
         </div>
       </section>
+
+      {showSavedPopup && (
+        <div
+          className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+          style={{ background: "rgba(0,0,0,0.3)", zIndex: 1055 }}
+        >
+          <div
+            className="bg-white rounded shadow px-4 py-3 text-center"
+            style={{ minWidth: "180px" }}
+          >
+            <div className="text-success fw-semibold">Saved!</div>
+          </div>
+        </div>
+      )}
 
       <footer>
         <div className="container">

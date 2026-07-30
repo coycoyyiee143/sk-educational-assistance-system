@@ -85,6 +85,14 @@ class ProcessOcrDocument implements ShouldQueue
                 $multipart[] = ['name' => 'guardian_first_name',  'contents' => $profile?->guardian_first_name ?? ''];
                 $multipart[] = ['name' => 'guardian_middle_name', 'contents' => $profile?->guardian_middle_name ?? ''];
                 $multipart[] = ['name' => 'guardian_last_name',   'contents' => $profile?->guardian_last_name ?? ''];
+
+                // Voter's Certificate should be issued/updated within the
+                // current calendar year — confirmed directly by SK during
+                // the needs-assessment interview. Enforced unconditionally
+                // for every cycle, not admin-configurable, since this is a
+                // fixed rule rather than something that varies per period.
+                $multipart[] = ['name' => 'enforce_cert_year', 'contents' => 'true'];
+                $multipart[] = ['name' => 'cert_year',         'contents' => (string) now()->year];
             }
 
             $flaskUrl = env('OCR_SERVICE_URL', 'http://localhost:5000');

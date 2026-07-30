@@ -44,9 +44,7 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
 
     checks["residency_geofence"] = residency_check
 
-    # Cert year: informational by default. SK's own posted requirements don't
-    # consistently specify a year for this document, so we don't hard-gate on it
-    # unless the admin explicitly turns on enforcement for a given cycle.
+    # Cert year enforced unconditionally, every cycle. Not admin-configurable.
     cert_year_res = extract_cert_year(blocks)
     cert_year_display = cert_year_res.value if cert_year_res.found else None
 
@@ -61,7 +59,7 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
         "document":            "voters_certificate",
         "avg_confidence":      avg_confidence,
         "checks":              checks,
-        "cert_year_extracted": cert_year_display,   # always shown to verifier, regardless of enforcement
+        "cert_year_extracted": cert_year_display,
         "is_minor":            is_minor,
         "flagged":             any(not c["passed"] for c in checks.values()),
         "flag_reason":         "eligibility_issues" if any(not c["passed"] for c in checks.values()) else None,
