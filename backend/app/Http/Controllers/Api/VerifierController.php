@@ -23,18 +23,20 @@ class VerifierController extends Controller
 
     public function index(Request $request)
     {
-        $applications = Application::with(['user'])
+        $applications = Application::with(['user', 'verifierActions'])
             ->whereHas('documents')
-            ->orderBy('submitted_at', 'desc')
+            ->orderBy('updated_at', 'desc')   // CHANGED: was submitted_at — re-uploads now surface by recent activity
             ->get()
             ->map(function ($app) {
                 return [
-                    'id'             => $app->id,
-                    'control_number' => $app->control_number,
-                    'name'           => $app->user->first_name . ' ' . $app->user->last_name,
-                    'submitted_at'   => $app->submitted_at,
-                    'status'         => $app->status,
-                    'school_name'    => $app->school_name,
+                    'id'                => $app->id,
+                    'control_number'    => $app->control_number,
+                    'name'              => $app->user->first_name . ' ' . $app->user->last_name,
+                    'submitted_at'      => $app->submitted_at,
+                    'updated_at'        => $app->updated_at,
+                    'status'            => $app->status,
+                    'school_name'       => $app->school_name,
+                    'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
                 ];
             });
         return response()->json($applications);
@@ -100,73 +102,124 @@ class VerifierController extends Controller
 
     public function reject(Request $request, $id)
     {
-        $request->validate(['reason' => 'required|string']);
-
-        // Eager-loaded user relationship
+        $request->validate([
+            'reason'              => 'required|string',
+            'reason_categories'   => 'required|array|min:1',
+            'reason_categories.*' => 'string',
+        ]);
+    
         $app = Application::with('user')->findOrFail($id);
-        
+    
         $app->update([
             'status'           => 'rejected',
             'rejection_reason' => $request->reason,
         ]);
-
+    
         VerifierAction::create([
-            'application_id' => $app->id,
-            'verifier_id'    => $request->user()->id,
-            'action'         => 'rejected',
-            'notes'          => $request->reason,
+            'application_id'    => $app->id,
+            'verifier_id'       => $request->user()->id,
+            'action'            => 'rejected',
+            'reason_categories' => $request->reason_categories,
+            'notes'             => $request->reason,
         ]);
-
-        // Log this rejection for the audit trail
+    
         \App\Models\AuditLog::record(
             'application_rejected',
             $app,
             "Rejected application #{$app->id}. Reason: {$request->reason}"
         );
-
-        // Trigger Rejection Notification
+    
         $app->user->notify(new ApplicationStatusNotification(
             'Rejected',
             'We regret to inform you that your educational assistance application was not approved. Reason: ' . $request->reason
         ));
-
+    
         return response()->json(['message' => 'Application rejected.']);
     }
-
+    
     public function requestReupload(Request $request, $id)
     {
         $request->validate([
-            'notes'            => 'required|string',
-            'reupload_details' => 'nullable|array',
+            'notes'                                  => 'required|string',
+            'reupload_details'                       => 'required|array|min:1',
+            'reupload_details.*.document_type'       => 'required|string',
+            'reupload_details.*.reason_categories'   => 'required|array|min:1',
+            'reupload_details.*.reason_categories.*' => 'string',
+            'reupload_details.*.reason'              => 'required|string',
         ]);
-
-        // Eager-loaded user relationship
+    
         $app = Application::with('user')->findOrFail($id);
-        
+    
         $app->update(['status' => 'reupload_requested']);
-
+    
         VerifierAction::create([
-            'application_id'  => $app->id,
-            'verifier_id'     => $request->user()->id,
-            'action'          => 'reupload_requested',
-            'notes'           => $request->notes,
-            'reupload_details'=> $request->reupload_details ?? [],
+            'application_id'   => $app->id,
+            'verifier_id'      => $request->user()->id,
+            'action'           => 'reupload_requested',
+            'notes'            => $request->notes,
+            'reupload_details' => $request->reupload_details,
         ]);
-
-        // Log the re-upload request for the audit trail
+    
         \App\Models\AuditLog::record(
             'application_reupload_requested',
             $app,
             "Requested document re-upload for application #{$app->id}. Notes: {$request->notes}"
         );
-
-        // Trigger Re-upload Notification
+    
         $app->user->notify(new ApplicationStatusNotification(
             'Re-upload Requested',
             'The verifier reviewed your submission and flagged some missing or unreadable documents. Please review these notes: ' . $request->notes
         ));
-
+    
         return response()->json(['message' => 'Re-upload requested.']);
+    }
+    
+    public function updateClaimStatus(Request $request, $id)
+    {
+        $request->validate([
+            'claim_status'          => 'required|in:claimed,not_cleared,unclaimed',
+            'reason_categories'     => 'required_if:claim_status,not_cleared|nullable|array',
+            'reason_categories.*'   => 'string',
+            'verified_documents'    => 'nullable|array',
+            'notes'                 => 'nullable|string',
+        ]);
+    
+        $assignment = ClaimingAssignment::where('application_id', $id)->firstOrFail();
+        $assignment->update([
+            'claim_status'       => $request->claim_status,
+            'reason_categories'  => $request->claim_status === 'not_cleared' ? $request->reason_categories : null,
+            'verified_documents' => $request->verified_documents ?? [],
+            'verifier_notes'     => $request->notes,
+            'verified_by'        => $request->user()->id,
+            'verified_at'        => now(),
+        ]);
+    
+        $app = Application::with('user')->findOrFail($id);
+        $app->update(['status' => $request->claim_status]);
+    
+        \App\Models\AuditLog::record(
+            'claim_status_updated',
+            $app,
+            "Marked application #{$app->id} as {$request->claim_status}"
+        );
+    
+        $messages = [
+            'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
+            'not_cleared' => 'Your physical documents did not match your application record on claiming day. Please contact the SK office for further assistance.',
+            'unclaimed'   => 'The claiming period has passed and your assistance was not claimed within the grace period. Please coordinate with the SK office.',
+        ];
+        $labels = [
+            'claimed'     => 'Claimed',
+            'not_cleared' => 'Rejected — Document Mismatch at Claiming',
+            'unclaimed'   => 'Unclaimed',
+        ];
+    
+        $app->user->notify(new ApplicationStatusNotification(
+            $labels[$request->claim_status],
+            $messages[$request->claim_status]
+        ));
+    
+        return response()->json(['message' => 'Claiming status updated.', 'assignment' => $assignment]);
     }
 
     public function searchClaiming(Request $request)
@@ -196,53 +249,6 @@ class VerifierController extends Controller
         }
 
         return response()->json($results);
-    }
-
-    public function updateClaimStatus(Request $request, $id)
-    {
-        $request->validate([
-            'claim_status'       => 'required|in:claimed,not_cleared,unclaimed',
-            'verified_documents' => 'nullable|array',
-            'notes'              => 'nullable|string',
-        ]);
-
-        $assignment = ClaimingAssignment::where('application_id', $id)->firstOrFail();
-
-        $assignment->update([
-            'claim_status'       => $request->claim_status,
-            'verified_documents' => $request->verified_documents ?? [],
-            'verifier_notes'     => $request->notes,
-            'verified_by'        => $request->user()->id,
-            'verified_at'        => now(),
-        ]);
-
-        $app = Application::with('user')->findOrFail($id);
-        $app->update(['status' => $request->claim_status]);
-
-         // Log the claim status change (claimed / not cleared / unclaimed) for the audit trail
-        \App\Models\AuditLog::record(
-            'claim_status_updated',
-            $app,
-            "Marked application #{$app->id} as {$request->claim_status}"
-        );
-
-        $messages = [
-            'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
-            'not_cleared' => 'Your physical documents did not match your application record on claiming day.',
-            'unclaimed'   => 'You were marked as unclaimed for your assigned claiming schedule. Please coordinate with the SK office regarding the grace period.',
-        ];
-        $labels = [
-            'claimed'     => 'Claimed',
-            'not_cleared' => 'Not Cleared',
-            'unclaimed'   => 'Unclaimed',
-        ];
-
-        $app->user->notify(new ApplicationStatusNotification(
-            $labels[$request->claim_status],
-            $messages[$request->claim_status]
-        ));
-
-        return response()->json(['message' => 'Claiming status updated.', 'assignment' => $assignment]);
     }
 
     // Returns the logged-in verifier's own activity history
