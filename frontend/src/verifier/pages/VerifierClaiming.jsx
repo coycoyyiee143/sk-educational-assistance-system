@@ -8,8 +8,11 @@ function VerifierClaiming() {
   const [applicantName, setApplicantName] = useState("");
   const [results, setResults] = useState([]);
   const [selected, setSelected] = useState(null);
-  const [checkedDocs, setCheckedDocs] = useState([]);
+  const [docStatus, setDocStatusState] = useState(
+    DOC_TYPES.reduce((acc, d) => ({ ...acc, [d.key]: "unreviewed" }), {})
+  );
   const [notes, setNotes] = useState("");
+  const [selectedAction, setSelectedAction] = useState(null); // null | 'claimed' | 'not_cleared' | 'unclaimed'
   const [notClearedReasons, setNotClearedReasons] = useState([]);
   const [notClearedOtherText, setNotClearedOtherText] = useState("");
   const [searching, setSearching] = useState(false);
@@ -17,10 +20,8 @@ function VerifierClaiming() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  function toggleDoc(key) {
-    setCheckedDocs((prev) =>
-      prev.includes(key) ? prev.filter((d) => d !== key) : [...prev, key]
-    );
+  function setDocStatus(key, status) {
+    setDocStatusState((prev) => ({ ...prev, [key]: status }));
   }
 
   function toggleNotClearedReason(reason) {
@@ -59,21 +60,38 @@ function VerifierClaiming() {
 
   function selectApplicant(app) {
     setSelected(app);
-    setCheckedDocs(DOC_TYPES.map(d => d.key));
+    setDocStatusState(DOC_TYPES.reduce((acc, d) => ({ ...acc, [d.key]: "unreviewed" }), {}));
     setNotes("");
+    setSelectedAction(null);
     setNotClearedReasons([]);
     setNotClearedOtherText("");
     setError("");
     setSuccess("");
   }
 
-  async function handleClaimAction(claimStatus) {
-    if (!selected) return;
+  function chooseAction(action) {
+    setSelectedAction(action);
+    setError("");
+    if (action === "not_cleared" && issueDocs.length > 0) {
+      setNotClearedReasons(["Physical documents did not match submitted application."]);
+    } else if (action !== "not_cleared") {
+      setNotClearedReasons([]);
+      setNotClearedOtherText("");
+    }
+  }
+
+  async function handleConfirm() {
+    if (!selected || !selectedAction) return;
     setError("");
     setSuccess("");
 
+    if (selectedAction === "claimed" && (unreviewedCount > 0 || issueDocs.length > 0)) {
+      setError("All documents must be marked as Matched before this applicant can be marked Claimed. Resolve or re-check any flagged documents first.");
+      return;
+    }
+
     let reasonCategories;
-    if (claimStatus === "not_cleared") {
+    if (selectedAction === "not_cleared") {
       const withoutOther = notClearedReasons.filter((r) => r !== OTHER);
       reasonCategories = notClearedReasons.includes(OTHER) && notClearedOtherText.trim()
         ? [...withoutOther, notClearedOtherText.trim()]
@@ -87,10 +105,10 @@ function VerifierClaiming() {
     setSubmitting(true);
     try {
       const res = await api.post(`/verifier/claiming/${selected.id}/status`, {
-        claim_status: claimStatus,
-        reason_categories: claimStatus === "not_cleared" ? reasonCategories : undefined,
-        verified_documents: checkedDocs,
-        notes: notes || (claimStatus === "not_cleared" ? reasonCategories.join(" ") : undefined),
+        claim_status: selectedAction,
+        reason_categories: selectedAction === "not_cleared" ? reasonCategories : undefined,
+        verified_documents: matchedDocs,
+        notes: notes || (selectedAction === "not_cleared" ? reasonCategories.join(" ") : undefined),
       });
       setSuccess(res.data.message);
       setSelected(null);
@@ -121,6 +139,11 @@ function VerifierClaiming() {
     d => d.status === "processed" || d.status === "failed"
   ) || [];
 
+  const matchedDocs = DOC_TYPES.filter((d) => docStatus[d.key] === "matched").map((d) => d.key);
+  const issueDocs = DOC_TYPES.filter((d) => docStatus[d.key] === "issue");
+  const unreviewedCount = DOC_TYPES.filter((d) => docStatus[d.key] === "unreviewed").length;
+  const claimedBlocked = unreviewedCount > 0 || issueDocs.length > 0;
+
   return (
     <div>
       <VerifierNavigation />
@@ -133,10 +156,8 @@ function VerifierClaiming() {
               Search the approved applicant, check the physical documents, and update the final claiming status.
             </p>
           </div>
-
           {error && <div className="alert alert-danger">{error}</div>}
           {success && <div className="alert alert-success">{success}</div>}
-
           <div className="content-card">
             <h4>Search Applicant</h4>
             <div className="search-box">
@@ -241,54 +262,58 @@ function VerifierClaiming() {
               </div>
 
               <div className="content-card">
-                <h4>Uploaded Documents</h4>
+                <h4>Document Verification</h4>
+                <p className="text-muted small mb-3">
+                  View each uploaded document, then confirm whether it matches what the applicant physically presented.
+                </p>
                 <div className="row g-3">
-                  {filteredDocs.length > 0 ? (
-                    filteredDocs.map((doc) => (
-                      <div className="col-md-4" key={doc.id}>
-                        <div className="doc-check">
-                          <h6>{doc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</h6>
-                          <p className="text-muted">{doc.file_name}</p>
-                          <button
-                            type="button"
-                            className="btn btn-outline-custom btn-sm"
-                            onClick={() => handleViewFile(doc.id)}
-                          >
-                            View File
-                          </button>
+                  {DOC_TYPES.map((doc) => {
+                    const uploadedDoc = filteredDocs.find((d) => d.document_type === doc.key);
+                    const status = docStatus[doc.key];
+                    const borderClass = status === "matched" ? "border-success" : status === "issue" ? "border-danger" : "";
+                    return (
+                      <div className="col-md-4" key={doc.key}>
+                        <div className={`doc-check h-100 ${borderClass}`}>
+                          <div className="d-flex justify-content-between align-items-start mb-1">
+                            <h6 className="mb-0">{doc.label}</h6>
+                            {status === "matched" && <span className="badge bg-success">Matched</span>}
+                            {status === "issue" && <span className="badge bg-danger">Issue Found</span>}
+                            {status === "unreviewed" && <span className="badge bg-secondary">Not Reviewed</span>}
+                          </div>
+                          {uploadedDoc ? (
+                            <>
+                              <p className="text-muted small mb-2">{uploadedDoc.file_name}</p>
+                              <button
+                                type="button"
+                                className="btn btn-outline-custom btn-sm mb-2"
+                                onClick={() => handleViewFile(uploadedDoc.id)}
+                              >
+                                View File
+                              </button>
+                            </>
+                          ) : (
+                            <p className="text-muted small mb-2 fst-italic">No uploaded copy available.</p>
+                          )}
+                          <div className="btn-group btn-group-sm w-100 mt-2" role="group">
+                            <button
+                              type="button"
+                              className={`btn ${status === "matched" ? "btn-success" : "btn-outline-success"}`}
+                              onClick={() => setDocStatus(doc.key, "matched")}
+                            >
+                              Matched
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn ${status === "issue" ? "btn-danger" : "btn-outline-danger"}`}
+                              onClick={() => setDocStatus(doc.key, "issue")}
+                            >
+                              Issue Found
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div className="col-12">
-                      <p className="text-muted mb-0">No processed cloud documents available for this application.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="content-card">
-                <h4>Physical Document Check</h4>
-                <div className="row g-3">
-                  {DOC_TYPES.map((doc) => (
-                    <div className="col-md-4" key={doc.key}>
-                      <div className="doc-check">
-                        <h6>{doc.label}</h6>
-                        <div className="form-check">
-                          <input
-                            className="form-check-input"
-                            type="checkbox"
-                            id={doc.key}
-                            checked={checkedDocs.includes(doc.key)}
-                            onChange={() => toggleDoc(doc.key)}
-                          />
-                          <label className="form-check-label" htmlFor={doc.key}>
-                            Presented and matched
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="note-box mt-4">
                   The verifier only checks if the physical documents match the approved application record before updating the final claiming status.
@@ -298,61 +323,94 @@ function VerifierClaiming() {
               <div className="content-card">
                 <h4>Claiming Action</h4>
 
-                <div className="mb-3">
-                  <label className="form-label fw-semibold">
-                    Not Cleared Reason(s) <span className="text-muted small">(required only if marking Not Cleared)</span>
-                  </label>
-                  {NOT_CLEARED_REASONS.map((r) => (
-                    <div className="form-check" key={r}>
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id={`nc-${r}`}
-                        checked={notClearedReasons.includes(r)}
-                        onChange={() => toggleNotClearedReason(r)}
-                      />
-                      <label className="form-check-label small" htmlFor={`nc-${r}`}>{r}</label>
-                    </div>
-                  ))}
-                  {notClearedReasons.includes(OTHER) && (
-                    <input
-                      className="form-control form-control-sm mt-2"
-                      placeholder="Specify the reason..."
-                      value={notClearedOtherText}
-                      onChange={(e) => setNotClearedOtherText(e.target.value)}
-                    />
-                  )}
-                </div>
+                {selectedAction === "claimed" && claimedBlocked && (
+                  <div className="alert alert-danger small">
+                    <strong>Cannot mark as Claimed yet.</strong>{" "}
+                    {unreviewedCount > 0 && `${unreviewedCount} document(s) have not been reviewed. `}
+                    {issueDocs.length > 0 && `${issueDocs.map((d) => d.label).join(", ")} ${issueDocs.length === 1 ? "was" : "were"} flagged with an issue.`}
+                    {" "}All documents must be marked Matched, or this applicant should be marked Not Cleared instead.
+                  </div>
+                )}
 
-                <div className="mb-3">
-                  <label className="form-label">Additional Notes (optional)</label>
-                  <textarea
-                    className="form-control"
-                    rows="2"
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Add any notes about this claiming transaction..."
-                  />
-                </div>
-                <div className="alert alert-light border">
-                  After checking the physical documents, select the appropriate action for the applicant.
-                </div>
-                <div className="d-flex gap-2 justify-content-end flex-wrap">
-                  <button className="btn btn-success" onClick={() => handleClaimAction("claimed")} disabled={submitting}>
+                <div className="d-flex flex-wrap gap-2 mb-3">
+                  <button
+                    type="button"
+                    className={`btn ${selectedAction === "claimed" ? "btn-success" : "btn-outline-success"}`}
+                    onClick={() => chooseAction("claimed")}
+                  >
                     Mark as Claimed
                   </button>
-                  <button className="btn btn-danger" onClick={() => handleClaimAction("not_cleared")} disabled={submitting}>
+                  <button
+                    type="button"
+                    className={`btn ${selectedAction === "not_cleared" ? "btn-danger" : "btn-outline-danger"}`}
+                    onClick={() => chooseAction("not_cleared")}
+                  >
                     Mark as Not Cleared
                   </button>
-                  <button className="btn btn-warning text-dark" onClick={() => handleClaimAction("unclaimed")} disabled={submitting}>
+                  <button
+                    type="button"
+                    className={`btn ${selectedAction === "unclaimed" ? "btn-warning text-dark" : "btn-outline-warning"}`}
+                    onClick={() => chooseAction("unclaimed")}
+                  >
                     Mark as Unclaimed
                   </button>
                 </div>
+
+                {selectedAction === "not_cleared" && (
+                  <div className="mb-3 border rounded p-3 bg-light">
+                    <label className="form-label fw-semibold">Not Cleared Reason(s) *</label>
+                    {NOT_CLEARED_REASONS.map((r) => (
+                      <div className="form-check" key={r}>
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id={`nc-${r}`}
+                          checked={notClearedReasons.includes(r)}
+                          onChange={() => toggleNotClearedReason(r)}
+                        />
+                        <label className="form-check-label small" htmlFor={`nc-${r}`}>{r}</label>
+                      </div>
+                    ))}
+                    {notClearedReasons.includes(OTHER) && (
+                      <input
+                        className="form-control form-control-sm mt-2"
+                        placeholder="Specify the reason..."
+                        value={notClearedOtherText}
+                        onChange={(e) => setNotClearedOtherText(e.target.value)}
+                      />
+                    )}
+                  </div>
+                )}
+
+                {selectedAction && (
+                  <>
+                    <div className="mb-3">
+                      <label className="form-label">Additional Notes (optional)</label>
+                      <textarea
+                        className="form-control"
+                        rows="2"
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        placeholder="Add any notes about this claiming transaction..."
+                      />
+                    </div>
+                    <div className="text-end">
+                      <button
+                        className={`btn ${selectedAction === "claimed" ? "btn-success" : selectedAction === "not_cleared" ? "btn-danger" : "btn-warning text-dark"}`}
+                        onClick={handleConfirm}
+                        disabled={submitting || (selectedAction === "claimed" && claimedBlocked)}
+                      >
+                        {submitting ? "Submitting..." : `Confirm — Mark as ${selectedAction === "claimed" ? "Claimed" : selectedAction === "not_cleared" ? "Not Cleared" : "Unclaimed"}`}
+                      </button>
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}
         </div>
       </section>
+
       <footer>
         <div className="container">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Verifier Panel</p>

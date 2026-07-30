@@ -47,6 +47,6 @@ export const NOT_CLEARED_REASONS = [
     "Physical documents did not match submitted application.",
     "Document appeared altered or invalid.",
     "Registration Form not a certified true copy or missing dry seal.",
-    "Unable to present valid ID during claiming.",
+    "Applicant did not bring all required physical documents.",
     OTHER,
 ];
