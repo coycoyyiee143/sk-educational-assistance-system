@@ -13,14 +13,24 @@ function OcrBadge({ passed }) {
 
 // Builds initial flaggedDocs state from the application's most recent
 // verifier action, so revisiting this page shows what was actually stored,
-// not a blank slate.
-function prefillFromLatestAction(latestAction, reasonsByDocType) {
+// not a blank slate. Only prefills while the re-upload request is still
+// unresolved (appStatus === 'reupload_requested') — once the applicant has
+// re-uploaded and the application moved to any other status (reprocessing,
+// approved, for_review, rejected), the old flagged reasons are resolved
+// history and should not pre-check anything, even if they technically
+// still belong to the "most recent" VerifierAction on record.
+function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
   const base = {
     registration_form: { reasons: [], otherText: "" },
     school_id: { reasons: [], otherText: "" },
     voters_certificate: { reasons: [], otherText: "" },
   };
-  if (!latestAction || latestAction.action !== "reupload_requested" || !latestAction.reupload_details) {
+  if (
+    !latestAction ||
+    latestAction.action !== "reupload_requested" ||
+    !latestAction.reupload_details ||
+    appStatus !== "reupload_requested"
+  ) {
     return base;
   }
   latestAction.reupload_details.forEach((d) => {
@@ -55,7 +65,7 @@ function VerifierApplicationReview() {
         setApp(res.data);
         const reasonsByDocType = getReasonsByDocType(res.data.configuration?.school_year);
         const latestAction = res.data.verifier_actions?.[0];
-        setFlaggedDocs(prefillFromLatestAction(latestAction, reasonsByDocType));
+        setFlaggedDocs(prefillFromLatestAction(latestAction, reasonsByDocType, res.data.status));
       })
       .catch(() => setError("Failed to load application."))
       .finally(() => setLoading(false));
@@ -161,7 +171,7 @@ function VerifierApplicationReview() {
                 )}
               </div>
             )}
-            {latestAction?.action === "rejected" && (
+            {app.status === "rejected" && latestAction?.action === "rejected" && (
               <div className="alert alert-secondary small mt-3 mb-0">
                 <strong>Previously rejected.</strong> Reasons on record: {(latestAction.reason_categories || []).join(" ")}
               </div>
@@ -208,13 +218,11 @@ function VerifierApplicationReview() {
 
             {sortedDocuments.map((doc) => {
               const docLabel = doc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-
               async function handleViewFile(docId) {
                 try {
                   const res = await api.get(`/applications/${app.id}/documents/${docId}/file`, { responseType: "blob" });
                   const url = URL.createObjectURL(res.data);
                   window.open(url, "_blank");
-
                   setTimeout(() => URL.revokeObjectURL(url), 60000);
                 } catch {
                   alert("Failed to load document.");
