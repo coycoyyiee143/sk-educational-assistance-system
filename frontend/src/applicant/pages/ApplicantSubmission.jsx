@@ -89,7 +89,7 @@ const DOC_FIELDS = [
   {
     key: "enrollment",
     type: "registration_form",
-    label: "Certificate of Enrollment / Registration Form",
+    label: "Registration Form",
     hint: "Must show your name, school, and school year.",
   },
   {
@@ -152,7 +152,7 @@ function ApplicantSubmission() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const [otherCourse, setOtherCourse] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
   const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
@@ -801,7 +801,7 @@ const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
                             Form.
                           </div>
                         </div>
-                          <div className="col-md-6 mb-3">
+                        <div className="col-md-6 mb-3">
                           <label className="form-label">
                             Year Level <span className="text-danger">*</span>
                           </label>
@@ -948,7 +948,7 @@ const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
                                 }}
                                 required
                               />
-                        </div>
+                            </div>
                           )}
                         </div>
                       </div>
