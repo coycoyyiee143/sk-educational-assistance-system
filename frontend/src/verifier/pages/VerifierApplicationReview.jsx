@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
-import { STATUS_CONFIG } from "../../components/StatusConstants";
+import { getReasonsByDocType, OTHER } from "../constants/verificationReasons";
+import { getVerifierStatusLabel, getVerifierBadgeClass } from "../../components/StatusConstants";
 
 function OcrBadge({ passed }) {
   return passed
@@ -10,16 +11,62 @@ function OcrBadge({ passed }) {
     : <span className="badge bg-danger">Failed</span>;
 }
 
+// Builds initial flaggedDocs state from the application's most recent
+// verifier action, so revisiting this page shows what was actually stored,
+// not a blank slate. Only prefills while the re-upload request is still
+// unresolved (appStatus === 'reupload_requested') — once the applicant has
+// re-uploaded and the application moved to any other status (reprocessing,
+// approved, for_review, rejected), the old flagged reasons are resolved
+// history and should not pre-check anything, even if they technically
+// still belong to the "most recent" VerifierAction on record.
+function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
+  const base = {
+    registration_form: { reasons: [], otherText: "" },
+    school_id: { reasons: [], otherText: "" },
+    voters_certificate: { reasons: [], otherText: "" },
+  };
+  if (
+    !latestAction ||
+    latestAction.action !== "reupload_requested" ||
+    !latestAction.reupload_details ||
+    appStatus !== "reupload_requested"
+  ) {
+    return base;
+  }
+  latestAction.reupload_details.forEach((d) => {
+    const options = reasonsByDocType[d.document_type] || [];
+    const stored = d.reason_categories || [];
+    const known = stored.filter((c) => options.includes(c));
+    const custom = stored.filter((c) => !options.includes(c));
+    base[d.document_type] = {
+      reasons: custom.length > 0 ? [...known, OTHER] : known,
+      otherText: custom.join(" "),
+    };
+  });
+  return base;
+}
+
 function VerifierApplicationReview() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [app, setApp] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [activeRawDocId, setActiveRawDocId] = useState(null);
+  const [flaggedDocs, setFlaggedDocs] = useState({
+    registration_form: { reasons: [], otherText: "" },
+    school_id: { reasons: [], otherText: "" },
+    voters_certificate: { reasons: [], otherText: "" },
+  });
 
   useEffect(() => {
     api.get(`/verifier/applications/${id}`)
-      .then((res) => setApp(res.data))
+      .then((res) => {
+        setApp(res.data);
+        const reasonsByDocType = getReasonsByDocType(res.data.configuration?.school_year);
+        const latestAction = res.data.verifier_actions?.[0];
+        setFlaggedDocs(prefillFromLatestAction(latestAction, reasonsByDocType, res.data.status));
+      })
       .catch(() => setError("Failed to load application."))
       .finally(() => setLoading(false));
   }, [id]);
@@ -27,30 +74,25 @@ function VerifierApplicationReview() {
   if (loading) return <div><VerifierNavigation /><div className="d-flex justify-content-center mt-5"><div className="spinner-border text-danger" /></div></div>;
   if (error || !app) return <div><VerifierNavigation /><div className="container mt-4"><div className="alert alert-danger">{error || "Application not found."}</div></div></div>;
 
-  // Extracted user information
   const user = app.user;
   const profile = user?.profile;
+  const reasonsByDocType = getReasonsByDocType(app.configuration?.school_year);
+  const latestAction = app.verifier_actions?.[0];
 
-  // Time formatting helper
   const formatTimestamp = (dateString) => {
     if (!dateString) return "—";
     try {
       const date = new Date(dateString);
       return date.toLocaleString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
+        month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true
       });
     } catch {
       return dateString;
     }
   };
 
-  // Integrity checks evaluator
   const getOverallDocStatus = (docId) => {
+
     const checks = app.verification_checks?.filter(c => c.document_id === docId) || [];
 
     if (checks.length === 0) {
@@ -66,7 +108,6 @@ function VerifierApplicationReview() {
       : { text: "Processed", class: "bg-success" };
   };
 
-  // Map out the absolute latest document ID per type to organize the UI cleanly
   const latestDocsMap = {};
   if (app.documents) {
     app.documents.forEach((doc) => {
@@ -75,9 +116,35 @@ function VerifierApplicationReview() {
       }
     });
   }
-
   const sortedDocuments = app.documents ? [...app.documents].sort((a, b) => b.id - a.id) : [];
-  const statusInfo = STATUS_CONFIG[app.status] || { label: app.status, class: "secondary" };
+
+  const latestDocIds = Object.values(latestDocsMap).map((d) => d.id);
+  const hasLowConfidence = Object.values(latestDocsMap).some((d) => d.ocr_result?.is_low_confidence);
+  const hasFailedCheck = (app.verification_checks || []).some(
+    (c) => latestDocIds.includes(c.document_id) && !c.passed
+  );
+  const showFlagSummary = hasLowConfidence || hasFailedCheck;
+
+  function toggleReason(docType, reasonText) {
+    setFlaggedDocs((prev) => {
+      const current = prev[docType].reasons;
+      const updated = current.includes(reasonText)
+        ? current.filter((r) => r !== reasonText)
+        : [...current, reasonText];
+      return { ...prev, [docType]: { ...prev[docType], reasons: updated } };
+    });
+  }
+
+  function setOtherText(docType, text) {
+    setFlaggedDocs((prev) => ({
+      ...prev,
+      [docType]: { ...prev[docType], otherText: text },
+    }));
+  }
+
+  function handleProceed() {
+    navigate(`/VerifierVerificationAction/${app.id}`, { state: { flaggedDocs } });
+  }
 
   return (
     <div>
@@ -85,18 +152,32 @@ function VerifierApplicationReview() {
       <section className="page-section">
         <div className="container">
 
-          {/* Header */}
           <div className="page-card">
             <div className="d-flex justify-content-between align-items-center">
               <div>
                 <h3 className="section-title mb-2">Application Review</h3>
                 <p className="text-muted mb-0">Review the submitted application details along with automated system evaluations.</p>
               </div>
-              <span className={`status-badge ${statusInfo.class || "bg-secondary text-white"}`}>{statusInfo.label}</span>
+              <span className={`status-badge ${getVerifierBadgeClass(app)}`}>{getVerifierStatusLabel(app)}</span>
             </div>
+            {showFlagSummary && (
+              <div className="mt-3 d-flex flex-wrap gap-2">
+                <span className="text-muted small fw-semibold">Flagged for:</span>
+                {hasLowConfidence && (
+                  <span className="badge bg-warning text-dark">Low Image Confidence</span>
+                )}
+                {hasFailedCheck && (
+                  <span className="badge bg-danger">Failed Eligibility Check(s)</span>
+                )}
+              </div>
+            )}
+            {app.status === "rejected" && latestAction?.action === "rejected" && (
+              <div className="alert alert-secondary small mt-3 mb-0">
+                <strong>Previously rejected.</strong> Reasons on record: {(latestAction.reason_categories || []).join(" ")}
+              </div>
+            )}
           </div>
 
-          {/* Applicant Info */}
           <div className="page-card">
             <h4 className="section-title">Applicant Information</h4>
             <table className="table table-bordered info-table">
@@ -115,7 +196,6 @@ function VerifierApplicationReview() {
             </table>
           </div>
 
-          {/* Educational Info */}
           <div className="page-card">
             <h4 className="section-title">Educational Information</h4>
             <table className="table table-bordered info-table">
@@ -133,21 +213,16 @@ function VerifierApplicationReview() {
             </table>
           </div>
 
-          {/* Contextualized Document Blocks Stack */}
           <div className="page-card">
             <h4 className="section-title">System Document & OCR Integrity Verification</h4>
 
             {sortedDocuments.map((doc) => {
               const docLabel = doc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-
               async function handleViewFile(docId) {
                 try {
-                  const res = await api.get(`/applications/${app.id}/documents/${docId}/file`, {
-                    responseType: "blob",
-                  });
+                  const res = await api.get(`/applications/${app.id}/documents/${docId}/file`, { responseType: "blob" });
                   const url = URL.createObjectURL(res.data);
                   window.open(url, "_blank");
-                  // Optional cleanup after a delay since the tab needs time to load it
                   setTimeout(() => URL.revokeObjectURL(url), 60000);
                 } catch {
                   alert("Failed to load document.");
@@ -157,15 +232,14 @@ function VerifierApplicationReview() {
               const overallStatus = getOverallDocStatus(doc.id);
               const relatedChecks = app.verification_checks?.filter(c => c.document_id === doc.id) || [];
 
-              // Verify if this specific loop document is the most recent one
               const isLatestVersion = latestDocsMap[doc.document_type]?.id === doc.id;
-
-              // Left boundary style manager
-              let leftBorderColor = "#6c757d"; // Gray default for old archived files
+              const isFailedLike = overallStatus.text === "Failed Verification" || overallStatus.text === "No Verification Data";
+              let leftBorderColor = "#6c757d";
               if (isLatestVersion) {
                 leftBorderColor = relatedChecks.some(c => !c.passed) ? "#dc3545" : "#198754";
               }
-
+              const flagState = flaggedDocs[doc.document_type];
+              const reasonOptions = reasonsByDocType[doc.document_type] || [];
               return (
                 <div
                   className="border rounded p-3 mb-4"
@@ -177,7 +251,6 @@ function VerifierApplicationReview() {
                   }}
                 >
 
-                  {/* Document Card Header Row */}
                   <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
                     <div>
                       <div className="d-flex align-items-center gap-2 flex-wrap mb-1">
@@ -210,20 +283,13 @@ function VerifierApplicationReview() {
                     </div>
 
                     <div className="d-flex align-items-center gap-2">
-                      <span className={`badge ${overallStatus.class}`}>
-                        {overallStatus.text}
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-outline-custom btn-sm"
-                        onClick={() => handleViewFile(doc.id)}
-                      >
+                      <span className={`badge ${overallStatus.class}`}>{overallStatus.text}</span>
+                      <button type="button" className="btn btn-outline-custom btn-sm" onClick={() => handleViewFile(doc.id)}>
                         View File
                       </button>
                     </div>
                   </div>
 
-                  {/* Integrated Verification Rules Table for this single document */}
                   {relatedChecks.length > 0 ? (
                     <div className="table-responsive">
                       <table className="table table-bordered align-middle mb-0">
@@ -266,7 +332,6 @@ function VerifierApplicationReview() {
                     </div>
                   )}
 
-                  {/* Integrated Drawer Toggle & Panel Style */}
                   {doc.ocr_result?.raw_text && (
                     <div className="mt-3 text-end">
                       <button
@@ -294,17 +359,47 @@ function VerifierApplicationReview() {
                       )}
                     </div>
                   )}
+                  {isLatestVersion && (
+                    <details className="mt-3" open={isFailedLike || flagState.reasons.length > 0}>
+                      <summary className="text-danger fw-semibold" style={{ cursor: "pointer" }}>
+                        Flag an issue with this document
+                      </summary>
+                      <div className="mt-2 ps-2">
+                        {reasonOptions.map((reason) => (
+                          <div className="form-check" key={reason}>
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id={`flag-${doc.document_type}-${reason}`}
+                              checked={flagState.reasons.includes(reason)}
+                              onChange={() => toggleReason(doc.document_type, reason)}
+                            />
+                            <label className="form-check-label small" htmlFor={`flag-${doc.document_type}-${reason}`}>
+                              {reason}
+                            </label>
+                          </div>
+                        ))}
+                        {flagState.reasons.includes(OTHER) && (
+                          <input
+                            className="form-control form-control-sm mt-2"
+                            placeholder="Specify the issue..."
+                            value={flagState.otherText}
+                            onChange={(e) => setOtherText(doc.document_type, e.target.value)}
+                          />
+                        )}
+                      </div>
+                    </details>
+                  )}
                 </div>
               );
             })}
           </div>
 
-          {/* Original Action Button Footer Restored */}
           {["for_review", "pending_prescreening", "reupload_requested"].includes(app.status) && (
             <div className="mt-4 text-end">
-              <Link to={`/VerifierVerificationAction/${app.id}`} className="btn btn-custom">
+              <button type="button" className="btn btn-custom" onClick={handleProceed}>
                 Proceed to Verification Action
-              </Link>
+              </button>
             </div>
           )}
         </div>

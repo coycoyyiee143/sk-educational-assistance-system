@@ -119,7 +119,7 @@ const Requirements = () => {
               <div className="card card-custom p-4">
                 <h4>School Documents</h4>
                 <ul className="mt-3 mb-0">
-                  <li>Certificate of Enrollment / Registration Form</li>
+                  <li>Registration Form</li>
                   <li>Valid School ID</li>
                 </ul>
               </div>

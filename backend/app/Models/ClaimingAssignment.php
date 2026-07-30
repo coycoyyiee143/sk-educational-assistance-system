@@ -11,6 +11,7 @@ class ClaimingAssignment extends Model
         'claiming_schedule_id',
         'claiming_lane_id',
         'claim_status',
+        'reason_categories',
         'verified_documents',
         'verifier_notes',
         'verified_by',
@@ -19,9 +20,10 @@ class ClaimingAssignment extends Model
     ];
 
     protected $casts = [
-        'verified_documents' => 'array',
-        'verified_at'        => 'datetime',
-        'reminder_sent_at'   => 'datetime',
+        'reason_categories'   => 'array',
+        'verified_documents'  => 'array',
+        'verified_at'         => 'datetime',
+        'reminder_sent_at'    => 'datetime',
     ];
 
     public function application()

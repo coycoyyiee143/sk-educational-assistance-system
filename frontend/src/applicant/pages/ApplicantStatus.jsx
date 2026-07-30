@@ -28,8 +28,7 @@ function ApplicantStatus() {
   );
 
   const status = application?.status ?? null;
-  // Fallback to "pending" if the status key is missing or invalid
-  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG["pending"];
+  const config = STATUS_CONFIG[status] ?? STATUS_CONFIG["pending_prescreening"];
 
   return (
     <div>
@@ -50,17 +49,15 @@ function ApplicantStatus() {
               <>
                 <div className={`status-box ${config.boxClass} mb-4`}>
                   <h5 className="mb-3">Current Status</h5>
-                  <span className={`status-badge ${config.badgeClass}`}>{config.label}</span>
-                  <p className="mt-3 mb-0 text-muted">{config.message}</p>
+                  <span className={`status-badge ${config.badgeClass}`}>{config.applicantLabel}</span>
+                  <p className="mt-3 mb-0 text-muted">{config.applicantMessage}</p>
 
-                  {/* Show verifier notes for active review states */}
-                  {status !== "approved" && status !== "auto_approved" && status !== "physically_verified" && status !== "rejected" && application?.latest_verifier_action?.notes && (
+                  {status !== "approved" && status !== "rejected" && application?.latest_verifier_action?.notes && (
                     <div className="alert alert-info mt-3 mb-0">
                       <strong>Verifier Note:</strong> {application.latest_verifier_action.notes}
                     </div>
                   )}
 
-                  {/* Show per-document reupload reasons */}
                   {status === "reupload_requested" &&
                     application?.latest_verifier_action?.reupload_details?.length > 0 && (
                       <div className="mt-3">
