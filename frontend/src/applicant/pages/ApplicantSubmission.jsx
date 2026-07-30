@@ -85,26 +85,30 @@ const COURSES = [
 
 const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
-const DOC_FIELDS = [
-  {
-    key: "enrollment",
-    type: "registration_form",
-    label: "Registration Form",
-    hint: "Must show your name, school, and school year.",
-  },
-  {
-    key: "schoolId",
-    type: "school_id",
-    label: "School ID",
-    hint: "Must show your name and school name.",
-  },
-  {
-    key: "voters",
-    type: "voters_certificate",
-    label: "Voter's Certificate",
-    hint: "Must show your name and Barangay Mamatid as your registered barangay.",
-  },
-];
+function getDocFields(isMinor) {
+  return [
+    {
+      key: "enrollment",
+      type: "registration_form",
+      label: "Registration Form",
+      hint: "Must clearly show your name, school, and school year.",
+    },
+    {
+      key: "schoolId",
+      type: "school_id",
+      label: "School ID",
+      hint: "Must clearly show your name and school name.",
+    },
+    {
+      key: "voters",
+      type: "voters_certificate",
+      label: isMinor ? "Guardian's Voter's Certificate" : "Voter's Certificate",
+      hint: isMinor
+        ? "Must clearly show your guardian's name and Barangay Mamatid as your registered barangay."
+        : "Must clearly show your name and Barangay Mamatid as your registered barangay.",
+    },
+  ];
+}
 
 const STATUS_LABELS = {
   pending_prescreening: "Pending Prescreening",
@@ -126,6 +130,8 @@ const emptyForm = {
   course: "",
   yearLevel: "",
 };
+
+const DRAFT_STORAGE_KEY = "applicant_submission_draft";
 
 // Component
 function ApplicantSubmission() {
@@ -151,6 +157,7 @@ function ApplicantSubmission() {
   const [uploadProgress, setUploadProgress] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [draftSaved, setDraftSaved] = useState(false);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const [otherCourse, setOtherCourse] = useState("");
@@ -220,7 +227,10 @@ function ApplicantSubmission() {
       .catch(() => { });
   }, []);
 
-  // Resume in-progress application on load
+  // Resume in-progress application on load. If no backend application
+  // exists yet (e.g. the applicant filled in info before the period
+  // opened), fall back to a locally saved draft so their typed info
+  // isn't lost between visits.
   useEffect(() => {
     api
       .get("/applications")
@@ -248,11 +258,37 @@ function ApplicantSubmission() {
           } else {
             setStep("done");
           }
+        } else {
+          const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+          if (draft) {
+            try {
+              setForm(JSON.parse(draft));
+            } catch {
+              // corrupted draft, ignore
+            }
+          }
         }
       })
       .catch(() => { })
       .finally(() => setCheckingApp(false));
   }, []);
+
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    api
+      .get("/profile")
+      .then((res) => setProfile(res.data.profile))
+      .catch(() => { });
+  }, []);
+
+  const isMinor = profile?.is_minor ?? false;
+  const guardianFullName = profile
+    ? [profile.guardian_first_name, profile.guardian_middle_name, profile.guardian_last_name]
+      .filter(Boolean)
+      .join(" ")
+    : "";
+  const DOC_FIELDS = getDocFields(isMinor);
 
   // Reupload validation
   const reuploadDetails =
@@ -265,6 +301,12 @@ function ApplicantSubmission() {
     return isRequested && !hasNewFile;
   });
   const isReuploadDisabled = missingReuploadFields.length > 0;
+
+  function handleSaveDraft() {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(form));
+    setDraftSaved(true);
+    setTimeout(() => setDraftSaved(false), 2500);
+  }
 
   // Step 1: create or edit application info
   async function handleSubmitForm(e) {
@@ -286,6 +328,9 @@ function ApplicantSubmission() {
         setApplicationId(res.data.application.id);
       }
 
+      // Now backed by a real application record — the local draft is redundant
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+
       setStep("documents");
     } catch (err) {
       const errors = err.response?.data?.errors;
@@ -297,10 +342,6 @@ function ApplicantSubmission() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleClear() {
-    setForm(emptyForm);
   }
 
   // Step 2: upload documents
@@ -627,6 +668,14 @@ function ApplicantSubmission() {
                       <strong>A.Y. {activeConfig.school_year}</strong> — the
                       most recent enrollment period. Registration forms from a
                       different school year will not be accepted.
+                      {isMinor && (
+                        <>
+                          {" "}As a minor applicant, upload your{" "}
+                          <strong>parent/guardian's</strong> Voter's Certificate
+                          for the Voter's Certificate requirement — not your
+                          own.
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -707,7 +756,9 @@ function ApplicantSubmission() {
                 opens on{" "}
                 {new Date(activeConfig.open_date).toLocaleString("en-PH", {
                   month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit"
-                })}. You can review the form below, but submissions will not be accepted until then.
+                })}. You can fill in your information now and use{" "}
+                <strong>Save Draft</strong> to keep it on this device — submissions
+                will not be accepted until the period opens.
               </div>
             )}
 
@@ -956,14 +1007,19 @@ function ApplicantSubmission() {
                   </div>
                 </div>
 
-                <div className="d-flex justify-content-end gap-2 mt-4">
-                  <button
-                    type="button"
-                    className="btn btn-secondary-custom"
-                    onClick={handleClear}
-                  >
-                    Clear Form
-                  </button>
+                <div className="d-flex justify-content-end align-items-center gap-2 mt-4">
+                  {draftSaved && (
+                    <span className="text-success small me-auto">Draft saved.</span>
+                  )}
+                  {!applicationId && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary-custom"
+                      onClick={handleSaveDraft}
+                    >
+                      Save Draft
+                    </button>
+                  )}
                   <button
                     type="submit"
                     className="btn btn-submit"
@@ -987,6 +1043,14 @@ function ApplicantSubmission() {
                       <strong>A.Y. {activeConfig.school_year}</strong> — the
                       most recent enrollment period. Registration forms from a
                       different school year will not be accepted.
+                      {isMinor && (
+                        <>
+                          {" "}As a minor applicant, upload your{" "}
+                          <strong>parent/guardian's</strong> Voter's Certificate
+                          for the Voter's Certificate requirement below — not
+                          your own.
+                        </>
+                      )}
                     </div>
                   )}
 

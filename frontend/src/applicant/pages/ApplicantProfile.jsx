@@ -20,7 +20,9 @@ function ApplicantProfile() {
     houseNo: "",
     street: "",
     purok: "",
-    guardianName: "",
+    guardianFirstName: "",
+    guardianMiddleName: "",
+    guardianLastName: "",
     guardianContact: "",
     guardianRelationship: "",
   });
@@ -40,7 +42,7 @@ function ApplicantProfile() {
           middleName: u.middle_name ?? "",
           email: u.email ?? "",
           contact: u.mobile_number ?? "",
-          dob: p?.birthdate ?? "",
+          dob: p?.birthdate?.split("T")[0] ?? "",
           gender: p?.gender ?? "",
           civilStatus: p?.civil_status ?? "",
           barangay: p?.barangay ?? "",
@@ -49,7 +51,9 @@ function ApplicantProfile() {
           houseNo: p?.house_no ?? "",
           street: p?.street ?? "",
           purok: p?.purok ?? "",
-          guardianName: p?.guardian_name ?? "",
+          guardianFirstName: p?.guardian_first_name ?? "",
+          guardianMiddleName: p?.guardian_middle_name ?? "",
+          guardianLastName: p?.guardian_last_name ?? "",
           guardianContact: p?.guardian_contact ?? "",
           guardianRelationship: p?.guardian_relationship ?? "",
         });
@@ -59,6 +63,19 @@ function ApplicantProfile() {
   }, []);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  function computeAge(dobString) {
+    if (!dobString) return null;
+    const dob = new Date(dobString);
+    if (isNaN(dob)) return null;
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
+    return age;
+  }
+  const age = computeAge(form.dob);
+  const isMinor = age !== null && age < 18;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -74,7 +91,7 @@ function ApplicantProfile() {
     setSaving(true);
     try {
       // Account info (name, contact) is a separate endpoint from profile info
-      const accountRes =await api.put("/user/profile", {
+      const accountRes = await api.put("/user/profile", {
         first_name: form.firstName,
         last_name: form.lastName,
         middle_name: form.middleName,
@@ -85,7 +102,7 @@ function ApplicantProfile() {
       // other name displays update immediately without needing to re-login
       login(accountRes.data.user, token)
 
-       
+
 
       // Only send profile fields that actually have a value, so partial
       // edits (e.g. just fixing the barangay) don't require filling everything
@@ -99,7 +116,9 @@ function ApplicantProfile() {
       if (form.barangay) profilePayload.barangay = form.barangay;
       if (form.city) profilePayload.city = form.city;
       if (form.province) profilePayload.province = form.province;
-      if (form.guardianName) profilePayload.guardian_name = form.guardianName;
+      if (form.guardianFirstName) profilePayload.guardian_first_name = form.guardianFirstName;
+      if (form.guardianMiddleName) profilePayload.guardian_middle_name = form.guardianMiddleName;
+      if (form.guardianLastName) profilePayload.guardian_last_name = form.guardianLastName;
       if (form.guardianRelationship) profilePayload.guardian_relationship = form.guardianRelationship;
       if (form.guardianContact) profilePayload.guardian_contact = form.guardianContact;
 
@@ -236,17 +255,37 @@ function ApplicantProfile() {
                       <input className="form-control" placeholder="Province" value={form.province} onChange={set("province")} />
                     </div>
 
-                    <div className="col-md-4">
-                      <label className="form-label">Guardian Name</label>
-                      <input className="form-control" placeholder="Guardian name" value={form.guardianName} onChange={set("guardianName")} />
+                    <div className="col-12 mt-2">
+                      <hr />
+                      <h6 className="text-muted">Parent / Guardian Information</h6>
+                      <p className="form-text mb-2">
+                        {isMinor
+                          ? "As a minor applicant, this must be the parent or guardian whose Voter's Certificate you will submit. Enter their name exactly as it appears on that certificate."
+                          : "Only required if you are a minor applicant. If provided, enter the name exactly as it appears on their Voter's Certificate."}
+                      </p>
                     </div>
 
                     <div className="col-md-4">
+                      <label className="form-label">Guardian First Name</label>
+                      <input className="form-control" placeholder="First Name" value={form.guardianFirstName} onChange={set("guardianFirstName")} />
+                    </div>
+
+                    <div className="col-md-4">
+                      <label className="form-label">Guardian Middle Name</label>
+                      <input className="form-control" placeholder="Middle Name" value={form.guardianMiddleName} onChange={set("guardianMiddleName")} />
+                    </div>
+
+                    <div className="col-md-4">
+                      <label className="form-label">Guardian Last Name</label>
+                      <input className="form-control" placeholder="Last Name" value={form.guardianLastName} onChange={set("guardianLastName")} />
+                    </div>
+
+                    <div className="col-md-6">
                       <label className="form-label">Guardian Relationship</label>
                       <input className="form-control" placeholder="e.g. Mother" value={form.guardianRelationship} onChange={set("guardianRelationship")} />
                     </div>
 
-                    <div className="col-md-4">
+                    <div className="col-md-6">
                       <label className="form-label">Guardian Contact</label>
                       <input className="form-control" placeholder="Guardian contact" value={form.guardianContact} onChange={set("guardianContact")} />
                     </div>

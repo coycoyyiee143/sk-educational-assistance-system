@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Models\ApplicationConfiguration;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -49,8 +50,10 @@ class FreshPeriodSeeder extends Seeder
             'created_by'   => $admin->id,
         ]);
 
-        // One applicant account, registered but hasn't applied yet.
-        User::create([
+        // Applicant account, registered but hasn't applied yet — complete
+        // profile, matching what Register actually produces now that DOB
+        // and barangay are required fields there.
+        $applicant = User::create([
             'first_name'        => 'Regina Grace',
             'middle_name'       => 'Antido',
             'last_name'         => 'Ayes',
@@ -60,6 +63,13 @@ class FreshPeriodSeeder extends Seeder
             'role'              => 'applicant',
             'is_active'         => true,
             'email_verified_at' => now(),
+        ]);
+
+        StudentProfile::create([
+            'user_id'             => $applicant->id,
+            'birthdate'           => '2010-08-08',
+            'barangay'            => 'Mamatid',
+            'is_profile_complete' => true,
         ]);
     }
 }
