@@ -1,12 +1,7 @@
 import { useState } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
-
-const DOC_FIELDS = [
-  { key: "registration_form", label: "Certificate of Enrollment / Registration Form" },
-  { key: "school_id", label: "School ID" },
-  { key: "voters_certificate", label: "Voter's Certificate" },
-];
+import { DOC_TYPES, NOT_CLEARED_REASONS, OTHER } from "../constants/verificationReasons";
 
 function VerifierClaiming() {
   const [controlNo, setControlNo] = useState("");
@@ -15,6 +10,8 @@ function VerifierClaiming() {
   const [selected, setSelected] = useState(null);
   const [checkedDocs, setCheckedDocs] = useState([]);
   const [notes, setNotes] = useState("");
+  const [notClearedReasons, setNotClearedReasons] = useState([]);
+  const [notClearedOtherText, setNotClearedOtherText] = useState("");
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -23,6 +20,12 @@ function VerifierClaiming() {
   function toggleDoc(key) {
     setCheckedDocs((prev) =>
       prev.includes(key) ? prev.filter((d) => d !== key) : [...prev, key]
+    );
+  }
+
+  function toggleNotClearedReason(reason) {
+    setNotClearedReasons((prev) =>
+      prev.includes(reason) ? prev.filter((r) => r !== reason) : [...prev, reason]
     );
   }
 
@@ -56,8 +59,10 @@ function VerifierClaiming() {
 
   function selectApplicant(app) {
     setSelected(app);
-    setCheckedDocs(DOC_FIELDS.map(d => d.key));
+    setCheckedDocs(DOC_TYPES.map(d => d.key));
     setNotes("");
+    setNotClearedReasons([]);
+    setNotClearedOtherText("");
     setError("");
     setSuccess("");
   }
@@ -66,12 +71,26 @@ function VerifierClaiming() {
     if (!selected) return;
     setError("");
     setSuccess("");
+
+    let reasonCategories;
+    if (claimStatus === "not_cleared") {
+      const withoutOther = notClearedReasons.filter((r) => r !== OTHER);
+      reasonCategories = notClearedReasons.includes(OTHER) && notClearedOtherText.trim()
+        ? [...withoutOther, notClearedOtherText.trim()]
+        : withoutOther;
+      if (reasonCategories.length === 0) {
+        setError("Please select at least one reason for marking this applicant as Not Cleared.");
+        return;
+      }
+    }
+
     setSubmitting(true);
     try {
       const res = await api.post(`/verifier/claiming/${selected.id}/status`, {
         claim_status: claimStatus,
+        reason_categories: claimStatus === "not_cleared" ? reasonCategories : undefined,
         verified_documents: checkedDocs,
-        notes,
+        notes: notes || (claimStatus === "not_cleared" ? reasonCategories.join(" ") : undefined),
       });
       setSuccess(res.data.message);
       setSelected(null);
@@ -85,7 +104,19 @@ function VerifierClaiming() {
     }
   }
 
-  // Helper filter for processed or failed uploaded files
+  async function handleViewFile(docId) {
+    try {
+      const res = await api.get(`/applications/${selected.id}/documents/${docId}/file`, {
+        responseType: "blob",
+      });
+      const url = URL.createObjectURL(res.data);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      alert("Failed to load document.");
+    }
+  }
+
   const filteredDocs = selected?.documents?.filter(
     d => d.status === "processed" || d.status === "failed"
   ) || [];
@@ -218,14 +249,13 @@ function VerifierClaiming() {
                         <div className="doc-check">
                           <h6>{doc.document_type.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</h6>
                           <p className="text-muted">{doc.file_name}</p>
-                          <a
-                            href={`http://localhost:8000/storage/${doc.file_path}`}
-                            target="_blank"
-                            rel="noreferrer"
+                          <button
+                            type="button"
                             className="btn btn-outline-custom btn-sm"
+                            onClick={() => handleViewFile(doc.id)}
                           >
                             View File
-                          </a>
+                          </button>
                         </div>
                       </div>
                     ))
@@ -240,7 +270,7 @@ function VerifierClaiming() {
               <div className="content-card">
                 <h4>Physical Document Check</h4>
                 <div className="row g-3">
-                  {DOC_FIELDS.map((doc) => (
+                  {DOC_TYPES.map((doc) => (
                     <div className="col-md-4" key={doc.key}>
                       <div className="doc-check">
                         <h6>{doc.label}</h6>
@@ -267,8 +297,35 @@ function VerifierClaiming() {
 
               <div className="content-card">
                 <h4>Claiming Action</h4>
+
                 <div className="mb-3">
-                  <label className="form-label">Notes (optional)</label>
+                  <label className="form-label fw-semibold">
+                    Not Cleared Reason(s) <span className="text-muted small">(required only if marking Not Cleared)</span>
+                  </label>
+                  {NOT_CLEARED_REASONS.map((r) => (
+                    <div className="form-check" key={r}>
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id={`nc-${r}`}
+                        checked={notClearedReasons.includes(r)}
+                        onChange={() => toggleNotClearedReason(r)}
+                      />
+                      <label className="form-check-label small" htmlFor={`nc-${r}`}>{r}</label>
+                    </div>
+                  ))}
+                  {notClearedReasons.includes(OTHER) && (
+                    <input
+                      className="form-control form-control-sm mt-2"
+                      placeholder="Specify the reason..."
+                      value={notClearedOtherText}
+                      onChange={(e) => setNotClearedOtherText(e.target.value)}
+                    />
+                  )}
+                </div>
+
+                <div className="mb-3">
+                  <label className="form-label">Additional Notes (optional)</label>
                   <textarea
                     className="form-control"
                     rows="2"
