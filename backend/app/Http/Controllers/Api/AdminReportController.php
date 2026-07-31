@@ -8,8 +8,8 @@ use App\Models\ApplicationConfiguration;
 use App\Models\ClaimingAssignment;
 use App\Models\VerificationCheck;
 use App\Models\VerifierAction;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Barryvdh\DomPDF\Facade\Pdf;
 
 class AdminReportController extends Controller
 {
@@ -17,7 +17,8 @@ class AdminReportController extends Controller
 
     private function approvedStatuses(): array
     {
-
+        // physically_verified removed — confirmed dead status, never set
+        // anywhere in the codebase.
         return ['approved', 'claimed', 'not_cleared', 'unclaimed'];
     }
 
@@ -26,9 +27,31 @@ class AdminReportController extends Controller
         return ['pending_prescreening', 'for_review', 'reupload_requested'];
     }
 
+    /**
+     * Resolves which ApplicationConfiguration a report should run
+     * against — either the one explicitly requested via ?config_id=,
+     * or the active period as a default. Lets SK look back at any past
+     * period's reports, not just the currently open one.
+     */
+    private function resolveConfig(Request $request): ?ApplicationConfiguration
+    {
+        if ($request->filled('config_id')) {
+            return ApplicationConfiguration::find($request->query('config_id'));
+        }
+        return ApplicationConfiguration::where('is_active', true)->first();
+    }
+
+    public function listPeriods()
+    {
+        return response()->json(
+            ApplicationConfiguration::orderByDesc('open_date')
+                ->get(['id', 'school_year', 'is_active'])
+        );
+    }
+
     public function summary(Request $request)
     {
-        $config = ApplicationConfiguration::where('is_active', true)->first();
+        $config = $this->resolveConfig($request);
 
         $query = Application::query();
         if ($config) {
@@ -195,14 +218,11 @@ class AdminReportController extends Controller
         ]);
     }
 
-    /**
-     * SK explicitly requested this one — how claiming day outcomes broke
-     * down, plus why applicants weren't cleared, sourced from the
-     * reason_categories captured on ClaimingAssignment.
-     */
+    // ── NEW REPORTS (JSON) ───────────────────────────────────────────
+
     public function claimingOutcomeSummary(Request $request)
     {
-        $config = ApplicationConfiguration::where('is_active', true)->first();
+        $config = $this->resolveConfig($request);
 
         $query = ClaimingAssignment::query();
         if ($config) {
@@ -216,8 +236,6 @@ class AdminReportController extends Controller
 
         $total = $claimed + $notCleared + $unclaimed + $pending;
 
-        // Tally why applicants were marked not_cleared — reason_categories
-        // is a JSON array per assignment, so flatten and count.
         $notClearedReasons = $query->clone()
             ->where('claim_status', 'not_cleared')
             ->whereNotNull('reason_categories')
@@ -244,25 +262,15 @@ class AdminReportController extends Controller
         ]);
     }
 
-    /**
-     * Which document, and which specific reason, most often causes a
-     * rejection or re-upload request. Sourced from two places:
-     *   - VerifierAction.reupload_details (per-document reasons captured
-     *     at re-upload-request time)
-     *   - VerificationCheck failures (automated OCR check failures,
-     *     grouped by which document type they belong to)
-     */
     public function documentFailureBreakdown(Request $request)
     {
-        $config = ApplicationConfiguration::where('is_active', true)->first();
+        $config = $this->resolveConfig($request);
 
         $actionQuery = VerifierAction::where('action', 'reupload_requested');
         if ($config) {
             $actionQuery->whereHas('application', fn($q) => $q->where('config_id', $config->id));
         }
 
-        // Flatten reupload_details across all matching actions into a
-        // single list of {document_type, reason_categories} entries.
         $perDocumentReasons = [];
         $documentFlagCounts = [];
 
@@ -277,8 +285,6 @@ class AdminReportController extends Controller
             }
         }
 
-        // Automated OCR check failures, grouped by document type via the
-        // check's associated document record.
         $checkQuery = VerificationCheck::where('passed', false)
             ->with('document');
         if ($config) {
@@ -297,13 +303,9 @@ class AdminReportController extends Controller
         ]);
     }
 
-    /**
-     * Applicant distribution by school, course, and year level — for the
-     * active period.
-     */
     public function applicantDistribution(Request $request)
     {
-        $config = ApplicationConfiguration::where('is_active', true)->first();
+        $config = $this->resolveConfig($request);
 
         $query = Application::query();
         if ($config) {
@@ -336,13 +338,9 @@ class AdminReportController extends Controller
         ]);
     }
 
-    /**
-     * Submission volume over time (weekly buckets) for the active period,
-     * so SK can see submission pacing across the application window.
-     */
     public function submissionTrends(Request $request)
     {
-        $config = ApplicationConfiguration::where('is_active', true)->first();
+        $config = $this->resolveConfig($request);
 
         $query = Application::query();
         if ($config) {
@@ -362,14 +360,50 @@ class AdminReportController extends Controller
         ]);
     }
 
-    /**
-     * Total submissions broken down by outcome, per period — the
-     * foundation for genuine demand forecasting once enough real cycles
-     * accumulate. Unlike historical approved-only counts, this tracks
-     * every application regardless of outcome, closing the gap SK's old
-     * manual process couldn't: they only ever recorded approved counts,
-     * with rejected/incomplete applications simply not retained.
-     */
+    public function ageDistribution(Request $request)
+    {
+        $config = $this->resolveConfig($request);
+
+        $query = Application::query()->with('user.profile');
+        if ($config) {
+            $query->where('config_id', $config->id);
+        }
+
+        $applications = $query->get();
+
+        $minorCount = 0;
+        $adultCount = 0;
+        $unknownCount = 0;
+
+        foreach ($applications as $app) {
+            $isMinor = $app->user?->profile?->is_minor;
+            if ($isMinor === true) {
+                $minorCount++;
+            } elseif ($isMinor === false) {
+                $adultCount++;
+            } else {
+                $unknownCount++;
+            }
+        }
+
+        $total = $minorCount + $adultCount + $unknownCount;
+
+        return response()->json([
+            'config' => $config,
+            'counts' => [
+                'minor'   => $minorCount,
+                'adult'   => $adultCount,
+                'unknown' => $unknownCount,
+                'total'   => $total,
+            ],
+            'rates' => [
+                'minor_rate'   => $total > 0 ? round(($minorCount / $total) * 100, 1) : 0,
+                'adult_rate'   => $total > 0 ? round(($adultCount / $total) * 100, 1) : 0,
+                'unknown_rate' => $total > 0 ? round(($unknownCount / $total) * 100, 1) : 0,
+            ],
+        ]);
+    }
+
     public function submissionVsApprovalTrend(Request $request)
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
@@ -414,7 +448,7 @@ class AdminReportController extends Controller
         $data = $this->claimingOutcomeSummary($request)->getData(true);
         $pdf = Pdf::loadView('reports.claiming-outcomes', [
             'title'              => 'Claiming Outcome Summary',
-            'config'             => (object) $data['config'] ?? null,
+            'config'             => $data['config'] ? (object) $data['config'] : null,
             'counts'             => $data['counts'],
             'rates'              => $data['rates'],
             'notClearedReasons'  => $data['not_cleared_reasons'],
@@ -427,7 +461,7 @@ class AdminReportController extends Controller
         $data = $this->documentFailureBreakdown($request)->getData(true);
         $pdf = Pdf::loadView('reports.document-failures', [
             'title'                   => 'Document Failure Breakdown',
-            'config'                  => (object) $data['config'] ?? null,
+            'config'                  => $data['config'] ? (object) $data['config'] : null,
             'reuploadFlagCounts'      => $data['reupload_flag_counts_by_document'],
             'reuploadReasonsByDoc'    => $data['reupload_reasons_by_document'],
             'automatedFailuresByDoc'  => $data['automated_check_failures_by_document'],
@@ -440,7 +474,7 @@ class AdminReportController extends Controller
         $data = $this->applicantDistribution($request)->getData(true);
         $pdf = Pdf::loadView('reports.applicant-distribution', [
             'title'        => 'Applicant Distribution',
-            'config'       => (object) $data['config'] ?? null,
+            'config'       => $data['config'] ? (object) $data['config'] : null,
             'bySchool'     => collect($data['by_school'])->map(fn($r) => (object) $r),
             'byCourse'     => collect($data['by_course'])->map(fn($r) => (object) $r),
             'byYearLevel'  => collect($data['by_year_level'])->map(fn($r) => (object) $r),
@@ -453,10 +487,22 @@ class AdminReportController extends Controller
         $data = $this->submissionTrends($request)->getData(true);
         $pdf = Pdf::loadView('reports.submission-trends', [
             'title'  => 'Submission Trends',
-            'config' => (object) $data['config'] ?? null,
+            'config' => $data['config'] ? (object) $data['config'] : null,
             'weekly' => collect($data['weekly'])->map(fn($r) => (object) $r),
         ]);
         return $pdf->download('submission-trends-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    public function ageDistributionPdf(Request $request)
+    {
+        $data = $this->ageDistribution($request)->getData(true);
+        $pdf = Pdf::loadView('reports.age-distribution', [
+            'title'  => 'Applicant Age Distribution — Minor vs. Adult',
+            'config' => $data['config'] ? (object) $data['config'] : null,
+            'counts' => $data['counts'],
+            'rates'  => $data['rates'],
+        ]);
+        return $pdf->download('age-distribution-' . now()->format('Y-m-d') . '.pdf');
     }
 
     public function submissionVsApprovalPdf(Request $request)

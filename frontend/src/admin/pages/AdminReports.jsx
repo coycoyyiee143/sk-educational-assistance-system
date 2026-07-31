@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AdminNavigation from "../components/AdminNavigation";
 import api from "../../services/api";
 
@@ -58,12 +58,16 @@ function DistributionBar({ label, count, max }) {
 }
 
 function AdminReports() {
+  const [periods, setPeriods] = useState([]);
+  const [selectedConfigId, setSelectedConfigId] = useState("");
+
   const [summary, setSummary] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [claimingOutcomes, setClaimingOutcomes] = useState(null);
   const [documentFailures, setDocumentFailures] = useState(null);
   const [distribution, setDistribution] = useState(null);
   const [submissionVsApproval, setSubmissionVsApproval] = useState(null);
+  const [ageDistribution, setAgeDistribution] = useState(null);
   const [trends, setTrends] = useState(null);
   const [filter, setFilter] = useState(emptyFilter);
   const [preview, setPreview] = useState([]);
@@ -73,17 +77,31 @@ function AdminReports() {
   const [pdfExportingKey, setPdfExportingKey] = useState(null);
   const [error, setError] = useState("");
 
+  // Load the period list once, on mount.
   useEffect(() => {
+    api.get("/admin/reports/periods")
+      .then((res) => {
+        setPeriods(res.data);
+        const active = res.data.find((p) => p.is_active);
+        setSelectedConfigId(active ? String(active.id) : (res.data[0] ? String(res.data[0].id) : ""));
+      })
+      .catch(() => setError("Failed to load application periods."));
+  }, []);
+
+  const loadPeriodScopedReports = useCallback((configId) => {
+    const params = configId ? { config_id: configId } : {};
+    setLoading(true);
     Promise.all([
-      api.get("/admin/reports/summary"),
+      api.get("/admin/reports/summary", { params }),
       api.get("/admin/reports/budget-forecast"),
       api.get("/admin/reports/applications"),
-      api.get("/admin/reports/claiming-outcomes"),
-      api.get("/admin/reports/document-failures"),
-      api.get("/admin/reports/applicant-distribution"),
-      api.get("/admin/reports/submission-trends"),
+      api.get("/admin/reports/claiming-outcomes", { params }),
+      api.get("/admin/reports/document-failures", { params }),
+      api.get("/admin/reports/applicant-distribution", { params }),
+      api.get("/admin/reports/submission-trends", { params }),
       api.get("/admin/reports/submission-vs-approval"),
-    ]).then(([summaryRes, forecastRes, appsRes, claimingRes, docFailRes, distRes, trendsRes, submissionVsApprovalRes]) => {
+      api.get("/admin/reports/age-distribution", { params }),
+    ]).then(([summaryRes, forecastRes, appsRes, claimingRes, docFailRes, distRes, trendsRes, submissionVsApprovalRes, ageDistRes]) => {
       setSummary(summaryRes.data);
       setForecast(forecastRes.data);
       setPreview(appsRes.data);
@@ -92,9 +110,16 @@ function AdminReports() {
       setDistribution(distRes.data);
       setTrends(trendsRes.data);
       setSubmissionVsApproval(submissionVsApprovalRes.data);
+      setAgeDistribution(ageDistRes.data);
     }).catch(() => setError("Failed to load report data."))
       .finally(() => setLoading(false));
   }, []);
+
+  // Re-fetch every period-scoped report whenever the selected period changes.
+  useEffect(() => {
+    if (selectedConfigId === "" && periods.length === 0) return; // still loading periods
+    loadPeriodScopedReports(selectedConfigId);
+  }, [selectedConfigId, periods.length, loadPeriodScopedReports]);
 
   const set = (k) => (e) => setFilter((f) => ({ ...f, [k]: e.target.value }));
 
@@ -144,7 +169,8 @@ function AdminReports() {
     setError("");
     setPdfExportingKey(key);
     try {
-      const res = await api.get(endpoint, { responseType: "blob" });
+      const params = selectedConfigId ? { config_id: selectedConfigId } : {};
+      const res = await api.get(endpoint, { params, responseType: "blob" });
       const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
       const link = document.createElement("a");
       link.href = url;
@@ -160,7 +186,7 @@ function AdminReports() {
     }
   }
 
-  if (loading) {
+  if (loading && periods.length === 0) {
     return (
       <div>
         <AdminNavigation />
@@ -191,6 +217,9 @@ function AdminReports() {
   const maxCourseCount = Math.max(1, ...byCourse.map((r) => r.total));
   const maxYearLevelCount = Math.max(1, ...byYearLevel.map((r) => r.total));
 
+  const ageCounts = ageDistribution?.counts ?? {};
+  const ageRates = ageDistribution?.rates ?? {};
+
   const weeklyTrend = trends?.weekly ?? [];
   const maxWeeklyCount = Math.max(1, ...weeklyTrend.map((w) => w.total));
 
@@ -201,10 +230,28 @@ function AdminReports() {
         <div className="container">
 
           <div className="page-card">
-            <h3 className="section-title mb-2">Reports</h3>
-            <p className="text-muted mb-0">
-              View summary reports and analytics related to the educational assistance program, including applicant statistics, approved student records, and budget forecasting.
-            </p>
+            <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
+              <div>
+                <h3 className="section-title mb-2">Reports</h3>
+                <p className="text-muted mb-0">
+                  View summary reports and analytics related to the educational assistance program, including applicant statistics, approved student records, and budget forecasting.
+                </p>
+              </div>
+              <div style={{ minWidth: "220px" }}>
+                <label className="form-label small text-muted mb-1">Viewing Period</label>
+                <select
+                  className="form-select"
+                  value={selectedConfigId}
+                  onChange={(e) => setSelectedConfigId(e.target.value)}
+                >
+                  {periods.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.school_year}{p.is_active ? " (Active)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
           </div>
 
           {error && <div className="alert alert-danger">{error}</div>}
@@ -220,7 +267,7 @@ function AdminReports() {
               )}
             </h4>
             {!summary?.config ? (
-              <div className="alert alert-info mb-0">No active application period.</div>
+              <div className="alert alert-info mb-0">No data for the selected period.</div>
             ) : (
               <div className="row g-4">
                 <div className="col-md-3">
@@ -251,11 +298,15 @@ function AdminReports() {
             )}
           </div>
 
-          {/* Generate Report */}
+          {/* Applicant Records Export — renamed from "Generate Report" since
+              that name was ambiguous once several other reports were added
+              below it. This section specifically covers the raw,
+              record-level applicant list (CSV/table), not the summary
+              reports further down the page. */}
           <div className="page-card">
-            <h4 className="sub-title">Generate Report</h4>
+            <h4 className="sub-title">Applicant Records Export</h4>
             <div className="info-box">
-              Filter and preview applicant records, or export them as a CSV file for documentation and record-keeping purposes.
+              Filter and preview individual applicant records, or export them as a CSV file for documentation and record-keeping purposes.
             </div>
             <form onSubmit={handlePreview}>
               <div className="row g-3">
@@ -285,12 +336,14 @@ function AdminReports() {
             </form>
           </div>
 
-          {/* Report Preview */}
+          {/* Report Preview — scrollable container so a long applicant
+              list doesn't stretch the whole page; the table scrolls
+              within its own fixed-height box instead. */}
           <div className="page-card">
             <h4 className="sub-title">Report Preview</h4>
-            <div className="table-responsive">
-              <table className="table table-bordered table-striped align-middle">
-                <thead>
+            <div className="table-responsive" style={{ maxHeight: "420px", overflowY: "auto" }}>
+              <table className="table table-bordered table-striped align-middle mb-0">
+                <thead style={{ position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
                   <tr>
                     <th>Application ID</th>
                     <th>Control Number</th>
@@ -367,7 +420,7 @@ function AdminReports() {
               </button>
             </div>
             {!claimingOutcomes?.config || claimCounts.total === 0 ? (
-              <div className="alert alert-info mb-0">No claiming data available yet for this period.</div>
+              <div className="alert alert-info mb-0">No claiming data available for the selected period.</div>
             ) : (
               <>
                 <div className="row g-4 mb-3">
@@ -438,7 +491,7 @@ function AdminReports() {
               automated checks fail most often per document type.
             </div>
             {Object.keys(reuploadFlagCounts).length === 0 && Object.keys(automatedFailuresByDoc).length === 0 ? (
-              <div className="alert alert-info mb-0">No document flags recorded yet for this period.</div>
+              <div className="alert alert-info mb-0">No document flags recorded for the selected period.</div>
             ) : (
               <>
                 {Object.keys(reuploadFlagCounts).length > 0 && (
@@ -526,7 +579,7 @@ function AdminReports() {
               </button>
             </div>
             {!distribution?.config || bySchool.length === 0 ? (
-              <div className="alert alert-info mb-0">No applicant data available yet for this period.</div>
+              <div className="alert alert-info mb-0">No applicant data available for the selected period.</div>
             ) : (
               <div className="row g-4">
                 <div className="col-md-4">
@@ -547,6 +600,54 @@ function AdminReports() {
                     <DistributionBar key={r.year_level} label={r.year_level} count={r.total} max={maxYearLevelCount} />
                   ))}
                 </div>
+              </div>
+            )}
+          </div>
+
+          {/* Age Distribution — Minor vs. Adult */}
+          <div className="page-card">
+            <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <h4 className="sub-title">
+                Applicant Age Distribution
+                {ageDistribution?.config && (
+                  <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>
+                    {" "}— {ageDistribution.config.school_year}
+                  </span>
+                )}
+              </h4>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-custom"
+                disabled={pdfExportingKey === "ageDistribution"}
+                onClick={() => handlePdfExport("/admin/reports/age-distribution/pdf", "age-distribution", "ageDistribution")}
+              >
+                {pdfExportingKey === "ageDistribution" ? "Exporting..." : "Export PDF"}
+              </button>
+            </div>
+            {!ageDistribution?.config || ageCounts.total === 0 ? (
+              <div className="alert alert-info mb-0">No applicant data available for the selected period.</div>
+            ) : (
+              <div className="row g-4">
+                <div className="col-md-4">
+                  <div className="summary-card">
+                    <h2>{ageCounts.minor}</h2>
+                    <p>Minor Applicants ({ageRates.minor_rate}%)</p>
+                  </div>
+                </div>
+                <div className="col-md-4">
+                  <div className="summary-card">
+                    <h2>{ageCounts.adult}</h2>
+                    <p>Adult Applicants ({ageRates.adult_rate}%)</p>
+                  </div>
+                </div>
+                {ageCounts.unknown > 0 && (
+                  <div className="col-md-4">
+                    <div className="summary-card">
+                      <h2>{ageCounts.unknown}</h2>
+                      <p>Unknown ({ageRates.unknown_rate}%)</p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -572,10 +673,10 @@ function AdminReports() {
               </button>
             </div>
             <div className="info-box">
-              Number of applications submitted per week within the active application period.
+              Number of applications submitted per week within the selected application period.
             </div>
             {weeklyTrend.length === 0 ? (
-              <div className="alert alert-info mb-0">No submissions recorded yet for this period.</div>
+              <div className="alert alert-info mb-0">No submissions recorded for the selected period.</div>
             ) : (
               weeklyTrend.map((w) => (
                 <DistributionBar
@@ -588,7 +689,8 @@ function AdminReports() {
             )}
           </div>
 
-          {/* Submission vs. Approval Trend — foundation for future forecasting */}
+          {/* Submission vs. Approval Trend — spans all periods, foundation
+              for future forecasting, unaffected by the period selector */}
           <div className="page-card">
             <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
               <h4 className="sub-title">Submission vs. Approval Trend</h4>
@@ -604,7 +706,8 @@ function AdminReports() {
             <div className="info-box">
               Tracks total submissions per period, not just approved counts — the
               basis for genuine demand forecasting once enough real application
-              cycles have run on this system.
+              cycles have run on this system. Shows all periods, regardless of
+              the period selector above.
             </div>
             {!submissionVsApproval?.trend?.length ? (
               <div className="alert alert-info mb-0">No application period data available yet.</div>
@@ -646,12 +749,13 @@ function AdminReports() {
             )}
           </div>
 
-          {/* Budget Forecast */}
+          {/* Budget Forecast — spans all periods, unaffected by the period selector */}
           <div className="page-card">
             <h4 className="sub-title">Budget Forecast</h4>
             <div className="info-box">
               Forecast is based on the average number of approved applicants across past completed application periods,
-              multiplied by {formatCurrency(fc.assistance_per_applicant ?? 2000)} per beneficiary.
+              multiplied by {formatCurrency(fc.assistance_per_applicant ?? 2000)} per beneficiary. Shows all periods,
+              regardless of the period selector above.
             </div>
 
             {!forecast?.historical?.length ? (
