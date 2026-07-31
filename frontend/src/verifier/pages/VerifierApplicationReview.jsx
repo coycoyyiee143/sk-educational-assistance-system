@@ -187,11 +187,23 @@ function VerifierApplicationReview() {
                   ["Applicant Name", `${user?.first_name} ${user?.last_name}`],
                   ["Email", user?.email],
                   ["Mobile", user?.mobile_number ?? "—"],
+                  ["Date of Birth", profile?.birthdate ?? "—"],
                   ["Submission Date", app.submitted_at?.split("T")[0]],
                   ["Address", profile ? `${profile.barangay ?? ""}, ${profile.city ?? ""}, ${profile.province ?? ""}` : "—"],
                 ].map(([label, value]) => (
                   <tr key={label}><th>{label}</th><td>{value}</td></tr>
                 ))}
+                {profile?.is_minor && (
+                  <tr>
+                    <th>Guardian (Minor Applicant)</th>
+                    <td>
+                      {profile.guardian_first_name || profile.guardian_last_name
+                        ? `${profile.guardian_first_name ?? ""} ${profile.guardian_middle_name ?? ""} ${profile.guardian_last_name ?? ""}`.replace(/\s+/g, " ").trim()
+                        : <span className="text-danger">No guardian on file</span>}
+                      {profile.guardian_relationship && ` (${profile.guardian_relationship})`}
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

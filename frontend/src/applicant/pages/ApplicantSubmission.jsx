@@ -85,26 +85,63 @@ const COURSES = [
 
 const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
-const DOC_FIELDS = [
-  {
-    key: "enrollment",
-    type: "registration_form",
-    label: "Registration Form",
-    hint: "Must show your name, school, and school year.",
-  },
-  {
-    key: "schoolId",
-    type: "school_id",
-    label: "School ID",
-    hint: "Must show your name and school name.",
-  },
-  {
-    key: "voters",
-    type: "voters_certificate",
-    label: "Voter's Certificate",
-    hint: "Must show your name and Barangay Mamatid as your registered barangay.",
-  },
-];
+// Minimum resolution threshold per the paper's stated Limitation: "a
+// minimum resolution threshold for uploaded files" as part of client-side
+// pre-validation (Fig 7.3). Measured on the shorter dimension so both
+// portrait and landscape photos are treated fairly. Only applies to image
+// files — PDFs are allowed through without a resolution check, since
+// checking PDF page dimensions client-side would require a heavy
+// rendering library that isn't justified for this.
+const MIN_SHORT_SIDE_PX = 800;
+
+function checkImageResolution(file) {
+  if (file.type === "application/pdf") {
+    return Promise.resolve({ valid: true, skipped: true });
+  }
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const shortSide = Math.min(img.width, img.height);
+      resolve({
+        valid: shortSide >= MIN_SHORT_SIDE_PX,
+        width: img.width,
+        height: img.height,
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ valid: false, unreadable: true });
+    };
+    img.src = url;
+  });
+}
+
+function getDocFields(isMinor) {
+  return [
+    {
+      key: "enrollment",
+      type: "registration_form",
+      label: "Registration Form",
+      hint: "Must clearly show your name, school, and school year.",
+    },
+    {
+      key: "schoolId",
+      type: "school_id",
+      label: "School ID",
+      hint: "Must clearly show your name and school name.",
+    },
+    {
+      key: "voters",
+      type: "voters_certificate",
+      label: isMinor ? "Guardian's Voter's Certificate" : "Voter's Certificate",
+      hint: isMinor
+        ? "Must clearly show your guardian's name and Barangay Mamatid as your registered barangay."
+        : "Must clearly show your name and Barangay Mamatid as your registered barangay.",
+    },
+  ];
+}
 
 const STATUS_LABELS = {
   pending_prescreening: "Pending Prescreening",
@@ -127,6 +164,8 @@ const emptyForm = {
   yearLevel: "",
 };
 
+const DRAFT_STORAGE_KEY = "applicant_submission_draft";
+
 // Component
 function ApplicantSubmission() {
   const [form, setForm] = useState(emptyForm);
@@ -135,10 +174,20 @@ function ApplicantSubmission() {
     schoolId: null,
     voters: null,
   });
+  const [fileErrors, setFileErrors] = useState({
+    enrollment: "",
+    schoolId: "",
+    voters: "",
+  });
   const [reuploadFiles, setReuploadFiles] = useState({
     enrollment: null,
     schoolId: null,
     voters: null,
+  });
+  const [reuploadFileErrors, setReuploadFileErrors] = useState({
+    enrollment: "",
+    schoolId: "",
+    voters: "",
   });
 
   const [applicationId, setApplicationId] = useState(null);
@@ -151,6 +200,7 @@ function ApplicantSubmission() {
   const [uploadProgress, setUploadProgress] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [draftSaved, setDraftSaved] = useState(false);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const [otherCourse, setOtherCourse] = useState("");
@@ -173,10 +223,57 @@ function ApplicantSubmission() {
   const filteredCourses = COURSES.filter(
     (c) => c !== "Other" && c.toLowerCase().includes(courseSearch.toLowerCase())
   );
-  const setFile = (k) => (e) =>
-    setFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
-  const setReupload = (k) => (e) =>
-    setReuploadFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
+
+  // Both setFile and setReupload now run the resolution check before
+  // accepting a file into state. If the check fails, the file is rejected
+  // (state stays null, input is cleared) and an inline error explains why —
+  // matching the paper's "client-side pre-validation" step in Fig 7.3.
+  const setFile = (k) => async (e) => {
+    const file = e.target.files[0] ?? null;
+    if (!file) {
+      setFiles((f) => ({ ...f, [k]: null }));
+      setFileErrors((fe) => ({ ...fe, [k]: "" }));
+      return;
+    }
+    const result = await checkImageResolution(file);
+    if (!result.valid) {
+      setFileErrors((fe) => ({
+        ...fe,
+        [k]: result.unreadable
+          ? "Could not read this file. Please try a different image."
+          : `Image resolution too low (${result.width}×${result.height}px). Minimum required: ${MIN_SHORT_SIDE_PX}px on the shortest side. Please retake or rescan at a higher quality.`,
+      }));
+      setFiles((f) => ({ ...f, [k]: null }));
+      e.target.value = "";
+      return;
+    }
+    setFileErrors((fe) => ({ ...fe, [k]: "" }));
+    setFiles((f) => ({ ...f, [k]: file }));
+  };
+
+  const setReupload = (k) => async (e) => {
+    const file = e.target.files[0] ?? null;
+    if (!file) {
+      setReuploadFiles((f) => ({ ...f, [k]: null }));
+      setReuploadFileErrors((fe) => ({ ...fe, [k]: "" }));
+      return;
+    }
+    const result = await checkImageResolution(file);
+    if (!result.valid) {
+      setReuploadFileErrors((fe) => ({
+        ...fe,
+        [k]: result.unreadable
+          ? "Could not read this file. Please try a different image."
+          : `Image resolution too low (${result.width}×${result.height}px). Minimum required: ${MIN_SHORT_SIDE_PX}px on the shortest side. Please retake or rescan at a higher quality.`,
+      }));
+      setReuploadFiles((f) => ({ ...f, [k]: null }));
+      e.target.value = "";
+      return;
+    }
+    setReuploadFileErrors((fe) => ({ ...fe, [k]: "" }));
+    setReuploadFiles((f) => ({ ...f, [k]: file }));
+  };
+
   const [activeConfig, setActiveConfig] = useState(null);
 
   const periodStatus = getApplicationPeriodStatus(activeConfig);
@@ -220,7 +317,10 @@ function ApplicantSubmission() {
       .catch(() => { });
   }, []);
 
-  // Resume in-progress application on load
+  // Resume in-progress application on load. If no backend application
+  // exists yet (e.g. the applicant filled in info before the period
+  // opened), fall back to a locally saved draft so their typed info
+  // isn't lost between visits.
   useEffect(() => {
     api
       .get("/applications")
@@ -248,11 +348,32 @@ function ApplicantSubmission() {
           } else {
             setStep("done");
           }
+        } else {
+          const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+          if (draft) {
+            try {
+              setForm(JSON.parse(draft));
+            } catch {
+              // corrupted draft, ignore
+            }
+          }
         }
       })
       .catch(() => { })
       .finally(() => setCheckingApp(false));
   }, []);
+
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    api
+      .get("/profile")
+      .then((res) => setProfile(res.data.profile))
+      .catch(() => { });
+  }, []);
+
+  const isMinor = profile?.is_minor ?? false;
+  const DOC_FIELDS = getDocFields(isMinor);
 
   // Reupload validation
   const reuploadDetails =
@@ -265,6 +386,12 @@ function ApplicantSubmission() {
     return isRequested && !hasNewFile;
   });
   const isReuploadDisabled = missingReuploadFields.length > 0;
+
+  function handleSaveDraft() {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(form));
+    setDraftSaved(true);
+    setTimeout(() => setDraftSaved(false), 2500);
+  }
 
   // Step 1: create or edit application info
   async function handleSubmitForm(e) {
@@ -286,6 +413,9 @@ function ApplicantSubmission() {
         setApplicationId(res.data.application.id);
       }
 
+      // Now backed by a real application record — the local draft is redundant
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+
       setStep("documents");
     } catch (err) {
       const errors = err.response?.data?.errors;
@@ -297,10 +427,6 @@ function ApplicantSubmission() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleClear() {
-    setForm(emptyForm);
   }
 
   // Step 2: upload documents
@@ -627,6 +753,14 @@ function ApplicantSubmission() {
                       <strong>A.Y. {activeConfig.school_year}</strong> — the
                       most recent enrollment period. Registration forms from a
                       different school year will not be accepted.
+                      {isMinor && (
+                        <>
+                          {" "}As a minor applicant, upload your{" "}
+                          <strong>parent/guardian's</strong> Voter's Certificate
+                          for the Voter's Certificate requirement — not your
+                          own.
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -654,6 +788,11 @@ function ApplicantSubmission() {
                               onChange={setReupload(field.key)}
                             />
                             <div className="form-text">{field.hint}</div>
+                            {reuploadFileErrors[field.key] && (
+                              <small className="text-danger d-block mt-1">
+                                {reuploadFileErrors[field.key]}
+                              </small>
+                            )}
                             {reuploadFiles[field.key] && (
                               <small className="text-success">
                                 ✓ {reuploadFiles[field.key].name}
@@ -707,7 +846,9 @@ function ApplicantSubmission() {
                 opens on{" "}
                 {new Date(activeConfig.open_date).toLocaleString("en-PH", {
                   month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit"
-                })}. You can review the form below, but submissions will not be accepted until then.
+                })}. You can fill in your information now and use{" "}
+                <strong>Save Draft</strong> to keep it on this device — submissions
+                will not be accepted until the period opens.
               </div>
             )}
 
@@ -956,14 +1097,19 @@ function ApplicantSubmission() {
                   </div>
                 </div>
 
-                <div className="d-flex justify-content-end gap-2 mt-4">
-                  <button
-                    type="button"
-                    className="btn btn-secondary-custom"
-                    onClick={handleClear}
-                  >
-                    Clear Form
-                  </button>
+                <div className="d-flex justify-content-end align-items-center gap-2 mt-4">
+                  {draftSaved && (
+                    <span className="text-success small me-auto">Draft saved.</span>
+                  )}
+                  {!applicationId && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary-custom"
+                      onClick={handleSaveDraft}
+                    >
+                      Save Draft
+                    </button>
+                  )}
                   <button
                     type="submit"
                     className="btn btn-submit"
@@ -987,6 +1133,14 @@ function ApplicantSubmission() {
                       <strong>A.Y. {activeConfig.school_year}</strong> — the
                       most recent enrollment period. Registration forms from a
                       different school year will not be accepted.
+                      {isMinor && (
+                        <>
+                          {" "}As a minor applicant, upload your{" "}
+                          <strong>parent/guardian's</strong> Voter's Certificate
+                          for the Voter's Certificate requirement below — not
+                          your own.
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -996,10 +1150,12 @@ function ApplicantSubmission() {
                     system.
                   </p>
                   <div className="alert alert-warning py-2 mb-3">
-                    <strong>Reminder:</strong> Upload clear, readable photos or
-                    scans. Blurry or low-quality images may cause your
-                    application to be requested for a reupload. Supported
-                    formats: JPG, PNG, PDF. Max size: 5MB per file.
+                    <strong>Image Quality Guidelines:</strong> Upload clear,
+                    readable photos or scans. Ensure good lighting, avoid
+                    blur, and keep the full document in frame. Images below{" "}
+                    {MIN_SHORT_SIDE_PX}px on the shortest side will be
+                    rejected automatically. Supported formats: JPG, PNG, PDF.
+                    Max size: 5MB per file.
                   </div>
                   <div className="row g-3">
                     {DOC_FIELDS.map((field) => (
@@ -1015,6 +1171,11 @@ function ApplicantSubmission() {
                             onChange={setFile(field.key)}
                           />
                           <div className="form-text">{field.hint}</div>
+                          {fileErrors[field.key] && (
+                            <small className="text-danger d-block mt-1">
+                              {fileErrors[field.key]}
+                            </small>
+                          )}
                           {files[field.key] && (
                             <small className="text-success">
                               ✓ {files[field.key].name}

@@ -21,6 +21,8 @@ class AuthController extends Controller
             'email'         => 'required|email|unique:users,email',
             'mobile_number' => 'nullable|string|unique:users,mobile_number',
             'password'      => 'required|string|min:8|confirmed',
+            'birthdate'     => 'required|date|before:today',
+            'barangay'      => 'required|string|max:255',
         ]);
 
         $user = User::create([
@@ -32,16 +34,19 @@ class AuthController extends Controller
             'password'      => Hash::make($request->password),
             'role'          => 'applicant',
         ]);
-
-        // Create empty profile
-        StudentProfile::create(['user_id' => $user->id]);
-
+        // Profile starts pre-filled with what Register already collected —
+        // is_profile_complete stays false until the applicant fills in the
+        // rest via the Profile page.
+        StudentProfile::create([
+            'user_id'   => $user->id,
+            'birthdate' => $request->birthdate,
+            'barangay'  => $request->barangay,
+        ]);
         // TRIGGER: Automatically dispatches Laravel's email verification link via your Log/Mail system
         $user->sendEmailVerificationNotification();
 
         $token = $user->createToken('auth_token')->plainTextToken;
-
-      
+        
         return response()->json([
             'message' => 'Registration successful. Please check your email to verify your account.',
             'token'   => $token,
@@ -86,7 +91,6 @@ class AuthController extends Controller
             'description' => "{$user->first_name} {$user->last_name} logged in",
             'ip_address'  => $request->ip(),
         ]);
-
 
         return response()->json([
             'message' => 'Login successful.',
@@ -143,7 +147,6 @@ class AuthController extends Controller
 
         return response()->json(['message' => 'Email verified successfully.']);
     }
-
     
 public function resendVerification(Request $request)
     {

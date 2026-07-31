@@ -131,8 +131,8 @@ class VerifierReasonCategoriesTest extends TestCase
                     [
                         'document_type' => 'school_id',
                         'label' => 'School ID',
-                        'reason_categories' => ['Missing front or back of School ID.'],
-                        'reason' => 'Missing front or back of School ID.',
+                        'reason_categories' => ['Image blurry or unreadable.'],
+                        'reason' => 'Image blurry or unreadable.',
                     ],
                 ],
             ]);
@@ -146,7 +146,7 @@ class VerifierReasonCategoriesTest extends TestCase
         $action = $app->fresh()->verifierActions()->latest()->first();
         $this->assertEquals('reupload_requested', $action->action);
         $this->assertEquals('school_id', $action->reupload_details[0]['document_type']);
-        $this->assertContains('Missing front or back of School ID.', $action->reupload_details[0]['reason_categories']);
+        $this->assertContains('Image blurry or unreadable.', $action->reupload_details[0]['reason_categories']);
     }
 
     // ── approve() ───────────────────────────────────────────────

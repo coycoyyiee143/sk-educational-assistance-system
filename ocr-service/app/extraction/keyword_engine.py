@@ -7,15 +7,25 @@ from app.utils.spatial import get_block_to_right, get_block_below, get_block_abo
 FIELD_KEYWORDS = {
     "name": ["student name", "name of student", "name", "name of voter", "voter's name", "voters name", "apellido", "user"],
     "school_year": ["school year", "s.y.", "sy", "academic year", "a.y.", "ay", "sch. yr.", "sch yr", "school year sem"],
-    "barangay": ["barangay", "brgy", "brgy.", "precinct"]
+    "barangay": ["barangay", "brgy", "brgy.", "precinct"],
+    "date_issued": ["date issued", "date of issuance", "issuance date", "issued"]
 }
 
 def find_label_block(blocks: List[OcrBlock], field_name: str) -> Optional[OcrBlock]:
+    """
+    Tries each keyword, in priority order, across every block before
+    falling back to the next keyword. This matters because keyword lists
+    are ordered specific-to-generic (e.g. "date issued" before the bare
+    "issued" fallback) — scanning block-by-block first would let a weak,
+    generic keyword match an early but irrelevant block (e.g. a free-text
+    sentence containing "issued") before ever reaching the actual
+    labeled field later in the document.
+    """
     keywords = FIELD_KEYWORDS.get(field_name, [])
 
-    for block in blocks:
-        t = block.text.lower().strip().rstrip(':').strip()
-        for kw in keywords:
+    for kw in keywords:
+        for block in blocks:
+            t = block.text.lower().strip().rstrip(':').strip()
             if t == kw or (len(kw) > 3 and kw in t):
                 return block
             if len(kw) <= 3 and re.search(r'\b' + re.escape(kw) + r'\b', t):

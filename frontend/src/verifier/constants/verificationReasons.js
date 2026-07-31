@@ -21,7 +21,6 @@ export function getReasonsByDocType(schoolYear) {
         school_id: [
             "Image blurry or unreadable.",
             "File uploaded is not the correct document type.",
-            "Missing front or back of School ID.",
             "Name does not match other submitted documents.",
             OTHER,
         ],

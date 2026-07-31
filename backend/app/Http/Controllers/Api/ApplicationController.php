@@ -49,6 +49,27 @@ class ApplicationController extends Controller
             return response()->json(['message' => 'No more slots available.'], 400);
         }
 
+        // Applicant must have a birthdate on file before applying — required
+        // to determine minor status for the guardian Voter's Certificate
+        // rule. Registration now collects this directly, so this should
+        // only ever trigger for accounts created before this feature shipped.
+        $profile = $request->user()->profile;
+        if (!$profile || !$profile->birthdate) {
+            return response()->json([
+                'message' => 'Please complete your profile (date of birth) before applying.',
+            ], 400);
+        }
+
+        // Minors must have guardian info on file before applying — this is
+        // the actual data the Voter's Certificate check will need at OCR
+        // time. Without it, the document check would fail with no way for
+        // the applicant to understand why, so we catch it here instead.
+        if ($profile->is_minor && !$profile->hasCompleteGuardianInfo()) {
+            return response()->json([
+                'message' => 'As a minor applicant, please complete your guardian information (name and relationship) in your profile before applying.',
+            ], 400);
+        }
+
         // Check if user already applied this period
         $existing = Application::where('user_id', $request->user()->id)
             ->where('config_id', $config->id)
@@ -162,6 +183,3 @@ class ApplicationController extends Controller
         return response()->json($logs);
     }
 }
-
-
-

@@ -17,7 +17,7 @@ def save_temp_image(file) -> str:
         file.save(tmp.name)
         return tmp.name
 
-
+    
 def get_name_fields(form) -> tuple:
     return (
         form.get("first_name", ""),
@@ -37,13 +37,20 @@ def process_voters_certificate():
 
         enforce_cert_year = request.form.get("enforce_cert_year", "false").lower() == "true"
         configured_cert_year = request.form.get("cert_year", None)
-
+        is_minor = request.form.get("is_minor", "0") == "1"
+        guardian_first_name = request.form.get("guardian_first_name", "") or None
+        guardian_middle_name = request.form.get("guardian_middle_name", "") or None
+        guardian_last_name = request.form.get("guardian_last_name", "") or None
         ocr_result = run_ocr(tmp_path)
         avg_confidence = get_average_confidence(ocr_result)
         verification = verify_voters_certificate(
             ocr_result, avg_confidence,
             first_name, middle_name, last_name,
-            enforce_cert_year, configured_cert_year
+            enforce_cert_year, configured_cert_year,
+            is_minor=is_minor,
+            guardian_first_name=guardian_first_name,
+            guardian_middle_name=guardian_middle_name,
+            guardian_last_name=guardian_last_name
         )
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
         return jsonify({
@@ -65,7 +72,7 @@ def process_registration_form():
     try:
         if "file" not in request.files:
             return jsonify({"success": False, "error": "No file uploaded"}), 400
-
+        
         tmp_path = save_temp_image(request.files["file"])
         first_name, middle_name, last_name = get_name_fields(request.form)
         declared_school = request.form.get("declared_school", "")
@@ -88,7 +95,7 @@ def process_registration_form():
             "avg_confidence": avg_confidence,
             "verification": verification
         })
-
+    
     except Exception as e:
         import traceback
         return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
@@ -103,7 +110,7 @@ def process_school_id():
     try:
         if "file" not in request.files:
             return jsonify({"success": False, "error": "No file uploaded"}), 400
-
+        
         tmp_path = save_temp_image(request.files["file"])
         first_name, middle_name, last_name = get_name_fields(request.form)
         declared_school = request.form.get("declared_school", "")

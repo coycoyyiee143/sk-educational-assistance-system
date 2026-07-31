@@ -5,6 +5,11 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
 
+const CABUYAO_BARANGAYS = [
+  "Baclaran", "Banaybanay", "Banlic", "Bigaa", "Butong", "Casile",
+  "Diezmo", "Gulod", "Mamatid", "Marinig", "Niugan", "Pittland",
+  "Poblacion Uno", "Poblacion Dos", "Poblacion Tres", "Pulo", "Sala", "San Isidro",
+];
 
 const Register = () => {
   const [form, setForm] = useState({
@@ -13,25 +18,41 @@ const Register = () => {
     lastName: "",
     mobile: "",
     email: "",
+    birthdate: "",
+    barangay: "",
     password: "",
     confirmPassword: "",
   });
+  const [showOtherBarangay, setShowOtherBarangay] = useState(false);
+  const [otherBarangay, setOtherBarangay] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { user } = useAuth();
   const navigate = useNavigate();
-
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
-
+  const handleBarangaySelect = (e) => {
+    const value = e.target.value;
+    if (value === "Other") {
+      setShowOtherBarangay(true);
+      setForm({ ...form, barangay: otherBarangay });
+    } else {
+      setShowOtherBarangay(false);
+      setForm({ ...form, barangay: value });
+    }
+  };
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
+      return;
+    }
+    if (!form.barangay.trim()) {
+      setError("Please select your barangay.");
       return;
     }
     setLoading(true);
@@ -42,6 +63,8 @@ const Register = () => {
         last_name: form.lastName,
         mobile_number: form.mobile,
         email: form.email,
+        birthdate: form.birthdate,
+        barangay: form.barangay,
         password: form.password,
         password_confirmation: form.confirmPassword,
       });
@@ -153,7 +176,45 @@ const Register = () => {
                       </div>
                     </div>
                   </div>
-
+                  <div className="row">
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">Date of Birth <span className="text-danger">*</span></label>
+                      <input
+                        type="date"
+                        name="birthdate"
+                        className="form-control"
+                        onChange={handleChange}
+                        required
+                      />
+                    </div>
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">Barangay <span className="text-danger">*</span></label>
+                      <select
+                        className="form-select"
+                        value={showOtherBarangay ? "Other" : form.barangay}
+                        onChange={handleBarangaySelect}
+                        required
+                      >
+                        <option value="" disabled>Select your barangay</option>
+                        {CABUYAO_BARANGAYS.map((b) => (
+                          <option key={b} value={b}>{b}</option>
+                        ))}
+                        <option value="Other">Other (outside Cabuyao)</option>
+                      </select>
+                      {showOtherBarangay && (
+                        <input
+                          className="form-control mt-2"
+                          placeholder="Enter your barangay"
+                          value={otherBarangay}
+                          onChange={(e) => {
+                            setOtherBarangay(e.target.value);
+                            setForm({ ...form, barangay: e.target.value });
+                          }}
+                          required
+                        />
+                      )}
+                    </div>
+                  </div>
                   <div className="mb-3">
                     <label className="form-label">Password <span className="text-danger">*</span></label>
                     <div className="input-group">
