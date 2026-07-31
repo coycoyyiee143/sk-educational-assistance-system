@@ -5,6 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
+use App\Models\ClaimingAssignment;
+use App\Models\VerificationCheck;
+use App\Models\VerifierAction;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
 class AdminReportController extends Controller
@@ -13,7 +17,8 @@ class AdminReportController extends Controller
 
     private function approvedStatuses(): array
     {
-        return ['approved', 'physically_verified', 'claimed', 'not_cleared', 'unclaimed'];
+
+        return ['approved', 'claimed', 'not_cleared', 'unclaimed'];
     }
 
     private function pendingStatuses(): array
@@ -168,8 +173,6 @@ class AdminReportController extends Controller
 
         $activeConfig = $configs->firstWhere('is_active', true);
 
-        // If active period is unlimited, there's no hard cap to project against —
-        // fall back to average approved count as the projection ceiling instead.
         $projectedSlots = $activeConfig && !$activeConfig->is_unlimited
             ? $activeConfig->slot_limit
             : null;
@@ -190,5 +193,280 @@ class AdminReportController extends Controller
                 'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
             ],
         ]);
+    }
+
+    /**
+     * SK explicitly requested this one — how claiming day outcomes broke
+     * down, plus why applicants weren't cleared, sourced from the
+     * reason_categories captured on ClaimingAssignment.
+     */
+    public function claimingOutcomeSummary(Request $request)
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+
+        $query = ClaimingAssignment::query();
+        if ($config) {
+            $query->whereHas('application', fn($q) => $q->where('config_id', $config->id));
+        }
+
+        $claimed    = $query->clone()->where('claim_status', 'claimed')->count();
+        $notCleared = $query->clone()->where('claim_status', 'not_cleared')->count();
+        $unclaimed  = $query->clone()->where('claim_status', 'unclaimed')->count();
+        $pending    = $query->clone()->where('claim_status', 'pending')->count();
+
+        $total = $claimed + $notCleared + $unclaimed + $pending;
+
+        // Tally why applicants were marked not_cleared — reason_categories
+        // is a JSON array per assignment, so flatten and count.
+        $notClearedReasons = $query->clone()
+            ->where('claim_status', 'not_cleared')
+            ->whereNotNull('reason_categories')
+            ->pluck('reason_categories')
+            ->flatten()
+            ->countBy()
+            ->sortDesc();
+
+        return response()->json([
+            'config' => $config,
+            'counts' => [
+                'claimed'     => $claimed,
+                'not_cleared' => $notCleared,
+                'unclaimed'   => $unclaimed,
+                'pending'     => $pending,
+                'total'       => $total,
+            ],
+            'rates' => [
+                'claimed_rate'     => $total > 0 ? round(($claimed / $total) * 100, 1) : 0,
+                'not_cleared_rate' => $total > 0 ? round(($notCleared / $total) * 100, 1) : 0,
+                'unclaimed_rate'   => $total > 0 ? round(($unclaimed / $total) * 100, 1) : 0,
+            ],
+            'not_cleared_reasons' => $notClearedReasons,
+        ]);
+    }
+
+    /**
+     * Which document, and which specific reason, most often causes a
+     * rejection or re-upload request. Sourced from two places:
+     *   - VerifierAction.reupload_details (per-document reasons captured
+     *     at re-upload-request time)
+     *   - VerificationCheck failures (automated OCR check failures,
+     *     grouped by which document type they belong to)
+     */
+    public function documentFailureBreakdown(Request $request)
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+
+        $actionQuery = VerifierAction::where('action', 'reupload_requested');
+        if ($config) {
+            $actionQuery->whereHas('application', fn($q) => $q->where('config_id', $config->id));
+        }
+
+        // Flatten reupload_details across all matching actions into a
+        // single list of {document_type, reason_categories} entries.
+        $perDocumentReasons = [];
+        $documentFlagCounts = [];
+
+        foreach ($actionQuery->get() as $action) {
+            foreach (($action->reupload_details ?? []) as $detail) {
+                $docType = $detail['document_type'] ?? 'unknown';
+                $documentFlagCounts[$docType] = ($documentFlagCounts[$docType] ?? 0) + 1;
+
+                foreach (($detail['reason_categories'] ?? []) as $reason) {
+                    $perDocumentReasons[$docType][$reason] = ($perDocumentReasons[$docType][$reason] ?? 0) + 1;
+                }
+            }
+        }
+
+        // Automated OCR check failures, grouped by document type via the
+        // check's associated document record.
+        $checkQuery = VerificationCheck::where('passed', false)
+            ->with('document');
+        if ($config) {
+            $checkQuery->whereHas('application', fn($q) => $q->where('config_id', $config->id));
+        }
+
+        $automatedFailuresByDocType = $checkQuery->get()
+            ->groupBy(fn($check) => $check->document->document_type ?? 'unknown')
+            ->map(fn($group) => $group->countBy('check_name'));
+
+        return response()->json([
+            'config' => $config,
+            'reupload_flag_counts_by_document' => $documentFlagCounts,
+            'reupload_reasons_by_document'     => $perDocumentReasons,
+            'automated_check_failures_by_document' => $automatedFailuresByDocType,
+        ]);
+    }
+
+    /**
+     * Applicant distribution by school, course, and year level — for the
+     * active period.
+     */
+    public function applicantDistribution(Request $request)
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+
+        $query = Application::query();
+        if ($config) {
+            $query->where('config_id', $config->id);
+        }
+
+        $bySchool = $query->clone()
+            ->selectRaw('school_name, COUNT(*) as total')
+            ->groupBy('school_name')
+            ->orderByDesc('total')
+            ->get();
+
+        $byCourse = $query->clone()
+            ->selectRaw('course, COUNT(*) as total')
+            ->groupBy('course')
+            ->orderByDesc('total')
+            ->get();
+
+        $byYearLevel = $query->clone()
+            ->selectRaw('year_level, COUNT(*) as total')
+            ->groupBy('year_level')
+            ->orderBy('year_level')
+            ->get();
+
+        return response()->json([
+            'config'        => $config,
+            'by_school'     => $bySchool,
+            'by_course'     => $byCourse,
+            'by_year_level' => $byYearLevel,
+        ]);
+    }
+
+    /**
+     * Submission volume over time (weekly buckets) for the active period,
+     * so SK can see submission pacing across the application window.
+     */
+    public function submissionTrends(Request $request)
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+
+        $query = Application::query();
+        if ($config) {
+            $query->where('config_id', $config->id);
+        }
+
+        $trend = $query->clone()
+            ->selectRaw("YEARWEEK(submitted_at, 1) as year_week, MIN(DATE(submitted_at)) as week_start, COUNT(*) as total")
+            ->whereNotNull('submitted_at')
+            ->groupBy('year_week')
+            ->orderBy('year_week')
+            ->get();
+
+        return response()->json([
+            'config' => $config,
+            'weekly' => $trend,
+        ]);
+    }
+
+    /**
+     * Total submissions broken down by outcome, per period — the
+     * foundation for genuine demand forecasting once enough real cycles
+     * accumulate. Unlike historical approved-only counts, this tracks
+     * every application regardless of outcome, closing the gap SK's old
+     * manual process couldn't: they only ever recorded approved counts,
+     * with rejected/incomplete applications simply not retained.
+     */
+    public function submissionVsApprovalTrend(Request $request)
+    {
+        $configs = ApplicationConfiguration::orderBy('open_date')->get();
+
+        $trend = $configs->map(function ($config) {
+            $total      = Application::where('config_id', $config->id)->count();
+            $approved   = Application::where('config_id', $config->id)
+                ->whereIn('status', $this->approvedStatuses())
+                ->count();
+            $rejected   = Application::where('config_id', $config->id)
+                ->where('status', 'rejected')
+                ->count();
+            $notCleared = Application::where('config_id', $config->id)
+                ->where('status', 'not_cleared')
+                ->count();
+            $pending    = Application::where('config_id', $config->id)
+                ->whereIn('status', $this->pendingStatuses())
+                ->count();
+
+            return [
+                'config_id'      => $config->id,
+                'school_year'    => $config->school_year,
+                'is_active'      => $config->is_active,
+                'total_submitted'=> $total,
+                'approved'       => $approved,
+                'rejected'       => $rejected,
+                'not_cleared'    => $notCleared,
+                'pending'        => $pending,
+                'approval_rate'  => $total > 0 ? round(($approved / $total) * 100, 1) : 0,
+            ];
+        });
+
+        return response()->json([
+            'trend' => $trend->values(),
+        ]);
+    }
+
+    // ── PDF EXPORTS ──────────────────────────────────────────────────
+
+    public function claimingOutcomesPdf(Request $request)
+    {
+        $data = $this->claimingOutcomeSummary($request)->getData(true);
+        $pdf = Pdf::loadView('reports.claiming-outcomes', [
+            'title'              => 'Claiming Outcome Summary',
+            'config'             => (object) $data['config'] ?? null,
+            'counts'             => $data['counts'],
+            'rates'              => $data['rates'],
+            'notClearedReasons'  => $data['not_cleared_reasons'],
+        ]);
+        return $pdf->download('claiming-outcome-summary-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    public function documentFailuresPdf(Request $request)
+    {
+        $data = $this->documentFailureBreakdown($request)->getData(true);
+        $pdf = Pdf::loadView('reports.document-failures', [
+            'title'                   => 'Document Failure Breakdown',
+            'config'                  => (object) $data['config'] ?? null,
+            'reuploadFlagCounts'      => $data['reupload_flag_counts_by_document'],
+            'reuploadReasonsByDoc'    => $data['reupload_reasons_by_document'],
+            'automatedFailuresByDoc'  => $data['automated_check_failures_by_document'],
+        ]);
+        return $pdf->download('document-failure-breakdown-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    public function applicantDistributionPdf(Request $request)
+    {
+        $data = $this->applicantDistribution($request)->getData(true);
+        $pdf = Pdf::loadView('reports.applicant-distribution', [
+            'title'        => 'Applicant Distribution',
+            'config'       => (object) $data['config'] ?? null,
+            'bySchool'     => collect($data['by_school'])->map(fn($r) => (object) $r),
+            'byCourse'     => collect($data['by_course'])->map(fn($r) => (object) $r),
+            'byYearLevel'  => collect($data['by_year_level'])->map(fn($r) => (object) $r),
+        ]);
+        return $pdf->download('applicant-distribution-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    public function submissionTrendsPdf(Request $request)
+    {
+        $data = $this->submissionTrends($request)->getData(true);
+        $pdf = Pdf::loadView('reports.submission-trends', [
+            'title'  => 'Submission Trends',
+            'config' => (object) $data['config'] ?? null,
+            'weekly' => collect($data['weekly'])->map(fn($r) => (object) $r),
+        ]);
+        return $pdf->download('submission-trends-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    public function submissionVsApprovalPdf(Request $request)
+    {
+        $data = $this->submissionVsApprovalTrend($request)->getData(true);
+        $pdf = Pdf::loadView('reports.submission-vs-approval', [
+            'title'  => 'Submission vs. Approval Trend',
+            'config' => null,
+            'trend'  => $data['trend'],
+        ]);
+        return $pdf->download('submission-vs-approval-trend-' . now()->format('Y-m-d') . '.pdf');
     }
 }

@@ -11,7 +11,7 @@ const reportTypes = [
 
 const emptyFilter = { type: "All Applications", from: "", to: "" };
 
-const APPROVED_SET = ["approved", "physically_verified", "claimed", "not_cleared", "unclaimed"];
+const APPROVED_SET = ["approved", "claimed", "not_cleared", "unclaimed"];
 const PENDING_SET = ["pending_prescreening", "for_review", "reupload_requested"];
 
 function StatusBadge({ status }) {
@@ -32,14 +32,45 @@ function formatCurrency(amount) {
   return "₱" + Number(amount ?? 0).toLocaleString("en-PH");
 }
 
+function formatDocType(type) {
+  return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Simple horizontal bar built from existing utility classes — no chart
+// library dependency needed for this.
+function DistributionBar({ label, count, max }) {
+  const pct = max > 0 ? Math.round((count / max) * 100) : 0;
+  return (
+    <div className="mb-2">
+      <div className="d-flex justify-content-between small mb-1">
+        <span>{label}</span>
+        <span className="text-muted">{count}</span>
+      </div>
+      <div className="progress" style={{ height: "8px" }}>
+        <div
+          className="progress-bar bg-danger"
+          role="progressbar"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function AdminReports() {
   const [summary, setSummary] = useState(null);
   const [forecast, setForecast] = useState(null);
+  const [claimingOutcomes, setClaimingOutcomes] = useState(null);
+  const [documentFailures, setDocumentFailures] = useState(null);
+  const [distribution, setDistribution] = useState(null);
+  const [submissionVsApproval, setSubmissionVsApproval] = useState(null);
+  const [trends, setTrends] = useState(null);
   const [filter, setFilter] = useState(emptyFilter);
   const [preview, setPreview] = useState([]);
   const [loading, setLoading] = useState(true);
   const [previewing, setPreviewing] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [pdfExportingKey, setPdfExportingKey] = useState(null);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -47,10 +78,20 @@ function AdminReports() {
       api.get("/admin/reports/summary"),
       api.get("/admin/reports/budget-forecast"),
       api.get("/admin/reports/applications"),
-    ]).then(([summaryRes, forecastRes, appsRes]) => {
+      api.get("/admin/reports/claiming-outcomes"),
+      api.get("/admin/reports/document-failures"),
+      api.get("/admin/reports/applicant-distribution"),
+      api.get("/admin/reports/submission-trends"),
+      api.get("/admin/reports/submission-vs-approval"),
+    ]).then(([summaryRes, forecastRes, appsRes, claimingRes, docFailRes, distRes, trendsRes, submissionVsApprovalRes]) => {
       setSummary(summaryRes.data);
       setForecast(forecastRes.data);
       setPreview(appsRes.data);
+      setClaimingOutcomes(claimingRes.data);
+      setDocumentFailures(docFailRes.data);
+      setDistribution(distRes.data);
+      setTrends(trendsRes.data);
+      setSubmissionVsApproval(submissionVsApprovalRes.data);
     }).catch(() => setError("Failed to load report data."))
       .finally(() => setLoading(false));
   }, []);
@@ -99,6 +140,26 @@ function AdminReports() {
     }
   }
 
+  async function handlePdfExport(endpoint, filenamePrefix, key) {
+    setError("");
+    setPdfExportingKey(key);
+    try {
+      const res = await api.get(endpoint, { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError("Failed to export PDF report.");
+    } finally {
+      setPdfExportingKey(null);
+    }
+  }
+
   if (loading) {
     return (
       <div>
@@ -113,6 +174,25 @@ function AdminReports() {
   const stats = summary?.summary ?? {};
   const rates = summary?.rates ?? {};
   const fc = forecast?.forecast ?? {};
+
+  const claimCounts = claimingOutcomes?.counts ?? {};
+  const claimRates = claimingOutcomes?.rates ?? {};
+  const notClearedReasons = claimingOutcomes?.not_cleared_reasons ?? {};
+
+  const reuploadFlagCounts = documentFailures?.reupload_flag_counts_by_document ?? {};
+  const reuploadReasonsByDoc = documentFailures?.reupload_reasons_by_document ?? {};
+  const automatedFailuresByDoc = documentFailures?.automated_check_failures_by_document ?? {};
+  const maxReuploadFlags = Math.max(1, ...Object.values(reuploadFlagCounts));
+
+  const bySchool = distribution?.by_school ?? [];
+  const byCourse = distribution?.by_course ?? [];
+  const byYearLevel = distribution?.by_year_level ?? [];
+  const maxSchoolCount = Math.max(1, ...bySchool.map((r) => r.total));
+  const maxCourseCount = Math.max(1, ...byCourse.map((r) => r.total));
+  const maxYearLevelCount = Math.max(1, ...byYearLevel.map((r) => r.total));
+
+  const weeklyTrend = trends?.weekly ?? [];
+  const maxWeeklyCount = Math.max(1, ...weeklyTrend.map((w) => w.total));
 
   return (
     <div>
@@ -264,6 +344,306 @@ function AdminReports() {
                 </div>
               </div>
             </div>
+          </div>
+
+          {/* Claiming Outcome Summary — SK specifically requested this one */}
+          <div className="page-card">
+            <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <h4 className="sub-title">
+                Claiming Outcome Summary
+                {claimingOutcomes?.config && (
+                  <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>
+                    {" "}— {claimingOutcomes.config.school_year}
+                  </span>
+                )}
+              </h4>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-custom"
+                disabled={pdfExportingKey === "claiming"}
+                onClick={() => handlePdfExport("/admin/reports/claiming-outcomes/pdf", "claiming-outcome-summary", "claiming")}
+              >
+                {pdfExportingKey === "claiming" ? "Exporting..." : "Export PDF"}
+              </button>
+            </div>
+            {!claimingOutcomes?.config || claimCounts.total === 0 ? (
+              <div className="alert alert-info mb-0">No claiming data available yet for this period.</div>
+            ) : (
+              <>
+                <div className="row g-4 mb-3">
+                  <div className="col-md-3">
+                    <div className="summary-card">
+                      <h2>{claimCounts.claimed}</h2>
+                      <p>Claimed ({claimRates.claimed_rate}%)</p>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="summary-card">
+                      <h2>{claimCounts.not_cleared}</h2>
+                      <p>Not Cleared ({claimRates.not_cleared_rate}%)</p>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="summary-card">
+                      <h2>{claimCounts.unclaimed}</h2>
+                      <p>Unclaimed ({claimRates.unclaimed_rate}%)</p>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="summary-card">
+                      <h2>{claimCounts.pending}</h2>
+                      <p>Awaiting Claiming</p>
+                    </div>
+                  </div>
+                </div>
+                {Object.keys(notClearedReasons).length > 0 && (
+                  <>
+                    <h6 className="text-muted text-uppercase small fw-bold mb-2">Not Cleared — Common Reasons</h6>
+                    {Object.entries(notClearedReasons).map(([reason, count]) => (
+                      <DistributionBar
+                        key={reason}
+                        label={reason}
+                        count={count}
+                        max={Math.max(...Object.values(notClearedReasons))}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Document Failure Breakdown */}
+          <div className="page-card">
+            <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <h4 className="sub-title">
+                Document Failure Breakdown
+                {documentFailures?.config && (
+                  <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>
+                    {" "}— {documentFailures.config.school_year}
+                  </span>
+                )}
+              </h4>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-custom"
+                disabled={pdfExportingKey === "documentFailures"}
+                onClick={() => handlePdfExport("/admin/reports/document-failures/pdf", "document-failure-breakdown", "documentFailures")}
+              >
+                {pdfExportingKey === "documentFailures" ? "Exporting..." : "Export PDF"}
+              </button>
+            </div>
+            <div className="info-box">
+              Shows which document most often causes a re-upload request, and which
+              automated checks fail most often per document type.
+            </div>
+            {Object.keys(reuploadFlagCounts).length === 0 && Object.keys(automatedFailuresByDoc).length === 0 ? (
+              <div className="alert alert-info mb-0">No document flags recorded yet for this period.</div>
+            ) : (
+              <>
+                {Object.keys(reuploadFlagCounts).length > 0 && (
+                  <>
+                    <h6 className="text-muted text-uppercase small fw-bold mb-2">Re-upload Requests by Document</h6>
+                    {Object.entries(reuploadFlagCounts).map(([docType, count]) => (
+                      <DistributionBar
+                        key={docType}
+                        label={formatDocType(docType)}
+                        count={count}
+                        max={maxReuploadFlags}
+                      />
+                    ))}
+                  </>
+                )}
+
+                {Object.entries(reuploadReasonsByDoc).map(([docType, reasons]) => (
+                  <div className="mt-3" key={docType}>
+                    <h6 className="text-muted small fw-bold mb-2">{formatDocType(docType)} — Reasons</h6>
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered mb-0">
+                        <thead>
+                          <tr><th>Reason</th><th style={{ width: "80px" }}>Count</th></tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(reasons)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([reason, count]) => (
+                              <tr key={reason}>
+                                <td>{reason}</td>
+                                <td>{count}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+
+                {Object.keys(automatedFailuresByDoc).length > 0 && (
+                  <div className="mt-4">
+                    <h6 className="text-muted text-uppercase small fw-bold mb-2">Automated OCR Check Failures by Document</h6>
+                    <div className="table-responsive">
+                      <table className="table table-sm table-bordered mb-0">
+                        <thead>
+                          <tr><th>Document</th><th>Check</th><th style={{ width: "80px" }}>Failures</th></tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(automatedFailuresByDoc).flatMap(([docType, checks]) =>
+                            Object.entries(checks).map(([checkName, count]) => (
+                              <tr key={`${docType}-${checkName}`}>
+                                <td>{formatDocType(docType)}</td>
+                                <td><code className="small">{checkName}</code></td>
+                                <td>{count}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Applicant Distribution */}
+          <div className="page-card">
+            <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <h4 className="sub-title">
+                Applicant Distribution
+                {distribution?.config && (
+                  <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>
+                    {" "}— {distribution.config.school_year}
+                  </span>
+                )}
+              </h4>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-custom"
+                disabled={pdfExportingKey === "distribution"}
+                onClick={() => handlePdfExport("/admin/reports/applicant-distribution/pdf", "applicant-distribution", "distribution")}
+              >
+                {pdfExportingKey === "distribution" ? "Exporting..." : "Export PDF"}
+              </button>
+            </div>
+            {!distribution?.config || bySchool.length === 0 ? (
+              <div className="alert alert-info mb-0">No applicant data available yet for this period.</div>
+            ) : (
+              <div className="row g-4">
+                <div className="col-md-4">
+                  <h6 className="text-muted text-uppercase small fw-bold mb-2">By School</h6>
+                  {bySchool.map((r) => (
+                    <DistributionBar key={r.school_name} label={r.school_name} count={r.total} max={maxSchoolCount} />
+                  ))}
+                </div>
+                <div className="col-md-4">
+                  <h6 className="text-muted text-uppercase small fw-bold mb-2">By Course</h6>
+                  {byCourse.map((r) => (
+                    <DistributionBar key={r.course} label={r.course} count={r.total} max={maxCourseCount} />
+                  ))}
+                </div>
+                <div className="col-md-4">
+                  <h6 className="text-muted text-uppercase small fw-bold mb-2">By Year Level</h6>
+                  {byYearLevel.map((r) => (
+                    <DistributionBar key={r.year_level} label={r.year_level} count={r.total} max={maxYearLevelCount} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Submission Trends */}
+          <div className="page-card">
+            <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <h4 className="sub-title">
+                Submission Trends
+                {trends?.config && (
+                  <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>
+                    {" "}— {trends.config.school_year}
+                  </span>
+                )}
+              </h4>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-custom"
+                disabled={pdfExportingKey === "trends"}
+                onClick={() => handlePdfExport("/admin/reports/submission-trends/pdf", "submission-trends", "trends")}
+              >
+                {pdfExportingKey === "trends" ? "Exporting..." : "Export PDF"}
+              </button>
+            </div>
+            <div className="info-box">
+              Number of applications submitted per week within the active application period.
+            </div>
+            {weeklyTrend.length === 0 ? (
+              <div className="alert alert-info mb-0">No submissions recorded yet for this period.</div>
+            ) : (
+              weeklyTrend.map((w) => (
+                <DistributionBar
+                  key={w.year_week}
+                  label={`Week of ${formatDate(w.week_start)}`}
+                  count={w.total}
+                  max={maxWeeklyCount}
+                />
+              ))
+            )}
+          </div>
+
+          {/* Submission vs. Approval Trend — foundation for future forecasting */}
+          <div className="page-card">
+            <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+              <h4 className="sub-title">Submission vs. Approval Trend</h4>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline-custom"
+                disabled={pdfExportingKey === "submissionVsApproval"}
+                onClick={() => handlePdfExport("/admin/reports/submission-vs-approval/pdf", "submission-vs-approval-trend", "submissionVsApproval")}
+              >
+                {pdfExportingKey === "submissionVsApproval" ? "Exporting..." : "Export PDF"}
+              </button>
+            </div>
+            <div className="info-box">
+              Tracks total submissions per period, not just approved counts — the
+              basis for genuine demand forecasting once enough real application
+              cycles have run on this system.
+            </div>
+            {!submissionVsApproval?.trend?.length ? (
+              <div className="alert alert-info mb-0">No application period data available yet.</div>
+            ) : (
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped align-middle">
+                  <thead>
+                    <tr>
+                      <th>School Year</th>
+                      <th>Total Submitted</th>
+                      <th>Approved</th>
+                      <th>Rejected</th>
+                      <th>Not Cleared</th>
+                      <th>Pending</th>
+                      <th>Approval Rate</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {submissionVsApproval.trend.map((row) => (
+                      <tr key={row.config_id}>
+                        <td>{row.school_year}</td>
+                        <td>{row.total_submitted}</td>
+                        <td>{row.approved}</td>
+                        <td>{row.rejected}</td>
+                        <td>{row.not_cleared}</td>
+                        <td>{row.pending}</td>
+                        <td>{row.approval_rate}%</td>
+                        <td>
+                          {row.is_active
+                            ? <span className="badge bg-success">Active</span>
+                            : <span className="badge bg-secondary">Completed</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Budget Forecast */}
