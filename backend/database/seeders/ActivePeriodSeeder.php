@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
 use App\Models\ApplicationDocument;
+use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -42,7 +43,7 @@ class ActivePeriodSeeder extends Seeder
             'open_date'    => now()->subDays(1)->startOfDay(),
             'close_date'   => now()->addDays(13)->endOfDay(),
             'slot_limit'   => 2000,
-            'slots_filled' => 1,
+            'slots_filled' => 2,
             'is_unlimited' => false,
             'is_active'    => true,
             'created_by'   => $admin->id,
@@ -59,6 +60,13 @@ class ActivePeriodSeeder extends Seeder
             'role'              => 'applicant',
             'is_active'         => true,
             'email_verified_at' => now(),
+        ]);
+
+        StudentProfile::create([
+            'user_id'              => $approvedApplicant->id,
+            'birthdate'            => now()->subYears(20)->subDays(45),
+            'barangay'             => 'Mamatid',
+            'is_profile_complete'  => true,
         ]);
 
         $approvedApp = Application::create([
@@ -95,7 +103,7 @@ class ActivePeriodSeeder extends Seeder
         }
 
         // Applicant #2 — registered account only, no application submitted yet
-        User::create([
+        $loginApplicant = User::create([
             'first_name'        => 'Regina Grace',
             'middle_name'       => 'Antido',
             'last_name'         => 'Ayes',
@@ -106,5 +114,70 @@ class ActivePeriodSeeder extends Seeder
             'is_active'         => true,
             'email_verified_at' => now(),
         ]);
+
+        StudentProfile::create([
+            'user_id'             => $loginApplicant->id,
+            'birthdate'           => '2002-08-08',
+            'barangay'            => 'Mamatid',
+            'is_profile_complete' => true,
+        ]);
+
+        // Applicant #3 — MINOR applicant, complete profile including
+        // guardian info, application already submitted and approved with
+        // placeholder documents (same pattern as Applicant #1). Exists
+        // specifically to test the Guardian row on VerifierApplicationReview
+        // without needing to manually submit an application first — just
+        // open this application as a verifier and the Guardian
+        // (Minor Applicant) row should render "Elena Marie Santos (Mother)".
+        // As with Applicant #1's documents, these file_path values are
+        // placeholders that will 404 on "View File" — use a real end-to-end
+        // upload if you need to test the actual OCR guardian-name check.
+        $minorApplicant = User::create([
+            'first_name'        => 'Miguel',
+            'middle_name'       => 'Ramos',
+            'last_name'         => 'Santos',
+            'email'             => 'minor@test.com',
+            'mobile_number'     => '09333333333',
+            'password'          => Hash::make('applicant123'),
+            'role'              => 'applicant',
+            'is_active'         => true,
+            'email_verified_at' => now(),
+        ]);
+
+        StudentProfile::create([
+            'user_id'               => $minorApplicant->id,
+            'birthdate'             => '2010-10-09',
+            'barangay'              => 'Mamatid',
+            'guardian_first_name'   => 'Elena',
+            'guardian_middle_name'  => 'Marie',
+            'guardian_last_name'    => 'Santos',
+            'guardian_relationship' => 'Mother',
+            'guardian_contact'      => '09444444444',
+            'is_profile_complete'   => true,
+        ]);
+
+        $minorApp = Application::create([
+            'user_id'            => $minorApplicant->id,
+            'config_id'          => $config->id,
+            'school_name'        => 'Pamantasan ng Cabuyao',
+            'course'             => 'BS Information Technology',
+            'year_level'         => '1st Year',
+            'student_id_number'  => '2025-00456',
+            'status'             => 'approved',
+            'control_number'     => Application::generateControlNumber($config->id),
+            'submitted_at'       => now()->subDays(1),
+        ]);
+
+        foreach (['registration_form', 'school_id', 'voters_certificate'] as $docType) {
+            ApplicationDocument::create([
+                'application_id' => $minorApp->id,
+                'document_type'  => $docType,
+                'file_path'      => "documents/{$minorApp->id}/seeded_placeholder_{$docType}.jpg",
+                'file_name'      => "seeded_placeholder_{$docType}.jpg",
+                'mime_type'      => 'image/jpeg',
+                'version'        => 1,
+                'status'         => 'processed',
+            ]);
+        }
     }
 }

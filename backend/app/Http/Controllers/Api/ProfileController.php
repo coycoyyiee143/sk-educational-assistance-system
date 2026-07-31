@@ -125,18 +125,20 @@ class ProfileController extends Controller
     private function validateProfile(Request $request): array
     {
         return $request->validate([
-            'birthdate'             => 'nullable|date',
-            'gender'                => 'nullable|in:male,female,other',
-            'civil_status'          => 'nullable|in:single,married,widowed,separated',
-            'house_no'              => 'nullable|string',
-            'street'                => 'nullable|string',
-            'purok'                 => 'nullable|string',
-            'barangay'              => 'nullable|string',
-            'city'                  => 'nullable|string',
-            'province'              => 'nullable|string',
-            'guardian_name'         => 'nullable|string',
-            'guardian_relationship' => 'nullable|string',
-            'guardian_contact'      => 'nullable|string',
+            'birthdate'              => 'nullable|date',
+            'gender'                 => 'nullable|in:male,female,other',
+            'civil_status'           => 'nullable|in:single,married,widowed,separated',
+            'house_no'               => 'nullable|string',
+            'street'                 => 'nullable|string',
+            'purok'                  => 'nullable|string',
+            'barangay'               => 'nullable|string',
+            'city'                   => 'nullable|string',
+            'province'               => 'nullable|string',
+            'guardian_first_name'    => 'nullable|string',
+            'guardian_middle_name'   => 'nullable|string',
+            'guardian_last_name'     => 'nullable|string',
+            'guardian_relationship'  => 'nullable|string',
+            'guardian_contact'       => 'nullable|string',
         ]);
     }
 }

@@ -20,7 +20,9 @@ return new class extends Migration
             $table->string('barangay')->nullable();
             $table->string('city')->nullable();
             $table->string('province')->nullable();
-            $table->string('guardian_name')->nullable();
+            $table->string('guardian_first_name')->nullable();
+            $table->string('guardian_middle_name')->nullable();
+            $table->string('guardian_last_name')->nullable();
             $table->string('guardian_relationship')->nullable();
             $table->string('guardian_contact')->nullable();
             $table->boolean('is_profile_complete')->default(false);
