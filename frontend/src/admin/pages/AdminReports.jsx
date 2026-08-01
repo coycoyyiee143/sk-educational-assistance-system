@@ -9,7 +9,18 @@ const reportTypes = [
   "Pending Applications",
 ];
 
-const emptyFilter = { type: "All Applications", from: "", to: "" };
+const applicantTypes = ["All Applicants", "Minor", "Adult"];
+const yearLevelOptions = ["All Year Levels", "1st Year", "2nd Year", "3rd Year", "4th Year"];
+
+const emptyFilter = {
+  type: "All Applications",
+  from: "",
+  to: "",
+  school_name: "All Schools",
+  course: "All Courses",
+  year_level: "All Year Levels",
+  applicant_type: "All Applicants",
+};
 
 const APPROVED_SET = ["approved", "claimed", "not_cleared", "unclaimed"];
 const PENDING_SET = ["pending_prescreening", "for_review", "reupload_requested"];
@@ -61,6 +72,8 @@ function AdminReports() {
   const [periods, setPeriods] = useState([]);
   const [selectedConfigId, setSelectedConfigId] = useState("");
 
+  const [filterOptions, setFilterOptions] = useState({ schools: [], courses: [] });
+
   const [summary, setSummary] = useState(null);
   const [forecast, setForecast] = useState(null);
   const [claimingOutcomes, setClaimingOutcomes] = useState(null);
@@ -77,7 +90,7 @@ function AdminReports() {
   const [pdfExportingKey, setPdfExportingKey] = useState(null);
   const [error, setError] = useState("");
 
-  // Load the period list once, on mount.
+  // Load the period list and filter option lists once, on mount.
   useEffect(() => {
     api.get("/admin/reports/periods")
       .then((res) => {
@@ -86,6 +99,10 @@ function AdminReports() {
         setSelectedConfigId(active ? String(active.id) : (res.data[0] ? String(res.data[0].id) : ""));
       })
       .catch(() => setError("Failed to load application periods."));
+
+    api.get("/admin/reports/filter-options")
+      .then((res) => setFilterOptions(res.data))
+      .catch(() => { });
   }, []);
 
   const loadPeriodScopedReports = useCallback((configId) => {
@@ -128,6 +145,10 @@ function AdminReports() {
     if (filter.type !== "All Applications") params.type = filter.type;
     if (filter.from) params.from = filter.from;
     if (filter.to) params.to = filter.to;
+    if (filter.school_name !== "All Schools") params.school_name = filter.school_name;
+    if (filter.course !== "All Courses") params.course = filter.course;
+    if (filter.year_level !== "All Year Levels") params.year_level = filter.year_level;
+    if (filter.applicant_type !== "All Applicants") params.applicant_type = filter.applicant_type.toLowerCase();
     return params;
   }
 
@@ -298,11 +319,7 @@ function AdminReports() {
             )}
           </div>
 
-          {/* Applicant Records Export — renamed from "Generate Report" since
-              that name was ambiguous once several other reports were added
-              below it. This section specifically covers the raw,
-              record-level applicant list (CSV/table), not the summary
-              reports further down the page. */}
+          {/* Applicant Records Export */}
           <div className="page-card">
             <h4 className="sub-title">Applicant Records Export</h4>
             <div className="info-box">
@@ -310,17 +327,43 @@ function AdminReports() {
             </div>
             <form onSubmit={handlePreview}>
               <div className="row g-3">
-                <div className="col-md-4">
-                  <label className="form-label">Report Type</label>
+                <div className="col-md-3">
+                  <label className="form-label">Status</label>
                   <select className="form-select" value={filter.type} onChange={set("type")}>
                     {reportTypes.map((t) => <option key={t}>{t}</option>)}
                   </select>
                 </div>
-                <div className="col-md-4">
+                <div className="col-md-3">
+                  <label className="form-label">School</label>
+                  <select className="form-select" value={filter.school_name} onChange={set("school_name")}>
+                    <option>All Schools</option>
+                    {filterOptions.schools.map((s) => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label">Course / Program</label>
+                  <select className="form-select" value={filter.course} onChange={set("course")}>
+                    <option>All Courses</option>
+                    {filterOptions.courses.map((c) => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label">Year Level</label>
+                  <select className="form-select" value={filter.year_level} onChange={set("year_level")}>
+                    {yearLevelOptions.map((y) => <option key={y}>{y}</option>)}
+                  </select>
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label">Applicant Type</label>
+                  <select className="form-select" value={filter.applicant_type} onChange={set("applicant_type")}>
+                    {applicantTypes.map((t) => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="col-md-3">
                   <label className="form-label">From Date</label>
                   <input type="date" className="form-control" value={filter.from} onChange={set("from")} />
                 </div>
-                <div className="col-md-4">
+                <div className="col-md-3">
                   <label className="form-label">To Date</label>
                   <input type="date" className="form-control" value={filter.to} onChange={set("to")} />
                 </div>
@@ -330,15 +373,13 @@ function AdminReports() {
                   {previewing ? "Loading..." : "Preview"}
                 </button>
                 <button type="button" className="btn btn-custom" onClick={handleExport} disabled={exporting}>
-                  {exporting ? "Exporting..." : "Export Report"}
+                  {exporting ? "Exporting..." : "Export CSV"}
                 </button>
               </div>
             </form>
           </div>
 
-          {/* Report Preview — scrollable container so a long applicant
-              list doesn't stretch the whole page; the table scrolls
-              within its own fixed-height box instead. */}
+          {/* Report Preview */}
           <div className="page-card">
             <h4 className="sub-title">Report Preview</h4>
             <div className="table-responsive" style={{ maxHeight: "420px", overflowY: "auto" }}>
@@ -352,6 +393,7 @@ function AdminReports() {
                     <th>Status</th>
                     <th>School</th>
                     <th>Course / Strand</th>
+                    <th>Year Level</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -364,10 +406,11 @@ function AdminReports() {
                       <td><StatusBadge status={r.status} /></td>
                       <td>{r.school_name}</td>
                       <td>{r.course}</td>
+                      <td>{r.year_level}</td>
                     </tr>
                   ))}
                   {preview.length === 0 && (
-                    <tr><td colSpan="7" className="text-center text-muted">No records found.</td></tr>
+                    <tr><td colSpan="8" className="text-center text-muted">No records found.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -689,8 +732,7 @@ function AdminReports() {
             )}
           </div>
 
-          {/* Submission vs. Approval Trend — spans all periods, foundation
-              for future forecasting, unaffected by the period selector */}
+          {/* Submission vs. Approval Trend — spans all periods */}
           <div className="page-card">
             <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
               <h4 className="sub-title">Submission vs. Approval Trend</h4>
@@ -749,7 +791,8 @@ function AdminReports() {
             )}
           </div>
 
-          {/* Budget Forecast — spans all periods, unaffected by the period selector */}
+          {/* Budget Forecast — spans all periods, PDF export intentionally
+              not yet added, pending further discussion */}
           <div className="page-card">
             <h4 className="sub-title">Budget Forecast</h4>
             <div className="info-box">

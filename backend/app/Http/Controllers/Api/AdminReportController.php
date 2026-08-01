@@ -49,6 +49,14 @@ class AdminReportController extends Controller
         );
     }
 
+    public function filterOptions()
+    {
+        return response()->json([
+            'schools' => Application::whereNotNull('school_name')->distinct()->orderBy('school_name')->pluck('school_name'),
+            'courses' => Application::whereNotNull('course')->distinct()->orderBy('course')->pluck('course'),
+        ]);
+    }
+
     public function summary(Request $request)
     {
         $config = $this->resolveConfig($request);
@@ -79,67 +87,14 @@ class AdminReportController extends Controller
         ]);
     }
 
-    public function applications(Request $request)
-    {
-        $query = Application::with('user')->latest('submitted_at');
-        $this->applyFilters($query, $request);
-
-        $applications = $query->get()->map(function ($app) {
-            return [
-                'id'             => $app->id,
-                'control_number' => $app->control_number,
-                'name'           => trim($app->user->first_name . ' ' . $app->user->last_name),
-                'submitted_at'   => $app->submitted_at,
-                'status'         => $app->status,
-                'school_name'    => $app->school_name,
-                'course'         => $app->course,
-            ];
-        });
-
-        return response()->json($applications);
-    }
-
-    public function export(Request $request)
-    {
-        $query = Application::with('user')->latest('submitted_at');
-        $this->applyFilters($query, $request);
-        $applications = $query->get();
-
-        $filename = 'applicant-records-' . now()->format('Y-m-d') . '.csv';
-
-        $headers = [
-            'Content-Type'        => 'text/csv',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ];
-
-        $callback = function () use ($applications) {
-            $handle = fopen('php://output', 'w');
-
-            fputcsv($handle, [
-                'Application ID', 'Control Number', 'Applicant Name', 'Email',
-                'School', 'Course', 'Year Level', 'Status', 'Submitted At',
-            ]);
-
-            foreach ($applications as $app) {
-                fputcsv($handle, [
-                    'APP-' . $app->id,
-                    $app->control_number,
-                    trim($app->user->first_name . ' ' . $app->user->last_name),
-                    $app->user->email,
-                    $app->school_name,
-                    $app->course,
-                    $app->year_level,
-                    $app->status,
-                    $app->submitted_at,
-                ]);
-            }
-
-            fclose($handle);
-        };
-
-        return response()->stream($callback, 200, $headers);
-    }
-
+    /**
+     * Applies all shared filters (status type, date range, school,
+     * course, year level) to the query. Applicant type (minor/adult)
+     * is NOT applied here — is_minor is a computed accessor on
+     * StudentProfile, not a real database column, so it can't be
+     * filtered via a SQL where() clause. It's filtered in PHP after
+     * the query runs instead, in both applications() and export().
+     */
     private function applyFilters($query, Request $request)
     {
         $type = $request->query('type');
@@ -161,6 +116,104 @@ class AdminReportController extends Controller
         if ($request->filled('to')) {
             $query->whereDate('submitted_at', '<=', $request->query('to'));
         }
+
+        if ($request->filled('school_name')) {
+            $query->where('school_name', $request->query('school_name'));
+        }
+
+        if ($request->filled('course')) {
+            $query->where('course', $request->query('course'));
+        }
+
+        if ($request->filled('year_level')) {
+            $query->where('year_level', $request->query('year_level'));
+        }
+    }
+
+    /**
+     * Filters a collection of Application models by minor/adult status.
+     * Done in PHP (post-query) since is_minor is computed, not a real
+     * column — acceptable at this data volume, would need a different
+     * approach (e.g. a raw date comparison in SQL) at much larger scale.
+     */
+    private function filterByApplicantType($applications, Request $request)
+    {
+        if (!$request->filled('applicant_type')) {
+            return $applications;
+        }
+
+        $wantMinor = $request->query('applicant_type') === 'minor';
+
+        return $applications->filter(
+            fn($app) => ($app->user?->profile?->is_minor ?? false) === $wantMinor
+        )->values();
+    }
+
+    public function applications(Request $request)
+    {
+        $query = Application::with('user.profile')->latest('submitted_at');
+        $this->applyFilters($query, $request);
+
+        $applications = $this->filterByApplicantType($query->get(), $request);
+
+        $mapped = $applications->map(function ($app) {
+            return [
+                'id'             => $app->id,
+                'control_number' => $app->control_number,
+                'name'           => trim($app->user->first_name . ' ' . $app->user->last_name),
+                'submitted_at'   => $app->submitted_at,
+                'status'         => $app->status,
+                'school_name'    => $app->school_name,
+                'course'         => $app->course,
+                'year_level'     => $app->year_level,
+            ];
+        });
+
+        return response()->json($mapped->values());
+    }
+
+    public function export(Request $request)
+    {
+        $query = Application::with('user.profile')->latest('submitted_at');
+        $this->applyFilters($query, $request);
+
+        $applications = $this->filterByApplicantType($query->get(), $request);
+
+        $filename = 'applicant-records-' . now()->format('Y-m-d') . '.csv';
+
+        $headers = [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ];
+
+        $callback = function () use ($applications) {
+            $handle = fopen('php://output', 'w');
+
+            fputcsv($handle, [
+                'Application ID', 'Control Number', 'Applicant Name', 'Email',
+                'School', 'Course', 'Year Level', 'Applicant Type', 'Status', 'Submitted At',
+            ]);
+
+            foreach ($applications as $app) {
+                $applicantType = $app->user?->profile?->is_minor === true ? 'Minor' : ($app->user?->profile?->is_minor === false ? 'Adult' : 'Unknown');
+                fputcsv($handle, [
+                    'APP-' . $app->id,
+                    $app->control_number,
+                    trim($app->user->first_name . ' ' . $app->user->last_name),
+                    $app->user->email,
+                    $app->school_name,
+                    $app->course,
+                    $app->year_level,
+                    $applicantType,
+                    $app->status,
+                    $app->submitted_at,
+                ]);
+            }
+
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, $headers);
     }
 
     public function budgetForecast()
