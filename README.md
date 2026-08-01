@@ -1,264 +1,233 @@
-# SK-EAS — Setup & Testing Guide
+# SK Educational Assistance System (SK-EAS)
 
-Web-Based Sangguniang Kabataan Educational Assistance System with Optical Character Recognition Rule-Based Automated Verification.
+A web-based system for Barangay Mamatid's Sangguniang Kabataan (SK) Educational Assistance Program — handles student applications, document uploads, OCR-based pre-screening, verifier review, claiming-day workflows, and admin reporting.
 
----
+## Tech Stack
 
-## 1. Tech Stack
-
-| Component | Tech | Port |
-|---|---|---|
-| Frontend | React 18 (Create React App) + Bootstrap 5 | 3000 |
-| Backend  | Laravel 13 REST API | 8000 |
-| OCR Service | Python 3.10 + Flask + PaddleOCR 2.7.3 | 5000 |
-| Database | MySQL 8.0 | 3306 |
+- **Backend:** Laravel 13 (PHP 8.3), MySQL
+- **Frontend:** React 18, Bootstrap
+- **OCR Service:** Python/Flask microservice using PaddleOCR
+- **PDF Generation:** barryvdh/laravel-dompdf
 
 ---
 
-## 2. Prerequisites
+## Prerequisites
 
-Install these before starting:
+Before you start, make sure you have:
 
-- **PHP 8.2+** and **Composer**
-- **Node.js 18+** and **npm**
-- **Python 3.10** (must be 3.10 specifically — newer versions break PaddleOCR on Windows)
-- **MySQL 8.0** (e.g. via XAMPP/Laragon, or standalone)
+- **PHP 8.3+** and **Composer**
+- **Node.js** (v18+) and **npm**
+- **Python 3.10+** and **pip**
+- **MySQL** — either a standalone MySQL Server install, or a bundled stack like **XAMPP**/**WAMP**. Instructions for both are below.
 - **Git**
 
 ---
 
-## 3. Clone the Repo
+## First-Time Setup (do this once, when setting up the project fresh)
+
+### 1. Clone the repository
 
 ```bash
 git clone https://github.com/coycoyyiee143/sk-educational-assistance-system.git
 cd sk-educational-assistance-system
-git checkout feature/backend
-git pull
 ```
 
-Project structure:
-sk-educational-assistance-system/
-├── backend/ # Laravel 13 API
-├── frontend/ # React 18 (CRA)
-├── ocr-service/ # Flask + PaddleOCR
+### 2. Set up MySQL
 
----
+You need a running MySQL server and a database created before Laravel can migrate anything. Pick whichever path matches your setup:
 
-## 4. Database Setup
+**If you have MySQL Server installed standalone:**
+1. Make sure the MySQL service is running (check via Services on Windows, or `sudo systemctl status mysql` on Linux/Mac).
+2. Create the database:
+   ```bash
+   mysql -u root -p
+   ```
+   ```sql
+   CREATE DATABASE sk_eas;
+   EXIT;
+   ```
 
-Open MySQL and create the database:
+**If you're using XAMPP:**
+1. Open the XAMPP Control Panel and click **Start** next to both **Apache** and **MySQL**.
+2. Open `http://localhost/phpmyadmin` in your browser.
+3. Click **New** in the left sidebar, name the database `sk_eas`, and click **Create**.
+4. XAMPP's default MySQL credentials are usually `root` with **no password** — keep this in mind for step 3 below.
 
-```sql
-CREATE DATABASE skeas_db;
-```
-
-Username/password defaults to `root` / your local MySQL password — this is configured in `backend/.env` (see next step).
-
----
-
-## 5. Backend Setup (Laravel)
+### 3. Backend setup (Laravel)
 
 ```bash
 cd backend
 composer install
+cp .env.example .env
+php artisan key:generate
 ```
 
-### 5.1 Create `.env`
-
-Copy `.env.example` to `.env` (or create `.env` with the contents below), then update the values in brackets to match your local setup:
-
-```env
-APP_NAME="Mamatid SK Educational Assistance Program System"
-APP_ENV=local
-APP_KEY=[generate with php artisan key:generate]
-APP_DEBUG=true
-APP_URL=http://localhost
-
-APP_LOCALE=en
-APP_FALLBACK_LOCALE=en
-APP_FAKER_LOCALE=en_US
-
-APP_MAINTENANCE_DRIVER=file
-
-BCRYPT_ROUNDS=12
-
-LOG_CHANNEL=stack
-LOG_STACK=single
-LOG_DEPRECATIONS_CHANNEL=null
-LOG_LEVEL=debug
-
+Open `.env` and confirm these match your MySQL setup:
+```
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=skeas_db
+DB_DATABASE=sk_eas
 DB_USERNAME=root
-DB_PASSWORD=[your local MySQL password]
+DB_PASSWORD=          # leave blank if using XAMPP's default, or set to your MySQL password
+```
 
-# Prevents PaddleOCR job timeouts
-DB_QUEUE_RETRY_AFTER=300
-
-SESSION_DRIVER=database
-SESSION_LIFETIME=120
-SESSION_ENCRYPT=false
-SESSION_PATH=/
-SESSION_DOMAIN=null
-
-BROADCAST_CONNECTION=log
-FILESYSTEM_DISK=local
-QUEUE_CONNECTION=database
-
-CACHE_STORE=file
-
-MEMCACHED_HOST=127.0.0.1
-
-REDIS_CLIENT=phpredis
-REDIS_HOST=127.0.0.1
-REDIS_PASSWORD=null
-REDIS_PORT=6379
-
-# Emails are sent via real SMTP now (not logged to file).
-MAIL_MAILER=smtp
-MAIL_HOST=smtp.gmail.com
-MAIL_PORT=587
-MAIL_USERNAME="[your gmail address]"
-MAIL_PASSWORD=[gmail app password]
-MAIL_ENCRYPTION=tls
-MAIL_FROM_ADDRESS="no-reply@skeas-mamatid.com"
-MAIL_FROM_NAME="Mamatid SK Educational Assistance System"
-
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-AWS_DEFAULT_REGION=us-east-1
-AWS_BUCKET=
-AWS_USE_PATH_STYLE_ENDPOINT=false
-
-FRONTEND_URL=http://localhost:3000
-
+Also set the OCR service URL (should already be correct for local dev):
+```
 OCR_SERVICE_URL=http://localhost:5000
 ```
 
-> **Note on emails:** Since `MAIL_MAILER=smtp`, emails are sent for real through Gmail's SMTP server. You'll need a [Gmail App Password](https://myaccount.google.com/apppasswords) (not your regular password) for `MAIL_PASSWORD` — regular Gmail passwords won't work with SMTP auth.
->
-> **Note on file storage:** `FILESYSTEM_DISK=local` — uploaded documents are stored privately and served only through authenticated routes, not the public disk. Don't switch this back to `public`.
-
-### 5.2 Generate app key, migrate, and seed
+Then run migrations and seed the database (see [Seeders](#seeders--which-one-to-use) below to pick the right one first):
 
 ```bash
-php artisan key:generate
 php artisan migrate:fresh --seed
-php artisan storage:link
 ```
 
-This creates a clean database with:
-- An SK Admin account
-- An SK Verifier account
-- An active application period
+### 4. Frontend setup (React)
 
-See section 9 for the seeded login credentials.
-
-### 5.3 Run the backend (you need 3 terminals)
-
-**Terminal 1 — API server:**
 ```bash
-php artisan serve
+cd ../frontend
+npm install
 ```
 
-**Terminal 2 — OCR queue worker (REQUIRED for document processing):**
-```bash
-php artisan queue:work --queue=ocr
-```
-
-**Terminal 3 — Notifications queue worker (REQUIRED for emails):**
-```bash
-php artisan queue:work --queue=notifications
-```
-
-> **Why two queue workers?** OCR jobs and notification emails now run on separate queues so a slow OCR call (up to ~180s per document) doesn't block email delivery, and vice versa. Both workers need to be running — if either one isn't, jobs on that queue will pile up and never process. `php artisan queue:work` with no `--queue` flag only listens to the default queue and will process nothing.
-
-> 💡 **Routing Check:** If you need to verify the exact URL mappings for any endpoint, run `php artisan route:list --path=api` inside the backend directory.
-
----
-
-## 6. OCR Service Setup (Flask + PaddleOCR)
+### 5. OCR service setup (Python/Flask)
 
 ```bash
-cd ocr-service
+cd ../ocr-service
 python -m venv venv
 ```
 
-**Activate venv:**
-- Windows: `venv\Scripts\activate`
-- Mac/Linux: `source venv/bin/activate`
+Activate the virtual environment:
+- **Windows:** `venv\Scripts\activate`
+- **Mac/Linux:** `source venv/bin/activate`
 
-**Install dependencies:**
+Then install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-If `requirements.txt` doesn't pin versions correctly, the critical ones are:
+**Note:** This file is a direct snapshot (`pip freeze`) of a working dev environment, not independently verified via a clean install. If setup fails on a specific package, `opencv-python`/`opencv-contrib-python` and `paddleocr` are the most version-sensitive — check those first.
+
+---
+
+## Running the System (every time you sit down to work)
+
+You need **three services running at once**, each in its own terminal. Order doesn't matter much, but starting the queue worker and OCR service before you start uploading documents avoids confusing "stuck processing" states.
+
+### 1. Start MySQL
+
+- **Standalone MySQL:** confirm the service is running (it usually auto-starts with your OS).
+- **XAMPP:** open the XAMPP Control Panel, click **Start** next to Apache and MySQL.
+
+### 2. Start the Laravel backend + queue workers
+
 ```bash
-pip install paddlepaddle==2.6.2
-pip install paddleocr==2.7.3
-pip install flask flask-cors
+cd backend
+php artisan serve
 ```
 
-> ⚠️ **Do not upgrade PaddleOCR/paddlepaddle versions.** The pipeline is built against 2.7.3 / 2.6.2 specifically — newer versions (including 2.8.x and 3.x) have API differences or Windows/oneDNN incompatibilities that will silently break OCR extraction.
+This project uses separate queues for OCR processing and notifications, so each gets its own worker, in its own terminal:
 
-**Run the OCR service:**
 ```bash
+cd backend
+php artisan queue:work --queue=ocr
+```
+
+```bash
+cd backend
+php artisan queue:work --queue=notifications
+```
+
+> **This part matters a lot in this codebase:** queue workers only load code once, when they start. If you pull new changes or edit any file a queue touches (`ProcessOcrDocument.php` for the `ocr` queue, `ApplicationStatusNotification.php` for `notifications`), you must **stop (`Ctrl+C`) and restart the relevant worker** for the changes to actually take effect. This has caused real confusion during development — if a change "isn't working" and the code looks correct, restart the queue worker first before debugging further.
+
+### 3. Start the OCR service (Flask)
+
+```bash
+cd ocr-service
+venv\Scripts\activate      # or source venv/bin/activate on Mac/Linux
 python run.py
 ```
 
-The OCR service should be running on `http://localhost:5000`. Test it's alive:
-```bash
-curl http://localhost:5000/api/ocr/health
-```
-Should return `{"status": "ok"}`.
+> Same caution as above: even though Flask runs with `debug=True` (which usually auto-reloads on file changes), this hasn't always reliably picked up every edit during development. If an OCR-related change doesn't seem to take effect, stop (`Ctrl+C`) and restart `python run.py` before assuming the code is wrong.
 
----
-
-## 7. Frontend Setup (React)
+### 4. Start the React frontend
 
 ```bash
 cd frontend
-npm install
 npm start
 ```
 
-This runs on `http://localhost:3000` and should open automatically in your browser.
+The app should now be running at `http://localhost:3000`, with the API at `http://localhost:8000` and the OCR service at `http://localhost:5000`.
 
 ---
 
-## 8. Running Everything Together
+## Seeders — which one to use
 
-You need **5 terminals** running simultaneously:
+`DatabaseSeeder.php` controls which seeder actually runs. Open it and comment/uncomment the line for whichever scenario you're testing, then run:
 
-| Terminal | Command | Directory |
-|---|---|---|
-| 1 | `php artisan serve` | `backend/` |
-| 2 | `php artisan queue:work --queue=ocr` | `backend/` |
-| 3 | `php artisan queue:work --queue=notifications` | `backend/` |
-| 4 | `python run.py` | `ocr-service/` (venv activated) |
-| 5 | `npm start` | `frontend/` |
+```bash
+php artisan migrate:fresh --seed
+```
 
----
-
-## 9. Test Accounts
-
-These are created automatically by the seeder:
-
-| Role | Email | Password |
-|---|---|---|
-| SK Admin | admin@skmamatid.com | admin123 |
-| SK Verifier | verifier@skmamatid.com | verifier123 |
-
-Register your own applicant accounts at `/register`.
+| Seeder | Use case |
+|---|---|
+| **`FreshPeriodSeeder`** | Testing the **application period lifecycle** from scratch — period hasn't opened yet, no applications exist. Good for testing Admin Settings, the "Start New Application Period" flow, and open/close date enforcement. |
+| **`ActivePeriodSeeder`** | Testing **specific individual flows** with a small, easy-to-reason-about dataset. Includes: an approved adult applicant ready for claiming-day testing, a registered applicant with no application yet, and a minor applicant with complete guardian info and an approved application — ready to test the guardian Voter's Certificate flow and the Verifier Review page's guardian info display without extra setup. |
+| **`DemoDataSeeder`** | Testing **Reports and analytics**. Generates 3 historical application periods plus 1 active period, with realistic volume and variety — real `StudentProfile` records (minor/adult mix), `VerifierAction` records with reason categories, and `ClaimingAssignment` records with claimed/not-cleared/unclaimed outcomes. Use this whenever the Reports page needs to show actual non-empty data. Takes noticeably longer to run given the volume it generates. |
 
 ---
 
-## 10. Branch & Commit Etiquette
+## Automated Testing
 
-- Current working branch: `feature/backend`
-- Pull before you start: `git pull`
-- Commit with clear messages describing what you changed/fixed
-- If you find bugs you can't fix, document them with screenshots + steps to reproduce so they can be tracked
+### Why this matters, especially for non-OCR features
+
+Automated tests exist so that when you (or a teammate) change something, you find out **immediately** if it broke an existing feature — instead of discovering it later, by accident, possibly right before a demo. This project has already had real cases where a code change silently didn't take effect (queue worker not restarted) or where a fix was described but never actually applied to the file on disk — a test suite catches the second kind of problem instantly: if the test still fails after you think you fixed something, you know right away, rather than assuming it's fixed and finding out days later.
+
+**Why non-OCR features specifically:** the OCR/document-verification logic (Python) depends on real, varied document images to test meaningfully — a test using a single sample image doesn't prove much about real-world accuracy, and building a proper OCR test suite requires a broader library of sample documents than this project currently has. Backend business logic (Laravel), on the other hand — status transitions, validation rules, submission gates, report calculations — doesn't depend on unpredictable real-world input, and is exactly the kind of logic where a test can definitively say "this works" or "this is broken," every time, in seconds. That's why this project's testing effort has focused there first.
+
+### Running the existing tests
+
+```bash
+cd backend
+php artisan test
+```
+
+Run a specific test file only:
+```bash
+php artisan test --filter=MinorGuardianVotersCertTest
+```
+
+Tests use an in-memory SQLite database, completely isolated from your real dev MySQL database — running tests never touches or deletes your actual seeded data.
+
+### Creating a new test
+
+```bash
+php artisan make:test SomeFeatureNameTest
+```
+
+This creates `tests/Feature/SomeFeatureNameTest.php`. A test typically:
+1. Creates whatever data the scenario needs (a user, an application, a config) using the model factories in `database/factories/`
+2. Calls the actual API endpoint being tested, as if a real user did (`$this->actingAs($user, 'sanctum')->postJson(...)`)
+3. Asserts the response and the resulting database state are what's expected
+
+**When to write one:** any time you build or fix backend logic that has a clear right/wrong outcome — a validation rule, a status transition, a calculation, an access-control check. If you can describe the test as "given X, when Y happens, then Z should be true," it's a good candidate for an automated test rather than only manual clicking-through.
+
+---
+
+## Known Limitations / Open Items
+
+- Budget forecasting currently uses a simple historical average, not statistical confidence intervals — this is a deliberate choice pending further discussion on data limitations (SK's historical records only track approved applicants, not total submissions or unmet demand).
+- Report formatting has not yet been matched against any COA or DILG-required submission template — pending confirmation from SK's treasurer on whether one exists.
+- No automated Python tests yet for OCR extraction logic — currently covered by manual testing against real sample documents.
+- `requirements.txt` reflects a working dev environment snapshot, not an independently verified clean install.
+
+---
+
+## Project Structure
+
+```
+sk-educational-assistance-system/
+├── backend/           # Laravel API
+├── frontend/          # React app
+└── ocr-service/       # Python/Flask OCR microservice
+```
