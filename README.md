@@ -63,14 +63,29 @@ php artisan key:generate
 ```
 
 Open `.env` and confirm these match your MySQL setup:
-```
+
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=sk_eas
+DB_DATABASE=skeas_db
 DB_USERNAME=root
-DB_PASSWORD=          # leave blank if using XAMPP's default, or set to your MySQL password
-```
+DB_PASSWORD= # leave blank if using XAMPP's default, or set to your MySQL password
+
+
+**Note on `APP_KEY`:** leave this blank — `php artisan key:generate` (already run above) fills it in automatically. Never copy a real `APP_KEY` from someone else's `.env`.
+
+**Note on email:** this project sends real verification/notification emails via a shared Gmail account over SMTP. Ask a teammate for the Gmail address and App Password (not the actual account password), and fill them into your own local `.env` only:
+
+MAIL_USERNAME=<the shared testing Gmail address>
+MAIL_PASSWORD=<the shared App Password>
+
+**Never commit real credentials to `.env.example` or anywhere else in the repo.**
+
+This project also sets a longer queue retry window to accommodate PaddleOCR's processing time:
+
+DB_QUEUE_RETRY_AFTER=300
+
+This is already set correctly in `.env.example` — no action needed.
 
 Also set the OCR service URL (should already be correct for local dev):
 ```
