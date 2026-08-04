@@ -17,8 +17,6 @@ class AdminReportController extends Controller
 
     private function approvedStatuses(): array
     {
-        // physically_verified removed — confirmed dead status, never set
-        // anywhere in the codebase.
         return ['approved', 'claimed', 'not_cleared', 'unclaimed'];
     }
 
@@ -27,12 +25,6 @@ class AdminReportController extends Controller
         return ['pending_prescreening', 'for_review', 'reupload_requested'];
     }
 
-    /**
-     * Resolves which ApplicationConfiguration a report should run
-     * against — either the one explicitly requested via ?config_id=,
-     * or the active period as a default. Lets SK look back at any past
-     * period's reports, not just the currently open one.
-     */
     private function resolveConfig(Request $request): ?ApplicationConfiguration
     {
         if ($request->filled('config_id')) {
@@ -87,14 +79,6 @@ class AdminReportController extends Controller
         ]);
     }
 
-    /**
-     * Applies all shared filters (status type, date range, school,
-     * course, year level) to the query. Applicant type (minor/adult)
-     * is NOT applied here — is_minor is a computed accessor on
-     * StudentProfile, not a real database column, so it can't be
-     * filtered via a SQL where() clause. It's filtered in PHP after
-     * the query runs instead, in both applications() and export().
-     */
     private function applyFilters($query, Request $request)
     {
         $type = $request->query('type');
@@ -130,12 +114,6 @@ class AdminReportController extends Controller
         }
     }
 
-    /**
-     * Filters a collection of Application models by minor/adult status.
-     * Done in PHP (post-query) since is_minor is computed, not a real
-     * column — acceptable at this data volume, would need a different
-     * approach (e.g. a raw date comparison in SQL) at much larger scale.
-     */
     private function filterByApplicantType($applications, Request $request)
     {
         if (!$request->filled('applicant_type')) {
@@ -216,7 +194,12 @@ class AdminReportController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function budgetForecast()
+    /**
+     * BUDGET ESTIMATION — plain historical average, no statistical claim.
+     * "Here's what past periods looked like; use it as a rough reference."
+     * Formerly (incorrectly) named budgetForecast().
+     */
+    public function budgetEstimation()
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
         $historical = $configs->map(function ($config) {
@@ -259,7 +242,7 @@ class AdminReportController extends Controller
 
         return response()->json([
             'historical' => $historical->values(),
-            'forecast' => [
+            'estimate' => [
                 'average_pass_rate'        => round($avgPassRate, 4),
                 'average_approved_count'   => round($avgApproved),
                 'is_unlimited'             => $activeConfig->is_unlimited ?? false,
@@ -271,7 +254,80 @@ class AdminReportController extends Controller
         ]);
     }
 
-    // ── NEW REPORTS (JSON) ───────────────────────────────────────────
+    /**
+     * BUDGET FORECAST — Wilson confidence interval on approval rate,
+     * pooled across all completed periods. This is genuine statistical
+     * forecasting, deliberately scoped to approval rate only, since
+     * that's the one quantity here that's unaffected by unmet demand and
+     * therefore statistically valid to forecast. Projected applicant
+     * VOLUME is still an unvalidated average — true demand data doesn't
+     * exist. The confidence interval covers approval rate, not demand.
+     */
+    public function budgetForecast()
+    {
+        $configs = ApplicationConfiguration::orderBy('open_date')->get();
+        $completed = $configs->where('is_active', false);
+
+        $pooledTotal = 0;
+        $pooledApproved = 0;
+        $volumes = [];
+
+        foreach ($completed as $config) {
+            $total = Application::where('config_id', $config->id)->count();
+            $approved = Application::where('config_id', $config->id)
+                ->whereIn('status', $this->approvedStatuses())
+                ->count();
+            $pooledTotal += $total;
+            $pooledApproved += $approved;
+            if ($total > 0) {
+                $volumes[] = $total;
+            }
+        }
+
+        if ($pooledTotal === 0) {
+            return response()->json([
+                'available' => false,
+                'message' => 'Not enough completed period data to compute a statistical forecast.',
+            ]);
+        }
+
+        $z = 1.959964;
+        $n = $pooledTotal;
+        $pHat = $pooledApproved / $n;
+        $denominator = 1 + ($z ** 2) / $n;
+        $center = ($pHat + ($z ** 2) / (2 * $n)) / $denominator;
+        $margin = ($z * sqrt(($pHat * (1 - $pHat) / $n) + ($z ** 2) / (4 * $n ** 2))) / $denominator;
+
+        $lowerRate = max(0, $center - $margin);
+        $upperRate = min(1, $center + $margin);
+
+        $projectedVolume = count($volumes) > 0 ? array_sum($volumes) / count($volumes) : 0;
+
+        return response()->json([
+            'available' => true,
+            'pooled_total_submitted' => $pooledTotal,
+            'pooled_approved'        => $pooledApproved,
+            'point_estimate_rate'    => round($pHat, 4),
+            'confidence_interval'    => [
+                'lower' => round($lowerRate, 4),
+                'upper' => round($upperRate, 4),
+                'level' => 0.95,
+            ],
+            'projected_volume'       => round($projectedVolume),
+            'projected_approved_range' => [
+                'lower' => round($projectedVolume * $lowerRate),
+                'upper' => round($projectedVolume * $upperRate),
+            ],
+            'projected_budget_range' => [
+                'lower' => round($projectedVolume * $lowerRate) * self::ASSISTANCE_AMOUNT,
+                'upper' => round($projectedVolume * $upperRate) * self::ASSISTANCE_AMOUNT,
+            ],
+            'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
+            'periods_used' => $completed->count(),
+        ]);
+    }
+
+    // ── OTHER REPORTS (JSON) ─────────────────────────────────────────
 
     public function claimingOutcomeSummary(Request $request)
     {
