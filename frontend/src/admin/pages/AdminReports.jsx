@@ -61,7 +61,12 @@ function AdminReports() {
           <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
           <ApplicantProfileSection selectedConfigId={selectedConfigId} />
           <VerificationOutcomesSection selectedConfigId={selectedConfigId} />
-          <BudgetPlanningSection />
+
+          <div className="page-card">
+            <div className="d-flex justify-content-end flex-wrap gap-3">
+              <a href="/AdminBudgetPlanning" className="btn btn-custom">Go to Budget Planning →</a>
+            </div>
+          </div>
 
         </div>
       </section>

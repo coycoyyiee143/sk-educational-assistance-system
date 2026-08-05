@@ -18,6 +18,7 @@ import AdminSchedule from "./admin/pages/AdminSchedule";
 import AdminAnnouncements from "./admin/pages/AdminAnnouncements.jsx";
 import AdminEvents from "./admin/pages/AdminEvents.jsx";
 import AdminReports from "./admin/pages/AdminReports.jsx";
+import AdminBudgetPlanning from "./admin/pages/AdminBudgetPlanning.jsx";
 import AdminMasterActivityLog from "./admin/pages/AdminMasterActivityLog";
 
 import VerifierDashboard from "./verifier/pages/VerifierDashboard.jsx";
@@ -85,6 +86,11 @@ function App() {
             <AdminReports />
           </ProtectedRoute>
         } />
+        <Route path="/AdminBudgetPlanning" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminBudgetPlanning />
+          </ProtectedRoute>
+        } />
 
         <Route path="/AdminMasterActivityLog" element={
           <ProtectedRoute allowedRoles={["sk_admin"]}>
@@ -123,7 +129,7 @@ function App() {
             <VerifierProfile />
           </ProtectedRoute>
         } />
-  
+
 
         {/* Applicant */}
         <Route path="/ApplicantDashboard" element={
