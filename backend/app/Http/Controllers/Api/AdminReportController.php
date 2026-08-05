@@ -194,139 +194,6 @@ class AdminReportController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    /**
-     * BUDGET ESTIMATION — plain historical average, no statistical claim.
-     * "Here's what past periods looked like; use it as a rough reference."
-     * Formerly (incorrectly) named budgetForecast().
-     */
-    public function budgetEstimation()
-    {
-        $configs = ApplicationConfiguration::orderBy('open_date')->get();
-        $historical = $configs->map(function ($config) {
-            $total    = Application::where('config_id', $config->id)->count();
-            $approved = Application::where('config_id', $config->id)
-                ->whereIn('status', $this->approvedStatuses())
-                ->count();
-            return [
-                'config_id'              => $config->id,
-                'school_year'            => $config->school_year,
-                'is_active'              => $config->is_active,
-                'total_applications'     => $total,
-                'approved_count'         => $approved,
-                'pass_rate'              => $total > 0 ? round($approved / $total, 4) : 0,
-                'is_unlimited'           => $config->is_unlimited,
-                'slot_limit'             => $config->slot_limit,
-                'estimated_disbursement' => $approved * self::ASSISTANCE_AMOUNT,
-            ];
-        });
-
-        $completed = $historical->where('is_active', false)->where('total_applications', '>', 0);
-        if ($completed->count() > 0) {
-            $avgApproved = $completed->avg('approved_count');
-            $avgPassRate = $completed->avg('pass_rate');
-        } else {
-            $current     = $historical->firstWhere('is_active', true);
-            $avgApproved = $current['approved_count'] ?? 0;
-            $avgPassRate = $current['pass_rate'] ?? 0;
-        }
-
-        $activeConfig = $configs->firstWhere('is_active', true);
-
-        $projectedSlots = $activeConfig && !$activeConfig->is_unlimited
-            ? $activeConfig->slot_limit
-            : null;
-
-        $projectedApproved = $projectedSlots
-            ? min($projectedSlots, round($avgApproved))
-            : round($avgApproved);
-
-        return response()->json([
-            'historical' => $historical->values(),
-            'estimate' => [
-                'average_pass_rate'        => round($avgPassRate, 4),
-                'average_approved_count'   => round($avgApproved),
-                'is_unlimited'             => $activeConfig->is_unlimited ?? false,
-                'projected_slots'          => $projectedSlots,
-                'projected_approved'       => $projectedApproved,
-                'projected_budget'         => round($projectedApproved) * self::ASSISTANCE_AMOUNT,
-                'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
-            ],
-        ]);
-    }
-
-    /**
-     * BUDGET FORECAST — Wilson confidence interval on approval rate,
-     * pooled across all completed periods. This is genuine statistical
-     * forecasting, deliberately scoped to approval rate only, since
-     * that's the one quantity here that's unaffected by unmet demand and
-     * therefore statistically valid to forecast. Projected applicant
-     * VOLUME is still an unvalidated average — true demand data doesn't
-     * exist. The confidence interval covers approval rate, not demand.
-     */
-    public function budgetForecast()
-    {
-        $configs = ApplicationConfiguration::orderBy('open_date')->get();
-        $completed = $configs->where('is_active', false);
-
-        $pooledTotal = 0;
-        $pooledApproved = 0;
-        $volumes = [];
-
-        foreach ($completed as $config) {
-            $total = Application::where('config_id', $config->id)->count();
-            $approved = Application::where('config_id', $config->id)
-                ->whereIn('status', $this->approvedStatuses())
-                ->count();
-            $pooledTotal += $total;
-            $pooledApproved += $approved;
-            if ($total > 0) {
-                $volumes[] = $total;
-            }
-        }
-
-        if ($pooledTotal === 0) {
-            return response()->json([
-                'available' => false,
-                'message' => 'Not enough completed period data to compute a statistical forecast.',
-            ]);
-        }
-
-        $z = 1.959964;
-        $n = $pooledTotal;
-        $pHat = $pooledApproved / $n;
-        $denominator = 1 + ($z ** 2) / $n;
-        $center = ($pHat + ($z ** 2) / (2 * $n)) / $denominator;
-        $margin = ($z * sqrt(($pHat * (1 - $pHat) / $n) + ($z ** 2) / (4 * $n ** 2))) / $denominator;
-
-        $lowerRate = max(0, $center - $margin);
-        $upperRate = min(1, $center + $margin);
-
-        $projectedVolume = count($volumes) > 0 ? array_sum($volumes) / count($volumes) : 0;
-
-        return response()->json([
-            'available' => true,
-            'pooled_total_submitted' => $pooledTotal,
-            'pooled_approved'        => $pooledApproved,
-            'point_estimate_rate'    => round($pHat, 4),
-            'confidence_interval'    => [
-                'lower' => round($lowerRate, 4),
-                'upper' => round($upperRate, 4),
-                'level' => 0.95,
-            ],
-            'projected_volume'       => round($projectedVolume),
-            'projected_approved_range' => [
-                'lower' => round($projectedVolume * $lowerRate),
-                'upper' => round($projectedVolume * $upperRate),
-            ],
-            'projected_budget_range' => [
-                'lower' => round($projectedVolume * $lowerRate) * self::ASSISTANCE_AMOUNT,
-                'upper' => round($projectedVolume * $upperRate) * self::ASSISTANCE_AMOUNT,
-            ],
-            'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
-            'periods_used' => $completed->count(),
-        ]);
-    }
-
     // ── OTHER REPORTS (JSON) ─────────────────────────────────────────
 
     public function claimingOutcomeSummary(Request $request)
@@ -624,4 +491,238 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('submission-vs-approval-trend-' . now()->format('Y-m-d') . '.pdf');
     }
+    
+/**
+     * YEAR-LEVEL PROJECTION — isolates the volume side only. Uses a
+     * cohort-based projection (this cycle's 1st/2nd/3rd-year approved
+     * applicants continue to the next year level; 4th-years exit upon
+     * graduation) instead of a plain average, but still multiplies by
+     * a plain average pass rate — no Wilson interval here. This lets
+     * the volume method be compared directly against Budget Estimation's
+     * plain-average volume, with everything else held constant.
+     */
+    public function yearLevelProjection()
+    {
+        $configs = ApplicationConfiguration::orderBy('open_date')->get();
+        $completed = $configs->where('is_active', false);
+
+        $passRates = [];
+        foreach ($completed as $config) {
+            $total = Application::where('config_id', $config->id)->count();
+            $approved = Application::where('config_id', $config->id)
+                ->whereIn('status', $this->approvedStatuses())
+                ->count();
+            if ($total > 0) {
+                $passRates[] = $approved / $total;
+            }
+        }
+        $avgPassRate = count($passRates) > 0 ? array_sum($passRates) / count($passRates) : 0;
+
+        $mostRecent = $completed->sortByDesc('open_date')->first();
+        $yearLevelCounts = collect();
+
+        if ($mostRecent) {
+            $yearLevelCounts = Application::where('config_id', $mostRecent->id)
+                ->whereIn('status', $this->approvedStatuses())
+                ->selectRaw('year_level, COUNT(*) as total')
+                ->groupBy('year_level')
+                ->pluck('total', 'year_level');
+        }
+
+        if ($yearLevelCounts->isEmpty()) {
+            return response()->json([
+                'available' => false,
+                'message' => 'No year-level history exists yet for this projection method.',
+            ]);
+        }
+
+        $continuingStudents = ($yearLevelCounts['1st Year'] ?? 0)
+            + ($yearLevelCounts['2nd Year'] ?? 0)
+            + ($yearLevelCounts['3rd Year'] ?? 0);
+        // 4th Year intentionally excluded — they graduate out.
+
+        // Approximated as this period's own 1st-year count — a
+        // simplification, not individual student tracking. A returning
+        // 1st-year would be counted the same as a genuinely new one.
+        $newEntrantEstimate = $yearLevelCounts['1st Year'] ?? 0;
+
+        $projectedVolume = $continuingStudents + $newEntrantEstimate;
+        $projectedApproved = round($projectedVolume * $avgPassRate);
+
+        return response()->json([
+            'available' => true,
+            'based_on_period' => $mostRecent->school_year,
+            'continuing_students'  => $continuingStudents,
+            'new_entrant_estimate' => $newEntrantEstimate,
+            'projected_volume'     => $projectedVolume,
+            'average_pass_rate'    => round($avgPassRate, 4),
+            'projected_approved'   => $projectedApproved,
+            'projected_budget'     => $projectedApproved * self::ASSISTANCE_AMOUNT,
+            'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
+        ]);
+    }
+
+    /**
+     * BUDGET FORECAST — isolates the approval-rate side only. Uses a
+     * plain average for projected volume (same as Budget Estimation),
+     * but replaces the plain average pass rate with a Wilson confidence
+     * interval, pooled across completed periods. This is the one
+     * quantity here that's statistically valid to forecast, since it's
+     * unaffected by unmet demand outside the applied pool. This lets
+     * the rate method be compared directly against Budget Estimation's
+     * plain-average rate, with volume held constant.
+     */
+    public function budgetForecast()
+    {
+        $configs = ApplicationConfiguration::orderBy('open_date')->get();
+        $completed = $configs->where('is_active', false);
+
+        $pooledTotal = 0;
+        $pooledApproved = 0;
+        $volumes = [];
+
+        foreach ($completed as $config) {
+            $total = Application::where('config_id', $config->id)->count();
+            $approved = Application::where('config_id', $config->id)
+                ->whereIn('status', $this->approvedStatuses())
+                ->count();
+            $pooledTotal += $total;
+            $pooledApproved += $approved;
+            if ($total > 0) {
+                $volumes[] = $total;
+            }
+        }
+
+        if ($pooledTotal === 0) {
+            return response()->json([
+                'available' => false,
+                'message' => 'Not enough completed period data to compute a forecast.',
+            ]);
+        }
+
+        $z = 1.959964;
+        $n = $pooledTotal;
+        $pHat = $pooledApproved / $n;
+        $denominator = 1 + ($z ** 2) / $n;
+        $center = ($pHat + ($z ** 2) / (2 * $n)) / $denominator;
+        $margin = ($z * sqrt(($pHat * (1 - $pHat) / $n) + ($z ** 2) / (4 * $n ** 2))) / $denominator;
+        $lowerRate = max(0, $center - $margin);
+        $upperRate = min(1, $center + $margin);
+
+        $projectedVolume = count($volumes) > 0 ? array_sum($volumes) / count($volumes) : 0;
+
+        return response()->json([
+            'available' => true,
+            'pooled_total_submitted' => $pooledTotal,
+            'pooled_approved'        => $pooledApproved,
+            'point_estimate_rate'    => round($pHat, 4),
+            'confidence_interval'    => [
+                'lower' => round($lowerRate, 4),
+                'upper' => round($upperRate, 4),
+                'level' => 0.95,
+            ],
+            'projected_volume' => round($projectedVolume),
+            'projected_approved_range' => [
+                'lower' => round($projectedVolume * $lowerRate),
+                'upper' => round($projectedVolume * $upperRate),
+            ],
+            'projected_budget_range' => [
+                'lower' => round($projectedVolume * $lowerRate) * self::ASSISTANCE_AMOUNT,
+                'upper' => round($projectedVolume * $upperRate) * self::ASSISTANCE_AMOUNT,
+            ],
+            'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
+            'periods_used' => $completed->count(),
+        ]);
+    }
+
+    /**
+     * BUDGET ESTIMATION — plain historical average, no statistical claim.
+     * "Here's what past periods looked like; use it as a rough reference."
+     * Formerly (incorrectly) named budgetForecast().
+     */
+    public function budgetEstimation()
+    {
+        $configs = ApplicationConfiguration::orderBy('open_date')->get();
+        $historical = $configs->map(function ($config) {
+            $total    = Application::where('config_id', $config->id)->count();
+            $approved = Application::where('config_id', $config->id)
+                ->whereIn('status', $this->approvedStatuses())
+                ->count();
+            return [
+                'config_id'              => $config->id,
+                'school_year'            => $config->school_year,
+                'is_active'              => $config->is_active,
+                'total_applications'     => $total,
+                'approved_count'         => $approved,
+                'pass_rate'              => $total > 0 ? round($approved / $total, 4) : 0,
+                'is_unlimited'           => $config->is_unlimited,
+                'slot_limit'             => $config->slot_limit,
+                'estimated_disbursement' => $approved * self::ASSISTANCE_AMOUNT,
+            ];
+        });
+
+        $completed = $historical->where('is_active', false)->where('total_applications', '>', 0);
+        if ($completed->count() > 0) {
+            $avgApproved = $completed->avg('approved_count');
+            $avgPassRate = $completed->avg('pass_rate');
+        } else {
+            $current     = $historical->firstWhere('is_active', true);
+            $avgApproved = $current['approved_count'] ?? 0;
+            $avgPassRate = $current['pass_rate'] ?? 0;
+        }
+
+        $activeConfig = $configs->firstWhere('is_active', true);
+
+        $projectedSlots = $activeConfig && !$activeConfig->is_unlimited
+            ? $activeConfig->slot_limit
+            : null;
+
+        $projectedApproved = $projectedSlots
+            ? min($projectedSlots, round($avgApproved))
+            : round($avgApproved);
+
+        return response()->json([
+            'historical' => $historical->values(),
+            'estimate' => [
+                'average_pass_rate'        => round($avgPassRate, 4),
+                'average_approved_count'   => round($avgApproved),
+                'is_unlimited'             => $activeConfig->is_unlimited ?? false,
+                'projected_slots'          => $projectedSlots,
+                'projected_approved'       => $projectedApproved,
+                'projected_budget'         => round($projectedApproved) * self::ASSISTANCE_AMOUNT,
+                'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
+            ],
+        ]);
+    }
+
+    /**
+     * BUDGET ALLOCATION PLANNING — a decision-support calculator, not a
+     * forecast. Given a fixed budget, shows the trade-off between slot
+     * count and amount per student (budget = slots × amount). Doesn't
+     * predict anything — sidesteps the demand/pass-rate data gaps
+     * entirely, since it only operates on a number SK provides
+     * themselves (their allocated budget), not on historical applicant
+     * data. Also returns the most recent completed period's actuals as
+     * a concrete comparison point.
+     */
+    public function lastCycleActuals()
+    {
+        $mostRecent = ApplicationConfiguration::where('is_active', false)
+            ->orderByDesc('open_date')
+            ->first();
+
+        if (!$mostRecent) {
+            return response()->json(['available' => false]);
+        }
+
+        return response()->json([
+            'available'           => true,
+            'school_year'         => $mostRecent->school_year,
+            'slot_limit'          => $mostRecent->slot_limit,
+            'is_unlimited'        => $mostRecent->is_unlimited,
+            'amount_per_student'  => self::ASSISTANCE_AMOUNT,
+            'total_budget_used'   => $mostRecent->is_unlimited ? null : $mostRecent->slot_limit * self::ASSISTANCE_AMOUNT,
+        ]);
+    }
+
 }

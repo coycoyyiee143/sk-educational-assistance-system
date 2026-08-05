@@ -79,6 +79,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/submission-vs-approval/pdf', [AdminReportController::class, 'submissionVsApprovalPdf']);
         Route::get('/admin/reports/budget-estimation', [AdminReportController::class, 'budgetEstimation']);
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
+        Route::get('/admin/reports/last-cycle-actuals', [AdminReportController::class, 'lastCycleActuals']);
         Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
         Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
     });
