@@ -51,9 +51,6 @@ function ApplicantProfileSection({ selectedConfigId }) {
     const ageCounts = ageDistribution?.counts ?? {};
     const ageRates = ageDistribution?.rates ?? {};
 
-    // Build the age cards as a list first so column width can adapt to
-    // however many actually apply — avoids leaving empty space on the
-    // right when "unknown" is zero (the common case).
     const ageCards = [
         { key: "minor", value: ageCounts.minor, label: `Minor (${ageRates.minor_rate}%)` },
         { key: "adult", value: ageCounts.adult, label: `Adult (${ageRates.adult_rate}%)` },
@@ -64,50 +61,60 @@ function ApplicantProfileSection({ selectedConfigId }) {
     const ageColClass = ageCards.length === 3 ? "col-md-4" : "col-md-6";
 
     return (
-        <div className="page-card">
-            <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
-                <h4 className="sub-title">
-                    Applicant Profile
-                    {distribution?.config && <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>{" "}— {distribution.config.school_year}</span>}
-                </h4>
-                <div className="d-flex gap-2">
+        <>
+            {/* School & Program */}
+            <div className="page-card">
+                <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <h4 className="sub-title">
+                        Applicant Profile — School &amp; Program
+                        {distribution?.config && <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>{" "}— {distribution.config.school_year}</span>}
+                    </h4>
                     <button type="button" className="btn btn-sm btn-outline-custom"
-                        onClick={() => handlePdfExport("/admin/reports/applicant-distribution/pdf", "applicant-academic-breakdown")}>
-                        Export Academic Breakdown PDF
-                    </button>
-                    <button type="button" className="btn btn-sm btn-outline-custom"
-                        onClick={() => handlePdfExport("/admin/reports/age-distribution/pdf", "applicant-age-breakdown")}>
-                        Export Age Breakdown PDF
+                        onClick={() => handlePdfExport("/admin/reports/school-program/pdf", "applicant-school-program")}>
+                        Export PDF
                     </button>
                 </div>
-            </div>
-            <div className="info-box">
-                Who's applying — broken down by school, course, year level, and minor/adult status.
-            </div>
-
-            {(!distribution?.config || bySchool.length === 0) ? (
-                <div className="alert alert-info mb-0">No applicant data available for the selected period.</div>
-            ) : (
-                <>
-                    <div className="row g-4 mb-4">
-                        <div className="col-md-4">
+                {(!distribution?.config || bySchool.length === 0) ? (
+                    <div className="alert alert-info mb-0">No applicant data available for the selected period.</div>
+                ) : (
+                    <div className="row g-4">
+                        <div className="col-md-6">
                             <h6 className="text-muted text-uppercase small fw-bold mb-2">School</h6>
                             {bySchool.map((r) => <CategoryBar key={r.school_name} label={r.school_name} count={r.total} max={maxSchoolCount} />)}
                         </div>
-                        <div className="col-md-4">
-                            <h6 className="text-muted text-uppercase small fw-bold mb-2">Course</h6>
+                        <div className="col-md-6">
+                            <h6 className="text-muted text-uppercase small fw-bold mb-2">Program</h6>
                             {byCourse.map((r) => <CategoryBar key={r.course} label={r.course} count={r.total} max={maxCourseCount} />)}
                         </div>
-                        <div className="col-md-4">
-                            <h6 className="text-muted text-uppercase small fw-bold mb-2">Year Level</h6>
-                            {byYearLevel.map((r) => <CategoryBar key={r.year_level} label={r.year_level} count={r.total} max={maxYearLevelCount} />)}
-                        </div>
                     </div>
+                )}
+            </div>
 
-                    {ageCounts.total > 0 && (
-                        <>
-                            <h6 className="text-muted text-uppercase small fw-bold mb-2">Age (Minor vs. Adult)</h6>
-                            <div className="row g-4">
+            {/* Year Level & Age */}
+            <div className="page-card">
+                <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <h4 className="sub-title">
+                        Applicant Profile — Year Level &amp; Age
+                        {ageDistribution?.config && <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>{" "}— {ageDistribution.config.school_year}</span>}
+                    </h4>
+                    <button type="button" className="btn btn-sm btn-outline-custom"
+                        onClick={() => handlePdfExport("/admin/reports/year-level-age/pdf", "applicant-year-level-age")}>
+                        Export PDF
+                    </button>
+                </div>
+                <div className="row g-4">
+                    <div className="col-md-6">
+                        <h6 className="text-muted text-uppercase small fw-bold mb-2">Year Level</h6>
+                        {byYearLevel.length === 0 ? (
+                            <div className="text-muted small">No data available.</div>
+                        ) : (
+                            byYearLevel.map((r) => <CategoryBar key={r.year_level} label={r.year_level} count={r.total} max={maxYearLevelCount} />)
+                        )}
+                    </div>
+                    <div className="col-md-6">
+                        <h6 className="text-muted text-uppercase small fw-bold mb-2">Age (Minor vs. Adult)</h6>
+                        {ageCounts.total > 0 ? (
+                            <div className="row g-3">
                                 {ageCards.map((c) => (
                                     <div className={ageColClass} key={c.key}>
                                         <div className="summary-card">
@@ -117,11 +124,13 @@ function ApplicantProfileSection({ selectedConfigId }) {
                                     </div>
                                 ))}
                             </div>
-                        </>
-                    )}
-                </>
-            )}
-        </div>
+                        ) : (
+                            <div className="text-muted small">No data available.</div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </>
     );
 }
 

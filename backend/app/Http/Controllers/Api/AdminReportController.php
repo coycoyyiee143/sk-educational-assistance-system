@@ -389,26 +389,25 @@ class AdminReportController extends Controller
             $approved   = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->approvedStatuses())
                 ->count();
+            // rejected + not_cleared combined — both are effectively
+            // rejections, just discovered at different stages (document
+            // review vs. claiming-day physical verification).
             $rejected   = Application::where('config_id', $config->id)
-                ->where('status', 'rejected')
-                ->count();
-            $notCleared = Application::where('config_id', $config->id)
-                ->where('status', 'not_cleared')
+                ->whereIn('status', ['rejected', 'not_cleared'])
                 ->count();
             $pending    = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->pendingStatuses())
                 ->count();
 
             return [
-                'config_id'      => $config->id,
-                'school_year'    => $config->school_year,
-                'is_active'      => $config->is_active,
-                'total_submitted'=> $total,
-                'approved'       => $approved,
-                'rejected'       => $rejected,
-                'not_cleared'    => $notCleared,
-                'pending'        => $pending,
-                'approval_rate'  => $total > 0 ? round(($approved / $total) * 100, 1) : 0,
+                'config_id'       => $config->id,
+                'school_year'     => $config->school_year,
+                'is_active'       => $config->is_active,
+                'total_submitted' => $total,
+                'approved'        => $approved,
+                'rejected'        => $rejected,
+                'pending'         => $pending,
+                'approval_rate'   => $total > 0 ? round(($approved / $total) * 100, 1) : 0,
             ];
         });
 
@@ -458,6 +457,32 @@ class AdminReportController extends Controller
         return $pdf->download('applicant-distribution-' . now()->format('Y-m-d') . '.pdf');
     }
 
+    public function schoolProgramPdf(Request $request)
+    {
+        $data = $this->applicantDistribution($request)->getData(true);
+        $pdf = Pdf::loadView('reports.school-program', [
+            'title'    => 'Applicant Profile — School & Program',
+            'config'   => $data['config'] ? (object) $data['config'] : null,
+            'bySchool' => collect($data['by_school'])->map(fn($r) => (object) $r),
+            'byCourse' => collect($data['by_course'])->map(fn($r) => (object) $r),
+        ]);
+        return $pdf->download('applicant-school-program-' . now()->format('Y-m-d') . '.pdf');
+    }
+
+    public function yearLevelAgePdf(Request $request)
+    {
+        $distData = $this->applicantDistribution($request)->getData(true);
+        $ageData  = $this->ageDistribution($request)->getData(true);
+        $pdf = Pdf::loadView('reports.year-level-age', [
+            'title'       => 'Applicant Profile — Year Level & Age',
+            'config'      => $distData['config'] ? (object) $distData['config'] : null,
+            'byYearLevel' => collect($distData['by_year_level'])->map(fn($r) => (object) $r),
+            'counts'      => $ageData['counts'],
+            'rates'       => $ageData['rates'],
+        ]);
+        return $pdf->download('applicant-year-level-age-' . now()->format('Y-m-d') . '.pdf');
+    }
+
     public function submissionTrendsPdf(Request $request)
     {
         $data = $this->submissionTrends($request)->getData(true);
@@ -492,75 +517,6 @@ class AdminReportController extends Controller
         return $pdf->download('submission-vs-approval-trend-' . now()->format('Y-m-d') . '.pdf');
     }
     
-/**
-     * YEAR-LEVEL PROJECTION — isolates the volume side only. Uses a
-     * cohort-based projection (this cycle's 1st/2nd/3rd-year approved
-     * applicants continue to the next year level; 4th-years exit upon
-     * graduation) instead of a plain average, but still multiplies by
-     * a plain average pass rate — no Wilson interval here. This lets
-     * the volume method be compared directly against Budget Estimation's
-     * plain-average volume, with everything else held constant.
-     */
-    public function yearLevelProjection()
-    {
-        $configs = ApplicationConfiguration::orderBy('open_date')->get();
-        $completed = $configs->where('is_active', false);
-
-        $passRates = [];
-        foreach ($completed as $config) {
-            $total = Application::where('config_id', $config->id)->count();
-            $approved = Application::where('config_id', $config->id)
-                ->whereIn('status', $this->approvedStatuses())
-                ->count();
-            if ($total > 0) {
-                $passRates[] = $approved / $total;
-            }
-        }
-        $avgPassRate = count($passRates) > 0 ? array_sum($passRates) / count($passRates) : 0;
-
-        $mostRecent = $completed->sortByDesc('open_date')->first();
-        $yearLevelCounts = collect();
-
-        if ($mostRecent) {
-            $yearLevelCounts = Application::where('config_id', $mostRecent->id)
-                ->whereIn('status', $this->approvedStatuses())
-                ->selectRaw('year_level, COUNT(*) as total')
-                ->groupBy('year_level')
-                ->pluck('total', 'year_level');
-        }
-
-        if ($yearLevelCounts->isEmpty()) {
-            return response()->json([
-                'available' => false,
-                'message' => 'No year-level history exists yet for this projection method.',
-            ]);
-        }
-
-        $continuingStudents = ($yearLevelCounts['1st Year'] ?? 0)
-            + ($yearLevelCounts['2nd Year'] ?? 0)
-            + ($yearLevelCounts['3rd Year'] ?? 0);
-        // 4th Year intentionally excluded — they graduate out.
-
-        // Approximated as this period's own 1st-year count — a
-        // simplification, not individual student tracking. A returning
-        // 1st-year would be counted the same as a genuinely new one.
-        $newEntrantEstimate = $yearLevelCounts['1st Year'] ?? 0;
-
-        $projectedVolume = $continuingStudents + $newEntrantEstimate;
-        $projectedApproved = round($projectedVolume * $avgPassRate);
-
-        return response()->json([
-            'available' => true,
-            'based_on_period' => $mostRecent->school_year,
-            'continuing_students'  => $continuingStudents,
-            'new_entrant_estimate' => $newEntrantEstimate,
-            'projected_volume'     => $projectedVolume,
-            'average_pass_rate'    => round($avgPassRate, 4),
-            'projected_approved'   => $projectedApproved,
-            'projected_budget'     => $projectedApproved * self::ASSISTANCE_AMOUNT,
-            'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
-        ]);
-    }
 
     /**
      * BUDGET FORECAST — isolates the approval-rate side only. Uses a

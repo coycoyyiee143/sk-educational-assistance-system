@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import api from "../../services/api";
 
 function formatDate(dateStr) {
@@ -168,7 +168,7 @@ function VerificationOutcomesSection({ selectedConfigId }) {
                 )}
             </div>
 
-            {/* Submission & Approval History — was "Application Volume Over Time" */}
+            {/* Submission & Approval History */}
             <div className="page-card">
                 <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
                     <h4 className="sub-title">Submission &amp; Approval History</h4>
@@ -178,27 +178,33 @@ function VerificationOutcomesSection({ selectedConfigId }) {
                     </button>
                 </div>
                 <div className="info-box">
-                    Total submitted, approved, and rejected per application period. This is the data
-                    used in Budget Forecast's approval-rate calculation, below. PDF export shows the
-                    same numbers in table form for exact reference.
+                    Approved vs. rejected outcomes per period, shown against total submitted. "Rejected"
+                    includes applications that failed at document review or later, at claiming day
+                    (Not Cleared) — both are effectively rejections, just discovered at different stages.
+                    This is the data used in Budget Forecast's approval-rate calculation, below.
                 </div>
                 {!submissionVsApproval?.trend?.length ? (
                     <div className="alert alert-info mb-0">No application period data available yet.</div>
                 ) : (
-                    <div style={{ width: "100%", height: 300 }}>
-                        <ResponsiveContainer>
-                            <BarChart data={submissionVsApproval.trend}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="school_year" tick={{ fontSize: 11 }} />
-                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-                                <Tooltip />
-                                <Legend />
-                                <Bar dataKey="total_submitted" name="Total Submitted" fill="#6c757d" />
-                                <Bar dataKey="approved" name="Approved" fill="#0d6efd" />
-                                <Bar dataKey="rejected" name="Rejected" fill="#dc3545" />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
+                    submissionVsApproval.trend.map((row) => {
+                        const total = row.total_submitted || 1;
+                        const approvedPct = (row.approved / total) * 100;
+                        const rejectedPct = (row.rejected / total) * 100;
+                        return (
+                            <div key={row.config_id} className="mb-3">
+                                <div className="d-flex justify-content-between small mb-1">
+                                    <span className="fw-semibold">{row.school_year}</span>
+                                    <span className="text-muted">
+                                        {row.approved} approved / {row.rejected} rejected / {row.total_submitted} total
+                                    </span>
+                                </div>
+                                <div className="progress" style={{ height: "22px", backgroundColor: "#e9ecef" }}>
+                                    <div className="progress-bar bg-primary" style={{ width: `${approvedPct}%` }} title={`Approved: ${row.approved}`} />
+                                    <div className="progress-bar bg-danger" style={{ width: `${rejectedPct}%` }} title={`Rejected: ${row.rejected}`} />
+                                </div>
+                            </div>
+                        );
+                    })
                 )}
             </div>
 

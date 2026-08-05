@@ -75,6 +75,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/claiming-outcomes/pdf', [AdminReportController::class, 'claimingOutcomesPdf']);
         Route::get('/admin/reports/document-failures/pdf', [AdminReportController::class, 'documentFailuresPdf']);
         Route::get('/admin/reports/applicant-distribution/pdf', [AdminReportController::class, 'applicantDistributionPdf']);
+        Route::get('/admin/reports/school-program/pdf', [AdminReportController::class, 'schoolProgramPdf']);
+        Route::get('/admin/reports/year-level-age/pdf', [AdminReportController::class, 'yearLevelAgePdf']);
         Route::get('/admin/reports/submission-trends/pdf', [AdminReportController::class, 'submissionTrendsPdf']);
         Route::get('/admin/reports/submission-vs-approval/pdf', [AdminReportController::class, 'submissionVsApprovalPdf']);
         Route::get('/admin/reports/budget-estimation', [AdminReportController::class, 'budgetEstimation']);

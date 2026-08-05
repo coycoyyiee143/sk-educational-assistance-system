@@ -99,31 +99,38 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         <>
             {error && <div className="alert alert-danger">{error}</div>}
 
-            {/* Application Overview */}
+            {/* Application Overview — By Status */}
             <div className="page-card">
                 <h4 className="sub-title">
-                    Application Overview
+                    Application Overview — By Status
                     {summary?.config && <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>{" "}— {summary.config.school_year}</span>}
                 </h4>
                 {!summary?.config ? (
                     <div className="alert alert-info mb-0">No data for the selected period.</div>
                 ) : (
-                    <>
-                        <h6 className="text-muted text-uppercase small fw-bold mb-2">By Status</h6>
-                        <div className="row g-4 mb-4">
-                            <div className="col-md-3"><div className="summary-card"><h2>{stats.total_applicants}</h2><p>Total Applicants</p></div></div>
-                            <div className="col-md-3"><div className="summary-card"><h2>{stats.pending_applications}</h2><p>Pending</p></div></div>
-                            <div className="col-md-3"><div className="summary-card"><h2>{stats.approved_applications}</h2><p>Approved</p></div></div>
-                            <div className="col-md-3"><div className="summary-card"><h2>{stats.rejected_applications}</h2><p>Rejected</p></div></div>
-                        </div>
+                    <div className="row g-4">
+                        <div className="col-md-3"><div className="summary-card"><h2>{stats.total_applicants}</h2><p>Total Applicants</p></div></div>
+                        <div className="col-md-3"><div className="summary-card"><h2>{stats.pending_applications}</h2><p>Pending</p></div></div>
+                        <div className="col-md-3"><div className="summary-card"><h2>{stats.approved_applications}</h2><p>Approved</p></div></div>
+                        <div className="col-md-3"><div className="summary-card"><h2>{stats.rejected_applications}</h2><p>Rejected</p></div></div>
+                    </div>
+                )}
+            </div>
 
-                        <h6 className="text-muted text-uppercase small fw-bold mb-2">Rates</h6>
-                        <div className="row g-4">
-                            <div className="col-md-4"><div className="summary-card"><h2>{rates.approval_rate ?? 0}%</h2><p>Approval Rate</p></div></div>
-                            <div className="col-md-4"><div className="summary-card"><h2>{rates.rejection_rate ?? 0}%</h2><p>Rejection Rate</p></div></div>
-                            <div className="col-md-4"><div className="summary-card"><h2>{rates.under_review_rate ?? 0}%</h2><p>Under Review</p></div></div>
-                        </div>
-                    </>
+            {/* Application Overview — By Rate */}
+            <div className="page-card">
+                <h4 className="sub-title">
+                    Application Overview — By Rate
+                    {summary?.config && <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>{" "}— {summary.config.school_year}</span>}
+                </h4>
+                {!summary?.config ? (
+                    <div className="alert alert-info mb-0">No data for the selected period.</div>
+                ) : (
+                    <div className="row g-4">
+                        <div className="col-md-4"><div className="summary-card"><h2>{rates.approval_rate ?? 0}%</h2><p>Approval Rate</p></div></div>
+                        <div className="col-md-4"><div className="summary-card"><h2>{rates.rejection_rate ?? 0}%</h2><p>Rejection Rate</p></div></div>
+                        <div className="col-md-4"><div className="summary-card"><h2>{rates.under_review_rate ?? 0}%</h2><p>Under Review</p></div></div>
+                    </div>
                 )}
             </div>
 
