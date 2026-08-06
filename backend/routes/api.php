@@ -19,6 +19,7 @@ Route::post('/login', [AuthController::class, 'login']);
 Route::post('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
     ->name('verification.verify');
 Route::post('/email/resend', [AuthController::class, 'resendVerification']);
+Route::post('/email/verify-by-code', [AuthController::class, 'verifyEmailByCode']);
 
 // Public info routes
 Route::get('/announcements', [AnnouncementController::class, 'index']);
@@ -62,8 +63,39 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/summary', [AdminReportController::class, 'summary']);
         Route::get('/admin/reports/applications', [AdminReportController::class, 'applications']);
         Route::get('/admin/reports/export', [AdminReportController::class, 'export']);
+        Route::get('/admin/reports/claiming-outcomes', [AdminReportController::class, 'claimingOutcomeSummary']);
+        Route::get('/admin/reports/document-failures', [AdminReportController::class, 'documentFailureBreakdown']);
+        Route::get('/admin/reports/applicant-distribution', [AdminReportController::class, 'applicantDistribution']);
+        Route::get('/admin/reports/submission-trends', [AdminReportController::class, 'submissionTrends']);
+        Route::get('/admin/reports/age-distribution', [AdminReportController::class, 'ageDistribution']);
+        Route::get('/admin/reports/periods', [AdminReportController::class, 'listPeriods']);
+        Route::get('/admin/reports/filter-options', [AdminReportController::class, 'filterOptions']);
+        Route::get('/admin/reports/age-distribution/pdf', [AdminReportController::class, 'ageDistributionPdf']);
+        Route::get('/admin/reports/submission-vs-approval', [AdminReportController::class, 'submissionVsApprovalTrend']);
+        Route::get('/admin/reports/claiming-outcomes/pdf', [AdminReportController::class, 'claimingOutcomesPdf']);
+        Route::get('/admin/reports/document-failures/pdf', [AdminReportController::class, 'documentFailuresPdf']);
+        Route::get('/admin/reports/applicant-distribution/pdf', [AdminReportController::class, 'applicantDistributionPdf']);
+        Route::get('/admin/reports/submission-trends/pdf', [AdminReportController::class, 'submissionTrendsPdf']);
+        Route::get('/admin/reports/submission-vs-approval/pdf', [AdminReportController::class, 'submissionVsApprovalPdf']);
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
+        Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
+        Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
     });
+
+    Route::middleware(['auth:sanctum', 'log.visit'])->group(function () {
+    // ── Admin routes ────────────────────────────────────────────────
+    Route::middleware(['role:sk_admin'])->group(function () {
+    });
+
+    // ── Verifier routes ─────────────────────────────────────────────
+    Route::middleware(['role:sk_verifier'])->group(function () {
+    });
+
+    // ── Applicant routes ────────────────────────────────────────────
+    Route::middleware(['role:applicant'])->group(function () {
+    });
+
+});
 
     // ── Verifier routes ─────────────────────────────────────────────
     Route::middleware(['role:sk_verifier'])->group(function () {
@@ -75,23 +107,27 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
         Route::post('/verifier/claiming/{id}/status', [VerifierController::class, 'updateClaimStatus']);
+        Route::get('/verifier/activity-log', [VerifierController::class, 'activityLog']);
     });
 
     // ── Applicant routes ────────────────────────────────────────────
     Route::middleware(['role:applicant'])->group(function () {
         Route::get('/applications', [ApplicationController::class, 'index']);
         Route::get('/applications/claiming-schedule', [ApplicationController::class, 'claimingSchedule']); // Placed above {id}
+        Route::get('/applications/activity-log', [ApplicationController::class, 'activityLog']);
         Route::post('/applications', [ApplicationController::class, 'store']);
         Route::get('/applications/{id}', [ApplicationController::class, 'show']);
         Route::put('/applications/{id}', [ApplicationController::class, 'update']);
         Route::post('/applications/{id}/documents', [DocumentController::class, 'upload']);
         Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
         Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);
+       
     });
 
     // ── Shared routes (any authenticated role) ─────────────────────
     Route::put('/user/profile', [ProfileController::class, 'updateAccount']);
     Route::put('/user/password', [ProfileController::class, 'updatePassword']);
+    Route::get('/applications/{id}/documents/{docId}/file', [DocumentController::class, 'show']);
 
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);

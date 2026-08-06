@@ -21,6 +21,7 @@ class ClaimingReminderNotification extends Notification implements ShouldQueue
         $this->application = $application;
         $this->lane         = $lane;
         $this->schedule     = $schedule;
+        $this->onQueue('notifications');
     }
 
     public function via($notifiable)

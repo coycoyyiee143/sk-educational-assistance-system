@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
-use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 
 class ApplicationController extends Controller
@@ -36,8 +35,39 @@ class ApplicationController extends Controller
             return response()->json(['message' => 'No active application period.'], 400);
         }
 
+        // is_active identifies WHICH config currently governs applications;
+        // the dates determine WHETHER it's actually open right now. Both
+        // must hold for a submission to be accepted.
+        if (now()->lt($config->open_date)) {
+            return response()->json(['message' => 'This application period has not opened yet.'], 400);
+        }
+        if (now()->gt($config->close_date)) {
+            return response()->json(['message' => 'This application period has closed.'], 400);
+        }
+
         if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
             return response()->json(['message' => 'No more slots available.'], 400);
+        }
+
+        // Applicant must have a birthdate on file before applying — required
+        // to determine minor status for the guardian Voter's Certificate
+        // rule. Registration now collects this directly, so this should
+        // only ever trigger for accounts created before this feature shipped.
+        $profile = $request->user()->profile;
+        if (!$profile || !$profile->birthdate) {
+            return response()->json([
+                'message' => 'Please complete your profile (date of birth) before applying.',
+            ], 400);
+        }
+
+        // Minors must have guardian info on file before applying — this is
+        // the actual data the Voter's Certificate check will need at OCR
+        // time. Without it, the document check would fail with no way for
+        // the applicant to understand why, so we catch it here instead.
+        if ($profile->is_minor && !$profile->hasCompleteGuardianInfo()) {
+            return response()->json([
+                'message' => 'As a minor applicant, please complete your guardian information (name and relationship) in your profile before applying.',
+            ], 400);
         }
 
         // Check if user already applied this period
@@ -60,14 +90,13 @@ class ApplicationController extends Controller
             'status'            => 'pending_prescreening',
             'submitted_at'      => now(),
         ]);
-        // comment out the incrementing of slots_filled here because it should only be incremented when the application is approved, not when it is submitted.
-        //$config->increment('slots_filled');
 
-        // Trigger Submission Confirmation Notification
-        $request->user()->notify(new ApplicationStatusNotification(
-            'Pending',
-            'Your educational assistance application has been submitted successfully and queued for document verification.'
-        ));
+        // Log the application submission for the audit trail
+        \App\Models\AuditLog::record(
+            'application_submitted',
+            $application,
+            "You submitted an application."
+        );
 
         return response()->json([
             'message'     => 'Application submitted.',
@@ -114,6 +143,13 @@ class ApplicationController extends Controller
             'student_id_number' => $request->student_id_number,
         ]);
 
+        // Log the application edit for the audit trail
+        \App\Models\AuditLog::record(
+            'application_updated',
+            $application,
+            "Updated application details for {$application->school_name}"
+        );
+
         return response()->json([
             'message'     => 'Application updated.',
             'application' => $application,
@@ -136,5 +172,14 @@ class ApplicationController extends Controller
             'assignment'  => $application->claimingAssignment,
         ]);
     }
-}
 
+    // Returns the logged-in applicant's own activity history
+    public function activityLog(Request $request)
+    {
+        $logs = \App\Models\AuditLog::where('user_id', $request->user()->id)
+            ->latest()
+            ->paginate(50);
+
+        return response()->json($logs);
+    }
+}

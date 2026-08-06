@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import api from "../../services/api";
 
@@ -21,36 +22,149 @@ const SCHOOLS = [
   "Polytechnic University of the Philippines Santa Rosa",
 ];
 
+const COURSES = [
+  "AB Communication",
+  "AB English Language Studies",
+  "AB History",
+  "AB Journalism",
+  "AB Political Science",
+  "AB Psychology",
+  "AB Sociology",
+  "BS Accountancy",
+  "BS Accounting Information System",
+  "BS Agribusiness",
+  "BS Agriculture",
+  "BS Architecture",
+  "BS Biology",
+  "BS Business Administration",
+  "BS Chemical Engineering",
+  "BS Chemistry",
+  "BS Civil Engineering",
+  "BS Computer Engineering",
+  "BS Computer Science",
+  "BS Criminology",
+  "BS Customs Administration",
+  "BS Economics",
+  "BS Education",
+  "BS Electrical Engineering",
+  "BS Electronics Engineering",
+  "BS Elementary Education",
+  "BS Entrepreneurship",
+  "BS Environmental Science",
+  "BS Fisheries",
+  "BS Food Technology",
+  "BS Forestry",
+  "BS Hospitality Management",
+  "BS Hotel and Restaurant Management",
+  "BS Industrial Engineering",
+  "BS Information Systems",
+  "BS Information Technology",
+  "BS Interior Design",
+  "BS Legal Management",
+  "BS Marine Biology",
+  "BS Marine Transportation",
+  "BS Marketing Management",
+  "BS Mathematics",
+  "BS Mechanical Engineering",
+  "BS Medical Technology",
+  "BS Midwifery",
+  "BS Nursing",
+  "BS Nutrition and Dietetics",
+  "BS Occupational Therapy",
+  "BS Pharmacy",
+  "BS Physical Therapy",
+  "BS Public Administration",
+  "BS Radiologic Technology",
+  "BS Real Estate Management",
+  "BS Secondary Education",
+  "BS Social Work",
+  "BS Statistics",
+  "BS Tourism Management",
+  "Other",
+];
+
 const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
 
-const DOC_FIELDS = [
-  {
-    key: "enrollment",
-    type: "registration_form",
-    label: "Certificate of Enrollment / Registration Form",
-    hint: "Must show your name, school, and school year.",
-  },
-  {
-    key: "schoolId",
-    type: "school_id",
-    label: "School ID",
-    hint: "Must show your name and school name.",
-  },
-  {
-    key: "voters",
-    type: "voters_certificate",
-    label: "Voter's Certificate",
-    hint: "Must show your name and Barangay Mamatid as your registered barangay.",
-  },
-];
+// Minimum resolution threshold per the paper's stated Limitation: "a
+// minimum resolution threshold for uploaded files" as part of client-side
+// pre-validation (Fig 7.3). Measured on the shorter dimension so both
+// portrait and landscape photos are treated fairly. Only applies to image
+// files — PDFs are allowed through without a resolution check, since
+// checking PDF page dimensions client-side would require a heavy
+// rendering library that isn't justified for this.
+const MIN_SHORT_SIDE_PX = 800;
+
+function checkImageResolution(file) {
+  if (file.type === "application/pdf") {
+    return Promise.resolve({ valid: true, skipped: true });
+  }
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const shortSide = Math.min(img.width, img.height);
+      resolve({
+        valid: shortSide >= MIN_SHORT_SIDE_PX,
+        width: img.width,
+        height: img.height,
+      });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      resolve({ valid: false, unreadable: true });
+    };
+    img.src = url;
+  });
+}
+
+function getDocFields(isMinor) {
+  return [
+    {
+      key: "enrollment",
+      type: "registration_form",
+      label: "Registration Form",
+      hint: "Must clearly show your name, school, and school year.",
+    },
+    {
+      key: "schoolId",
+      type: "school_id",
+      label: "School ID",
+      hint: "Must clearly show your name and school name.",
+    },
+    {
+      key: "voters",
+      type: "voters_certificate",
+      label: isMinor ? "Guardian's Voter's Certificate" : "Voter's Certificate",
+      hint: isMinor
+        ? "Must clearly show your guardian's name and Barangay Mamatid as your registered barangay."
+        : "Must clearly show your name and Barangay Mamatid as your registered barangay.",
+    },
+  ];
+}
+
+const STATUS_LABELS = {
+  pending_prescreening: "Pending Prescreening",
+  for_review: "For Review",
+  approved: "Approved",
+  rejected: "Rejected",
+  reupload_requested: "Re-upload Requested",
+  claimed: "Claimed",
+  not_cleared: "Not Cleared",
+  unclaimed: "Unclaimed",
+};
+
+function formatStatus(status) {
+  return STATUS_LABELS[status] || status;
+}
 
 const emptyForm = {
   schoolName: "",
-  schoolAddr: "",
   course: "",
   yearLevel: "",
-  studentId: "",
 };
+
+const DRAFT_STORAGE_KEY = "applicant_submission_draft";
 
 // Component
 function ApplicantSubmission() {
@@ -60,10 +174,20 @@ function ApplicantSubmission() {
     schoolId: null,
     voters: null,
   });
+  const [fileErrors, setFileErrors] = useState({
+    enrollment: "",
+    schoolId: "",
+    voters: "",
+  });
   const [reuploadFiles, setReuploadFiles] = useState({
     enrollment: null,
     schoolId: null,
     voters: null,
+  });
+  const [reuploadFileErrors, setReuploadFileErrors] = useState({
+    enrollment: "",
+    schoolId: "",
+    voters: "",
   });
 
   const [applicationId, setApplicationId] = useState(null);
@@ -76,17 +200,111 @@ function ApplicantSubmission() {
   const [uploadProgress, setUploadProgress] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [draftSaved, setDraftSaved] = useState(false);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const setFile = (k) => (e) =>
-    setFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
-  const setReupload = (k) => (e) =>
-    setReuploadFiles((f) => ({ ...f, [k]: e.target.files[0] ?? null }));
+  const [otherCourse, setOtherCourse] = useState("");
+  const [courseSearch, setCourseSearch] = useState("");
+  const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
+  const [showOtherCourseInput, setShowOtherCourseInput] = useState(false);
+  const otherCourseInputRef = useRef(null);
+  const [schoolSearch, setSchoolSearch] = useState("");
+  const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false);
+  const filteredSchools = SCHOOLS.filter((s) =>
+    s.toLowerCase().includes(schoolSearch.toLowerCase())
+  );
+  const [yearLevelDropdownOpen, setYearLevelDropdownOpen] = useState(false);
+
+  useEffect(() => {
+    if (showOtherCourseInput && otherCourseInputRef.current) {
+      otherCourseInputRef.current.focus();
+    }
+  }, [showOtherCourseInput]);
+  const filteredCourses = COURSES.filter(
+    (c) => c !== "Other" && c.toLowerCase().includes(courseSearch.toLowerCase())
+  );
+
+  // Both setFile and setReupload now run the resolution check before
+  // accepting a file into state. If the check fails, the file is rejected
+  // (state stays null, input is cleared) and an inline error explains why —
+  // matching the paper's "client-side pre-validation" step in Fig 7.3.
+  const setFile = (k) => async (e) => {
+    const file = e.target.files[0] ?? null;
+    if (!file) {
+      setFiles((f) => ({ ...f, [k]: null }));
+      setFileErrors((fe) => ({ ...fe, [k]: "" }));
+      return;
+    }
+    const result = await checkImageResolution(file);
+    if (!result.valid) {
+      setFileErrors((fe) => ({
+        ...fe,
+        [k]: result.unreadable
+          ? "Could not read this file. Please try a different image."
+          : `Image resolution too low (${result.width}×${result.height}px). Minimum required: ${MIN_SHORT_SIDE_PX}px on the shortest side. Please retake or rescan at a higher quality.`,
+      }));
+      setFiles((f) => ({ ...f, [k]: null }));
+      e.target.value = "";
+      return;
+    }
+    setFileErrors((fe) => ({ ...fe, [k]: "" }));
+    setFiles((f) => ({ ...f, [k]: file }));
+  };
+
+  const setReupload = (k) => async (e) => {
+    const file = e.target.files[0] ?? null;
+    if (!file) {
+      setReuploadFiles((f) => ({ ...f, [k]: null }));
+      setReuploadFileErrors((fe) => ({ ...fe, [k]: "" }));
+      return;
+    }
+    const result = await checkImageResolution(file);
+    if (!result.valid) {
+      setReuploadFileErrors((fe) => ({
+        ...fe,
+        [k]: result.unreadable
+          ? "Could not read this file. Please try a different image."
+          : `Image resolution too low (${result.width}×${result.height}px). Minimum required: ${MIN_SHORT_SIDE_PX}px on the shortest side. Please retake or rescan at a higher quality.`,
+      }));
+      setReuploadFiles((f) => ({ ...f, [k]: null }));
+      e.target.value = "";
+      return;
+    }
+    setReuploadFileErrors((fe) => ({ ...fe, [k]: "" }));
+    setReuploadFiles((f) => ({ ...f, [k]: file }));
+  };
+
   const [activeConfig, setActiveConfig] = useState(null);
+
+  const periodStatus = getApplicationPeriodStatus(activeConfig);
+
+  const [docUrls, setDocUrls] = useState({});
+
+  useEffect(() => {
+    let createdUrls = [];
+    async function loadDocUrls() {
+      const urls = {};
+      for (const doc of existingDocs) {
+        try {
+          const res = await api.get(
+            `/applications/${applicationId}/documents/${doc.id}/file`,
+            { responseType: "blob" }
+          );
+          const url = URL.createObjectURL(res.data);
+          urls[doc.id] = url;
+          createdUrls.push(url);
+        } catch {
+          // skip on failure, recap will show a fallback
+        }
+      }
+      setDocUrls(urls);
+    }
+    if (applicationId && existingDocs.length > 0) loadDocUrls();
+    return () => createdUrls.forEach((u) => URL.revokeObjectURL(u));
+  }, [existingDocs, applicationId]);
 
   // Preview modal state
   const [previewFile, setPreviewFile] = useState(null);
-  const STORAGE_BASE = "http://localhost:8000/storage/";
   function isImageFile(doc) {
     if (doc?.mime_type) return doc.mime_type.startsWith("image/");
     return /\.(jpg|jpeg|png)$/i.test(doc?.file_name || "");
@@ -96,10 +314,13 @@ function ApplicantSubmission() {
     api
       .get("/application-config/active")
       .then((res) => setActiveConfig(res.data))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
-  // Resume in-progress application on load
+  // Resume in-progress application on load. If no backend application
+  // exists yet (e.g. the applicant filled in info before the period
+  // opened), fall back to a locally saved draft so their typed info
+  // isn't lost between visits.
   useEffect(() => {
     api
       .get("/applications")
@@ -112,10 +333,8 @@ function ApplicantSubmission() {
           // pre-fill form so Back button shows what they entered
           setForm({
             schoolName: app.school_name ?? "",
-            schoolAddr: app.school_address ?? "",
             course: app.course ?? "",
             yearLevel: app.year_level ?? "",
-            studentId: app.student_id_number ?? "",
           });
 
           // fetch existing documents for reupload flow
@@ -129,11 +348,32 @@ function ApplicantSubmission() {
           } else {
             setStep("done");
           }
+        } else {
+          const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
+          if (draft) {
+            try {
+              setForm(JSON.parse(draft));
+            } catch {
+              // corrupted draft, ignore
+            }
+          }
         }
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setCheckingApp(false));
   }, []);
+
+  const [profile, setProfile] = useState(null);
+
+  useEffect(() => {
+    api
+      .get("/profile")
+      .then((res) => setProfile(res.data.profile))
+      .catch(() => { });
+  }, []);
+
+  const isMinor = profile?.is_minor ?? false;
+  const DOC_FIELDS = getDocFields(isMinor);
 
   // Reupload validation
   const reuploadDetails =
@@ -147,6 +387,12 @@ function ApplicantSubmission() {
   });
   const isReuploadDisabled = missingReuploadFields.length > 0;
 
+  function handleSaveDraft() {
+    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(form));
+    setDraftSaved(true);
+    setTimeout(() => setDraftSaved(false), 2500);
+  }
+
   // Step 1: create or edit application info
   async function handleSubmitForm(e) {
     e.preventDefault();
@@ -155,10 +401,8 @@ function ApplicantSubmission() {
     try {
       const payload = {
         school_name: form.schoolName,
-        school_address: form.schoolAddr,
         course: form.course,
         year_level: form.yearLevel,
-        student_id_number: form.studentId,
       };
 
       if (applicationId) {
@@ -168,6 +412,9 @@ function ApplicantSubmission() {
         const res = await api.post("/applications", payload);
         setApplicationId(res.data.application.id);
       }
+
+      // Now backed by a real application record — the local draft is redundant
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
 
       setStep("documents");
     } catch (err) {
@@ -180,10 +427,6 @@ function ApplicantSubmission() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleClear() {
-    setForm(emptyForm);
   }
 
   // Step 2: upload documents
@@ -332,15 +575,16 @@ function ApplicantSubmission() {
             {/* Already applied - done state */}
             {step === "done" && (
               <>
-                <div className="alert alert-info">
-                  You have already submitted an application for this period.
-                  {existingApp && (
-                    <p className="mb-0 mt-2">
-                      <strong>Status:</strong> {existingApp.status}
-                    </p>
-                  )}
-                </div>
-
+                {!success && (
+                  <div className="alert alert-info">
+                    You have already submitted an application for this period.
+                    {existingApp && (
+                      <p className="mb-0 mt-2">
+                        <strong>Status:</strong> {formatStatus(existingApp.status)}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {/* Educational Info Recap */}
                 <div className="sub-card mb-4">
                   <h5>Educational Information</h5>
@@ -355,14 +599,6 @@ function ApplicantSubmission() {
                     </div>
                     <div className="col-md-6 mb-3">
                       <label className="form-label text-muted">
-                        School Address
-                      </label>
-                      <div className="fw-semibold">
-                        {form.schoolAddr || "—"}
-                      </div>
-                    </div>
-                    <div className="col-md-6 mb-3">
-                      <label className="form-label text-muted">
                         Course / Program
                       </label>
                       <div className="fw-semibold">{form.course || "—"}</div>
@@ -372,12 +608,6 @@ function ApplicantSubmission() {
                         Year Level
                       </label>
                       <div className="fw-semibold">{form.yearLevel || "—"}</div>
-                    </div>
-                    <div className="col-md-6 mb-3">
-                      <label className="form-label text-muted">
-                        Student ID Number
-                      </label>
-                      <div className="fw-semibold">{form.studentId || "—"}</div>
                     </div>
                   </div>
                 </div>
@@ -391,7 +621,15 @@ function ApplicantSubmission() {
                       const doc = existingDocs.find((d) => d.document_type === field.type);
                       if (!doc) return null;
 
-                      const fileUrl = STORAGE_BASE + doc.file_path;
+                      const fileUrl = docUrls[doc.id];
+                      if (!fileUrl) return (
+                        <div className="col-md-4" key={field.key}>
+                          <div className="upload-box d-flex align-items-center justify-content-center" style={{ height: "280px" }}>
+                            <div className="spinner-border spinner-border-sm text-danger" role="status" />
+                          </div>
+                        </div>
+                      );
+
                       const imageDoc = isImageFile(doc);
 
                       return (
@@ -515,6 +753,14 @@ function ApplicantSubmission() {
                       <strong>A.Y. {activeConfig.school_year}</strong> — the
                       most recent enrollment period. Registration forms from a
                       different school year will not be accepted.
+                      {isMinor && (
+                        <>
+                          {" "}As a minor applicant, upload your{" "}
+                          <strong>parent/guardian's</strong> Voter's Certificate
+                          for the Voter's Certificate requirement — not your
+                          own.
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -542,6 +788,11 @@ function ApplicantSubmission() {
                               onChange={setReupload(field.key)}
                             />
                             <div className="form-text">{field.hint}</div>
+                            {reuploadFileErrors[field.key] && (
+                              <small className="text-danger d-block mt-1">
+                                {reuploadFileErrors[field.key]}
+                              </small>
+                            )}
                             {reuploadFiles[field.key] && (
                               <small className="text-success">
                                 ✓ {reuploadFiles[field.key].name}
@@ -589,6 +840,24 @@ function ApplicantSubmission() {
               </form>
             )}
 
+            {periodStatus === "scheduled" && activeConfig && (
+              <div className="alert alert-warning">
+                <strong>Applications are not open yet.</strong> This application period
+                opens on{" "}
+                {new Date(activeConfig.open_date).toLocaleString("en-PH", {
+                  month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit"
+                })}. You can fill in your information now and use{" "}
+                <strong>Save Draft</strong> to keep it on this device — submissions
+                will not be accepted until the period opens.
+              </div>
+            )}
+
+            {periodStatus === "closed" && activeConfig && (
+              <div className="alert alert-warning">
+                <strong>This application period has closed.</strong> New submissions are no longer being accepted.
+              </div>
+            )}
+
             {/* Step 1: Application Form */}
             {step === "form" && (
               <form onSubmit={handleSubmitForm}>
@@ -606,94 +875,245 @@ function ApplicantSubmission() {
                           <label className="form-label">
                             School Name <span className="text-danger">*</span>
                           </label>
-                          <select
-                            className="form-select"
-                            value={form.schoolName}
-                            onChange={set("schoolName")}
-                            required
-                          >
-                            <option value="" disabled>
-                              Select your school
-                            </option>
-                            {SCHOOLS.map((s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ))}
-                          </select>
+
+                          <div style={{ position: "relative" }}>
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="Search or select your school"
+                              value={schoolDropdownOpen ? schoolSearch : form.schoolName}
+                              onFocus={() => {
+                                setSchoolDropdownOpen(true);
+                                setSchoolSearch("");
+                              }}
+                              onChange={(e) => {
+                                setSchoolSearch(e.target.value);
+                                setSchoolDropdownOpen(true);
+                              }}
+                              onBlur={() => {
+                                setTimeout(() => setSchoolDropdownOpen(false), 150);
+                              }}
+                              required={!form.schoolName}
+                              autoComplete="off"
+                            />
+
+                            {schoolDropdownOpen && (
+                              <div
+                                className="border rounded bg-white shadow-sm"
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  left: 0,
+                                  right: 0,
+                                  zIndex: 20,
+                                  maxHeight: "220px",
+                                  overflowY: "auto",
+                                  marginTop: "2px",
+                                }}
+                              >
+                                {filteredSchools.length === 0 ? (
+                                  <div className="px-3 py-2 text-muted small">
+                                    No matching school found.
+                                  </div>
+                                ) : (
+                                  filteredSchools.map((s) => (
+                                    <div
+                                      key={s}
+                                      className="px-3 py-2"
+                                      style={{ cursor: "pointer" }}
+                                      onMouseDown={() => {
+                                        setForm((f) => ({ ...f, schoolName: s }));
+                                        setSchoolDropdownOpen(false);
+                                        setSchoolSearch("");
+                                      }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#fff3f3")}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                                    >
+                                      {s}
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </div>
+
                           <div className="form-text">
                             Select the school as it appears on your Registration
                             Form.
                           </div>
                         </div>
                         <div className="col-md-6 mb-3">
-                          <label className="form-label">School Address</label>
-                          <input
-                            className="form-control"
-                            placeholder="Enter school address"
-                            value={form.schoolAddr}
-                            onChange={set("schoolAddr")}
-                          />
+                          <label className="form-label">
+                            Year Level <span className="text-danger">*</span>
+                          </label>
+
+                          <div style={{ position: "relative" }}>
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="Select year level"
+                              value={form.yearLevel}
+                              readOnly
+                              onFocus={() => setYearLevelDropdownOpen(true)}
+                              onBlur={() => {
+                                setTimeout(() => setYearLevelDropdownOpen(false), 150);
+                              }}
+                              required={!form.yearLevel}
+                              style={{ cursor: "pointer", backgroundColor: "#fff" }}
+                            />
+
+                            {yearLevelDropdownOpen && (
+                              <div
+                                className="border rounded bg-white shadow-sm"
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  left: 0,
+                                  right: 0,
+                                  zIndex: 20,
+                                  marginTop: "2px",
+                                }}
+                              >
+                                {YEAR_LEVELS.map((y) => (
+                                  <div
+                                    key={y}
+                                    className="px-3 py-2"
+                                    style={{ cursor: "pointer" }}
+                                    onMouseDown={() => {
+                                      setForm((f) => ({ ...f, yearLevel: y }));
+                                      setYearLevelDropdownOpen(false);
+                                    }}
+                                    onMouseEnter={(e) => (e.currentTarget.style.background = "#fff3f3")}
+                                    onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                                  >
+                                    {y}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                         <div className="col-md-6 mb-3">
                           <label className="form-label">
                             Course / Program{" "}
                             <span className="text-danger">*</span>
                           </label>
-                          <input
-                            className="form-control"
-                            placeholder="Enter your course or program"
-                            value={form.course}
-                            onChange={set("course")}
-                            required
-                          />
-                        </div>
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label">
-                            Year Level <span className="text-danger">*</span>
-                          </label>
-                          <select
-                            className="form-select"
-                            value={form.yearLevel}
-                            onChange={set("yearLevel")}
-                            required
-                          >
-                            <option value="" disabled>
-                              Select year level
-                            </option>
-                            {YEAR_LEVELS.map((y) => (
-                              <option key={y}>{y}</option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-md-6 mb-3">
-                          <label className="form-label">
-                            Student ID Number
-                          </label>
-                          <input
-                            className="form-control"
-                            placeholder="Enter student ID number"
-                            value={form.studentId}
-                            onChange={set("studentId")}
-                          />
+
+                          <div style={{ position: "relative" }}>
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="Search or select your course"
+                              value={courseDropdownOpen ? courseSearch : (showOtherCourseInput ? "Other" : form.course)}
+                              onFocus={() => {
+                                setCourseDropdownOpen(true);
+                                setCourseSearch("");
+                              }}
+                              onChange={(e) => {
+                                setCourseSearch(e.target.value);
+                                setCourseDropdownOpen(true);
+                              }}
+                              onBlur={() => {
+                                // Delay closing so onClick on list items can register first
+                                setTimeout(() => setCourseDropdownOpen(false), 150);
+                              }}
+                              required={!form.course}
+                              autoComplete="off"
+                            />
+
+                            {courseDropdownOpen && (
+                              <div
+                                className="border rounded bg-white shadow-sm"
+                                style={{
+                                  position: "absolute",
+                                  top: "100%",
+                                  left: 0,
+                                  right: 0,
+                                  zIndex: 20,
+                                  maxHeight: "220px",
+                                  overflowY: "auto",
+                                  marginTop: "2px",
+                                }}
+                              >
+                                {filteredCourses.length === 0 && courseSearch !== "" ? (
+                                  <div className="px-3 py-2 text-muted small">
+                                    No matching course found.
+                                  </div>
+                                ) : (
+                                  filteredCourses.map((c) => (
+                                    <div
+                                      key={c}
+                                      className="px-3 py-2"
+                                      style={{ cursor: "pointer" }}
+                                      onMouseDown={() => {
+                                        setShowOtherCourseInput(false);
+                                        setForm((f) => ({ ...f, course: c }));
+                                        setCourseDropdownOpen(false);
+                                        setCourseSearch("");
+                                      }}
+                                      onMouseEnter={(e) => (e.currentTarget.style.background = "#fff3f3")}
+                                      onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                                    >
+                                      {c}
+                                    </div>
+                                  ))
+                                )}
+                                <div
+                                  className="px-3 py-2 border-top fw-semibold"
+                                  style={{ cursor: "pointer" }}
+                                  onMouseDown={() => {
+                                    setShowOtherCourseInput(true);
+                                    setForm((f) => ({ ...f, course: otherCourse }));
+                                    setCourseDropdownOpen(false);
+                                    setCourseSearch("");
+                                  }}
+                                  onMouseEnter={(e) => (e.currentTarget.style.background = "#fff3f3")}
+                                  onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                                >
+                                  Other
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {showOtherCourseInput && (
+                            <div className="mt-2">
+                              <input
+                                ref={otherCourseInputRef}
+                                className="form-control"
+                                placeholder="e.g. BS Information Technology"
+                                value={otherCourse}
+                                onChange={(e) => {
+                                  setOtherCourse(e.target.value);
+                                  setForm((f) => ({ ...f, course: e.target.value }));
+                                }}
+                                required
+                              />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="d-flex justify-content-end gap-2 mt-4">
-                  <button
-                    type="button"
-                    className="btn btn-secondary-custom"
-                    onClick={handleClear}
-                  >
-                    Clear Form
-                  </button>
+                <div className="d-flex justify-content-end align-items-center gap-2 mt-4">
+                  {draftSaved && (
+                    <span className="text-success small me-auto">Draft saved.</span>
+                  )}
+                  {!applicationId && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary-custom"
+                      onClick={handleSaveDraft}
+                    >
+                      Save Draft
+                    </button>
+                  )}
                   <button
                     type="submit"
                     className="btn btn-submit"
-                    disabled={loading}
+                    disabled={loading || periodStatus === "scheduled" || periodStatus === "closed"}
                   >
                     {loading ? "Submitting..." : "Next: Upload Documents"}
                   </button>
@@ -713,6 +1133,14 @@ function ApplicantSubmission() {
                       <strong>A.Y. {activeConfig.school_year}</strong> — the
                       most recent enrollment period. Registration forms from a
                       different school year will not be accepted.
+                      {isMinor && (
+                        <>
+                          {" "}As a minor applicant, upload your{" "}
+                          <strong>parent/guardian's</strong> Voter's Certificate
+                          for the Voter's Certificate requirement below — not
+                          your own.
+                        </>
+                      )}
                     </div>
                   )}
 
@@ -722,10 +1150,12 @@ function ApplicantSubmission() {
                     system.
                   </p>
                   <div className="alert alert-warning py-2 mb-3">
-                    <strong>Reminder:</strong> Upload clear, readable photos or
-                    scans. Blurry or low-quality images may cause your
-                    application to be requested for a reupload. Supported
-                    formats: JPG, PNG, PDF. Max size: 5MB per file.
+                    <strong>Image Quality Guidelines:</strong> Upload clear,
+                    readable photos or scans. Ensure good lighting, avoid
+                    blur, and keep the full document in frame. Images below{" "}
+                    {MIN_SHORT_SIDE_PX}px on the shortest side will be
+                    rejected automatically. Supported formats: JPG, PNG, PDF.
+                    Max size: 5MB per file.
                   </div>
                   <div className="row g-3">
                     {DOC_FIELDS.map((field) => (
@@ -741,6 +1171,11 @@ function ApplicantSubmission() {
                             onChange={setFile(field.key)}
                           />
                           <div className="form-text">{field.hint}</div>
+                          {fileErrors[field.key] && (
+                            <small className="text-danger d-block mt-1">
+                              {fileErrors[field.key]}
+                            </small>
+                          )}
                           {files[field.key] && (
                             <small className="text-success">
                               ✓ {files[field.key].name}

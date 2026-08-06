@@ -3,8 +3,8 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\MailMessage;
 
 class CustomVerifyEmailNotification extends Notification implements ShouldQueue
@@ -12,10 +12,13 @@ class CustomVerifyEmailNotification extends Notification implements ShouldQueue
     use Queueable;
 
     protected $verificationUrl;
+    protected $code;
 
-    public function __construct($verificationUrl)
+    public function __construct($verificationUrl, $code = null)
     {
         $this->verificationUrl = $verificationUrl;
+        $this->code = $code;
+        $this->onQueue('notifications');
     }
 
     public function via($notifiable)
@@ -27,10 +30,10 @@ class CustomVerifyEmailNotification extends Notification implements ShouldQueue
     {
         return (new MailMessage)
             ->subject('Verify Your Educational Assistance Account')
-            ->greeting('Good day! ' . $notifiable->first_name . ',')
-            ->line('Thank you for registering. Please verify your email address to complete your application profile.')
-            ->action('Verify Email Address', $this->verificationUrl)
-            ->line('If you did not create an account, no further action is required.')
-            ->salutation("Regards,  \nSangguniang Kabataan of Barangay Mamatid");
+            ->view('emails.verify-email', [
+                'userName'        => $notifiable->first_name,
+                'verificationUrl' => $this->verificationUrl,
+                'code'            => $this->code,
+            ]);
     }
 }

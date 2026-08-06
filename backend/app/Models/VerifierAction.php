@@ -10,12 +10,14 @@ class VerifierAction extends Model
         'application_id',
         'verifier_id',
         'action',
+        'reason_categories',
         'notes',
         'reupload_details',
     ];
 
     protected $casts = [
-        'reupload_details' => 'array',
+        'reason_categories' => 'array',
+        'reupload_details'  => 'array',
     ];
 
     public function application()

@@ -35,13 +35,14 @@ class ProcessOcrDocument implements ShouldQueue
         $this->application = $application;
         $this->document = $document;
         $this->filePath = $filePath;
+        $this->onQueue('ocr');
     }
 
     public function handle()
     {
         try {
             // Get full path to stored file
-            $storagePath = Storage::disk('public')->path($this->filePath);
+            $storagePath = Storage::disk('local')->path($this->filePath);
 
             if (!file_exists($storagePath)) {
                 throw new \Exception("File not found: {$storagePath}");
@@ -52,8 +53,9 @@ class ProcessOcrDocument implements ShouldQueue
                 'timeout'         => 180, 
                 'connect_timeout' => 10 // Optional: fail fast if the server is completely down
             ]);
-            $user   = $this->application->user;
-            $config = $this->application->configuration;
+            $user    = $this->application->user;
+            $config  = $this->application->configuration;
+            $profile = $user->profile;
 
             $multipart = [
                 ['name' => 'file', 'contents' => fopen($storagePath, 'r'), 'filename' => $this->document->file_name],
@@ -75,6 +77,22 @@ class ProcessOcrDocument implements ShouldQueue
 
             if ($this->document->document_type === 'school_id') {
                 $multipart[] = ['name' => 'declared_school', 'contents' => $this->application->school_name];
+            }
+
+            if ($this->document->document_type === 'voters_certificate') {
+                $isMinor = $profile?->is_minor ?? false;
+                $multipart[] = ['name' => 'is_minor', 'contents' => $isMinor ? '1' : '0'];
+                $multipart[] = ['name' => 'guardian_first_name',  'contents' => $profile?->guardian_first_name ?? ''];
+                $multipart[] = ['name' => 'guardian_middle_name', 'contents' => $profile?->guardian_middle_name ?? ''];
+                $multipart[] = ['name' => 'guardian_last_name',   'contents' => $profile?->guardian_last_name ?? ''];
+
+                // Voter's Certificate should be issued/updated within the
+                // current calendar year — confirmed directly by SK during
+                // the needs-assessment interview. Enforced unconditionally
+                // for every cycle, not admin-configurable, since this is a
+                // fixed rule rather than something that varies per period.
+                $multipart[] = ['name' => 'enforce_cert_year', 'contents' => 'true'];
+                $multipart[] = ['name' => 'cert_year',         'contents' => (string) now()->year];
             }
 
             $flaskUrl = env('OCR_SERVICE_URL', 'http://localhost:5000');
@@ -171,7 +189,7 @@ class ProcessOcrDocument implements ShouldQueue
 
             // Trigger Automated System Approval Notification
             $application->user->notify(new ApplicationStatusNotification(
-                'Approved (System Verified)',
+                'Approved',
                 'Congratulations! Your application has been approved. Please prepare your physical documents for submission and stay tuned for further instructions.'
             ));
         }

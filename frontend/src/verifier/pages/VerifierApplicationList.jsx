@@ -2,11 +2,10 @@ import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
-import { STATUS_CONFIG } from "../../components/StatusConstants";
+import { getVerifierStatusLabel, getVerifierBadgeClass } from "../../components/StatusConstants";
 
-function StatusBadge({ status }) {
-  const config = STATUS_CONFIG[status] || { label: status, class: "secondary" };
-  return <span className={`status-badge ${config.class}`}>{config.label}</span>;
+function StatusBadge({ app }) {
+  return <span className={`status-badge ${getVerifierBadgeClass(app)}`}>{getVerifierStatusLabel(app)}</span>;
 }
 
 function VerifierApplicationList() {
@@ -75,7 +74,7 @@ function VerifierApplicationList() {
                           <td>{app.control_number ?? `APP-${app.id}`}</td>
                           <td>{app.name}</td>
                           <td>{app.submitted_at?.split("T")[0]}</td>
-                          <td><StatusBadge status={app.status} /></td>
+                          <td><StatusBadge app={app} /></td>
                           <td>
                             <Link to={`/VerifierApplicationReview/${app.id}`} className="btn btn-custom btn-sm">
                               {["approved", "rejected"].includes(app.status) ? "View" : "Review"}

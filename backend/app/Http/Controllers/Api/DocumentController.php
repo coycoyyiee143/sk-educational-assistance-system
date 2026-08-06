@@ -7,6 +7,7 @@ use App\Models\Application;
 use App\Models\ApplicationDocument;
 use App\Jobs\ProcessOcrDocument;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class DocumentController extends Controller
 {
@@ -25,18 +26,21 @@ class DocumentController extends Controller
             'document_type' => 'required|in:voters_certificate,registration_form,school_id',
             'file'          => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
-
         $application = Application::where('id', $id)
             ->where('user_id', $request->user()->id)
             ->with(['user.profile', 'configuration'])
             ->firstOrFail();
-
+    
+        if (now()->gt($application->configuration->close_date)) {
+            return response()->json(['message' => 'The application period has closed. Document uploads are no longer accepted.'], 400);
+        }
+    
         $file     = $request->file('file');
         $fileName = time() . '_' . $file->getClientOriginalName();
         $path     = $file->storeAs(
             "documents/{$application->id}",
             $fileName,
-            'public'
+            'local'   // CHANGED: was 'public'
         );
 
         $document = ApplicationDocument::create([
@@ -49,8 +53,17 @@ class DocumentController extends Controller
             'status'         => 'processing',
         ]);
 
-        // Dispatch async OCR job with stored file path
         ProcessOcrDocument::dispatch($application, $document, $path);
+
+        // Fire the "Pending" confirmation only once all 3 required documents exist —
+        // an application isn't meaningfully "submitted" until documents are attached.
+        $documentCount = $application->documents()->count();
+        if ($documentCount === 3) {
+            $request->user()->notify(new \App\Notifications\ApplicationStatusNotification(
+                'Pending',
+                'Your educational assistance application has been submitted successfully and queued for document verification.'
+            ));
+        }
 
         return response()->json([
             'message'  => 'Document uploaded and queued for processing.',
@@ -63,12 +76,15 @@ class DocumentController extends Controller
         $request->validate([
             'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
-
         $application = Application::where('id', $id)
             ->where('user_id', $request->user()->id)
             ->with(['user.profile', 'configuration'])
             ->firstOrFail();
-
+    
+        if (now()->gt($application->configuration->close_date)) {
+            return response()->json(['message' => 'The application period has closed. Document uploads are no longer accepted.'], 400);
+        }
+    
         $oldDocument = ApplicationDocument::where('id', $docId)
             ->where('application_id', $application->id)
             ->firstOrFail();
@@ -78,7 +94,7 @@ class DocumentController extends Controller
         $path     = $file->storeAs(
             "documents/{$application->id}",
             $fileName,
-            'public'
+            'local'   // CHANGED: was 'public'
         );
 
         $newDocument = ApplicationDocument::create([
@@ -91,17 +107,55 @@ class DocumentController extends Controller
             'status'         => 'processing',
         ]);
 
-        // Update parent application status back to the processing queue
         $application->update([
             'status' => 'pending_prescreening'
         ]);
 
-        // Dispatch async OCR job with stored file path
         ProcessOcrDocument::dispatch($application, $newDocument, $path);
+
+        // Log the document re-upload for the audit trail
+        $documentLabel = str_replace('_', ' ', $newDocument->document_type);
+        \App\Models\AuditLog::record(
+            'document_reuploaded',
+            $newDocument,
+            "{$request->user()->first_name} {$request->user()->last_name} re-uploaded {$documentLabel} for application #{$application->id}"
+        );
+
 
         return response()->json([
             'message'  => 'Document re-uploaded and queued for processing.',
             'document' => $newDocument->fresh(),
         ], 201);
+    }
+
+    /**
+     * Authenticated document streaming.
+     * Only the owning applicant, an sk_verifier, or an sk_admin can view.
+     */
+    public function show(Request $request, $id, $docId)
+    {
+        $application = Application::findOrFail($id);
+
+        $document = ApplicationDocument::where('id', $docId)
+            ->where('application_id', $application->id)
+            ->firstOrFail();
+
+        $user = $request->user();
+        $isOwner    = $user->id === $application->user_id;
+        $isVerifier = $user->role === 'sk_verifier';
+        $isAdmin    = $user->role === 'sk_admin';
+
+        if (!$isOwner && !$isVerifier && !$isAdmin) {
+            abort(403, 'You are not authorized to view this document.');
+        }
+
+        if (!Storage::disk('local')->exists($document->file_path)) {
+            abort(404, 'File not found.');
+        }
+
+        return Storage::disk('local')->response(
+            $document->file_path,
+            $document->file_name
+        );
     }
 }

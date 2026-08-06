@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
@@ -10,6 +11,7 @@ function ApplicantDashboard() {
   const [config, setConfig] = useState(null);
   const [loadingApp, setLoadingApp] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(true);
+  const periodStatus = getApplicationPeriodStatus(config);
 
   useEffect(() => {
     api.get("/applications")
@@ -23,13 +25,7 @@ function ApplicantDashboard() {
       .finally(() => setLoadingConfig(false));
   }, []);
 
-  const statusBadge = {
-    pending_prescreening: "secondary",
-    for_review: "warning",
-    approved: "success",
-    rejected: "danger",
-    reupload_requested: "info",
-  };
+  const currentStatusConfig = application ? STATUS_CONFIG[application.status] : null;
 
   return (
     <div>
@@ -53,17 +49,11 @@ function ApplicantDashboard() {
                   <div className="spinner-border spinner-border-sm text-danger" />
                 ) : application ? (
                   <>
-                    <span className={`badge bg-${statusBadge[application.status] ?? "secondary"} mb-2`}>
-                      {STATUS_CONFIG[application.status]?.label ?? application.status}
+                    <span className={`badge ${currentStatusConfig?.badgeClass ?? "status-pending"} mb-2`}>
+                      {currentStatusConfig?.applicantLabel ?? application.status}
                     </span>
                     <p className="mb-0 text-muted">
-                      {application.status === "approved"
-                        ? "Congratulations! Your application has been approved."
-                        : application.status === "rejected"
-                          ? "Your application was not approved. Please contact the SK office."
-                          : application.status === "reupload_requested"
-                            ? "Please re-upload your documents as requested."
-                            : "Your application is currently being processed."}
+                      {currentStatusConfig?.applicantMessage ?? "Your application is currently being processed."}
                     </p>
                   </>
                 ) : (
@@ -76,6 +66,9 @@ function ApplicantDashboard() {
             <div className="col-md-6">
               <div className="dashboard-card">
                 <h5>Application Period</h5>
+                {periodStatus === "open" && <span className="badge bg-success mb-2">Open Now</span>}
+                {periodStatus === "scheduled" && <span className="badge bg-warning text-dark mb-2">Not Yet Open</span>}
+                {periodStatus === "closed" && <span className="badge bg-secondary mb-2">Closed</span>}
                 {loadingConfig ? (
                   <div className="spinner-border spinner-border-sm text-danger" />
                 ) : config ? (
@@ -100,9 +93,7 @@ function ApplicantDashboard() {
                 )}
               </div>
             </div>
-
           </div>
-
         </div>
       </section>
 

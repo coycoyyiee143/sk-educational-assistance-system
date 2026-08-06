@@ -25,11 +25,16 @@ class UserFactory extends Factory
     public function definition(): array
     {
         return [
-            'name' => fake()->name(),
-            'email' => fake()->unique()->safeEmail(),
+            'first_name'        => fake()->firstName(),
+            'middle_name'       => fake()->lastName(),
+            'last_name'         => fake()->lastName(),
+            'email'             => fake()->unique()->safeEmail(),
+            'mobile_number'     => '09' . fake()->unique()->numerify('#########'),
+            'password'          => static::$password ??= Hash::make('password'),
+            'role'              => 'applicant',
+            'is_active'         => true,
             'email_verified_at' => now(),
-            'password' => static::$password ??= Hash::make('password'),
-            'remember_token' => Str::random(10),
+            'remember_token'    => Str::random(10),
         ];
     }
 
@@ -41,5 +46,23 @@ class UserFactory extends Factory
         return $this->state(fn (array $attributes) => [
             'email_verified_at' => null,
         ]);
+    }
+
+    /**
+     * Convenience states for the three roles in your system.
+     */
+    public function admin(): static
+    {
+        return $this->state(fn () => ['role' => 'sk_admin']);
+    }
+
+    public function verifier(): static
+    {
+        return $this->state(fn () => ['role' => 'sk_verifier']);
+    }
+
+    public function applicant(): static
+    {
+        return $this->state(fn () => ['role' => 'applicant']);
     }
 }

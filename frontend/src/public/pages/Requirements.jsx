@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
-import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
-
+import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 
 const Requirements = () => {
   const [config, setConfig] = useState(null);
@@ -20,6 +19,13 @@ const Requirements = () => {
     if (!dateStr) return "—";
     return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   }
+
+  function formatDateTime(dateStr) {
+    if (!dateStr) return "—";
+    return new Date(dateStr).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  const periodStatus = getApplicationPeriodStatus(config);
 
   return (
     <>
