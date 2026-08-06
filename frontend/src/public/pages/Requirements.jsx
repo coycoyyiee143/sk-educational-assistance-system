@@ -56,31 +56,90 @@ const Requirements = () => {
         </div>
       </section>
 
+      <section className="py-4">
+        <div className="container">
+          <div className="featured-announcement-card featured-split-layout">
+            <div className="featured-main-col">
+              <div className="featured-badge-row">
+                <span className="featured-badge">Notice</span>
+                <span className="featured-badge-divider"></span>
+                <span className="featured-bulletin-label">Application Guidelines</span>
+              </div>
+              <h5 className="featured-title">Important Reminders</h5>
+              <ul className="events-reminder-list mb-0">
+                <li>Ensure documents are clear and readable.</li>
+                <li>Incomplete applications may be rejected.</li>
+                <li>Check your account regularly for updates.</li>
+                <li>False information leads to disqualification.</li>
+                <li>Follow official schedule announcements.</li>
+              </ul>
+            </div>
+            <div className="featured-side-col">
+              <span className="featured-department-label">Department</span>
+              <p className="featured-department-name">Office of the SK Chairman</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Live application status */}
       <section className="py-5">
         <div className="container">
-          <h2 className="section-title">Application Status</h2>
           {loading ? (
             <div className="py-3"><div className="spinner-border text-danger" role="status" /></div>
           ) : config ? (
-            <div className="status-box">
-              <h4>
-                {config.is_active
-                  ? <span className="text-success">Application is Open</span>
-                  : <span className="text-danger">Application is Closed</span>}
-              </h4>
-              <p className="mt-3 mb-1"><strong>School Year:</strong> {config.school_year}</p>
-              <p className="mb-1"><strong>Opening Date:</strong> {formatDate(config.open_date)}</p>
-              <p className="mb-3"><strong>Closing Date:</strong> {formatDate(config.close_date)}</p>
-              <p className="mb-3">
-                <strong>Available Slots:</strong>{" "}
-                {config.is_unlimited
-                  ? "Unlimited"
-                  : `${config.slot_limit - config.slots_filled} of ${config.slot_limit}`}
-              </p>
-              {config.is_active && (
-                <a href="/register" className="btn btn-custom">Apply Now</a>
-              )}
+            <div className="status-window-card">
+              <div className="status-window-left">
+                <span className="status-window-label">Application Status</span>
+                <h4 className="status-window-title">
+                  Application is{" "}
+                  {config.is_active
+                    ? <span className="status-window-open">Open</span>
+                    : <span className="status-window-closed">Closed</span>}
+                </h4>
+                <div className="status-window-meta-row">
+                  <span className={`status-window-pill ${config.is_active ? "status-window-pill-open" : "status-window-pill-closed"}`}>
+                    {config.is_active ? "Accepting Submissions" : "Not Accepting Submissions"}
+                  </span>
+                  <span className="status-window-schoolyear">School Year {config.school_year}</span>
+                </div>
+              </div>
+              <div className="status-window-right">
+                <div className="status-window-dates-box">
+                  <div className="status-window-date-item">
+                    <span className="status-window-date-icon">
+                      <img src="/icons/req-calendar.png" alt="Start Date" />
+                    </span>
+                    <div>
+                      <span className="status-window-date-label">Start Date</span>
+                      <p className="status-window-date-value">{formatDate(config.open_date)}</p>
+                    </div>
+                  </div>
+                  <div className="status-window-date-divider"></div>
+                  <div className="status-window-date-item">
+                    <span className="status-window-date-icon">
+                      <img src="/icons/req-clock.png" alt="Deadline" />
+                    </span>
+                    <div>
+                      <span className="status-window-date-label">Deadline</span>
+                      <p className="status-window-date-value">{formatDate(config.close_date)}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="status-window-slots-row">
+                  <div className="status-window-slots-info">
+                    <span className="status-window-slots-label">Available Slots</span>
+                    <p className="status-window-slots-value">
+                      {config.is_unlimited
+                        ? "Unlimited"
+                        : <>{config.slot_limit - config.slots_filled} <span className="status-window-slots-total">/ {config.slot_limit}</span></>}
+                    </p>
+                  </div>
+                  {config.is_active && (
+                    <a href="/register" className="status-window-apply-btn">Apply Now</a>
+                  )}
+                </div>
+              </div>
             </div>
           ) : (
             <div className="status-box">
@@ -94,28 +153,69 @@ const Requirements = () => {
       <section className="py-5">
         <div className="container">
           <h2 className="section-title">Required Documents</h2>
-          <div className="row g-4 justify-content-center">
+          <div className="row g-4">
             <div className="col-md-4">
-              <div className="card card-custom p-4">
-                <h4>Residency Document</h4>
-                <ul className="mt-3 mb-0">
-                  <li>Voter's Certificate or Voter's ID</li>
+              <div className="req-doc-card">
+                <div className="req-doc-icon-wrap">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
+                    <circle cx="12" cy="10" r="3" />
+                  </svg>
+                </div>
+                <h5 className="req-doc-card-title">Residency</h5>
+                <ul className="req-doc-list">
+                  <li>
+                    <span className="req-doc-check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                    Voter's Certificate or Voter's ID
+                  </li>
                 </ul>
               </div>
             </div>
             <div className="col-md-4">
-              <div className="card card-custom p-4">
-                <h4>School Documents</h4>
-                <ul className="mt-3 mb-0">
-                  <li>Certificate of Enrollment / Registration Form</li>
-                  <li>Valid School ID</li>
+              <div className="req-doc-card">
+                <div className="req-doc-icon-wrap">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M22 10L12 5 2 10l10 5 10-5z" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <h5 className="req-doc-card-title">Academic</h5>
+                <ul className="req-doc-list">
+                  <li>
+                    <span className="req-doc-check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                    Certificate of Enrollment / Registration Form
+                  </li>
+                  <li>
+                    <span className="req-doc-check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                        <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </span>
+                    Valid School ID
+                  </li>
                 </ul>
               </div>
             </div>
             <div className="col-md-4">
-              <div className="card card-custom p-4">
-                <h4>Reminder</h4>
-                <p className="mt-3 mb-0">Documents must be clear and match application details.</p>
+              <div className="req-doc-reminder-card">
+                <div className="req-doc-reminder-icon-wrap">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="9" />
+                    <path d="M12 8v5M12 16h.01" strokeLinecap="round" />
+                  </svg>
+                </div>
+                <h5 className="req-doc-reminder-title">Reminder</h5>
+                <p className="req-doc-reminder-text">
+                  Documents must be clear and match application details.
+                </p>
               </div>
             </div>
           </div>
@@ -125,30 +225,25 @@ const Requirements = () => {
       <section className="py-5">
         <div className="container">
           <h2 className="section-title">Application Process</h2>
-          <div className="info-box">
-            <ol className="mb-0">
-              <li>Create an account</li>
-              <li>Log in to the system</li>
-              <li>Fill out application form</li>
-              <li>Upload required documents</li>
-              <li>Submit application</li>
-              <li>Wait for verification</li>
-            </ol>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-5">
-        <div className="container">
-          <h2 className="section-title">Important Reminders</h2>
-          <div className="info-box">
-            <ul className="mb-0">
-              <li>Ensure documents are clear and readable.</li>
-              <li>Incomplete applications may be rejected.</li>
-              <li>Check your account regularly for updates.</li>
-              <li>False information leads to disqualification.</li>
-              <li>Follow official schedule announcements.</li>
-            </ul>
+          <div className="process-steps-card">
+            <div className="process-steps-row">
+              <div className="process-step process-step-active">
+                <div className="process-step-circle">1</div>
+                <p className="process-step-text">Create an account and log in</p>
+              </div>
+              <div className="process-step">
+                <div className="process-step-circle">2</div>
+                <p className="process-step-text">Complete the application form</p>
+              </div>
+              <div className="process-step">
+                <div className="process-step-circle">3</div>
+                <p className="process-step-text">Upload the required documents and submit the application</p>
+              </div>
+              <div className="process-step">
+                <div className="process-step-circle">4</div>
+                <p className="process-step-text">Wait for verification</p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
