@@ -116,17 +116,23 @@ const Register = () => {
         </div>
       </nav>
 
-      <section className="py-5">
-        <div className="container">
-          <div className="row justify-content-center">
-            <div className="col-lg-8">
+      <section className="register-split-section">
+        <div className="register-split-wrap">
+          <div className="register-split-image">
+            <img src="/icons/register-bg.png" alt="SK Educational Assistance" />
+          </div>
+          <div className="register-split-form">
+            <div className="login-card-wrap">
+              <img src="/icons/logo-in.png" alt="logo" className="login-card-logo" />
+              <h5 className="login-card-brand">Educational Assistance System</h5>
+              <p className="login-card-subtext">SK Barangay Mamatid</p>
               <div className="card card-custom p-4">
-                <h3 className="text-center text-danger">Create Applicant Account</h3>
-                <p className="text-center text-muted">Register to apply for educational assistance.</p>
+                <h3 className="text-start text-danger login-title-bold">Create Applicant Account</h3>
+                <p className="text-start text-muted login-subtext-lg mb-4">Register to apply for educational assistance.</p>
 
                 {error && <div className="alert alert-danger">{error}</div>}
 
-                <form onSubmit={handleSubmit}>
+                <form onSubmit={handleSubmit} className="register-form-spaced">
                   <div className="row">
                     <div className="col-md-4 mb-3">
                       <label className="form-label">First Name <span className="text-danger">*</span></label>
@@ -217,44 +223,66 @@ const Register = () => {
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Password <span className="text-danger">*</span></label>
-                    <div className="input-group">
+                    <div className="register-input-wrap">
                       <input
                         type={showPass ? "text" : "password"}
                         name="password"
-                        className="form-control"
+                        className="form-control register-input-eye"
                         placeholder="Password (min. 8 characters)"
                         onChange={handleChange}
                         required
                       />
                       <button
                         type="button"
-                        className="btn btn-outline-secondary"
+                        className="register-eye-btn-inline"
                         onClick={() => setShowPass(!showPass)}
                         tabIndex={-1}
+                        aria-label={showPass ? "Hide password" : "Show password"}
                       >
-                        {showPass ? "Hide" : "Show"}
+                        {showPass ? (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" />
+                            <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        )}
                       </button>
                     </div>
                   </div>
 
                   <div className="mb-3">
                     <label className="form-label">Confirm Password <span className="text-danger">*</span></label>
-                    <div className="input-group">
+                    <div className="register-input-wrap">
                       <input
                         type={showConfirm ? "text" : "password"}
                         name="confirmPassword"
-                        className="form-control"
+                        className="form-control register-input-eye"
                         placeholder="Confirm Password"
                         onChange={handleChange}
                         required
                       />
                       <button
                         type="button"
-                        className="btn btn-outline-secondary"
+                        className="register-eye-btn-inline"
                         onClick={() => setShowConfirm(!showConfirm)}
                         tabIndex={-1}
+                        aria-label={showConfirm ? "Hide password" : "Show password"}
                       >
-                        {showConfirm ? "Hide" : "Show"}
+                        {showConfirm ? (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" />
+                            <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
+                        )}
                       </button>
                     </div>
                   </div>
