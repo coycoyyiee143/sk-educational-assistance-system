@@ -8,8 +8,6 @@
                 <th>Total Submitted</th>
                 <th>Approved</th>
                 <th>Rejected</th>
-                <th>Not Cleared</th>
-                <th>Pending</th>
                 <th>Approval Rate</th>
             </tr>
         </thead>
@@ -20,8 +18,6 @@
                     <td>{{ $row['total_submitted'] }}</td>
                     <td>{{ $row['approved'] }}</td>
                     <td>{{ $row['rejected'] }}</td>
-                    <td>{{ $row['not_cleared'] }}</td>
-                    <td>{{ $row['pending'] }}</td>
                     <td>{{ $row['approval_rate'] }}%</td>
                 </tr>
             @endforeach
