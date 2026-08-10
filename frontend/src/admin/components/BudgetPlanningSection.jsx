@@ -6,7 +6,6 @@ function formatCurrency(amount) {
 }
 
 function BudgetPlanningSection() {
-
     const [estimation, setEstimation] = useState(null);
     const [forecast, setForecast] = useState(null);
     const [lastCycle, setLastCycle] = useState(null);
@@ -14,6 +13,7 @@ function BudgetPlanningSection() {
     const [plannedSlots, setPlannedSlots] = useState("");
     const [plannedAmount, setPlannedAmount] = useState("");
     const [loading, setLoading] = useState(true);
+    const [showInfo, setShowInfo] = useState(false);
 
     useEffect(() => {
         setLoading(true);
@@ -71,19 +71,21 @@ function BudgetPlanningSection() {
             {/* Budget Forecast — Wilson */}
             <div className="page-card">
                 <h4 className="sub-title">Budget Forecast (Statistical)</h4>
-                <div className="info-box">
-                    A genuine statistical forecast on <strong>approval rate</strong> — the one number here
-                    unaffected by unmet demand, so it's valid to forecast with confidence intervals.
-                    Volume is still a plain average.
-                    <br /><br />
-                    <strong>What the range means:</strong> based on {forecast?.pooled_total_submitted ?? "—"} historical
-                    applicants, we're 95% confident the <em>true</em> approval rate falls somewhere between
-                    the lower and upper bound shown below — not that it's exactly one number.
-                    <br /><br />
-                    <strong>Needs SK/real data?</strong> Yes.{" "}
-                    <strong>Real forecasting?</strong> Yes — the only genuinely statistical one of these.{" "}
-                    <strong>Status:</strong> Mechanism correct today; range narrows as real data accumulates.
-                </div>
+                {showInfo && (
+                    <div className="info-box">
+                        A genuine statistical forecast on <strong>approval rate</strong> — the one number here
+                        unaffected by unmet demand, so it's valid to forecast with confidence intervals.
+                        Volume is still a plain average.
+                        <br /><br />
+                        <strong>What the range means:</strong> based on {forecast?.pooled_total_submitted ?? "—"} historical
+                        applicants, we're 95% confident the <em>true</em> approval rate falls somewhere between
+                        the lower and upper bound shown below — not that it's exactly one number.
+                        <br /><br />
+                        <strong>Needs SK/real data?</strong> Yes.{" "}
+                        <strong>Real forecasting?</strong> Yes — the only genuinely statistical one of these.{" "}
+                        <strong>Status:</strong> Mechanism correct today; range narrows as real data accumulates.
+                    </div>
+                )}
                 {!forecast?.available ? (
                     <div className="alert alert-info mb-0">{forecast?.message ?? "Loading..."}</div>
                 ) : (
@@ -127,15 +129,17 @@ function BudgetPlanningSection() {
             {/* Budget Estimation */}
             <div className="page-card">
                 <h4 className="sub-title">Budget Estimation</h4>
-                <div className="info-box">
-                    A plain historical average — shows what past periods looked like, not a prediction.
-                    No statistical claim.
-                    <br /><br />
-                    <strong>Needs SK/real data?</strong> Yes — becomes reliable once real completed cycles
-                    run on this system.<br />
-                    <strong>Real forecasting?</strong> No — plain arithmetic.<br />
-                    <strong>Status:</strong> Mechanism ready today; output meaningful once real data exists.
-                </div>
+                {showInfo && (
+                    <div className="info-box">
+                        A plain historical average — shows what past periods looked like, not a prediction.
+                        No statistical claim.
+                        <br /><br />
+                        <strong>Needs SK/real data?</strong> Yes — becomes reliable once real completed cycles
+                        run on this system.<br />
+                        <strong>Real forecasting?</strong> No — plain arithmetic.<br />
+                        <strong>Status:</strong> Mechanism ready today; output meaningful once real data exists.
+                    </div>
+                )}
                 {!estimation?.historical?.length ? (
                     <div className="alert alert-info mb-0">No application period data available yet.</div>
                 ) : (
@@ -177,19 +181,21 @@ function BudgetPlanningSection() {
                 )}
             </div>
 
-            {/*Budget Allocation Planning */}
+            {/* Budget Allocation Planning */}
             <div className="page-card">
                 <h4 className="sub-title">Budget Allocation Planning</h4>
-                <div className="info-box">
-                    A decision-support calculator, not a forecast — works entirely off a budget figure SK
-                    provides directly, no historical applicant data needed.
-                    <br /><br />
-                    <strong>Needs SK/real data?</strong> No.{" "}
-                    <strong>Real forecasting?</strong> No, and doesn't claim to be.{" "}
-                    <strong>Status:</strong> Usable today, regardless of system history.
-                </div>
+                {showInfo && (
+                    <div className="info-box">
+                        A decision-support calculator, not a forecast — works entirely off a budget figure SK
+                        provides directly, no historical applicant data needed.
+                        <br /><br />
+                        <strong>Needs SK/real data?</strong> No.{" "}
+                        <strong>Real forecasting?</strong> No, and doesn't claim to be.{" "}
+                        <strong>Status:</strong> Usable today, regardless of system history.
+                    </div>
+                )}
                 {lastCycle?.available && (
-                    <div className="alert alert-secondary py-2 mb-3">
+                    <div className="alert alert-primary py-2 mb-3">
                         <strong>Last completed cycle ({lastCycle.school_year}):</strong>{" "}
                         {lastCycle.is_unlimited
                             ? "unlimited slots"
@@ -228,6 +234,23 @@ function BudgetPlanningSection() {
                 )}
             </div>
 
+
+            <div className="page-card">
+                <div className="d-flex justify-content-start flex-wrap gap-3">
+                    <a href="/AdminReports" className="btn btn-custom">← Back to Reports</a>
+                </div>
+            </div>
+
+            <div className="d-flex justify-content-end mb-2">
+                <button
+                    type="button"
+                    className="btn btn-sm btn-link text-muted text-decoration-none p-0"
+                    onClick={() => setShowInfo((v) => !v)}
+                    style={{ fontSize: "3px", whiteSpace: "nowrap" }}
+                >
+                    {showInfo ? "Hide" : "Show"}
+                </button>
+            </div>
         </>
     );
 }

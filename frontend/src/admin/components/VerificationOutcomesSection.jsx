@@ -178,10 +178,7 @@ function VerificationOutcomesSection({ selectedConfigId }) {
                     </button>
                 </div>
                 <div className="info-box">
-                    Approved vs. rejected outcomes per period, shown against total submitted. "Rejected"
-                    includes applications that failed at document review or later, at claiming day
-                    (Not Cleared) — both are effectively rejections, just discovered at different stages.
-                    This is the data used in Budget Forecast's approval-rate calculation.
+                    Approved vs. rejected outcomes per period, shown against total submitted.
                 </div>
                 {!submissionVsApproval?.trend?.length ? (
                     <div className="alert alert-info mb-0">No application period data available yet.</div>
