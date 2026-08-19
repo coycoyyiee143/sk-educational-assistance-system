@@ -20,8 +20,6 @@ const emptyDay = () => ({
   afternoon: { enabled: true, lanes: [emptySessionLane()] },
 });
 
-// Reconstructs the day/session/lane builder shape from the flat lanes array
-// returned by the API (claiming_date + batch + lane_name + capacity per row).
 function groupLanesIntoDays(lanesArr) {
   if (!lanesArr || lanesArr.length === 0) return [emptyDay()];
   const map = {};
@@ -42,7 +40,6 @@ function groupLanesIntoDays(lanesArr) {
   return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// Flattens the day/session/lane builder back into the lanes array the API expects.
 function serializeLanes(days) {
   const lanes = [];
   days.forEach((day, dayIdx) => {
@@ -81,6 +78,8 @@ function AdminSchedule() {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [gracePeriodList, setGracePeriodList] = useState(null);
+  const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
 
   useEffect(() => { loadSchedule(); }, []);
 
@@ -128,9 +127,6 @@ function AdminSchedule() {
       .catch(() => setPreview(null))
       .finally(() => setPreviewing(false));
   }
-
-  const [gracePeriodList, setGracePeriodList] = useState(null);
-  const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
 
   function loadGracePeriodClaimingList() {
     setLoadingGracePeriodList(true);
@@ -616,32 +612,36 @@ function AdminSchedule() {
                       </thead>
                       <tbody>
                         {isPublished ? (
-                          schedule.lanes?.map((lane) => (
-                            <tr key={lane.id}>
-                              <td>{lane.lane_name}</td>
-                              <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
-                              <td>{lane.claiming_date}</td>
-                              <td>{lane.capacity ?? "Auto"}</td>
-                              <td>{lane.control_number_range ?? "—"}</td>
-                              <td>{lane.assignments_count ?? 0}</td>
-                              <td>
-                                <button className="btn btn-outline-custom btn-sm" onClick={() => handlePrint(lane.id, lane.lane_name)}>
-                                  Print Lane List
-                                </button>
-                              </td>
-                            </tr>
-                          ))
+                          schedule.lanes
+                            ?.filter((lane) => lane.lane_name !== "Waitlist Promotions")
+                            .map((lane) => (
+                              <tr key={lane.id}>
+                                <td>{lane.lane_name}</td>
+                                <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
+                                <td>{lane.claiming_date}</td>
+                                <td>{lane.capacity ?? "Auto"}</td>
+                                <td>{lane.control_number_range ?? "—"}</td>
+                                <td>{lane.assignments_count ?? 0}</td>
+                                <td>
+                                  <button className="btn btn-outline-custom btn-sm" onClick={() => handlePrint(lane.id, lane.lane_name)}>
+                                    Print Lane List
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
                         ) : preview ? (
-                          preview.lanes.map((lane) => (
-                            <tr key={lane.id}>
-                              <td>{lane.lane_name}</td>
-                              <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
-                              <td>{lane.claiming_date}</td>
-                              <td>{lane.capacity ?? "Auto"}</td>
-                              <td>{lane.control_number_range ?? "—"}</td>
-                              <td>{lane.assigned_count}</td>
-                            </tr>
-                          ))
+                          preview.lanes
+                            .filter((lane) => lane.lane_name !== "Waitlist Promotions")
+                            .map((lane) => (
+                              <tr key={lane.id}>
+                                <td>{lane.lane_name}</td>
+                                <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
+                                <td>{lane.claiming_date}</td>
+                                <td>{lane.capacity ?? "Auto"}</td>
+                                <td>{lane.control_number_range ?? "—"}</td>
+                                <td>{lane.assigned_count}</td>
+                              </tr>
+                            ))
                         ) : (
                           <tr>
                             <td colSpan={6} className="text-muted">
