@@ -11,6 +11,7 @@ class ClaimingAssignment extends Model
         'claiming_schedule_id',
         'claiming_lane_id',
         'claim_status',
+        'source',
         'reason_categories',
         'verified_documents',
         'verifier_notes',

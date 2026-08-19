@@ -15,9 +15,12 @@ function formatWaitTime(waitlistedAt) {
 
 function VerifierWaitlist() {
     const [waitlist, setWaitlist] = useState([]);
+    const [notClearedCount, setNotClearedCount] = useState(0);
+    const [freeSlots, setFreeSlots] = useState(0);
     const [configId, setConfigId] = useState(null);
     const [loading, setLoading] = useState(true);
     const [promoting, setPromoting] = useState(false);
+    const [promotingAll, setPromotingAll] = useState(false);
     const [message, setMessage] = useState("");
     const [error, setError] = useState("");
 
@@ -26,6 +29,8 @@ function VerifierWaitlist() {
             .then((res) => {
                 setWaitlist(res.data.waitlist ?? []);
                 setConfigId(res.data.config_id ?? null);
+                setNotClearedCount(res.data.not_cleared_count ?? 0);
+                setFreeSlots(res.data.free_slots ?? 0);
             })
             .catch(() => setError("Failed to load waitlist."))
             .finally(() => setLoading(false));
@@ -53,31 +58,90 @@ function VerifierWaitlist() {
         }
     }
 
+    async function handlePromoteAll() {
+        if (!configId) return;
+        setPromotingAll(true);
+        setError("");
+        setMessage("");
+        try {
+            const res = await api.post(`/verifier/applications/config/${configId}/promote-all-waitlist`);
+            setMessage(res.data.message);
+            fetchData();
+        } catch (err) {
+            setError(err.response?.data?.message || "Failed to promote applicants.");
+        } finally {
+            setPromotingAll(false);
+        }
+    }
+
+    const nextApplicant = waitlist.find((a) => a.position === 1);
+
     return (
         <div>
             <VerifierNavigation />
             <section className="page-section">
                 <div className="container">
-                    <h3 className="section-title">Waitlist</h3>
-                    <div className="page-card">
-                        <p className="text-muted small mb-3">
+                    <div className="content-card mb-4">
+                        <h3 className="section-title mb-2">Waitlist</h3>
+                        <p className="text-muted mb-0">
                             Applicants who met all requirements but arrived after slots were filled. Promotion is
                             strictly first-in-line — the applicant waiting longest is always promoted next, when a
                             slot frees up (e.g. a claiming-day rejection).
                         </p>
-                        {error && <div className="alert alert-danger">{error}</div>}
-                        {message && <div className="alert alert-success">{message}</div>}
-                        <div className="d-flex justify-content-between align-items-center mb-3">
-                            <span className="text-muted small">
-                                {waitlist.length} applicant{waitlist.length === 1 ? "" : "s"} waiting
-                            </span>
-                            <button
-                                className="btn btn-custom btn-sm"
-                                onClick={handlePromote}
-                                disabled={promoting || waitlist.length === 0}
-                            >
-                                {promoting ? "Promoting..." : "Promote Next Applicant"}
-                            </button>
+                    </div>
+
+                    {error && <div className="alert alert-danger">{error}</div>}
+                    {message && <div className="alert alert-success">{message}</div>}
+
+                    <div className="row g-4">
+                        <div className="col-md-4">
+                            <div className="summary-card">
+                                <h5>Applicants Waiting</h5>
+                                <div className="summary-number">
+                                    {loading ? <span className="small text-muted">...</span> : waitlist.length}
+                                </div>
+                                <p className="text-muted mb-0">On the waitlist right now</p>
+                            </div>
+                        </div>
+                        <div className="col-md-4">
+                            <div className="summary-card">
+                                <h5>Free Slots</h5>
+                                <div className="summary-number">
+                                    {loading ? <span className="small text-muted">...</span> : `${freeSlots} / ${notClearedCount}`}
+                                </div>
+                                <p className="text-muted mb-0">Available to backfill right now</p>
+                            </div>
+                        </div>
+                        <div className="col-md-4">
+                            <div className="summary-card">
+                                <h5>Next in Line</h5>
+                                <div className="summary-number" style={{ fontSize: nextApplicant ? "1.5rem" : undefined }}>
+                                    {loading ? <span className="small text-muted">...</span> : (nextApplicant?.name ?? "—")}
+                                </div>
+                                <p className="text-muted mb-0">First to be promoted</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="content-card mt-4">
+                        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                            <h4 className="mb-0">Waitlisted Applicants</h4>
+                            <div className="d-flex gap-2">
+                                <button
+                                    className="btn btn-outline-custom btn-sm"
+                                    onClick={handlePromote}
+                                    disabled={promoting || promotingAll || waitlist.length === 0}
+                                >
+                                    {promoting ? "Promoting..." : "Promote Next Applicant"}
+                                </button>
+                                <button
+                                    className="btn btn-custom btn-sm"
+                                    onClick={handlePromoteAll}
+                                    disabled={promoting || promotingAll || waitlist.length === 0}
+                                >
+                                    {promotingAll ? "Promoting..." : "Promote All Available"}
+                                </button>
+                            </div>
                         </div>
                         {loading ? (
                             <div className="d-flex justify-content-center py-4">

@@ -37,44 +37,46 @@ class AdminScheduleController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'location'          => 'required|string',
-            'morning_start'     => 'nullable',
-            'morning_end'       => 'nullable',
-            'afternoon_start'   => 'nullable',
-            'afternoon_end'     => 'nullable',
-            'grace_period_date' => 'nullable|date',
-            'lanes'                    => 'required|array|min:1',
-            'lanes.*.lane_name'        => 'required|string',
-            'lanes.*.capacity'         => 'nullable|integer|min:1',
-            'lanes.*.batch'            => 'required|in:morning,afternoon',
-            'lanes.*.claiming_date'    => 'required|date',
+            'location'              => 'required|string',
+            'morning_start'         => 'nullable',
+            'morning_end'           => 'nullable',
+            'afternoon_start'       => 'nullable',
+            'afternoon_end'         => 'nullable',
+            'grace_period_date'     => 'nullable|date',
+            'grace_period_end_date' => 'nullable|date|after_or_equal:grace_period_date',
+            'lanes'                 => 'required|array|min:1',
+            'lanes.*.lane_name'     => 'required|string',
+            'lanes.*.capacity'      => 'nullable|integer|min:1',
+            'lanes.*.batch'         => 'required|in:morning,afternoon',
+            'lanes.*.claiming_date' => 'required|date',
         ]);
-
+    
         $config = ApplicationConfiguration::where('is_active', true)->first();
         if (!$config) {
             return response()->json(['message' => 'No active application period.'], 404);
         }
-
+    
         $schedule = ClaimingSchedule::where('config_id', $config->id)->latest()->first();
         if ($schedule && $schedule->is_published) {
             return response()->json(['message' => 'Schedule already published and cannot be edited.'], 400);
         }
-
+    
         if (!$schedule) {
             $schedule = new ClaimingSchedule(['config_id' => $config->id]);
         }
-
+    
         $schedule->fill($request->only([
             'location', 'morning_start', 'morning_end',
-            'afternoon_start', 'afternoon_end', 'grace_period_date',
+            'afternoon_start', 'afternoon_end',
+            'grace_period_date', 'grace_period_end_date',
         ]));
         $schedule->save();
-
+    
         $schedule->lanes()->delete();
         foreach ($request->lanes as $lane) {
             $schedule->lanes()->create($lane);
         }
-
+    
         return response()->json([
             'message'  => 'Schedule saved.',
             'schedule' => $schedule->load(['lanes' => function ($q) {

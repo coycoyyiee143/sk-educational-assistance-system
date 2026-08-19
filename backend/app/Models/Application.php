@@ -22,10 +22,12 @@ class Application extends Model
         'status',
         'rejection_reason',
         'submitted_at',
+        'waitlisted_at',
     ];
 
     protected $casts = [
-        'submitted_at' => 'datetime',
+        'submitted_at'  => 'datetime',
+        'waitlisted_at' => 'datetime',
     ];
 
     public function user()
@@ -66,14 +68,9 @@ class Application extends Model
     /**
      * Atomically approves an application: checks the slot limit, assigns a
      * control number scoped to this period, flips status, and increments
-     * slots_filled — all inside one locked transaction. Both the manual
-     * verifier approval and the OCR auto-approval path call this same
-     * method, so there's exactly one place slot checking and numbering can
-     * happen, instead of two paths that could disagree or race each other.
-     *
-     * Returns a structured result so callers can distinguish "already
-     * approved" from "no slots left" and react accordingly — the latter
-     * should waitlist, not fail silently or duplicate-approve.
+     * slots_filled — all inside one locked transaction. Returns a structured
+     * result so callers can distinguish "already approved" from "no slots
+     * left" and react accordingly.
      */
     public static function tryApprove(self $application): array
     {
@@ -84,10 +81,6 @@ class Application extends Model
                 return ['result' => 'already_approved', 'control_number' => $app->control_number];
             }
 
-            // Locking this row is what actually prevents the race: a second
-            // concurrent approval for the same period blocks here until this
-            // transaction commits, so the slot check below and the sequence
-            // count further down can never run for two approvals at once.
             $config = ApplicationConfiguration::where('id', $app->config_id)
                 ->lockForUpdate()
                 ->first();
@@ -111,11 +104,7 @@ class Application extends Model
     }
 
     /**
-     * Moves a qualified-but-unslotted application onto the waitlist. Called
-     * when tryApprove() returns 'no_slots' — the applicant passed every
-     * eligibility check (auto or verifier-confirmed) but arrived after the
-     * cap was reached. waitlisted_at orders the backfill queue fairly, in
-     * the order applicants became qualified, not submission order.
+     * Moves a qualified-but-unslotted application onto the waitlist.
      */
     public static function moveToWaitlist(self $application): void
     {
@@ -126,15 +115,14 @@ class Application extends Model
     }
 
     /**
-     * Promotes the longest-waiting applicant on a period's waitlist into an
-     * approved slot — used when a claiming-day rejection (not_cleared)
-     * frees a slot during grace period, triggered manually by a
-     * verifier/admin. Reuses tryApprove() so a promoted applicant goes
-     * through the identical slot-check + numbering logic as any other
-     * approval, keeping control numbers strictly sequential regardless of
-     * which path approved someone.
+     * Attempts to promote the longest-waiting waitlisted applicant for a
+     * period. Returns a structured result — ['result' => 'no_waitlist' |
+     * 'no_slots' | 'approved', 'application' => Application|null] — so
+     * callers can distinguish "nobody's waitlisted" from "someone's
+     * waitlisted but no room" and react with the correct message. Always
+     * returns this shape; never a bare Application or null.
      */
-    public static function promoteNextFromWaitlist(int $configId): ?self
+    public static function promoteNextFromWaitlist(int $configId): array
     {
         $next = self::where('config_id', $configId)
             ->where('status', 'waitlisted')
@@ -142,11 +130,35 @@ class Application extends Model
             ->first();
 
         if (!$next) {
-            return null;
+            return ['result' => 'no_waitlist', 'application' => null];
         }
 
         $outcome = self::tryApprove($next);
 
-        return $outcome['result'] === 'approved' ? $next->fresh() : null;
+        if ($outcome['result'] !== 'approved') {
+            return ['result' => 'no_slots', 'application' => null];
+        }
+
+        return ['result' => 'approved', 'application' => $next->fresh()];
+    }
+
+    /**
+     * Promotes as many waitlisted applicants as current slot availability
+     * allows, in strict FIFO order. Stops as soon as promoteNextFromWaitlist
+     * reports anything other than 'approved'.
+     */
+    public static function promoteAllFromWaitlist(int $configId): array
+    {
+        $promoted = [];
+
+        while (true) {
+            $outcome = self::promoteNextFromWaitlist($configId);
+            if ($outcome['result'] !== 'approved') {
+                break;
+            }
+            $promoted[] = $outcome['application'];
+        }
+
+        return $promoted;
     }
 }

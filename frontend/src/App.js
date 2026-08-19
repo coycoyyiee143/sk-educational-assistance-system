@@ -27,7 +27,7 @@ import VerifierApplicationReview from "./verifier/pages/VerifierApplicationRevie
 import VerifierVerificationAction from "./verifier/pages/VerifierVerificationAction.jsx";
 import VerifierClaiming from "./verifier/pages/VerifierClaiming.jsx";
 import VerifierProfile from "./verifier/pages/VerifierProfile.jsx";
-
+import VerifierWaitlist from "./verifier/pages/VerifierWaitlist.jsx";
 
 import ApplicantDashboard from "./applicant/pages/ApplicantDashboard.jsx";
 import ApplicantProfile from "./applicant/pages/ApplicantProfile.jsx";
@@ -127,6 +127,11 @@ function App() {
         <Route path="/VerifierProfile" element={
           <ProtectedRoute allowedRoles={["sk_verifier"]}>
             <VerifierProfile />
+          </ProtectedRoute>
+        } />
+        <Route path="/VerifierWaitlist" element={
+          <ProtectedRoute allowedRoles={["sk_verifier"]}>
+            <VerifierWaitlist />
           </ProtectedRoute>
         } />
 
