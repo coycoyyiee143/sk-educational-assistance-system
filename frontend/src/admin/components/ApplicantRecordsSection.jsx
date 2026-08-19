@@ -4,11 +4,13 @@ import api from "../../services/api";
 const reportTypes = ["All Applications", "Approved Students", "Rejected Applications", "Pending Applications"];
 const applicantTypes = ["All Applicants", "Minor", "Adult"];
 const yearLevelOptions = ["All Year Levels", "1st Year", "2nd Year", "3rd Year", "4th Year"];
+
 const emptyFilter = {
     type: "All Applications", from: "", to: "",
     school_name: "All Schools", course: "All Courses",
     year_level: "All Year Levels", applicant_type: "All Applicants",
 };
+
 const APPROVED_SET = ["approved", "claimed", "not_cleared", "unclaimed"];
 const PENDING_SET = ["pending_prescreening", "for_review", "reupload_requested"];
 
@@ -33,6 +35,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     const [previewing, setPreviewing] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [error, setError] = useState("");
+    const [submissionVsApproval, setSubmissionVsApproval] = useState(null);
 
     useEffect(() => {
         api.get("/admin/reports/filter-options").then((res) => setFilterOptions(res.data)).catch(() => { });
@@ -41,7 +44,11 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     useEffect(() => {
         const params = selectedConfigId ? { config_id: selectedConfigId } : {};
         api.get("/admin/reports/summary", { params }).then((res) => setSummary(res.data)).catch(() => { });
-        api.get("/admin/reports/applications").then((res) => setPreview(res.data)).catch(() => { });
+        api.get("/admin/reports/applications", { params }).then((res) => setPreview(res.data)).catch(() => { });
+        // Not scoped to selectedConfigId — this card is deliberately
+        // multi-period (all completed + active periods), since its whole
+        // purpose is showing the trend across cycles, not one period.
+        api.get("/admin/reports/submission-vs-approval").then((res) => setSubmissionVsApproval(res.data)).catch(() => { });
     }, [selectedConfigId]);
 
     const set = (k) => (e) => setFilter((f) => ({ ...f, [k]: e.target.value }));
@@ -55,6 +62,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         if (filter.course !== "All Courses") params.course = filter.course;
         if (filter.year_level !== "All Year Levels") params.year_level = filter.year_level;
         if (filter.applicant_type !== "All Applicants") params.applicant_type = filter.applicant_type.toLowerCase();
+        if (selectedConfigId) params.config_id = selectedConfigId;
         return params;
     }
 
@@ -92,6 +100,20 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         }
     }
 
+    async function handlePdfExport(endpoint, filenamePrefix) {
+        try {
+            const res = await api.get(endpoint, { responseType: "blob" });
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+            const link = document.createElement("a");
+            link.href = url;
+            link.setAttribute("download", `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch { }
+    }
+
     const stats = summary?.summary ?? {};
     const rates = summary?.rates ?? {};
 
@@ -110,9 +132,9 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 ) : (
                     <div className="row g-4">
                         <div className="col-md-3"><div className="summary-card"><h2>{stats.total_applicants}</h2><p>Total Applicants</p></div></div>
-                        <div className="col-md-3"><div className="summary-card"><h2>{stats.pending_applications}</h2><p>Pending</p></div></div>
                         <div className="col-md-3"><div className="summary-card"><h2>{stats.approved_applications}</h2><p>Approved</p></div></div>
                         <div className="col-md-3"><div className="summary-card"><h2>{stats.rejected_applications}</h2><p>Rejected</p></div></div>
+                        <div className="col-md-3"><div className="summary-card"><h2>{stats.pending_applications}</h2><p>Pending</p></div></div>
                     </div>
                 )}
             </div>
@@ -129,8 +151,46 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     <div className="row g-4">
                         <div className="col-md-4"><div className="summary-card"><h2>{rates.approval_rate ?? 0}%</h2><p>Approval Rate</p></div></div>
                         <div className="col-md-4"><div className="summary-card"><h2>{rates.rejection_rate ?? 0}%</h2><p>Rejection Rate</p></div></div>
-                        <div className="col-md-4"><div className="summary-card"><h2>{rates.under_review_rate ?? 0}%</h2><p>Under Review</p></div></div>
+                        <div className="col-md-4"><div className="summary-card"><h2>{rates.under_review_rate ?? 0}%</h2><p>Pending Rate</p></div></div>
                     </div>
+                )}
+            </div>
+
+            {/* Submission & Approval History — multi-period trend, deliberately not scoped to selectedConfigId */}
+            <div className="page-card">
+                <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <h4 className="sub-title">Submission &amp; Approval History</h4>
+                    <button type="button" className="btn btn-sm btn-outline-custom"
+                        onClick={() => handlePdfExport("/admin/reports/submission-vs-approval/pdf", "submission-vs-approval-trend")}>
+                        Export PDF
+                    </button>
+                </div>
+                <div className="info-box">
+                    Approved vs. rejected vs. pending outcomes per period, shown against total submitted — across all cycles, not just the one selected above.
+                </div>
+                {!submissionVsApproval?.trend?.length ? (
+                    <div className="alert alert-info mb-0">No application period data available yet.</div>
+                ) : (
+                    submissionVsApproval.trend.map((row) => (
+                        <div key={row.config_id} className="mb-3">
+                            <div className="d-flex justify-content-between align-items-center small mb-1">
+                                <span className="fw-semibold">
+                                    {row.school_year}
+                                    {row.is_active && <span className="badge bg-success ms-2">Active</span>}
+                                </span>
+                                <div className="d-flex gap-2">
+                                    <span className="badge bg-primary">{row.approved} approved · {row.approval_rate ?? 0}%</span>
+                                    <span className="badge bg-danger">{row.rejected} rejected · {row.rejection_rate ?? 0}%</span>
+                                    <span className="badge bg-warning text-dark">{row.pending} pending · {row.pending_rate ?? 0}%</span>
+                                </div>
+                            </div>
+                            <div className="progress" style={{ height: "22px", backgroundColor: "#e9ecef" }}>
+                                <div className="progress-bar bg-primary" style={{ width: `${row.approval_rate ?? 0}%` }} title={`Approved: ${row.approved}`} />
+                                <div className="progress-bar bg-danger" style={{ width: `${row.rejection_rate ?? 0}%` }} title={`Rejected: ${row.rejected}`} />
+                                <div className="progress-bar bg-warning" style={{ width: `${row.pending_rate ?? 0}%` }} title={`Pending: ${row.pending}`} />
+                            </div>
+                        </div>
+                    ))
                 )}
             </div>
 

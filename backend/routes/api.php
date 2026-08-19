@@ -82,6 +82,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/budget-estimation', [AdminReportController::class, 'budgetEstimation']);
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
         Route::get('/admin/reports/last-cycle-actuals', [AdminReportController::class, 'lastCycleActuals']);
+        Route::get('/admin/reports/ocr-queue-health', [AdminReportController::class, 'ocrQueueHealth']);
         Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
         Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
     });
@@ -111,6 +112,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
         Route::post('/verifier/claiming/{id}/status', [VerifierController::class, 'updateClaimStatus']);
+        Route::post('/verifier/applications/config/{configId}/promote-waitlist', [VerifierController::class, 'promoteFromWaitlist']);
+        Route::get('/verifier/waitlist', [VerifierController::class, 'waitlist']);
         Route::get('/verifier/activity-log', [VerifierController::class, 'activityLog']);
     });
 

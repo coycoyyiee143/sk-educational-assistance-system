@@ -4,10 +4,14 @@
     @if(count($reuploadFlagCounts) > 0)
         <h3>Re-upload Requests by Document</h3>
         <table>
-            <thead><tr><th>Document</th><th style="width: 80px;">Count</th></tr></thead>
+            <thead><tr><th>Document</th><th style="width: 80px;">Count</th><th style="width: 80px;">% of Flags</th></tr></thead>
             <tbody>
                 @foreach($reuploadFlagCounts as $docType => $count)
-                    <tr><td>{{ ucwords(str_replace('_', ' ', $docType)) }}</td><td>{{ $count }}</td></tr>
+                    <tr>
+                        <td>{{ ucwords(str_replace('_', ' ', $docType)) }}</td>
+                        <td>{{ $count }}</td>
+                        <td>{{ $reuploadFlagPercentages[$docType] ?? 0 }}%</td>
+                    </tr>
                 @endforeach
             </tbody>
         </table>

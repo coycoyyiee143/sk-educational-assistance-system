@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
 
-function CategoryBar({ label, count, max }) {
+function CategoryBar({ label, count, percentage, max }) {
     const pct = max > 0 ? Math.round((count / max) * 100) : 0;
     return (
         <div className="mb-2">
             <div className="d-flex justify-content-between small mb-1">
                 <span>{label}</span>
-                <span className="text-muted">{count}</span>
+                <span className="text-muted">{count} · {percentage ?? 0}%</span>
             </div>
             <div className="progress" style={{ height: "8px" }}>
                 <div className="progress-bar bg-danger" role="progressbar" style={{ width: `${pct}%` }} />
@@ -50,7 +50,6 @@ function ApplicantProfileSection({ selectedConfigId }) {
 
     const ageCounts = ageDistribution?.counts ?? {};
     const ageRates = ageDistribution?.rates ?? {};
-
     const ageCards = [
         { key: "minor", value: ageCounts.minor, label: `Minor (${ageRates.minor_rate}%)` },
         { key: "adult", value: ageCounts.adult, label: `Adult (${ageRates.adult_rate}%)` },
@@ -80,11 +79,27 @@ function ApplicantProfileSection({ selectedConfigId }) {
                     <div className="row g-4">
                         <div className="col-md-6">
                             <h6 className="text-muted text-uppercase small fw-bold mb-2">School</h6>
-                            {bySchool.map((r) => <CategoryBar key={r.school_name} label={r.school_name} count={r.total} max={maxSchoolCount} />)}
+                            {bySchool.map((r) => (
+                                <CategoryBar
+                                    key={r.school_name}
+                                    label={r.school_name}
+                                    count={r.total}
+                                    percentage={r.percentage}
+                                    max={maxSchoolCount}
+                                />
+                            ))}
                         </div>
                         <div className="col-md-6">
                             <h6 className="text-muted text-uppercase small fw-bold mb-2">Program</h6>
-                            {byCourse.map((r) => <CategoryBar key={r.course} label={r.course} count={r.total} max={maxCourseCount} />)}
+                            {byCourse.map((r) => (
+                                <CategoryBar
+                                    key={r.course}
+                                    label={r.course}
+                                    count={r.total}
+                                    percentage={r.percentage}
+                                    max={maxCourseCount}
+                                />
+                            ))}
                         </div>
                     </div>
                 )}
@@ -108,7 +123,15 @@ function ApplicantProfileSection({ selectedConfigId }) {
                         {byYearLevel.length === 0 ? (
                             <div className="text-muted small">No data available.</div>
                         ) : (
-                            byYearLevel.map((r) => <CategoryBar key={r.year_level} label={r.year_level} count={r.total} max={maxYearLevelCount} />)
+                            byYearLevel.map((r) => (
+                                <CategoryBar
+                                    key={r.year_level}
+                                    label={r.year_level}
+                                    count={r.total}
+                                    percentage={r.percentage}
+                                    max={maxYearLevelCount}
+                                />
+                            ))
                         )}
                     </div>
                     <div className="col-md-6">

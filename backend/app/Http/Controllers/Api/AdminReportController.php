@@ -9,6 +9,7 @@ use App\Models\ClaimingAssignment;
 use App\Models\VerificationCheck;
 use App\Models\VerifierAction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class AdminReportController extends Controller
@@ -30,6 +31,7 @@ class AdminReportController extends Controller
         if ($request->filled('config_id')) {
             return ApplicationConfiguration::find($request->query('config_id'));
         }
+
         return ApplicationConfiguration::where('is_active', true)->first();
     }
 
@@ -52,8 +54,8 @@ class AdminReportController extends Controller
     public function summary(Request $request)
     {
         $config = $this->resolveConfig($request);
-
         $query = Application::query();
+
         if ($config) {
             $query->where('config_id', $config->id);
         }
@@ -82,7 +84,6 @@ class AdminReportController extends Controller
     private function applyFilters($query, Request $request)
     {
         $type = $request->query('type');
-
         $map = [
             'Approved Students'     => $this->approvedStatuses(),
             'Rejected Applications' => ['rejected'],
@@ -91,6 +92,13 @@ class AdminReportController extends Controller
 
         if ($type && isset($map[$type])) {
             $query->whereIn('status', $map[$type]);
+        }
+
+        // Scope to a specific application period — without this, "names for
+        // this period" (e.g. the Facebook announcement list) would silently
+        // pull applicants from every period ever run.
+        if ($request->filled('config_id')) {
+            $query->where('config_id', $request->query('config_id'));
         }
 
         if ($request->filled('from')) {
@@ -129,7 +137,11 @@ class AdminReportController extends Controller
 
     public function applications(Request $request)
     {
-        $query = Application::with('user.profile')->latest('submitted_at');
+        $query = Application::with('user.profile')
+            ->orderByRaw('control_number IS NULL')
+            ->orderBy('control_number')
+            ->orderBy('submitted_at');
+
         $this->applyFilters($query, $request);
 
         $applications = $this->filterByApplicantType($query->get(), $request);
@@ -152,13 +164,15 @@ class AdminReportController extends Controller
 
     public function export(Request $request)
     {
-        $query = Application::with('user.profile')->latest('submitted_at');
-        $this->applyFilters($query, $request);
+        $query = Application::with('user.profile')
+            ->orderByRaw('control_number IS NULL')
+            ->orderBy('control_number')
+            ->orderBy('submitted_at');
 
+        $this->applyFilters($query, $request);
         $applications = $this->filterByApplicantType($query->get(), $request);
 
         $filename = 'applicant-records-' . now()->format('Y-m-d') . '.csv';
-
         $headers = [
             'Content-Type'        => 'text/csv',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
@@ -173,7 +187,10 @@ class AdminReportController extends Controller
             ]);
 
             foreach ($applications as $app) {
-                $applicantType = $app->user?->profile?->is_minor === true ? 'Minor' : ($app->user?->profile?->is_minor === false ? 'Adult' : 'Unknown');
+                $applicantType = $app->user?->profile?->is_minor === true
+                    ? 'Minor'
+                    : ($app->user?->profile?->is_minor === false ? 'Adult' : 'Unknown');
+
                 fputcsv($handle, [
                     'APP-' . $app->id,
                     $app->control_number,
@@ -199,8 +216,8 @@ class AdminReportController extends Controller
     public function claimingOutcomeSummary(Request $request)
     {
         $config = $this->resolveConfig($request);
-
         $query = ClaimingAssignment::query();
+
         if ($config) {
             $query->whereHas('application', fn($q) => $q->where('config_id', $config->id));
         }
@@ -209,7 +226,6 @@ class AdminReportController extends Controller
         $notCleared = $query->clone()->where('claim_status', 'not_cleared')->count();
         $unclaimed  = $query->clone()->where('claim_status', 'unclaimed')->count();
         $pending    = $query->clone()->where('claim_status', 'pending')->count();
-
         $total = $claimed + $notCleared + $unclaimed + $pending;
 
         $notClearedReasons = $query->clone()
@@ -241,73 +257,91 @@ class AdminReportController extends Controller
     public function documentFailureBreakdown(Request $request)
     {
         $config = $this->resolveConfig($request);
-
         $actionQuery = VerifierAction::where('action', 'reupload_requested');
+    
         if ($config) {
             $actionQuery->whereHas('application', fn($q) => $q->where('config_id', $config->id));
         }
-
+    
         $perDocumentReasons = [];
         $documentFlagCounts = [];
-
+    
         foreach ($actionQuery->get() as $action) {
             foreach (($action->reupload_details ?? []) as $detail) {
                 $docType = $detail['document_type'] ?? 'unknown';
                 $documentFlagCounts[$docType] = ($documentFlagCounts[$docType] ?? 0) + 1;
-
+    
                 foreach (($detail['reason_categories'] ?? []) as $reason) {
                     $perDocumentReasons[$docType][$reason] = ($perDocumentReasons[$docType][$reason] ?? 0) + 1;
                 }
             }
         }
-
-        $checkQuery = VerificationCheck::where('passed', false)
-            ->with('document');
+    
+        // Share of total re-upload flags each document type accounts for —
+        // e.g. "School ID caused 45% of all flagged re-uploads."
+        $totalFlags = array_sum($documentFlagCounts);
+        $documentFlagPercentages = [];
+        foreach ($documentFlagCounts as $docType => $count) {
+            $documentFlagPercentages[$docType] = $totalFlags > 0 ? round(($count / $totalFlags) * 100, 1) : 0;
+        }
+    
+        $checkQuery = VerificationCheck::where('passed', false)->with('document');
+    
         if ($config) {
             $checkQuery->whereHas('application', fn($q) => $q->where('config_id', $config->id));
         }
-
+    
         $automatedFailuresByDocType = $checkQuery->get()
             ->groupBy(fn($check) => $check->document->document_type ?? 'unknown')
             ->map(fn($group) => $group->countBy('check_name'));
-
+    
         return response()->json([
             'config' => $config,
-            'reupload_flag_counts_by_document' => $documentFlagCounts,
-            'reupload_reasons_by_document'     => $perDocumentReasons,
-            'automated_check_failures_by_document' => $automatedFailuresByDocType,
+            'reupload_flag_counts_by_document'      => $documentFlagCounts,
+            'reupload_flag_percentages_by_document'  => $documentFlagPercentages,
+            'reupload_reasons_by_document'           => $perDocumentReasons,
+            'automated_check_failures_by_document'   => $automatedFailuresByDocType,
         ]);
     }
 
     public function applicantDistribution(Request $request)
     {
         $config = $this->resolveConfig($request);
-
         $query = Application::query();
+    
         if ($config) {
             $query->where('config_id', $config->id);
         }
-
-        $bySchool = $query->clone()
-            ->selectRaw('school_name, COUNT(*) as total')
-            ->groupBy('school_name')
-            ->orderByDesc('total')
-            ->get();
-
-        $byCourse = $query->clone()
-            ->selectRaw('course, COUNT(*) as total')
-            ->groupBy('course')
-            ->orderByDesc('total')
-            ->get();
-
-        $byYearLevel = $query->clone()
-            ->selectRaw('year_level, COUNT(*) as total')
-            ->groupBy('year_level')
-            ->orderBy('year_level')
-            ->get();
-
+    
+        $totalApplications = $query->clone()->count();
+    
+        $addPercentage = function ($rows) use ($totalApplications) {
+            return $rows->map(function ($row) use ($totalApplications) {
+                $row->percentage = $totalApplications > 0
+                    ? round(($row->total / $totalApplications) * 100, 1)
+                    : 0;
+                return $row;
+            });
+        };
+    
+        $bySchool = $addPercentage(
+            $query->clone()->selectRaw('school_name, COUNT(*) as total')
+                ->groupBy('school_name')->orderByDesc('total')->get()
+        );
+    
+        $byCourse = $addPercentage(
+            $query->clone()->selectRaw('course, COUNT(*) as total')
+                ->groupBy('course')->orderByDesc('total')->get()
+        );
+    
+        $byYearLevel = $addPercentage(
+            $query->clone()->selectRaw('year_level, COUNT(*) as total')
+                ->groupBy('year_level')->orderBy('year_level')->get()
+        );
+    
         return response()->json([
             'config'        => $config,
+            'total_applications' => $totalApplications,
             'by_school'     => $bySchool,
             'by_course'     => $byCourse,
             'by_year_level' => $byYearLevel,
@@ -317,19 +351,25 @@ class AdminReportController extends Controller
     public function submissionTrends(Request $request)
     {
         $config = $this->resolveConfig($request);
-
         $query = Application::query();
+    
         if ($config) {
             $query->where('config_id', $config->id);
         }
-
+    
         $trend = $query->clone()
             ->selectRaw("YEARWEEK(submitted_at, 1) as year_week, MIN(DATE(submitted_at)) as week_start, COUNT(*) as total")
             ->whereNotNull('submitted_at')
             ->groupBy('year_week')
             ->orderBy('year_week')
             ->get();
-
+    
+        $totalForPeriod = $trend->sum('total');
+        $trend = $trend->map(function ($week) use ($totalForPeriod) {
+            $week->percentage = $totalForPeriod > 0 ? round(($week->total / $totalForPeriod) * 100, 1) : 0;
+            return $week;
+        });
+    
         return response()->json([
             'config' => $config,
             'weekly' => $trend,
@@ -339,20 +379,20 @@ class AdminReportController extends Controller
     public function ageDistribution(Request $request)
     {
         $config = $this->resolveConfig($request);
-
         $query = Application::query()->with('user.profile');
+
         if ($config) {
             $query->where('config_id', $config->id);
         }
 
         $applications = $query->get();
-
         $minorCount = 0;
         $adultCount = 0;
         $unknownCount = 0;
 
         foreach ($applications as $app) {
             $isMinor = $app->user?->profile?->is_minor;
+
             if ($isMinor === true) {
                 $minorCount++;
             } elseif ($isMinor === false) {
@@ -383,22 +423,22 @@ class AdminReportController extends Controller
     public function submissionVsApprovalTrend(Request $request)
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
-
+    
         $trend = $configs->map(function ($config) {
-            $total      = Application::where('config_id', $config->id)->count();
-            $approved   = Application::where('config_id', $config->id)
+            $total = Application::where('config_id', $config->id)->count();
+    
+            $approved = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->approvedStatuses())
                 ->count();
-            // rejected + not_cleared combined — both are effectively
-            // rejections, just discovered at different stages (document
-            // review vs. claiming-day physical verification).
-            $rejected   = Application::where('config_id', $config->id)
+    
+            $rejected = Application::where('config_id', $config->id)
                 ->whereIn('status', ['rejected', 'not_cleared'])
                 ->count();
-            $pending    = Application::where('config_id', $config->id)
+    
+            $pending = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->pendingStatuses())
                 ->count();
-
+    
             return [
                 'config_id'       => $config->id,
                 'school_year'     => $config->school_year,
@@ -408,9 +448,11 @@ class AdminReportController extends Controller
                 'rejected'        => $rejected,
                 'pending'         => $pending,
                 'approval_rate'   => $total > 0 ? round(($approved / $total) * 100, 1) : 0,
+                'rejection_rate'  => $total > 0 ? round(($rejected / $total) * 100, 1) : 0,
+                'pending_rate'    => $total > 0 ? round(($pending / $total) * 100, 1) : 0,
             ];
         });
-
+    
         return response()->json([
             'trend' => $trend->values(),
         ]);
@@ -421,51 +463,60 @@ class AdminReportController extends Controller
     public function claimingOutcomesPdf(Request $request)
     {
         $data = $this->claimingOutcomeSummary($request)->getData(true);
+
         $pdf = Pdf::loadView('reports.claiming-outcomes', [
-            'title'              => 'Claiming Outcome Summary',
-            'config'             => $data['config'] ? (object) $data['config'] : null,
-            'counts'             => $data['counts'],
-            'rates'              => $data['rates'],
-            'notClearedReasons'  => $data['not_cleared_reasons'],
+            'title'             => 'Claiming Outcome Summary',
+            'config'            => $data['config'] ? (object) $data['config'] : null,
+            'counts'            => $data['counts'],
+            'rates'             => $data['rates'],
+            'notClearedReasons' => $data['not_cleared_reasons'],
         ]);
+
         return $pdf->download('claiming-outcome-summary-' . now()->format('Y-m-d') . '.pdf');
     }
 
     public function documentFailuresPdf(Request $request)
     {
         $data = $this->documentFailureBreakdown($request)->getData(true);
+    
         $pdf = Pdf::loadView('reports.document-failures', [
-            'title'                   => 'Document Failure Breakdown',
-            'config'                  => $data['config'] ? (object) $data['config'] : null,
-            'reuploadFlagCounts'      => $data['reupload_flag_counts_by_document'],
-            'reuploadReasonsByDoc'    => $data['reupload_reasons_by_document'],
-            'automatedFailuresByDoc'  => $data['automated_check_failures_by_document'],
+            'title'                     => 'Document Failure Breakdown',
+            'config'                    => $data['config'] ? (object) $data['config'] : null,
+            'reuploadFlagCounts'        => $data['reupload_flag_counts_by_document'],
+            'reuploadFlagPercentages'   => $data['reupload_flag_percentages_by_document'],
+            'reuploadReasonsByDoc'      => $data['reupload_reasons_by_document'],
+            'automatedFailuresByDoc'    => $data['automated_check_failures_by_document'],
         ]);
+    
         return $pdf->download('document-failure-breakdown-' . now()->format('Y-m-d') . '.pdf');
     }
 
     public function applicantDistributionPdf(Request $request)
     {
         $data = $this->applicantDistribution($request)->getData(true);
+
         $pdf = Pdf::loadView('reports.applicant-distribution', [
-            'title'        => 'Applicant Distribution',
-            'config'       => $data['config'] ? (object) $data['config'] : null,
-            'bySchool'     => collect($data['by_school'])->map(fn($r) => (object) $r),
-            'byCourse'     => collect($data['by_course'])->map(fn($r) => (object) $r),
-            'byYearLevel'  => collect($data['by_year_level'])->map(fn($r) => (object) $r),
+            'title'       => 'Applicant Distribution',
+            'config'      => $data['config'] ? (object) $data['config'] : null,
+            'bySchool'    => collect($data['by_school'])->map(fn($r) => (object) $r),
+            'byCourse'    => collect($data['by_course'])->map(fn($r) => (object) $r),
+            'byYearLevel' => collect($data['by_year_level'])->map(fn($r) => (object) $r),
         ]);
+
         return $pdf->download('applicant-distribution-' . now()->format('Y-m-d') . '.pdf');
     }
 
     public function schoolProgramPdf(Request $request)
     {
         $data = $this->applicantDistribution($request)->getData(true);
+
         $pdf = Pdf::loadView('reports.school-program', [
             'title'    => 'Applicant Profile — School & Program',
             'config'   => $data['config'] ? (object) $data['config'] : null,
             'bySchool' => collect($data['by_school'])->map(fn($r) => (object) $r),
             'byCourse' => collect($data['by_course'])->map(fn($r) => (object) $r),
         ]);
+
         return $pdf->download('applicant-school-program-' . now()->format('Y-m-d') . '.pdf');
     }
 
@@ -473,6 +524,7 @@ class AdminReportController extends Controller
     {
         $distData = $this->applicantDistribution($request)->getData(true);
         $ageData  = $this->ageDistribution($request)->getData(true);
+
         $pdf = Pdf::loadView('reports.year-level-age', [
             'title'       => 'Applicant Profile — Year Level & Age',
             'config'      => $distData['config'] ? (object) $distData['config'] : null,
@@ -480,43 +532,49 @@ class AdminReportController extends Controller
             'counts'      => $ageData['counts'],
             'rates'       => $ageData['rates'],
         ]);
+
         return $pdf->download('applicant-year-level-age-' . now()->format('Y-m-d') . '.pdf');
     }
 
     public function submissionTrendsPdf(Request $request)
     {
         $data = $this->submissionTrends($request)->getData(true);
+
         $pdf = Pdf::loadView('reports.submission-trends', [
             'title'  => 'Submission Trends',
             'config' => $data['config'] ? (object) $data['config'] : null,
             'weekly' => collect($data['weekly'])->map(fn($r) => (object) $r),
         ]);
+
         return $pdf->download('submission-trends-' . now()->format('Y-m-d') . '.pdf');
     }
 
     public function ageDistributionPdf(Request $request)
     {
         $data = $this->ageDistribution($request)->getData(true);
+
         $pdf = Pdf::loadView('reports.age-distribution', [
             'title'  => 'Applicant Age Distribution — Minor vs. Adult',
             'config' => $data['config'] ? (object) $data['config'] : null,
             'counts' => $data['counts'],
             'rates'  => $data['rates'],
         ]);
+
         return $pdf->download('age-distribution-' . now()->format('Y-m-d') . '.pdf');
     }
 
     public function submissionVsApprovalPdf(Request $request)
     {
         $data = $this->submissionVsApprovalTrend($request)->getData(true);
+
         $pdf = Pdf::loadView('reports.submission-vs-approval', [
             'title'  => 'Submission vs. Approval Trend',
             'config' => null,
             'trend'  => $data['trend'],
         ]);
+
         return $pdf->download('submission-vs-approval-trend-' . now()->format('Y-m-d') . '.pdf');
     }
-    
 
     /**
      * BUDGET FORECAST — isolates the approval-rate side only. Uses a
@@ -532,18 +590,20 @@ class AdminReportController extends Controller
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
         $completed = $configs->where('is_active', false);
-
         $pooledTotal = 0;
         $pooledApproved = 0;
         $volumes = [];
 
         foreach ($completed as $config) {
             $total = Application::where('config_id', $config->id)->count();
+
             $approved = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->approvedStatuses())
                 ->count();
+
             $pooledTotal += $total;
             $pooledApproved += $approved;
+
             if ($total > 0) {
                 $volumes[] = $total;
             }
@@ -564,7 +624,6 @@ class AdminReportController extends Controller
         $margin = ($z * sqrt(($pHat * (1 - $pHat) / $n) + ($z ** 2) / (4 * $n ** 2))) / $denominator;
         $lowerRate = max(0, $center - $margin);
         $upperRate = min(1, $center + $margin);
-
         $projectedVolume = count($volumes) > 0 ? array_sum($volumes) / count($volumes) : 0;
 
         return response()->json([
@@ -599,11 +658,14 @@ class AdminReportController extends Controller
     public function budgetEstimation()
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
+
         $historical = $configs->map(function ($config) {
-            $total    = Application::where('config_id', $config->id)->count();
+            $total = Application::where('config_id', $config->id)->count();
+
             $approved = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->approvedStatuses())
                 ->count();
+
             return [
                 'config_id'              => $config->id,
                 'school_year'            => $config->school_year,
@@ -618,6 +680,7 @@ class AdminReportController extends Controller
         });
 
         $completed = $historical->where('is_active', false)->where('total_applications', '>', 0);
+
         if ($completed->count() > 0) {
             $avgApproved = $completed->avg('approved_count');
             $avgPassRate = $completed->avg('pass_rate');
@@ -628,7 +691,6 @@ class AdminReportController extends Controller
         }
 
         $activeConfig = $configs->firstWhere('is_active', true);
-
         $projectedSlots = $activeConfig && !$activeConfig->is_unlimited
             ? $activeConfig->slot_limit
             : null;
@@ -672,13 +734,48 @@ class AdminReportController extends Controller
         }
 
         return response()->json([
-            'available'           => true,
-            'school_year'         => $mostRecent->school_year,
-            'slot_limit'          => $mostRecent->slot_limit,
-            'is_unlimited'        => $mostRecent->is_unlimited,
-            'amount_per_student'  => self::ASSISTANCE_AMOUNT,
-            'total_budget_used'   => $mostRecent->is_unlimited ? null : $mostRecent->slot_limit * self::ASSISTANCE_AMOUNT,
+            'available'          => true,
+            'school_year'        => $mostRecent->school_year,
+            'slot_limit'         => $mostRecent->slot_limit,
+            'is_unlimited'       => $mostRecent->is_unlimited,
+            'amount_per_student' => self::ASSISTANCE_AMOUNT,
+            'total_budget_used'  => $mostRecent->is_unlimited ? null : $mostRecent->slot_limit * self::ASSISTANCE_AMOUNT,
         ]);
     }
 
+    /**
+     * OCR QUEUE HEALTH — surfaces failed jobs on the 'ocr' queue so an admin
+     * can actually see when document processing is silently failing, instead
+     * of a stuck/failed application only being noticed when an applicant
+     * complains. Reads Laravel's built-in failed_jobs table, filtered to the
+     * ocr queue specifically.
+     */
+    public function ocrQueueHealth()
+    {
+        $failedCount = DB::table('failed_jobs')->where('queue', 'ocr')->count();
+
+        $recentFailures = DB::table('failed_jobs')
+            ->where('queue', 'ocr')
+            ->orderByDesc('failed_at')
+            ->limit(20)
+            ->get(['id', 'uuid', 'exception', 'failed_at'])
+            ->map(function ($job) {
+                // exception column is a full stack trace — just the first line
+                // is enough for a dashboard glance; full trace stays in the DB
+                // for anyone who needs to dig deeper via artisan queue:failed.
+                $firstLine = strtok($job->exception, "\n");
+
+                return [
+                    'id'                 => $job->id,
+                    'uuid'               => $job->uuid,
+                    'failed_at'          => $job->failed_at,
+                    'exception_summary'  => mb_strimwidth($firstLine, 0, 200, '...'),
+                ];
+            });
+
+        return response()->json([
+            'failed_count'    => $failedCount,
+            'recent_failures' => $recentFailures,
+        ]);
+    }
 }
