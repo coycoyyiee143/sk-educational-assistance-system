@@ -258,40 +258,49 @@ class AdminReportController extends Controller
     {
         $config = $this->resolveConfig($request);
         $actionQuery = VerifierAction::where('action', 'reupload_requested');
-
+    
         if ($config) {
             $actionQuery->whereHas('application', fn($q) => $q->where('config_id', $config->id));
         }
-
+    
         $perDocumentReasons = [];
         $documentFlagCounts = [];
-
+    
         foreach ($actionQuery->get() as $action) {
             foreach (($action->reupload_details ?? []) as $detail) {
                 $docType = $detail['document_type'] ?? 'unknown';
                 $documentFlagCounts[$docType] = ($documentFlagCounts[$docType] ?? 0) + 1;
-
+    
                 foreach (($detail['reason_categories'] ?? []) as $reason) {
                     $perDocumentReasons[$docType][$reason] = ($perDocumentReasons[$docType][$reason] ?? 0) + 1;
                 }
             }
         }
-
+    
+        // Share of total re-upload flags each document type accounts for —
+        // e.g. "School ID caused 45% of all flagged re-uploads."
+        $totalFlags = array_sum($documentFlagCounts);
+        $documentFlagPercentages = [];
+        foreach ($documentFlagCounts as $docType => $count) {
+            $documentFlagPercentages[$docType] = $totalFlags > 0 ? round(($count / $totalFlags) * 100, 1) : 0;
+        }
+    
         $checkQuery = VerificationCheck::where('passed', false)->with('document');
-
+    
         if ($config) {
             $checkQuery->whereHas('application', fn($q) => $q->where('config_id', $config->id));
         }
-
+    
         $automatedFailuresByDocType = $checkQuery->get()
             ->groupBy(fn($check) => $check->document->document_type ?? 'unknown')
             ->map(fn($group) => $group->countBy('check_name'));
-
+    
         return response()->json([
             'config' => $config,
-            'reupload_flag_counts_by_document' => $documentFlagCounts,
-            'reupload_reasons_by_document'     => $perDocumentReasons,
-            'automated_check_failures_by_document' => $automatedFailuresByDocType,
+            'reupload_flag_counts_by_document'      => $documentFlagCounts,
+            'reupload_flag_percentages_by_document'  => $documentFlagPercentages,
+            'reupload_reasons_by_document'           => $perDocumentReasons,
+            'automated_check_failures_by_document'   => $automatedFailuresByDocType,
         ]);
     }
 
@@ -299,31 +308,40 @@ class AdminReportController extends Controller
     {
         $config = $this->resolveConfig($request);
         $query = Application::query();
-
+    
         if ($config) {
             $query->where('config_id', $config->id);
         }
-
-        $bySchool = $query->clone()
-            ->selectRaw('school_name, COUNT(*) as total')
-            ->groupBy('school_name')
-            ->orderByDesc('total')
-            ->get();
-
-        $byCourse = $query->clone()
-            ->selectRaw('course, COUNT(*) as total')
-            ->groupBy('course')
-            ->orderByDesc('total')
-            ->get();
-
-        $byYearLevel = $query->clone()
-            ->selectRaw('year_level, COUNT(*) as total')
-            ->groupBy('year_level')
-            ->orderBy('year_level')
-            ->get();
-
+    
+        $totalApplications = $query->clone()->count();
+    
+        $addPercentage = function ($rows) use ($totalApplications) {
+            return $rows->map(function ($row) use ($totalApplications) {
+                $row->percentage = $totalApplications > 0
+                    ? round(($row->total / $totalApplications) * 100, 1)
+                    : 0;
+                return $row;
+            });
+        };
+    
+        $bySchool = $addPercentage(
+            $query->clone()->selectRaw('school_name, COUNT(*) as total')
+                ->groupBy('school_name')->orderByDesc('total')->get()
+        );
+    
+        $byCourse = $addPercentage(
+            $query->clone()->selectRaw('course, COUNT(*) as total')
+                ->groupBy('course')->orderByDesc('total')->get()
+        );
+    
+        $byYearLevel = $addPercentage(
+            $query->clone()->selectRaw('year_level, COUNT(*) as total')
+                ->groupBy('year_level')->orderBy('year_level')->get()
+        );
+    
         return response()->json([
             'config'        => $config,
+            'total_applications' => $totalApplications,
             'by_school'     => $bySchool,
             'by_course'     => $byCourse,
             'by_year_level' => $byYearLevel,
@@ -334,18 +352,24 @@ class AdminReportController extends Controller
     {
         $config = $this->resolveConfig($request);
         $query = Application::query();
-
+    
         if ($config) {
             $query->where('config_id', $config->id);
         }
-
+    
         $trend = $query->clone()
             ->selectRaw("YEARWEEK(submitted_at, 1) as year_week, MIN(DATE(submitted_at)) as week_start, COUNT(*) as total")
             ->whereNotNull('submitted_at')
             ->groupBy('year_week')
             ->orderBy('year_week')
             ->get();
-
+    
+        $totalForPeriod = $trend->sum('total');
+        $trend = $trend->map(function ($week) use ($totalForPeriod) {
+            $week->percentage = $totalForPeriod > 0 ? round(($week->total / $totalForPeriod) * 100, 1) : 0;
+            return $week;
+        });
+    
         return response()->json([
             'config' => $config,
             'weekly' => $trend,
@@ -399,25 +423,22 @@ class AdminReportController extends Controller
     public function submissionVsApprovalTrend(Request $request)
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
-
+    
         $trend = $configs->map(function ($config) {
             $total = Application::where('config_id', $config->id)->count();
-
+    
             $approved = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->approvedStatuses())
                 ->count();
-
-            // rejected + not_cleared combined — both are effectively
-            // rejections, just discovered at different stages (document
-            // review vs. claiming-day physical verification).
+    
             $rejected = Application::where('config_id', $config->id)
                 ->whereIn('status', ['rejected', 'not_cleared'])
                 ->count();
-
+    
             $pending = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->pendingStatuses())
                 ->count();
-
+    
             return [
                 'config_id'       => $config->id,
                 'school_year'     => $config->school_year,
@@ -427,9 +448,11 @@ class AdminReportController extends Controller
                 'rejected'        => $rejected,
                 'pending'         => $pending,
                 'approval_rate'   => $total > 0 ? round(($approved / $total) * 100, 1) : 0,
+                'rejection_rate'  => $total > 0 ? round(($rejected / $total) * 100, 1) : 0,
+                'pending_rate'    => $total > 0 ? round(($pending / $total) * 100, 1) : 0,
             ];
         });
-
+    
         return response()->json([
             'trend' => $trend->values(),
         ]);
@@ -455,15 +478,16 @@ class AdminReportController extends Controller
     public function documentFailuresPdf(Request $request)
     {
         $data = $this->documentFailureBreakdown($request)->getData(true);
-
+    
         $pdf = Pdf::loadView('reports.document-failures', [
-            'title'                  => 'Document Failure Breakdown',
-            'config'                 => $data['config'] ? (object) $data['config'] : null,
-            'reuploadFlagCounts'     => $data['reupload_flag_counts_by_document'],
-            'reuploadReasonsByDoc'   => $data['reupload_reasons_by_document'],
-            'automatedFailuresByDoc' => $data['automated_check_failures_by_document'],
+            'title'                     => 'Document Failure Breakdown',
+            'config'                    => $data['config'] ? (object) $data['config'] : null,
+            'reuploadFlagCounts'        => $data['reupload_flag_counts_by_document'],
+            'reuploadFlagPercentages'   => $data['reupload_flag_percentages_by_document'],
+            'reuploadReasonsByDoc'      => $data['reupload_reasons_by_document'],
+            'automatedFailuresByDoc'    => $data['automated_check_failures_by_document'],
         ]);
-
+    
         return $pdf->download('document-failure-breakdown-' . now()->format('Y-m-d') . '.pdf');
     }
 

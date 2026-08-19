@@ -11,13 +11,13 @@ function formatDocType(type) {
     return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function DistributionBar({ label, count, max }) {
+function DistributionBar({ label, count, percentage, max }) {
     const pct = max > 0 ? Math.round((count / max) * 100) : 0;
     return (
         <div className="mb-2">
             <div className="d-flex justify-content-between small mb-1">
                 <span>{label}</span>
-                <span className="text-muted">{count}</span>
+                <span className="text-muted">{count} · {percentage ?? 0}%</span>
             </div>
             <div className="progress" style={{ height: "8px" }}>
                 <div className="progress-bar bg-danger" role="progressbar" style={{ width: `${pct}%` }} />
@@ -30,14 +30,12 @@ function VerificationOutcomesSection({ selectedConfigId }) {
     const [documentFailures, setDocumentFailures] = useState(null);
     const [claimingOutcomes, setClaimingOutcomes] = useState(null);
     const [trends, setTrends] = useState(null);
-    const [submissionVsApproval, setSubmissionVsApproval] = useState(null);
 
     useEffect(() => {
         const params = selectedConfigId ? { config_id: selectedConfigId } : {};
         api.get("/admin/reports/document-failures", { params }).then((res) => setDocumentFailures(res.data)).catch(() => { });
         api.get("/admin/reports/claiming-outcomes", { params }).then((res) => setClaimingOutcomes(res.data)).catch(() => { });
         api.get("/admin/reports/submission-trends", { params }).then((res) => setTrends(res.data)).catch(() => { });
-        api.get("/admin/reports/submission-vs-approval").then((res) => setSubmissionVsApproval(res.data)).catch(() => { });
     }, [selectedConfigId]);
 
     async function handlePdfExport(endpoint, filenamePrefix) {
@@ -58,14 +56,15 @@ function VerificationOutcomesSection({ selectedConfigId }) {
     const claimCounts = claimingOutcomes?.counts ?? {};
     const claimRates = claimingOutcomes?.rates ?? {};
     const notClearedReasons = claimingOutcomes?.not_cleared_reasons ?? {};
-
     const reuploadFlagCounts = documentFailures?.reupload_flag_counts_by_document ?? {};
+    const reuploadFlagPercentages = documentFailures?.reupload_flag_percentages_by_document ?? {};
     const reuploadReasonsByDoc = documentFailures?.reupload_reasons_by_document ?? {};
     const automatedFailuresByDoc = documentFailures?.automated_check_failures_by_document ?? {};
     const maxReuploadFlags = Math.max(1, ...Object.values(reuploadFlagCounts));
-
     const weeklyTrend = trends?.weekly ?? [];
     const maxWeeklyCount = Math.max(1, ...weeklyTrend.map((w) => w.total));
+    const notClearedTotal = Object.values(notClearedReasons).reduce((sum, v) => sum + v, 0);
+    const maxNotClearedReasons = Math.max(1, ...Object.values(notClearedReasons));
 
     return (
         <>
@@ -92,7 +91,13 @@ function VerificationOutcomesSection({ selectedConfigId }) {
                             <>
                                 <h6 className="text-muted text-uppercase small fw-bold mb-2">Re-upload Requests by Document</h6>
                                 {Object.entries(reuploadFlagCounts).map(([docType, count]) => (
-                                    <DistributionBar key={docType} label={formatDocType(docType)} count={count} max={maxReuploadFlags} />
+                                    <DistributionBar
+                                        key={docType}
+                                        label={formatDocType(docType)}
+                                        count={count}
+                                        percentage={reuploadFlagPercentages[docType]}
+                                        max={maxReuploadFlags}
+                                    />
                                 ))}
                             </>
                         )}
@@ -160,51 +165,19 @@ function VerificationOutcomesSection({ selectedConfigId }) {
                             <>
                                 <h6 className="text-muted text-uppercase small fw-bold mb-2">Not Cleared — Common Reasons</h6>
                                 {Object.entries(notClearedReasons).map(([reason, count]) => (
-                                    <DistributionBar key={reason} label={reason} count={count} max={Math.max(...Object.values(notClearedReasons))} />
+                                    <DistributionBar
+                                        key={reason}
+                                        label={reason}
+                                        count={count}
+                                        percentage={notClearedTotal > 0 ? Math.round((count / notClearedTotal) * 1000) / 10 : 0}
+                                        max={maxNotClearedReasons}
+                                    />
                                 ))}
                             </>
                         )}
                     </>
                 )}
             </div>
-
-            {/* Submission & Approval History */}
-            <div className="page-card">
-                <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
-                    <h4 className="sub-title">Submission &amp; Approval History</h4>
-                    <button type="button" className="btn btn-sm btn-outline-custom"
-                        onClick={() => handlePdfExport("/admin/reports/submission-vs-approval/pdf", "submission-vs-approval-trend")}>
-                        Export PDF
-                    </button>
-                </div>
-                <div className="info-box">
-                    Approved vs. rejected outcomes per period, shown against total submitted.
-                </div>
-                {!submissionVsApproval?.trend?.length ? (
-                    <div className="alert alert-info mb-0">No application period data available yet.</div>
-                ) : (
-                    submissionVsApproval.trend.map((row) => {
-                        const total = row.total_submitted || 1;
-                        const approvedPct = (row.approved / total) * 100;
-                        const rejectedPct = (row.rejected / total) * 100;
-                        return (
-                            <div key={row.config_id} className="mb-3">
-                                <div className="d-flex justify-content-between small mb-1">
-                                    <span className="fw-semibold">{row.school_year}</span>
-                                    <span className="text-muted">
-                                        {row.approved} approved / {row.rejected} rejected / {row.total_submitted} total
-                                    </span>
-                                </div>
-                                <div className="progress" style={{ height: "22px", backgroundColor: "#e9ecef" }}>
-                                    <div className="progress-bar bg-primary" style={{ width: `${approvedPct}%` }} title={`Approved: ${row.approved}`} />
-                                    <div className="progress-bar bg-danger" style={{ width: `${rejectedPct}%` }} title={`Rejected: ${row.rejected}`} />
-                                </div>
-                            </div>
-                        );
-                    })
-                )}
-            </div>
-
         </>
     );
 }
