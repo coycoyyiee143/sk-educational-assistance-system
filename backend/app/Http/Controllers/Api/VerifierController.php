@@ -366,7 +366,7 @@ class VerifierController extends Controller
             'verified_documents'    => 'nullable|array',
             'notes'                 => 'nullable|string',
         ]);
-
+    
         $assignment = ClaimingAssignment::where('application_id', $id)->firstOrFail();
         $assignment->update([
             'claim_status'       => $request->claim_status,
@@ -376,36 +376,27 @@ class VerifierController extends Controller
             'verified_by'        => $request->user()->id,
             'verified_at'        => now(),
         ]);
-
+    
         $app = Application::with(['user', 'configuration'])->findOrFail($id);
         $previousStatus = $app->status;
-
+    
         $app->update(['status' => $request->claim_status]);
-
-        // Both not_cleared (decided immediately on claiming day) and
-        // unclaimed (decided once grace period fully lapses with no show)
-        // are terminal negative outcomes that free the reserved slot for
-        // reporting/accounting purposes. Guarded against double-decrementing
-        // if this endpoint is called again with the same status.
-        //
-        // Note: freeing the slot here does NOT automatically trigger a
-        // waitlist promotion — that stays a manual verifier/admin action
-        // via promoteFromWaitlist(). By team decision, only not_cleared
-        // slots are actively offered to the waitlist during grace period;
-        // unclaimed slots are left unfilled for the cycle rather than
-        // chased down after grace period ends.
-        $terminalNegative = ['not_cleared', 'unclaimed'];
-
-        if (in_array($request->claim_status, $terminalNegative) && !in_array($previousStatus, $terminalNegative)) {
+    
+        // Only not_cleared actually frees a slot for waitlist promotion —
+        // that's the confirmed business rule. unclaimed does NOT decrement
+        // slots_filled: the slot stays reserved for that no-show through
+        // grace period, exactly as intended. If they never show, the slot
+        // simply goes unfilled for the cycle, not handed to the waitlist.
+        if ($request->claim_status === 'not_cleared' && $previousStatus !== 'not_cleared') {
             $app->configuration()->decrement('slots_filled');
         }
-
+    
         \App\Models\AuditLog::record(
             'claim_status_updated',
             $app,
             "Marked application #{$app->id} as {$request->claim_status}"
         );
-
+    
         $messages = [
             'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
             'not_cleared' => 'Your physical documents did not match your application record on claiming day. Please contact the SK office for further assistance.',
@@ -416,12 +407,12 @@ class VerifierController extends Controller
             'not_cleared' => 'Rejected — Document Mismatch at Claiming',
             'unclaimed'   => 'Unclaimed',
         ];
-
+    
         $app->user->notify(new ApplicationStatusNotification(
             $labels[$request->claim_status],
             $messages[$request->claim_status]
         ));
-
+    
         return response()->json(['message' => 'Claiming status updated.', 'assignment' => $assignment]);
     }
 

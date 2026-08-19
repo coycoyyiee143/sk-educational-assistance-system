@@ -8,10 +8,19 @@ function StatusBadge({ app }) {
   return <span className={`status-badge ${getVerifierBadgeClass(app)}`}>{getVerifierStatusLabel(app)}</span>;
 }
 
+const STATUS_TABS = [
+  { key: "all", label: "All" },
+  { key: "for_review", label: "For Review" },
+  { key: "pending_prescreening", label: "Pending" },
+  { key: "approved", label: "Approved" },
+  { key: "rejected", label: "Rejected" },
+];
+
 function VerifierApplicationList() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusTab, setStatusTab] = useState("for_review");
 
   const fetchData = () => {
     api.get("/verifier/applications")
@@ -26,11 +35,20 @@ function VerifierApplicationList() {
     return () => clearInterval(interval);
   }, []);
 
-  const filtered = applications.filter((app) =>
-    app.name.toLowerCase().includes(search.toLowerCase()) ||
-    String(app.id).includes(search) ||
-    (app.control_number ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+  const counts = {
+    for_review: applications.filter((a) => a.status === "for_review").length,
+    pending_prescreening: applications.filter((a) => a.status === "pending_prescreening").length,
+    approved: applications.filter((a) => a.status === "approved").length,
+    rejected: applications.filter((a) => a.status === "rejected").length,
+  };
+
+  const filtered = applications
+    .filter((app) => statusTab === "all" || app.status === statusTab)
+    .filter((app) =>
+      app.name.toLowerCase().includes(search.toLowerCase()) ||
+      String(app.id).includes(search) ||
+      (app.control_number ?? "").toLowerCase().includes(search.toLowerCase())
+    );
 
   return (
     <div>
@@ -38,7 +56,55 @@ function VerifierApplicationList() {
       <section className="page-section">
         <div className="container">
           <h3 className="section-title">Submitted Applications</h3>
-          <div className="page-card">
+
+          <div className="row g-4">
+            <div className="col-md-3">
+              <div className="summary-card">
+                <h5>For Review</h5>
+                <div className="summary-number">{loading ? "..." : counts.for_review}</div>
+                <p className="text-muted mb-0">Needs verifier action</p>
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="summary-card">
+                <h5>Pending</h5>
+                <div className="summary-number">{loading ? "..." : counts.pending_prescreening}</div>
+                <p className="text-muted mb-0">Still processing</p>
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="summary-card">
+                <h5>Approved</h5>
+                <div className="summary-number">{loading ? "..." : counts.approved}</div>
+                <p className="text-muted mb-0">Eligible applications</p>
+              </div>
+            </div>
+            <div className="col-md-3">
+              <div className="summary-card">
+                <h5>Rejected</h5>
+                <div className="summary-number">{loading ? "..." : counts.rejected}</div>
+                <p className="text-muted mb-0">Did not meet requirements</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="page-card mt-4">
+            <div className="d-flex flex-wrap gap-2 mb-3">
+              {STATUS_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  className={`btn btn-sm ${statusTab === tab.key ? "btn-custom" : "btn-outline-custom"}`}
+                  onClick={() => setStatusTab(tab.key)}
+                >
+                  {tab.label}
+                  {tab.key === "for_review" && counts.for_review > 0 && (
+                    <span className="badge bg-danger ms-2">{counts.for_review}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+
             <div className="row mb-3">
               <div className="col-md-4">
                 <input

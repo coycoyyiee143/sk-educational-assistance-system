@@ -79,6 +79,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/year-level-age/pdf', [AdminReportController::class, 'yearLevelAgePdf']);
         Route::get('/admin/reports/submission-trends/pdf', [AdminReportController::class, 'submissionTrendsPdf']);
         Route::get('/admin/reports/submission-vs-approval/pdf', [AdminReportController::class, 'submissionVsApprovalPdf']);
+        Route::get('/admin/reports/grace-period-claiming-list/pdf', [AdminReportController::class, 'gracePeriodClaimingListPdf']);
+        Route::get('/admin/reports/grace-period-claiming-list', [AdminReportController::class, 'gracePeriodClaimingList']);
         Route::get('/admin/reports/budget-estimation', [AdminReportController::class, 'budgetEstimation']);
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
         Route::get('/admin/reports/last-cycle-actuals', [AdminReportController::class, 'lastCycleActuals']);

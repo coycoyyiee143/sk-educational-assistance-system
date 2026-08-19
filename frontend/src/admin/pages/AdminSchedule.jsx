@@ -106,6 +106,9 @@ function AdminSchedule() {
           if (!sched.is_published) {
             loadPreview(sched.id);
           }
+          if (sched.grace_period_date) {
+            loadGracePeriodClaimingList();
+          }
         }
       })
       .catch((err) => {
@@ -124,6 +127,17 @@ function AdminSchedule() {
       .then((res) => setPreview(res.data))
       .catch(() => setPreview(null))
       .finally(() => setPreviewing(false));
+  }
+
+  const [gracePeriodList, setGracePeriodList] = useState(null);
+  const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
+
+  function loadGracePeriodClaimingList() {
+    setLoadingGracePeriodList(true);
+    api.get("/admin/reports/grace-period-claiming-list")
+      .then((res) => setGracePeriodList(res.data))
+      .catch(() => setGracePeriodList(null))
+      .finally(() => setLoadingGracePeriodList(false));
   }
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -280,6 +294,22 @@ function AdminSchedule() {
       printWindow.print();
     } catch (err) {
       setError("Failed to generate printable list.");
+    }
+  }
+
+  async function handleGracePeriodClaimingListExport() {
+    try {
+      const res = await api.get("/admin/reports/grace-period-claiming-list/pdf", { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `grace-period-claiming-list-${new Date().toISOString().slice(0, 10)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError("Failed to generate grace period claiming list.");
     }
   }
 
@@ -636,6 +666,58 @@ function AdminSchedule() {
                       )}
                     </>
                   )}
+                </div>
+              )}
+              {schedule?.grace_period_date && (
+                <div className="page-card">
+                  <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h4 className="sub-title mb-0">Grace Period Claiming List</h4>
+                    <div className="d-flex gap-2">
+                      <button
+                        className="btn btn-outline-custom btn-sm"
+                        onClick={loadGracePeriodClaimingList}
+                        disabled={loadingGracePeriodList}
+                      >
+                        {loadingGracePeriodList ? "Loading..." : "Refresh"}
+                      </button>
+                      <button type="button" className="btn btn-custom btn-sm" onClick={handleGracePeriodClaimingListExport}>
+                        Print List
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-muted small mb-3">
+                    Everyone expected during grace period — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
+                  </p>
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-striped align-middle">
+                      <thead>
+                        <tr>
+                          <th style={{ width: "40px" }}>#</th>
+                          <th>Control Number</th>
+                          <th>Applicant Name</th>
+                          <th style={{ width: "140px" }}>Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gracePeriodList?.entries?.length > 0 ? (
+                          gracePeriodList.entries.map((entry, i) => (
+                            <tr key={`${entry.control_number}-${i}`}>
+                              <td>{i + 1}</td>
+                              <td>{entry.control_number}</td>
+                              <td>{entry.name}</td>
+                              <td>{entry.type}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} className="text-muted">
+                              {loadingGracePeriodList ? "Loading..." : "No applicants expected during grace period for this period."}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </>

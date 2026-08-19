@@ -73,8 +73,8 @@ class WaitlistScenarioSeeder extends Seeder
 
         // Active period, deliberately created AT capacity from the start —
         // 40 approved against a 40 slot_limit — so waitlisted applicants
-        // and not_cleared "freed slot" math are consistent from the moment
-        // this seeder finishes, no post-hoc adjustment needed.
+        // and freed-slot math are consistent from the moment this seeder
+        // finishes, no post-hoc adjustment needed.
         $config = ApplicationConfiguration::create([
             'school_year'  => '2026-2027',
             'open_date'    => now()->subDays(10)->startOfDay(),
@@ -90,9 +90,16 @@ class WaitlistScenarioSeeder extends Seeder
         $this->seedWaitlistedApplicants($config, 5);
 
         $schedule = $this->seedClaimingSchedule($config);
-        $this->seedNotClearedOutcomes($config, $schedule, 3);
 
-        $this->command->info('Waitlist scenario seeded: period at capacity (40/40), 5 waitlisted applicants, 3 not_cleared freed slots, grace period set for notification testing.');
+        // 3 not_cleared (claiming-day rejections) + 2 unclaimed (no-shows,
+        // still eligible to retry during grace period) — 5 freed slots
+        // total. Only not_cleared actively offers its slot to the waitlist
+        // per the team's confirmed business rule; unclaimed just needs to
+        // show up correctly in the Grace Period Claiming List as a retry.
+        $this->seedNotClearedOutcomes($config, $schedule, 3, startingAt: 0);
+        $this->seedUnclaimedOutcomes($config, $schedule, 2, startingAt: 3);
+
+        $this->command->info('Waitlist scenario seeded: period at capacity (40/40), 5 waitlisted applicants, 3 not_cleared + 2 unclaimed freed slots, grace period set for notification and Grace Period Claiming List testing.');
     }
 
     private function seedApprovedApplicants(ApplicationConfiguration $config, int $count): void
@@ -163,13 +170,15 @@ class WaitlistScenarioSeeder extends Seeder
         return $schedule;
     }
 
-    private function seedNotClearedOutcomes(ApplicationConfiguration $config, ClaimingSchedule $schedule, int $count): void
+    private function seedNotClearedOutcomes(ApplicationConfiguration $config, ClaimingSchedule $schedule, int $count, int $startingAt): void
     {
         $lane = $schedule->lanes()->first();
 
         $approvedApps = Application::where('config_id', $config->id)
             ->where('status', 'approved')
-            ->limit($count)
+            ->orderBy('id')
+            ->skip($startingAt)
+            ->take($count)
             ->get();
 
         foreach ($approvedApps as $app) {
@@ -178,16 +187,43 @@ class WaitlistScenarioSeeder extends Seeder
                 'claiming_schedule_id' => $schedule->id,
                 'claiming_lane_id'     => $lane->id,
                 'claim_status'         => 'not_cleared',
+                'source'               => 'original',
                 'reason_categories'    => collect($this->notClearedReasons)->random(1)->values()->all(),
                 'verified_by'          => $this->verifier->id,
                 'verified_at'          => now()->subDays(1),
             ]);
+
+            $app->update(['status' => 'not_cleared']);
         }
 
-        // Mirrors the real decrement updateClaimStatus() performs, so
-        // slots_filled genuinely reflects 3 freed spots — matches the
-        // scenario the demo is supposed to represent.
-        $config->decrement('slots_filled', $count);
+        // Mirrors the real decrement updateClaimStatus() performs.
+        $config->decrement('slots_filled', $approvedApps->count());
+    }
+
+    private function seedUnclaimedOutcomes(ApplicationConfiguration $config, ClaimingSchedule $schedule, int $count, int $startingAt): void
+    {
+        $lane = $schedule->lanes()->first();
+    
+        $approvedApps = Application::where('config_id', $config->id)
+            ->where('status', 'approved')
+            ->orderBy('id')
+            ->skip($startingAt)
+            ->take($count)
+            ->get();
+    
+        foreach ($approvedApps as $app) {
+            ClaimingAssignment::create([
+                'application_id'       => $app->id,
+                'claiming_schedule_id' => $schedule->id,
+                'claiming_lane_id'     => $lane->id,
+                'claim_status'         => 'unclaimed',
+                'source'               => 'original',
+                'verified_by'          => $this->verifier->id,
+                'verified_at'          => now()->subDays(1),
+            ]);
+    
+            $app->update(['status' => 'unclaimed']);
+        }
     }
 
     private function makeApplicant(): User

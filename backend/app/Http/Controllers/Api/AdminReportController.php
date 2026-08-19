@@ -211,6 +211,73 @@ class AdminReportController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
+    public function gracePeriodClaimingList(Request $request)
+    {
+        $config = $this->resolveConfig($request);
+
+        if (!$config) {
+            return response()->json(['message' => 'No active application period.'], 404);
+        }
+
+        $list = $this->buildGracePeriodClaimingList($config);
+
+        $entries = $list['retrying']->map(fn($a) => [
+            'control_number' => $a->application->control_number,
+            'name'           => trim($a->application->user->first_name . ' ' . $a->application->user->last_name),
+            'type'           => 'Retrying',
+        ])->concat(
+            $list['promoted']->map(fn($a) => [
+                'control_number' => $a->application->control_number,
+                'name'           => trim($a->application->user->first_name . ' ' . $a->application->user->last_name),
+                'type'           => 'Promoted',
+            ])
+        )->values();
+
+        return response()->json([
+            'config'         => $config,
+            'entries'        => $entries,
+            'retrying_count' => $list['retrying']->count(),
+            'promoted_count' => $list['promoted']->count(),
+        ]);
+    }
+
+    private function buildGracePeriodClaimingList(ApplicationConfiguration $config)
+    {
+        $assignments = ClaimingAssignment::with(['application.user', 'lane'])
+            ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
+            ->where(function ($q) {
+                $q->where(function ($q2) {
+                    $q2->where('source', 'original')->where('claim_status', 'unclaimed');
+                })->orWhere('source', 'waitlist_promotion');
+            })
+            ->get();
+
+        return [
+            'retrying' => $assignments->where('source', 'original')->values(),
+            'promoted' => $assignments->where('source', 'waitlist_promotion')->values(),
+        ];
+    }
+
+    public function gracePeriodClaimingListPdf(Request $request)
+    {
+        $config = $this->resolveConfig($request);
+
+        if (!$config) {
+            return response()->json(['message' => 'No active application period.'], 404);
+        }
+
+        $list = $this->buildGracePeriodClaimingList($config);
+
+        $pdf = Pdf::loadView('reports.grace-period-claiming-list', [
+            'title'    => 'Grace Period Claiming List',
+            'config'   => $config,
+            'retrying' => $list['retrying'],
+            'promoted' => $list['promoted'],
+        ]);
+
+        return $pdf->download('grace-period-claiming-list-' . now()->format('Y-m-d') . '.pdf');
+    }
+
     // ── OTHER REPORTS (JSON) ─────────────────────────────────────────
 
     public function claimingOutcomeSummary(Request $request)
