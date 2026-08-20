@@ -72,21 +72,23 @@ class WaitlistScenarioSeeder extends Seeder
         ]);
 
         // Active period, deliberately created AT capacity from the start —
-        // 40 approved against a 40 slot_limit — so waitlisted applicants
+        // 200 approved against a 200 slot_limit — so waitlisted applicants
         // and freed-slot math are consistent from the moment this seeder
-        // finishes, no post-hoc adjustment needed.
+        // finishes, no post-hoc adjustment needed. Bumped from 40 to 200
+        // specifically to give the two-column approved-list PDF/image
+        // export something realistic to paginate across multiple pages.
         $config = ApplicationConfiguration::create([
             'school_year'  => '2026-2027',
             'open_date'    => now()->subDays(10)->startOfDay(),
             'close_date'   => now()->addDays(4)->endOfDay(),
-            'slot_limit'   => 40,
-            'slots_filled' => 40,
+            'slot_limit'   => 200,
+            'slots_filled' => 200,
             'is_unlimited' => false,
             'is_active'    => true,
             'created_by'   => $admin->id,
         ]);
 
-        $this->seedApprovedApplicants($config, 40);
+        $this->seedApprovedApplicants($config, 200);
         $this->seedWaitlistedApplicants($config, 5);
 
         $schedule = $this->seedClaimingSchedule($config);
@@ -99,7 +101,7 @@ class WaitlistScenarioSeeder extends Seeder
         $this->seedNotClearedOutcomes($config, $schedule, 3, startingAt: 0);
         $this->seedUnclaimedOutcomes($config, $schedule, 2, startingAt: 3);
 
-        $this->command->info('Waitlist scenario seeded: period at capacity (40/40), 5 waitlisted applicants, 3 not_cleared + 2 unclaimed freed slots, grace period set for notification and Grace Period Claiming List testing.');
+        $this->command->info('Waitlist scenario seeded: period at capacity (200/200), 5 waitlisted applicants, 3 not_cleared + 2 unclaimed freed slots, grace period set for notification, Grace Period Claiming List, and paginated approved-list testing.');
     }
 
     private function seedApprovedApplicants(ApplicationConfiguration $config, int $count): void
@@ -203,14 +205,14 @@ class WaitlistScenarioSeeder extends Seeder
     private function seedUnclaimedOutcomes(ApplicationConfiguration $config, ClaimingSchedule $schedule, int $count, int $startingAt): void
     {
         $lane = $schedule->lanes()->first();
-    
+
         $approvedApps = Application::where('config_id', $config->id)
             ->where('status', 'approved')
             ->orderBy('id')
             ->skip($startingAt)
             ->take($count)
             ->get();
-    
+
         foreach ($approvedApps as $app) {
             ClaimingAssignment::create([
                 'application_id'       => $app->id,
@@ -221,7 +223,7 @@ class WaitlistScenarioSeeder extends Seeder
                 'verified_by'          => $this->verifier->id,
                 'verified_at'          => now()->subDays(1),
             ]);
-    
+
             $app->update(['status' => 'unclaimed']);
         }
     }

@@ -1,19 +1,15 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
-
 const reportTypes = ["All Applications", "Approved Students", "Rejected Applications", "Pending Applications"];
 const applicantTypes = ["All Applicants", "Minor", "Adult"];
 const yearLevelOptions = ["All Year Levels", "1st Year", "2nd Year", "3rd Year", "4th Year"];
-
 const emptyFilter = {
     type: "All Applications", from: "", to: "",
     school_name: "All Schools", course: "All Courses",
     year_level: "All Year Levels", applicant_type: "All Applicants",
 };
-
 const APPROVED_SET = ["approved", "claimed", "not_cleared", "unclaimed"];
 const PENDING_SET = ["pending_prescreening", "for_review", "reupload_requested"];
-
 function StatusBadge({ status }) {
     let cls = "badge-review";
     if (status === "rejected") cls = "badge-rejected";
@@ -21,12 +17,10 @@ function StatusBadge({ status }) {
     else if (PENDING_SET.includes(status)) cls = "badge-review";
     return <span className={cls}>{status.replace(/_/g, " ")}</span>;
 }
-
 function formatDate(dateStr) {
     if (!dateStr) return "—";
     return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
-
 function ApplicantRecordsSection({ selectedConfigId }) {
     const [summary, setSummary] = useState(null);
     const [filterOptions, setFilterOptions] = useState({ schools: [], courses: [] });
@@ -36,11 +30,9 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     const [exporting, setExporting] = useState(false);
     const [error, setError] = useState("");
     const [submissionVsApproval, setSubmissionVsApproval] = useState(null);
-
     useEffect(() => {
         api.get("/admin/reports/filter-options").then((res) => setFilterOptions(res.data)).catch(() => { });
     }, []);
-
     useEffect(() => {
         const params = selectedConfigId ? { config_id: selectedConfigId } : {};
         api.get("/admin/reports/summary", { params }).then((res) => setSummary(res.data)).catch(() => { });
@@ -50,9 +42,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         // purpose is showing the trend across cycles, not one period.
         api.get("/admin/reports/submission-vs-approval").then((res) => setSubmissionVsApproval(res.data)).catch(() => { });
     }, [selectedConfigId]);
-
     const set = (k) => (e) => setFilter((f) => ({ ...f, [k]: e.target.value }));
-
     function buildParams() {
         const params = {};
         if (filter.type !== "All Applications") params.type = filter.type;
@@ -65,7 +55,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         if (selectedConfigId) params.config_id = selectedConfigId;
         return params;
     }
-
     async function handlePreview(e) {
         e.preventDefault();
         setError("");
@@ -79,7 +68,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             setPreviewing(false);
         }
     }
-
     async function handleExport() {
         setError("");
         setExporting(true);
@@ -99,7 +87,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             setExporting(false);
         }
     }
-
     async function handlePdfExport(endpoint, filenamePrefix) {
         try {
             const res = await api.get(endpoint, { responseType: "blob" });
@@ -113,14 +100,104 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             window.URL.revokeObjectURL(url);
         } catch { }
     }
+    async function handleApprovedListExport() {
+        try {
+            const params = selectedConfigId ? { config_id: selectedConfigId } : {};
+            const res = await api.get("/admin/reports/approved-applicants/pdf", { params, responseType: "blob" });
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+            const link = document.createElement("a");
+            link.href = url;
+            link.setAttribute("download", `educational-assistance-approved-list-${new Date().toISOString().slice(0, 10)}.pdf`);
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch {
+            setError("Failed to export approved applicants list.");
+        }
+    }
+    async function handleApprovedListImageExport() {
+        try {
+            const params = selectedConfigId ? { config_id: selectedConfigId } : {};
+            const res = await api.get("/admin/reports/approved-applicants/html", { params });
+            const html = `
+              <html>
+                <head>
+                  <meta charset="utf-8">
+                  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+                  <style>
+                    body { margin: 0; padding: 24px; background: #ccc; }
+                    .toolbar { text-align: center; margin: 0 auto 24px; max-width: 1080px; }
+                    .toolbar button {
+                      padding: 10px 24px; background: #b71c1c; color: #fff; border: none;
+                      border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; margin: 0 4px;
+                    }
+                    .page-chunk {
+                      background: #fff;
+                      margin: 0 auto 24px;
+                      box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+                    }
+                    .page-controls { text-align: center; margin: 0 auto 8px; max-width: 1080px; }
+                    .page-controls button {
+                      padding: 8px 20px; background: #6c757d; color: #fff; border: none;
+                      border-radius: 6px; font-size: 13px; cursor: pointer; margin: 0 4px 12px;
+                    }
+                  </style>
+                </head>
+                <body>
+                  <div class="toolbar">
+                    <button id="download-all-btn">Download All Pages</button>
+                  </div>
+                  <div id="capture-root">${res.data}</div>
+                  <script>
+                    const chunks = Array.from(document.querySelectorAll('.page-chunk'));
 
+                    function downloadPage(chunk, idx) {
+                      return html2canvas(chunk, { scale: 2, backgroundColor: '#ffffff' }).then(function (canvas) {
+                        const link = document.createElement('a');
+                        link.download = 'educational-assistance-approved-list-page-' + (idx + 1) + '.png';
+                        link.href = canvas.toDataURL('image/png');
+                        link.click();
+                      });
+                    }
+
+                    chunks.forEach(function (chunk, idx) {
+                      const controls = document.createElement('div');
+                      controls.className = 'page-controls';
+                      const btn = document.createElement('button');
+                      btn.textContent = 'Download Page ' + (idx + 1);
+                      btn.addEventListener('click', function () { downloadPage(chunk, idx); });
+                      controls.appendChild(btn);
+                      chunk.parentNode.insertBefore(controls, chunk);
+                    });
+
+                    document.getElementById('download-all-btn').addEventListener('click', function () {
+                      // Staggered so the browser doesn't treat simultaneous
+                      // downloads as a popup-spam pattern and block them.
+                      chunks.reduce(function (chain, chunk, idx) {
+                        return chain.then(function () {
+                          return downloadPage(chunk, idx).then(function () {
+                            return new Promise(function (resolve) { setTimeout(resolve, 400); });
+                          });
+                        });
+                      }, Promise.resolve());
+                    });
+                  </script>
+                </body>
+              </html>
+            `;
+            const win = window.open("", "_blank");
+            win.document.write(html);
+            win.document.close();
+        } catch {
+            setError("Failed to generate approved applicants image preview.");
+        }
+    }
     const stats = summary?.summary ?? {};
     const rates = summary?.rates ?? {};
-
     return (
         <>
             {error && <div className="alert alert-danger">{error}</div>}
-
             {/* Application Overview — By Status */}
             <div className="page-card">
                 <h4 className="sub-title">
@@ -138,7 +215,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </div>
                 )}
             </div>
-
             {/* Application Overview — By Rate */}
             <div className="page-card">
                 <h4 className="sub-title">
@@ -155,7 +231,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </div>
                 )}
             </div>
-
             {/* Submission & Approval History — multi-period trend, deliberately not scoped to selectedConfigId */}
             <div className="page-card">
                 <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
@@ -193,7 +268,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     ))
                 )}
             </div>
-
             {/* Applicant Records — filter/export tool */}
             <div className="page-card">
                 <h4 className="sub-title">Applicant Records</h4>
@@ -249,7 +323,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </div>
                 </form>
             </div>
-
             <div className="page-card">
                 <h4 className="sub-title">Record Preview</h4>
                 <div className="table-responsive" style={{ maxHeight: "420px", overflowY: "auto" }}>
@@ -280,8 +353,19 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </table>
                 </div>
             </div>
+            <div className="page-card">
+                <h4 className="sub-title">Approved Applicants List</h4>
+                <div className="info-box">
+                    Generates the official list of approved applicants for {selectedConfigId ? "the selected period" : "the active period"} — a printable PDF for the office copy and physical bulletin board, and images sized for posting straight to the SK's Facebook page.
+                </div>
+                <button type="button" className="btn btn-custom btn-sm" onClick={handleApprovedListExport}>
+                    Download PDF
+                </button>
+                <button type="button" className="btn btn-outline-custom btn-sm ms-2" onClick={handleApprovedListImageExport}>
+                    Generate Facebook Images
+                </button>
+            </div>
         </>
     );
 }
-
 export default ApplicantRecordsSection;
