@@ -9,6 +9,7 @@ const emptyForm = {
   afternoon_start: "13:00",
   afternoon_end: "17:00",
   grace_period_date: "",
+  grace_period_end_date: "",
 };
 
 const emptySessionLane = () => ({ lane_name: "", capacity: "" });
@@ -19,8 +20,6 @@ const emptyDay = () => ({
   afternoon: { enabled: true, lanes: [emptySessionLane()] },
 });
 
-// Reconstructs the day/session/lane builder shape from the flat lanes array
-// returned by the API (claiming_date + batch + lane_name + capacity per row).
 function groupLanesIntoDays(lanesArr) {
   if (!lanesArr || lanesArr.length === 0) return [emptyDay()];
   const map = {};
@@ -41,7 +40,6 @@ function groupLanesIntoDays(lanesArr) {
   return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
 }
 
-// Flattens the day/session/lane builder back into the lanes array the API expects.
 function serializeLanes(days) {
   const lanes = [];
   days.forEach((day, dayIdx) => {
@@ -80,6 +78,8 @@ function AdminSchedule() {
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [gracePeriodList, setGracePeriodList] = useState(null);
+  const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
 
   useEffect(() => { loadSchedule(); }, []);
 
@@ -99,10 +99,14 @@ function AdminSchedule() {
             afternoon_start: sched.afternoon_start?.slice(0, 5) ?? "13:00",
             afternoon_end: sched.afternoon_end?.slice(0, 5) ?? "17:00",
             grace_period_date: sched.grace_period_date ?? "",
+            grace_period_end_date: sched.grace_period_end_date ?? "",
           });
           setDays(groupLanesIntoDays(sched.lanes));
           if (!sched.is_published) {
             loadPreview(sched.id);
+          }
+          if (sched.grace_period_date) {
+            loadGracePeriodClaimingList();
           }
         }
       })
@@ -122,6 +126,14 @@ function AdminSchedule() {
       .then((res) => setPreview(res.data))
       .catch(() => setPreview(null))
       .finally(() => setPreviewing(false));
+  }
+
+  function loadGracePeriodClaimingList() {
+    setLoadingGracePeriodList(true);
+    api.get("/admin/reports/grace-period-claiming-list")
+      .then((res) => setGracePeriodList(res.data))
+      .catch(() => setGracePeriodList(null))
+      .finally(() => setLoadingGracePeriodList(false));
   }
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -181,7 +193,6 @@ function AdminSchedule() {
     e.preventDefault();
     setError("");
     setSuccess("");
-
     if (days.length === 0) {
       setError("Please add at least one claiming day.");
       return;
@@ -202,7 +213,6 @@ function AdminSchedule() {
         }
       }
     }
-
     const lanes = serializeLanes(days);
     setSaving(true);
     try {
@@ -283,6 +293,22 @@ function AdminSchedule() {
     }
   }
 
+  async function handleGracePeriodClaimingListExport() {
+    try {
+      const res = await api.get("/admin/reports/grace-period-claiming-list/pdf", { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `grace-period-claiming-list-${new Date().toISOString().slice(0, 10)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError("Failed to generate grace period claiming list.");
+    }
+  }
+
   if (loading) {
     return (
       <div>
@@ -296,16 +322,21 @@ function AdminSchedule() {
 
   const isPublished = schedule?.is_published;
   const hasApproved = approvedCount > 0;
-
   const totalLanesCount = days.reduce((sum, d) =>
     sum + (d.morning.enabled ? d.morning.lanes.length : 0) + (d.afternoon.enabled ? d.afternoon.lanes.length : 0), 0);
   const claimingDates = days.map(d => d.date).filter(Boolean);
-
   const summaryItems = schedule ? [
     { label: "Total Approved Applicants", value: approvedCount },
     { label: "Total Lanes", value: totalLanesCount },
     { label: "Claiming Dates", value: formatDateRange(claimingDates) },
-    { label: "Grace Period Date", value: form.grace_period_date || "Not set" },
+    {
+      label: "Grace Period",
+      value: form.grace_period_date
+        ? (form.grace_period_end_date
+          ? `${form.grace_period_date} to ${form.grace_period_end_date}`
+          : form.grace_period_date)
+        : "Not set",
+    },
   ] : [];
 
   return (
@@ -339,7 +370,6 @@ function AdminSchedule() {
                   </div>
                 )}
               </div>
-
               {isPublished && (
                 <div className="page-card">
                   <div className="success-box mb-0">
@@ -347,7 +377,6 @@ function AdminSchedule() {
                   </div>
                 </div>
               )}
-
               <div className="page-card">
                 <h4 className="sub-title">Create Claiming Schedule</h4>
                 <div className="info-box">
@@ -364,8 +393,31 @@ function AdminSchedule() {
                         <input type="text" className="form-control" value={form.location} onChange={set("location")} required />
                       </div>
                       <div className="col-md-6">
-                        <label className="form-label">Grace Period Date</label>
-                        <input type="date" className="form-control" value={form.grace_period_date} onChange={set("grace_period_date")} />
+                        <label className="form-label">Grace Period (Date Range)</label>
+                        <div className="row g-2">
+                          <div className="col-6">
+                            <input
+                              type="date"
+                              className="form-control"
+                              value={form.grace_period_date}
+                              onChange={set("grace_period_date")}
+                              placeholder="Start date"
+                            />
+                          </div>
+                          <div className="col-6">
+                            <input
+                              type="date"
+                              className="form-control"
+                              value={form.grace_period_end_date}
+                              onChange={set("grace_period_end_date")}
+                              min={form.grace_period_date || undefined}
+                              placeholder="End date"
+                            />
+                          </div>
+                        </div>
+                        <div className="form-text">
+                          Applicants promoted from the waitlist may claim on any weekday within this range.
+                        </div>
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Default Morning Session Time</label>
@@ -390,10 +442,8 @@ function AdminSchedule() {
                         </div>
                       </div>
                     </div>
-
                     <hr className="my-4" />
                     <h5 className="sub-title mb-3" style={{ fontSize: "18px" }}>Claiming Days</h5>
-
                     {days.map((day, dayIdx) => (
                       <div className="sub-card mb-3" key={dayIdx}>
                         <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -404,7 +454,6 @@ function AdminSchedule() {
                             </button>
                           )}
                         </div>
-
                         <div className="row g-3 mb-3">
                           <div className="col-md-4">
                             <label className="form-label">Date</label>
@@ -417,7 +466,6 @@ function AdminSchedule() {
                             />
                           </div>
                         </div>
-
                         {["morning", "afternoon"].map((session) => (
                           <div className="mb-3" key={session}>
                             <div className="form-check form-switch mb-2">
@@ -434,7 +482,6 @@ function AdminSchedule() {
                                   : `Afternoon Session (${form.afternoon_start} – ${form.afternoon_end})`}
                               </label>
                             </div>
-
                             {day[session].enabled && (
                               <div className="table-responsive">
                                 <table className="table table-sm table-bordered align-middle mb-2">
@@ -499,14 +546,12 @@ function AdminSchedule() {
                         ))}
                       </div>
                     ))}
-
                     {!isPublished && (
                       <button type="button" className="btn btn-outline-custom btn-sm mb-3" onClick={addDay}>
                         + Add Claiming Day
                       </button>
                     )}
                   </fieldset>
-
                   {!isPublished && (
                     <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
                       <button type="button" className="btn btn-secondary" onClick={handleReset}>
@@ -519,7 +564,6 @@ function AdminSchedule() {
                   )}
                 </form>
               </div>
-
               {schedule && (
                 <div className="page-card">
                   <h4 className="sub-title">Schedule Summary</h4>
@@ -535,7 +579,6 @@ function AdminSchedule() {
                   </div>
                 </div>
               )}
-
               {schedule && (
                 <div className="page-card">
                   <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
@@ -569,32 +612,36 @@ function AdminSchedule() {
                       </thead>
                       <tbody>
                         {isPublished ? (
-                          schedule.lanes?.map((lane) => (
-                            <tr key={lane.id}>
-                              <td>{lane.lane_name}</td>
-                              <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
-                              <td>{lane.claiming_date}</td>
-                              <td>{lane.capacity ?? "Auto"}</td>
-                              <td>{lane.control_number_range ?? "—"}</td>
-                              <td>{lane.assignments_count ?? 0}</td>
-                              <td>
-                                <button className="btn btn-outline-custom btn-sm" onClick={() => handlePrint(lane.id, lane.lane_name)}>
-                                  Print Lane List
-                                </button>
-                              </td>
-                            </tr>
-                          ))
+                          schedule.lanes
+                            ?.filter((lane) => lane.lane_name !== "Waitlist Promotions")
+                            .map((lane) => (
+                              <tr key={lane.id}>
+                                <td>{lane.lane_name}</td>
+                                <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
+                                <td>{lane.claiming_date}</td>
+                                <td>{lane.capacity ?? "Auto"}</td>
+                                <td>{lane.control_number_range ?? "—"}</td>
+                                <td>{lane.assignments_count ?? 0}</td>
+                                <td>
+                                  <button className="btn btn-outline-custom btn-sm" onClick={() => handlePrint(lane.id, lane.lane_name)}>
+                                    Print Lane List
+                                  </button>
+                                </td>
+                              </tr>
+                            ))
                         ) : preview ? (
-                          preview.lanes.map((lane) => (
-                            <tr key={lane.id}>
-                              <td>{lane.lane_name}</td>
-                              <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
-                              <td>{lane.claiming_date}</td>
-                              <td>{lane.capacity ?? "Auto"}</td>
-                              <td>{lane.control_number_range ?? "—"}</td>
-                              <td>{lane.assigned_count}</td>
-                            </tr>
-                          ))
+                          preview.lanes
+                            .filter((lane) => lane.lane_name !== "Waitlist Promotions")
+                            .map((lane) => (
+                              <tr key={lane.id}>
+                                <td>{lane.lane_name}</td>
+                                <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
+                                <td>{lane.claiming_date}</td>
+                                <td>{lane.capacity ?? "Auto"}</td>
+                                <td>{lane.control_number_range ?? "—"}</td>
+                                <td>{lane.assigned_count}</td>
+                              </tr>
+                            ))
                         ) : (
                           <tr>
                             <td colSpan={6} className="text-muted">
@@ -619,6 +666,58 @@ function AdminSchedule() {
                       )}
                     </>
                   )}
+                </div>
+              )}
+              {schedule?.grace_period_date && (
+                <div className="page-card">
+                  <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                    <h4 className="sub-title mb-0">Grace Period Claiming List</h4>
+                    <div className="d-flex gap-2">
+                      <button
+                        className="btn btn-outline-custom btn-sm"
+                        onClick={loadGracePeriodClaimingList}
+                        disabled={loadingGracePeriodList}
+                      >
+                        {loadingGracePeriodList ? "Loading..." : "Refresh"}
+                      </button>
+                      <button type="button" className="btn btn-custom btn-sm" onClick={handleGracePeriodClaimingListExport}>
+                        Print List
+                      </button>
+                    </div>
+                  </div>
+                  <p className="text-muted small mb-3">
+                    Everyone expected during grace period — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
+                  </p>
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-striped align-middle">
+                      <thead>
+                        <tr>
+                          <th style={{ width: "40px" }}>#</th>
+                          <th>Control Number</th>
+                          <th>Applicant Name</th>
+                          <th style={{ width: "140px" }}>Type</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {gracePeriodList?.entries?.length > 0 ? (
+                          gracePeriodList.entries.map((entry, i) => (
+                            <tr key={`${entry.control_number}-${i}`}>
+                              <td>{i + 1}</td>
+                              <td>{entry.control_number}</td>
+                              <td>{entry.name}</td>
+                              <td>{entry.type}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} className="text-muted">
+                              {loadingGracePeriodList ? "Loading..." : "No applicants expected during grace period for this period."}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               )}
             </>

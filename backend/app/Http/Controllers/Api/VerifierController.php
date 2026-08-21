@@ -4,8 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Application;
+use App\Models\ApplicationConfiguration;
 use App\Models\VerifierAction;
 use App\Models\ClaimingAssignment;
+use App\Models\ClaimingSchedule;
+use App\Models\ClaimingLane;
+use App\Notifications\ClaimingScheduleNotification;
 use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 
@@ -39,6 +43,7 @@ class VerifierController extends Controller
                     'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
                 ];
             });
+
         return response()->json($applications);
     }
 
@@ -61,43 +66,221 @@ class VerifierController extends Controller
     {
         // Eager-loaded user relationship to make sure notification finds the recipient email
         $app = Application::with(['user', 'configuration'])->findOrFail($id);
+
         if ($app->status === 'approved') {
             return response()->json(['message' => 'Application already approved.'], 400);
         }
-    
-        // Prevent approving past the configured slot limit. Not fully race-condition-safe
-        // for simultaneous approvals, but closes the gap where no check existed at all.
-        $config = $app->configuration;
-        if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
-            return response()->json(['message' => 'No more slots available for this application period.'], 400);
+
+        $outcome = Application::tryApprove($app);
+
+        if ($outcome['result'] === 'no_slots') {
+            Application::moveToWaitlist($app);
+
+            $app->user->notify(new ApplicationStatusNotification(
+                'Waitlisted',
+                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before the grace period ends."
+            ));
+
+            return response()->json(['message' => 'No slots available — applicant added to waitlist instead.']);
         }
-    
-        $app->update([
-            'status'         => 'approved',
-            'control_number' => $app->control_number ?? \App\Models\Application::generateControlNumber($app->config_id),
-        ]);
-         // Slot is consumed here, at approval time, not at submission.
-         // This ensures slots_filled only reflects applicants who actually
-         // passed eligibility verification.
-        $app->configuration()->increment('slots_filled'); 
+
         VerifierAction::create([
             'application_id' => $app->id,
             'verifier_id'    => $request->user()->id,
             'action'         => 'approved',
             'notes'          => $request->notes ?? null,
         ]);
-         // Log this approval for the audit trail
+
+        // Log this approval for the audit trail
         \App\Models\AuditLog::record(
             'application_approved',
             $app,
             "Approved application #{$app->id} ({$app->user->first_name} {$app->user->last_name})"
         );
+
         // Trigger Approval Notification
         $app->user->notify(new ApplicationStatusNotification(
             'Approved',
             'Congratulations! Your application has been approved. Please wait for announcements regarding the physical document submission and distribution schedule.'
         ));
+
         return response()->json(['message' => 'Application approved.']);
+    }
+
+    public function promoteFromWaitlist(Request $request, $configId)
+    {
+        $outcome = Application::promoteNextFromWaitlist($configId);
+    
+        if ($outcome['result'] === 'no_waitlist') {
+            return response()->json(['message' => 'No waitlisted applicants available to promote.'], 400);
+        }
+    
+        if ($outcome['result'] === 'no_slots') {
+            return response()->json(['message' => 'No slots available to promote into.'], 400);
+        }
+    
+        $promoted = $outcome['application'];
+    
+        \App\Models\AuditLog::record(
+            'application_approved',
+            $promoted,
+            "Promoted application #{$promoted->id} from waitlist ({$promoted->user->first_name} {$promoted->user->last_name})"
+        );
+    
+        $schedule = ClaimingSchedule::where('config_id', $configId)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+    
+        if ($schedule && $schedule->grace_period_date) {
+            $lane = ClaimingLane::firstOrCreate(
+                [
+                    'claiming_schedule_id' => $schedule->id,
+                    'lane_name'            => 'Waitlist Promotions',
+                ],
+                [
+                    'batch'         => 'morning',
+                    'claiming_date' => $schedule->grace_period_date,
+                    'capacity'      => null,
+                ]
+            );
+    
+            $assignment = ClaimingAssignment::updateOrCreate(
+                ['application_id' => $promoted->id],
+                [
+                    'claiming_schedule_id' => $schedule->id,
+                    'claiming_lane_id'     => $lane->id,
+                    'claim_status'         => 'pending',
+                    'source'               => 'waitlist_promotion',
+                ]
+            );
+    
+            $promoted->user->notify(new ClaimingScheduleNotification($promoted, $lane, $schedule, $assignment));
+        } else {
+            $promoted->user->notify(new ApplicationStatusNotification(
+                'Approved',
+                'A slot has opened up and your application has now been approved! Please prepare your physical documents for submission.'
+            ));
+        }
+    
+        return response()->json(['message' => 'Applicant promoted from waitlist.', 'application' => $promoted]);
+    }
+    
+    public function promoteAllFromWaitlist(Request $request, $configId)
+    {
+        $waitlistExists = Application::where('config_id', $configId)
+            ->where('status', 'waitlisted')
+            ->exists();
+    
+        if (!$waitlistExists) {
+            return response()->json(['message' => 'No waitlisted applicants available to promote.'], 400);
+        }
+    
+        $promotedList = Application::promoteAllFromWaitlist($configId);
+    
+        if (empty($promotedList)) {
+            return response()->json(['message' => 'No slots available to promote into.'], 400);
+        }
+    
+        $schedule = ClaimingSchedule::where('config_id', $configId)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+    
+        foreach ($promotedList as $promoted) {
+            \App\Models\AuditLog::record(
+                'application_approved',
+                $promoted,
+                "Promoted application #{$promoted->id} from waitlist ({$promoted->user->first_name} {$promoted->user->last_name})"
+            );
+    
+            if ($schedule && $schedule->grace_period_date) {
+                $lane = ClaimingLane::firstOrCreate(
+                    [
+                        'claiming_schedule_id' => $schedule->id,
+                        'lane_name'            => 'Waitlist Promotions',
+                    ],
+                    [
+                        'batch'         => 'morning',
+                        'claiming_date' => $schedule->grace_period_date,
+                        'capacity'      => null,
+                    ]
+                );
+    
+                $assignment = ClaimingAssignment::updateOrCreate(
+                    ['application_id' => $promoted->id],
+                    [
+                        'claiming_schedule_id' => $schedule->id,
+                        'claiming_lane_id'     => $lane->id,
+                        'claim_status'         => 'pending',
+                        'source'               => 'waitlist_promotion',
+                    ]
+                );
+    
+                $promoted->user->notify(new ClaimingScheduleNotification($promoted, $lane, $schedule, $assignment));
+            } else {
+                $promoted->user->notify(new ApplicationStatusNotification(
+                    'Approved',
+                    'A slot has opened up and your application has now been approved! Please prepare your physical documents for submission.'
+                ));
+            }
+        }
+    
+        $count = count($promotedList);
+    
+        return response()->json([
+            'message' => "{$count} applicant(s) promoted from waitlist.",
+            'applications' => $promotedList,
+        ]);
+    }
+
+    /**
+     * Lists the active period's waitlist in promotion order, so a verifier
+     * can see who's waiting and how long — promotion itself always pulls
+     * the #1 position (strict FIFO via promoteNextFromWaitlist), so this
+     * view is informational, not a picker.
+     */
+    public function waitlist(Request $request)
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+    
+        if (!$config) {
+            return response()->json(['config_id' => null, 'waitlist' => [], 'not_cleared_count' => 0, 'free_slots' => 0]);
+        }
+    
+        $waitlisted = Application::with('user')
+            ->where('config_id', $config->id)
+            ->where('status', 'waitlisted')
+            ->orderBy('waitlisted_at')
+            ->get()
+            ->values()
+            ->map(function ($app, $index) {
+                return [
+                    'id'            => $app->id,
+                    'name'          => trim($app->user->first_name . ' ' . $app->user->last_name),
+                    'school_name'   => $app->school_name,
+                    'waitlisted_at' => $app->waitlisted_at,
+                    'position'      => $index + 1,
+                ];
+            });
+    
+        // Historical count — how many not_cleared outcomes this period has had
+        // in total, used only as the denominator for context.
+        $notClearedCount = \App\Models\ClaimingAssignment::where('claim_status', 'not_cleared')
+            ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
+            ->count();
+    
+        // Live count — slots_filled correctly reflects every promotion
+        // (increments) and every not_cleared/unclaimed (decrements), so this
+        // is always accurate right now, unlike a static count of past events.
+        $freeSlots = $config->is_unlimited ? null : max(0, $config->slot_limit - $config->slots_filled);
+    
+        return response()->json([
+            'config_id'          => $config->id,
+            'waitlist'           => $waitlisted,
+            'not_cleared_count'  => $notClearedCount,
+            'free_slots'         => $freeSlots,
+        ]);
     }
 
     public function reject(Request $request, $id)
@@ -107,14 +290,14 @@ class VerifierController extends Controller
             'reason_categories'   => 'required|array|min:1',
             'reason_categories.*' => 'string',
         ]);
-    
+
         $app = Application::with('user')->findOrFail($id);
-    
+
         $app->update([
             'status'           => 'rejected',
             'rejection_reason' => $request->reason,
         ]);
-    
+
         VerifierAction::create([
             'application_id'    => $app->id,
             'verifier_id'       => $request->user()->id,
@@ -122,21 +305,21 @@ class VerifierController extends Controller
             'reason_categories' => $request->reason_categories,
             'notes'             => $request->reason,
         ]);
-    
+
         \App\Models\AuditLog::record(
             'application_rejected',
             $app,
             "Rejected application #{$app->id}. Reason: {$request->reason}"
         );
-    
+
         $app->user->notify(new ApplicationStatusNotification(
             'Rejected',
             'We regret to inform you that your educational assistance application was not approved. Reason: ' . $request->reason
         ));
-    
+
         return response()->json(['message' => 'Application rejected.']);
     }
-    
+
     public function requestReupload(Request $request, $id)
     {
         $request->validate([
@@ -147,11 +330,11 @@ class VerifierController extends Controller
             'reupload_details.*.reason_categories.*' => 'string',
             'reupload_details.*.reason'              => 'required|string',
         ]);
-    
+
         $app = Application::with('user')->findOrFail($id);
-    
+
         $app->update(['status' => 'reupload_requested']);
-    
+
         VerifierAction::create([
             'application_id'   => $app->id,
             'verifier_id'      => $request->user()->id,
@@ -159,21 +342,21 @@ class VerifierController extends Controller
             'notes'            => $request->notes,
             'reupload_details' => $request->reupload_details,
         ]);
-    
+
         \App\Models\AuditLog::record(
             'application_reupload_requested',
             $app,
             "Requested document re-upload for application #{$app->id}. Notes: {$request->notes}"
         );
-    
+
         $app->user->notify(new ApplicationStatusNotification(
             'Re-upload Requested',
             'The verifier reviewed your submission and flagged some missing or unreadable documents. Please review these notes: ' . $request->notes
         ));
-    
+
         return response()->json(['message' => 'Re-upload requested.']);
     }
-    
+
     public function updateClaimStatus(Request $request, $id)
     {
         $request->validate([
@@ -194,8 +377,19 @@ class VerifierController extends Controller
             'verified_at'        => now(),
         ]);
     
-        $app = Application::with('user')->findOrFail($id);
+        $app = Application::with(['user', 'configuration'])->findOrFail($id);
+        $previousStatus = $app->status;
+    
         $app->update(['status' => $request->claim_status]);
+    
+        // Only not_cleared actually frees a slot for waitlist promotion —
+        // that's the confirmed business rule. unclaimed does NOT decrement
+        // slots_filled: the slot stays reserved for that no-show through
+        // grace period, exactly as intended. If they never show, the slot
+        // simply goes unfilled for the cycle, not handed to the waitlist.
+        if ($request->claim_status === 'not_cleared' && $previousStatus !== 'not_cleared') {
+            $app->configuration()->decrement('slots_filled');
+        }
     
         \App\Models\AuditLog::record(
             'claim_status_updated',

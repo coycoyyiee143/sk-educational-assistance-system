@@ -40,6 +40,14 @@ class ProcessOcrDocument implements ShouldQueue
 
     public function handle()
     {
+        // Idempotency guard — if a queue retry re-runs this job after the
+        // document already finished processing (e.g. worker crash between
+        // commit and job acknowledgment), don't reprocess and create
+        // duplicate OcrResult/VerificationCheck rows.
+        if ($this->document->status === 'processed') {
+            return;
+        }
+
         try {
             // Get full path to stored file
             $storagePath = Storage::disk('local')->path($this->filePath);
@@ -50,9 +58,10 @@ class ProcessOcrDocument implements ShouldQueue
 
             // Update the timeout to 180 seconds to accommodate heavy PaddleOCR models
             $client = new Client([
-                'timeout'         => 180, 
+                'timeout'         => 180,
                 'connect_timeout' => 10 // Optional: fail fast if the server is completely down
             ]);
+
             $user    = $this->application->user;
             $config  = $this->application->configuration;
             $profile = $user->profile;
@@ -136,7 +145,6 @@ class ProcessOcrDocument implements ShouldQueue
 
             $this->document->update(['status' => 'processed']);
             $this->updateApplicationStatus($this->application);
-
         } catch (\Exception $e) {
             $this->document->update(['status' => 'failed']);
             \Log::error("OCR Processing Failed for Doc {$this->document->id}: " . $e->getMessage());
@@ -175,23 +183,29 @@ class ProcessOcrDocument implements ShouldQueue
         // 5. Route the status dynamically based on current values
         if ($hasFailedCheck || $isLowConfidence) {
             $application->update(['status' => 'for_review']);
-        } else {
-            // Updated to call your centralized model method
-            $application->update([
-                'status'         => 'approved',
-                'control_number' => \App\Models\Application::generateControlNumber($application->config_id),
-            ]);
-
-                // Slot is consumed here too, since this is the auto-approval path —
-                // an application that passes all OCR/rule-based checks automatically
-                // becomes "approved" without going through VerifierController@approve.
-                $application->configuration()->increment('slots_filled');
-
-            // Trigger Automated System Approval Notification
-            $application->user->notify(new ApplicationStatusNotification(
-                'Approved',
-                'Congratulations! Your application has been approved. Please prepare your physical documents for submission and stay tuned for further instructions.'
-            ));
+            return;
         }
+
+        $outcome = \App\Models\Application::tryApprove($application);
+
+        if ($outcome['result'] === 'no_slots') {
+            // Passed every automated check — genuinely qualified, just
+            // arrived after the cap. Waitlisted rather than dropped or sent
+            // to manual review, since a verifier reviewing this wouldn't
+            // find anything to decide: the checks already passed.
+            \App\Models\Application::moveToWaitlist($application);
+
+            $application->user->notify(new ApplicationStatusNotification(
+                'Waitlisted',
+                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before the grace period ends."
+            ));
+            return;
+        }
+
+        // Trigger Automated System Approval Notification
+        $application->user->notify(new ApplicationStatusNotification(
+            'Approved',
+            'Congratulations! Your application has been approved. Please prepare your physical documents for submission and stay tuned for further instructions.'
+        ));
     }
 }

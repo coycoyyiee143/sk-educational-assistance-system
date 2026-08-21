@@ -35,18 +35,15 @@ function VerifierClaiming() {
     setError("");
     setSuccess("");
     setSelected(null);
-
     if (!controlNo.trim() && !applicantName.trim()) {
       setError("Please enter a control number or applicant name.");
       return;
     }
-
     setSearching(true);
     try {
       const params = {};
       if (controlNo.trim()) params.control_number = controlNo.trim();
       if (applicantName.trim()) params.name = applicantName.trim();
-
       const res = await api.get("/verifier/claiming/search", { params });
       setResults(res.data);
       if (res.data.length === 1) selectApplicant(res.data[0]);
@@ -84,12 +81,10 @@ function VerifierClaiming() {
     if (!selected || !selectedAction) return;
     setError("");
     setSuccess("");
-
     if (selectedAction === "claimed" && (unreviewedCount > 0 || issueDocs.length > 0)) {
       setError("All documents must be marked as Matched before this applicant can be marked Claimed. Resolve or re-check any flagged documents first.");
       return;
     }
-
     let reasonCategories;
     if (selectedAction === "not_cleared") {
       const withoutOther = notClearedReasons.filter((r) => r !== OTHER);
@@ -101,7 +96,6 @@ function VerifierClaiming() {
         return;
       }
     }
-
     setSubmitting(true);
     try {
       const res = await api.post(`/verifier/claiming/${selected.id}/status`, {
@@ -138,7 +132,6 @@ function VerifierClaiming() {
   const filteredDocs = selected?.documents?.filter(
     d => d.status === "processed" || d.status === "failed"
   ) || [];
-
   const matchedDocs = DOC_TYPES.filter((d) => docStatus[d.key] === "matched").map((d) => d.key);
   const issueDocs = DOC_TYPES.filter((d) => docStatus[d.key] === "issue");
   const unreviewedCount = DOC_TYPES.filter((d) => docStatus[d.key] === "unreviewed").length;
@@ -149,7 +142,6 @@ function VerifierClaiming() {
       <VerifierNavigation />
       <section className="page-section">
         <div className="container">
-
           <div className="content-card">
             <h3 className="section-title mb-2">Claiming Approved Application</h3>
             <p className="text-muted mb-0">
@@ -191,7 +183,6 @@ function VerifierClaiming() {
                 </div>
               </form>
             </div>
-
             {results.length > 1 && (
               <div className="table-responsive mt-3">
                 <table className="table table-bordered table-hover align-middle">
@@ -201,6 +192,7 @@ function VerifierClaiming() {
                       <th>Applicant Name</th>
                       <th>School</th>
                       <th>Status</th>
+                      <th>Type</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -216,6 +208,11 @@ function VerifierClaiming() {
                           </span>
                         </td>
                         <td>
+                          {app.claiming_assignment?.source === "waitlist_promotion" && (
+                            <span className="badge bg-warning text-dark">Grace Period</span>
+                          )}
+                        </td>
+                        <td>
                           <button className="btn btn-outline-custom btn-sm" onClick={() => selectApplicant(app)}>
                             Select
                           </button>
@@ -227,7 +224,6 @@ function VerifierClaiming() {
               </div>
             )}
           </div>
-
           {selected && (
             <>
               <div className="content-card">
@@ -256,11 +252,13 @@ function VerifierClaiming() {
                         </>
                       )}
                       <tr><th>Current Claim Status</th><td>{selected.claiming_assignment?.claim_status ?? "pending"}</td></tr>
+                      {selected.claiming_assignment?.source === "waitlist_promotion" && (
+                        <tr><th>Assignment Type</th><td><span className="badge bg-warning text-dark">Grace Period — Waitlist Promotion</span></td></tr>
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
-
               <div className="content-card">
                 <h4>Document Verification</h4>
                 <p className="text-muted small mb-3">
@@ -319,10 +317,8 @@ function VerifierClaiming() {
                   The verifier only checks if the physical documents match the approved application record before updating the final claiming status.
                 </div>
               </div>
-
               <div className="content-card">
                 <h4>Claiming Action</h4>
-
                 {selectedAction === "claimed" && claimedBlocked && (
                   <div className="alert alert-danger small">
                     <strong>Cannot mark as Claimed yet.</strong>{" "}
@@ -331,7 +327,6 @@ function VerifierClaiming() {
                     {" "}All documents must be marked Matched, or this applicant should be marked Not Cleared instead.
                   </div>
                 )}
-
                 <div className="d-flex flex-wrap gap-2 mb-3">
                   <button
                     type="button"
@@ -355,7 +350,6 @@ function VerifierClaiming() {
                     Mark as Unclaimed
                   </button>
                 </div>
-
                 {selectedAction === "not_cleared" && (
                   <div className="mb-3 border rounded p-3 bg-light">
                     <label className="form-label fw-semibold">Not Cleared Reason(s) *</label>
@@ -381,7 +375,6 @@ function VerifierClaiming() {
                     )}
                   </div>
                 )}
-
                 {selectedAction && (
                   <>
                     <div className="mb-3">
@@ -410,7 +403,6 @@ function VerifierClaiming() {
           )}
         </div>
       </section>
-
       <footer>
         <div className="container">
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Verifier Panel</p>
