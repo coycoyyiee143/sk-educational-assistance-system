@@ -19,7 +19,7 @@ const SCHOOLS = [
   "Lyceum of the Philippines University Laguna",
   "Laguna College of Business and Arts",
   "Dominican College of Santa Rosa",
-  "Polytechnic University of the Philippines Santa Rosa",
+  "Polytechnic University of the Philippines",
 ];
 
 const COURSES = [
@@ -413,10 +413,14 @@ function ApplicantSubmission() {
         setApplicationId(res.data.application.id);
       }
 
+      // If the application is under reupload_requested status, go back to
+      // the reupload step instead of the normal document upload step
+      setStep(existingApp?.status === "reupload_requested" ? "reupload" : "documents");
+
       // Now backed by a real application record — the local draft is redundant
       localStorage.removeItem(DRAFT_STORAGE_KEY);
 
-      setStep("documents");
+      
     } catch (err) {
       const errors = err.response?.data?.errors;
       setError(
@@ -694,6 +698,15 @@ function ApplicantSubmission() {
                   requested you to re-upload your documents.
                 </div>
 
+                <div className="d-flex justify-content-end mb-3">
+                  <button
+                    type="button"
+                    className="btn btn-secondary-custom btn-sm"
+                    onClick={() => setStep("form")}
+                  >
+                    ← Edit Application Info (School, Course, Year Level)
+                  </button>
+                </div>
                 {existingApp?.latest_verifier_action?.notes && (
                   <div className="alert alert-info mb-3">
                     <strong>Verifier Note:</strong>{" "}
