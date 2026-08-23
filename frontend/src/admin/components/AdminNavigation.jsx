@@ -26,7 +26,7 @@ function AdminNavigation() {
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
           <NavLink className="navbar-brand-custom" to="/AdminDashboard">
-            <img src="/logo.png" alt="logo" />
+            <img src="/icons/logo-in.png" alt="logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Admin Panel</span>
