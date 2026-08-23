@@ -83,6 +83,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/approved-applicants/pdf', [AdminReportController::class, 'approvedApplicantsPdf']);
         Route::get('/admin/reports/approved-applicants/html', [AdminReportController::class, 'approvedApplicantsHtml']);
         Route::get('/admin/reports/grace-period-claiming-list', [AdminReportController::class, 'gracePeriodClaimingList']);
+        Route::get('/admin/reports/disbursement', [AdminReportController::class, 'disbursementReport']);
+        Route::get('/admin/reports/disbursement/pdf', [AdminReportController::class, 'disbursementReportPdf']);
         Route::get('/admin/reports/budget-estimation', [AdminReportController::class, 'budgetEstimation']);
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
         Route::get('/admin/reports/unmet-demand', [AdminReportController::class, 'unmetDemand']);
@@ -90,6 +92,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/ocr-queue-health', [AdminReportController::class, 'ocrQueueHealth']);
         Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
         Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
+        
     });
 
     Route::middleware(['auth:sanctum', 'log.visit'])->group(function () {
