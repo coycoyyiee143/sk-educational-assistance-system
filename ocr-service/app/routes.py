@@ -5,6 +5,7 @@ from app.verification import (
     verify_registration_form,
     verify_school_id
 )
+from app.forgery.ela import compute_ela, describe_ela_score
 import tempfile
 import os
 
@@ -16,8 +17,8 @@ def save_temp_image(file) -> str:
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         file.save(tmp.name)
         return tmp.name
-
     
+
 def get_name_fields(form) -> tuple:
     return (
         form.get("first_name", ""),
@@ -34,7 +35,6 @@ def process_voters_certificate():
             return jsonify({"success": False, "error": "No file uploaded"}), 400
         tmp_path = save_temp_image(request.files["file"])
         first_name, middle_name, last_name = get_name_fields(request.form)
-
         enforce_cert_year = request.form.get("enforce_cert_year", "false").lower() == "true"
         configured_cert_year = request.form.get("cert_year", None)
         is_minor = request.form.get("is_minor", "0") == "1"
@@ -77,16 +77,30 @@ def process_registration_form():
         first_name, middle_name, last_name = get_name_fields(request.form)
         declared_school = request.form.get("declared_school", "")
         configured_school_year = request.form.get("school_year", "")
-
         ocr_result = run_ocr(tmp_path)
         avg_confidence = get_average_confidence(ocr_result)
-
         verification = verify_registration_form(
             ocr_result, avg_confidence,
             first_name, middle_name, last_name,
             declared_school,
             configured_school_year
         )
+
+        # ELA runs on the raw image file, separate from OCR/text-based
+        # verification above — must happen before tmp_path is deleted below.
+        ela_result = compute_ela(tmp_path)
+        forgery_check = {
+            "check": "image_integrity",
+            "passed": ela_result.passed,
+            "flagged": not ela_result.passed,
+            "extracted": describe_ela_score(ela_result.score),
+            "reason": "; ".join(ela_result.flags) if ela_result.flags else None,
+            "score": ela_result.score,
+        }
+        verification["checks"]["image_integrity"] = forgery_check
+        if not ela_result.passed:
+            verification["flagged"] = True
+            verification["flag_reason"] = "eligibility_issues"
 
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
         return jsonify({
@@ -114,7 +128,6 @@ def process_school_id():
         tmp_path = save_temp_image(request.files["file"])
         first_name, middle_name, last_name = get_name_fields(request.form)
         declared_school = request.form.get("declared_school", "")
-
         ocr_result = run_ocr(tmp_path)
         avg_confidence = get_average_confidence(ocr_result)
         verification = verify_school_id(
@@ -122,9 +135,7 @@ def process_school_id():
             first_name, middle_name, last_name,
             declared_school
         )
-
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
-
         return jsonify({
             "success": True,
             "ocr_lines": formatted_ocr,

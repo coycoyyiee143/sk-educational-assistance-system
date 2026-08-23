@@ -1,10 +1,13 @@
 from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_barangay, extract_cert_year
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name
+from app.template_checks import get_template_strategy
+from app.template_checks.base_strategy import describe_score
 
 def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_name, last_name,
                                enforce_cert_year=False, configured_cert_year=None,
                                is_minor=False,
                                guardian_first_name=None, guardian_middle_name=None, guardian_last_name=None,
+                               declared_school=None,
                                *args, **kwargs):
     if avg_confidence < CONFIDENCE_THRESHOLD:
         return {"document": "voters_certificate", "low_confidence": True, "flagged": True}
@@ -54,6 +57,24 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
         else:
             reason = "Certificate year not found — please verify manually" if not cert_year_res.found else "Certificate year does not match current cycle"
             checks["cert_year_match"] = _flag("cert_year_match", reason, extracted=cert_year_res.value, raw=cert_year_res.raw, expected=str(configured_cert_year), context=cert_year_res.context)
+
+    # Template/layout consistency check — the Voter's Certificate uses a
+    # single national COMELEC format, so this strategy is resolved by
+    # document_type alone (school-independent) via the generic fallback
+    # in get_template_strategy().
+    template_strategy = get_template_strategy(declared_school, "voters_certificate")
+    template_result = template_strategy.check(blocks)
+    description = describe_score(template_result.score)
+
+    if template_result.passed:
+        checks["template_consistency"] = _pass("template_consistency", extracted=description, score=template_result.score)
+    else:
+        checks["template_consistency"] = _flag(
+            "template_consistency",
+            "; ".join(template_result.flags),
+            extracted=description,
+            score=template_result.score,
+        )
 
     return {
         "document":            "voters_certificate",

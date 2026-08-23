@@ -28,3 +28,10 @@ def _check_school(blocks, page_w, page_h, declared_school):
     if res.found:
         return _pass("school_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=declared_school)
     return _flag("school_match", res.context, extracted=res.value, raw=res.raw, expected=declared_school)
+
+def _flag(check_name, reason, extracted=None, raw=None, expected=None, context=None, score=None):
+    return {
+        "check": check_name, "passed": False, "flagged": True,
+        "reason": reason, "extracted": extracted, "raw": raw,
+        "expected": expected, "context": context, "score": score
+    }
