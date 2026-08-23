@@ -27,7 +27,7 @@ const Home = () => {
       <nav className="navbar navbar-expand-lg navbar-custom sticky-top">
         <div className="container">
           <a className="navbar-brand navbar-brand-custom" href="/">
-            <img src="/logo.png" alt="SK Logo" />
+            <img src="/icons/logo-in.png" alt="SK Logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>
@@ -223,8 +223,8 @@ const Home = () => {
                               (slotsRemaining / config.slot_limit) > 0.5
                                 ? "#2e7d32"
                                 : (slotsRemaining / config.slot_limit) > 0.2
-                                ? "#f9a825"
-                                : "#b71c1c"
+                                  ? "#f9a825"
+                                  : "#b71c1c"
                           }}
                         />
                       </div>
@@ -254,7 +254,7 @@ const Home = () => {
                 <div className="req-reminder-v2-content">
                   <h4 className="req-reminder-v2-title">Applicant Reminder</h4>
                   <p className="req-reminder-v2-text">Applicants must ensure that all submitted documents are complete, readable, and authentic.
-                     Falsification of civic records will results in immediate disqualification from the scholarship program and potential administrative sanctions</p>
+                    Falsification of civic records will results in immediate disqualification from the scholarship program and potential administrative sanctions</p>
                 </div>
               </div>
               <div className="card card-custom req-basic-v2">
@@ -404,7 +404,7 @@ const Home = () => {
                     </small>
                     <p className="announcement-preview">
                       {a.content && a.content.length > 150
-                        ? a.content.slice(0,150).trim() + "..."
+                        ? a.content.slice(0, 150).trim() + "..."
                         : a.content}
                     </p>
                     {a.content && a.content.length > 150 && (
@@ -413,9 +413,9 @@ const Home = () => {
                         onClick={() => setSelected(a)}
                       >
                         Read More
-                         <svg className="read-more-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                              <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                         </svg>
+                        <svg className="read-more-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                          <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
                       </span>
                     )}
                   </div>
@@ -515,41 +515,41 @@ const Home = () => {
           </div>
         </div>
       </section>
-      
+
       {selected && (
         <>
-        <div className="modal fade show announcement-modal-backdrop" style={{display:"block"}} tabIndex="-1">
-          <div className="modal-dialog modal-dialog-centered modal-lg">
-            <div className="modal-content announcement-modal-content">
-              <div className="announcement-modal-titlebar">
-                <button className="announcement-modal-close" onClick={()=>setSelected(null)}>&times;</button>
-              </div>
-              <div className="modal-body announcement-modal-body">
-                {selected.category && (
-                  <span
-                    className={`badge category-badge category-${selected.category.toLowerCase().replace(/\s+/g, '-')}`}
-                    style={{ width: "fit-content" }}
-                  >
-                    {selected.category}
-                  </span>
-                )}
-                <h4 className="announcement-modal-title-new">{selected.title}</h4>
-                <div className="announcement-modal-date">
-                  Published {new Date(selected.created_at).toLocaleDateString("en-US", {
-                    month: "long",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
+          <div className="modal fade show announcement-modal-backdrop" style={{ display: "block" }} tabIndex="-1">
+            <div className="modal-dialog modal-dialog-centered modal-lg">
+              <div className="modal-content announcement-modal-content">
+                <div className="announcement-modal-titlebar">
+                  <button className="announcement-modal-close" onClick={() => setSelected(null)}>&times;</button>
                 </div>
-                <p className="announcement-modal-text" style={{whiteSpace:"pre-wrap"}}>{selected.content}</p>
+                <div className="modal-body announcement-modal-body">
+                  {selected.category && (
+                    <span
+                      className={`badge category-badge category-${selected.category.toLowerCase().replace(/\s+/g, '-')}`}
+                      style={{ width: "fit-content" }}
+                    >
+                      {selected.category}
+                    </span>
+                  )}
+                  <h4 className="announcement-modal-title-new">{selected.title}</h4>
+                  <div className="announcement-modal-date">
+                    Published {new Date(selected.created_at).toLocaleDateString("en-US", {
+                      month: "long",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </div>
+                  <p className="announcement-modal-text" style={{ whiteSpace: "pre-wrap" }}>{selected.content}</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-        <div className="modal-backdrop fade show" onClick={()=>setSelected(null)}></div>
+          <div className="modal-backdrop fade show" onClick={() => setSelected(null)}></div>
         </>
       )}
-       <Footer />
+      <Footer />
     </>
   );
 };

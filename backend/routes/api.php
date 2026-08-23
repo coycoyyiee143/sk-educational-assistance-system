@@ -85,6 +85,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/grace-period-claiming-list', [AdminReportController::class, 'gracePeriodClaimingList']);
         Route::get('/admin/reports/budget-estimation', [AdminReportController::class, 'budgetEstimation']);
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
+        Route::get('/admin/reports/unmet-demand', [AdminReportController::class, 'unmetDemand']);
         Route::get('/admin/reports/last-cycle-actuals', [AdminReportController::class, 'lastCycleActuals']);
         Route::get('/admin/reports/ocr-queue-health', [AdminReportController::class, 'ocrQueueHealth']);
         Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
