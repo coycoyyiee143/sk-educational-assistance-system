@@ -301,6 +301,68 @@ class AdminReportController extends Controller
         return $pdf->download('grace-period-claiming-list-' . now()->format('Y-m-d') . '.pdf');
     }
 
+    /**
+     * DISBURSEMENT REPORT — the final list of who actually received the
+     * money (claim_status = 'claimed'), alongside who disbursed it and
+     * when. Sibling to the approved-applicants list, but scoped to
+     * completed disbursements rather than approvals, and surfacing the
+     * verifier accountability data that ClaimingAssignment already
+     * records on every claim but was not previously shown anywhere.
+     */
+    public function disbursementReport(Request $request)
+    {
+        $config = $this->resolveConfig($request);
+        if (!$config) {
+            return response()->json(['message' => 'No active application period.'], 404);
+        }
+
+        $assignments = ClaimingAssignment::with(['application.user', 'verifier', 'lane'])
+            ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
+            ->where('claim_status', 'claimed')
+            ->orderBy('verified_at')
+            ->get();
+
+        $entries = $assignments->map(function ($a) {
+            return [
+                'control_number' => $a->application->control_number,
+                'applicant_name' => trim($a->application->user->first_name . ' ' . $a->application->user->last_name),
+                'school_name'    => $a->application->school_name,
+                'lane_name'      => $a->lane->lane_name ?? null,
+                'claiming_date'  => $a->lane->claiming_date ?? null,
+                'verifier_name'  => $a->verifier ? trim($a->verifier->first_name . ' ' . $a->verifier->last_name) : null,
+                'verified_at'    => $a->verified_at,
+                'amount'         => self::ASSISTANCE_AMOUNT,
+            ];
+        });
+
+        return response()->json([
+            'config'          => $config,
+            'entries'         => $entries,
+            'total_disbursed' => $entries->count(),
+            'total_amount'    => $entries->count() * self::ASSISTANCE_AMOUNT,
+        ]);
+    }
+
+    public function disbursementReportPdf(Request $request)
+    {
+        $config = $this->resolveConfig($request);
+        if (!$config) {
+            return response()->json(['message' => 'No active application period.'], 404);
+        }
+
+        $data = $this->disbursementReport($request)->getData(true);
+
+        $pdf = Pdf::loadView('reports.disbursement-report', [
+            'title'          => 'Disbursement Report',
+            'config'         => (object) $data['config'],
+            'entries'        => collect($data['entries'])->map(fn($e) => (object) $e),
+            'totalDisbursed' => $data['total_disbursed'],
+            'totalAmount'    => $data['total_amount'],
+        ]);
+
+        return $pdf->download('disbursement-report-' . now()->format('Y-m-d') . '.pdf');
+    }
+
     // ── OTHER REPORTS (JSON) ─────────────────────────────────────────
 
     public function claimingOutcomeSummary(Request $request)

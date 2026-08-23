@@ -421,7 +421,7 @@ class VerifierController extends Controller
         $controlNumber = $request->query('control_number');
         $name          = $request->query('name');
 
-        $query = Application::with(['user', 'documents', 'claimingAssignment.lane'])
+            $query = Application::with(['user', 'documents', 'claimingAssignment.lane', 'claimingAssignment.verifier'])
             ->whereIn('status', ['approved', 'claimed', 'not_cleared', 'unclaimed'])
             ->whereHas('claimingAssignment');
 
