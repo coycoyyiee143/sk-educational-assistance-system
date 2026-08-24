@@ -14,10 +14,12 @@ class ApplicationConfiguration extends Model
         'close_date',
         'slot_limit',
         'slots_filled',
+        'assistance_amount',
         'is_unlimited',
         'is_active',
         'created_by',
     ];
+    
     protected $casts = [
         'open_date'    => 'datetime',
         'close_date'   => 'datetime',

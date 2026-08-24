@@ -3,7 +3,6 @@ import AdminNavigation from "../components/AdminNavigation";
 import ApplicantRecordsSection from "../components/ApplicantRecordsSection";
 import ApplicantProfileSection from "../components/ApplicantProfileSection";
 import VerificationOutcomesSection from "../components/VerificationOutcomesSection";
-import BudgetPlanningSection from "../components/BudgetPlanningSection";
 import DisbursementReportSection from "../components/DisbursementReportSection";
 import api from "../../services/api";
 

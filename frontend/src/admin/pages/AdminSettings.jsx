@@ -30,6 +30,7 @@ const emptyForm = {
   close_date: "",
   slot_limit: "",
   is_unlimited: false,
+  assistance_amount: "2000",
 };
 
 function AdminSettings() {
@@ -54,6 +55,7 @@ function AdminSettings() {
             close_date: active.close_date,
             slot_limit: active.slot_limit ?? "",
             is_unlimited: active.is_unlimited,
+            assistance_amount: String(active.assistance_amount ?? 2000),
           });
         }
       })
@@ -77,25 +79,6 @@ function AdminSettings() {
       ...f,
       [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
     }));
-
-  /**
-  function needsConfirmation() {
-    const lockedFieldsChanging =
-      config &&
-      (form.school_year !== config.school_year ||
-        form.open_date?.slice(0, 10) !== config.open_date?.slice(0, 10) ||
-        form.is_unlimited !== config.is_unlimited ||
-        (!form.is_unlimited && Number(form.slot_limit) !== Number(config.slot_limit)));
-
-    const isFirstTimeSetup = !config;
-
-    return !hasStarted && (lockedFieldsChanging || isFirstTimeSetup);
-  } 
-    
-  or 
-  
-  |
-  V */
 
   function needsConfirmation() {
     // Show confirmation any time you're about to save a period that hasn't
@@ -135,12 +118,14 @@ function AdminSettings() {
       setShowConfirmModal(true);
       return;
     }
+
     saveSettings();
   }
 
   async function saveSettings() {
     setShowConfirmModal(false);
     setSaving(true);
+
     try {
       const payload = {
         ...form,
@@ -148,22 +133,30 @@ function AdminSettings() {
         open_date: form.open_date ? `${form.open_date.slice(0, 10)} ${form.open_date.slice(11, 16)}:00` : "",
         close_date: form.close_date ? `${form.close_date.slice(0, 10)} 23:59:59` : "",
         slot_limit: form.is_unlimited ? null : form.slot_limit,
+        assistance_amount: form.assistance_amount,
       };
+
       let response;
+
       if (config) {
         response = await api.put(`/admin/application-configs/${config.id}`, payload);
       } else {
         response = await api.post("/application-config", payload);
       }
+
       const updated = response.data.config;
+
       setConfig(updated);
+
       setForm({
         school_year: updated.school_year,
         open_date: updated.open_date,
         close_date: updated.close_date,
         slot_limit: updated.slot_limit ?? "",
         is_unlimited: updated.is_unlimited,
+        assistance_amount: String(updated.assistance_amount ?? 2000),
       });
+
       setSuccess("Settings saved successfully.");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save settings.");
@@ -194,6 +187,7 @@ function AdminSettings() {
           ? `Unlimited (${config.slots_filled} applied so far)`
           : `${config.slot_limit - config.slots_filled} remaining of ${config.slot_limit}`,
       ],
+      ["Assistance Amount per Applicant", `₱${Number(config.assistance_amount ?? 2000).toLocaleString()}`],
     ]
     : [];
 
@@ -218,10 +212,10 @@ function AdminSettings() {
             {hasStarted && !hasClosed && (
               <div className="alert alert-warning">
                 <strong>This application period has already started.</strong>{" "}
-                School Year, Opening Date, Number of Available Slots, and
-                Slot Type can no longer be changed to protect data integrity
-                for applicants who have already applied. Closing Date can
-                still be updated.
+                School Year, Opening Date, Number of Available Slots, Slot
+                Type, and Assistance Amount can no longer be changed to
+                protect data integrity for applicants who have already
+                applied. Closing Date can still be updated.
               </div>
             )}
 
@@ -252,13 +246,13 @@ function AdminSettings() {
             )}
 
             {success && <div className="alert alert-success">{success}</div>}
+
             {error && <div className="alert alert-danger">{error}</div>}
 
             {loading ? (
               <div className="spinner-border text-danger" />
             ) : (
               <form onSubmit={handleSubmit}>
-
                 {/* Application Period */}
                 <div className="mb-4 p-3 border rounded">
                   <h6 className="text-muted text-uppercase small fw-bold mb-3">Application Period</h6>
@@ -324,6 +318,7 @@ function AdminSettings() {
                           }
                           disabled={hasStarted}
                         />
+
                         <label className="btn btn-outline-danger" htmlFor="slotLimited">
                           Limited
                         </label>
@@ -370,7 +365,33 @@ function AdminSettings() {
                     </div>
                   </div>
                 </div>
-
+                {/* Assistance Amount */}
+                <div className="mb-4 p-3 border rounded">
+                  <h6 className="text-muted text-uppercase small fw-bold mb-3">Assistance Amount</h6>
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label">Amount per Applicant (₱)</label>
+                      <div className="input-group">
+                        <span className="input-group-text">₱</span>
+                        <input
+                          type="number"
+                          className="form-control"
+                          placeholder="e.g. 2000"
+                          value={form.assistance_amount}
+                          onChange={set("assistance_amount")}
+                          disabled={hasStarted}
+                          required
+                          min={0}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="form-text mt-2">
+                    Used for budget reports and disbursement calculations. Once
+                    this period opens, this amount is locked — changing it later
+                    only affects future periods, not this one.
+                  </div>
+                </div>
                 <div className="d-flex justify-content-end gap-2">
                   <button type="button" className="btn btn-secondary" onClick={() => setForm(emptyForm)}>
                     Clear
@@ -436,6 +457,7 @@ function AdminSettings() {
                 <li>Opening Date</li>
                 <li>Number of Available Slots</li>
                 <li>Slot Type (Limited / Unlimited)</li>
+                <li>Assistance Amount per Applicant</li>
               </ul>
               <p className="mb-0 text-muted small">
                 Closing Date will still be editable after the period opens.

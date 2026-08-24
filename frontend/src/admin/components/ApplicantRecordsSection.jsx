@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
+
 const reportTypes = ["All Applications", "Approved Students", "Rejected Applications", "Pending Applications"];
 const applicantTypes = ["All Applicants", "Minor", "Adult"];
 const yearLevelOptions = ["All Year Levels", "1st Year", "2nd Year", "3rd Year", "4th Year"];
@@ -10,6 +11,7 @@ const emptyFilter = {
 };
 const APPROVED_SET = ["approved", "claimed", "not_cleared", "unclaimed"];
 const PENDING_SET = ["pending_prescreening", "for_review", "reupload_requested"];
+
 function StatusBadge({ status }) {
     let cls = "badge-review";
     if (status === "rejected") cls = "badge-rejected";
@@ -17,10 +19,12 @@ function StatusBadge({ status }) {
     else if (PENDING_SET.includes(status)) cls = "badge-review";
     return <span className={cls}>{status.replace(/_/g, " ")}</span>;
 }
+
 function formatDate(dateStr) {
     if (!dateStr) return "—";
     return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
+
 function ApplicantRecordsSection({ selectedConfigId }) {
     const [summary, setSummary] = useState(null);
     const [filterOptions, setFilterOptions] = useState({ schools: [], courses: [] });
@@ -30,19 +34,27 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     const [exporting, setExporting] = useState(false);
     const [error, setError] = useState("");
     const [submissionVsApproval, setSubmissionVsApproval] = useState(null);
+    const [sectionLoading, setSectionLoading] = useState(true);
+
     useEffect(() => {
         api.get("/admin/reports/filter-options").then((res) => setFilterOptions(res.data)).catch(() => { });
     }, []);
+
     useEffect(() => {
+        setSectionLoading(true);
         const params = selectedConfigId ? { config_id: selectedConfigId } : {};
-        api.get("/admin/reports/summary", { params }).then((res) => setSummary(res.data)).catch(() => { });
-        api.get("/admin/reports/applications", { params }).then((res) => setPreview(res.data)).catch(() => { });
-        // Not scoped to selectedConfigId — this card is deliberately
-        // multi-period (all completed + active periods), since its whole
-        // purpose is showing the trend across cycles, not one period.
-        api.get("/admin/reports/submission-vs-approval").then((res) => setSubmissionVsApproval(res.data)).catch(() => { });
+        Promise.all([
+            api.get("/admin/reports/summary", { params }).then((res) => setSummary(res.data)).catch(() => { }),
+            api.get("/admin/reports/applications", { params }).then((res) => setPreview(res.data)).catch(() => { }),
+            // Not scoped to selectedConfigId — this card is deliberately
+            // multi-period (all completed + active periods), since its whole
+            // purpose is showing the trend across cycles, not one period.
+            api.get("/admin/reports/submission-vs-approval").then((res) => setSubmissionVsApproval(res.data)).catch(() => { }),
+        ]).finally(() => setSectionLoading(false));
     }, [selectedConfigId]);
+
     const set = (k) => (e) => setFilter((f) => ({ ...f, [k]: e.target.value }));
+
     function buildParams() {
         const params = {};
         if (filter.type !== "All Applications") params.type = filter.type;
@@ -55,6 +67,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         if (selectedConfigId) params.config_id = selectedConfigId;
         return params;
     }
+
     async function handlePreview(e) {
         e.preventDefault();
         setError("");
@@ -68,6 +81,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             setPreviewing(false);
         }
     }
+
     async function handleExport() {
         setError("");
         setExporting(true);
@@ -87,6 +101,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             setExporting(false);
         }
     }
+
     async function handlePdfExport(endpoint, filenamePrefix) {
         try {
             const res = await api.get(endpoint, { responseType: "blob" });
@@ -100,6 +115,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             window.URL.revokeObjectURL(url);
         } catch { }
     }
+
     async function handleApprovedListExport() {
         try {
             const params = selectedConfigId ? { config_id: selectedConfigId } : {};
@@ -116,6 +132,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             setError("Failed to export approved applicants list.");
         }
     }
+
     async function handleApprovedListImageExport() {
         try {
             const params = selectedConfigId ? { config_id: selectedConfigId } : {};
@@ -193,11 +210,25 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             setError("Failed to generate approved applicants image preview.");
         }
     }
+
     const stats = summary?.summary ?? {};
     const rates = summary?.rates ?? {};
+
+    if (sectionLoading) {
+        return (
+            <div className="page-card">
+                <h4 className="sub-title">Applicant Records</h4>
+                <div className="d-flex justify-content-center align-items-center py-5">
+                    <div className="spinner-border text-danger" role="status" />
+                </div>
+            </div>
+        );
+    }
+
     return (
         <>
             {error && <div className="alert alert-danger">{error}</div>}
+
             {/* Application Overview — By Status */}
             <div className="page-card">
                 <h4 className="sub-title">
@@ -215,6 +246,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </div>
                 )}
             </div>
+
             {/* Application Overview — By Rate */}
             <div className="page-card">
                 <h4 className="sub-title">
@@ -231,6 +263,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </div>
                 )}
             </div>
+
             {/* Submission & Approval History — multi-period trend, deliberately not scoped to selectedConfigId */}
             <div className="page-card">
                 <div className="d-flex justify-content-between align-items-start flex-wrap gap-2">
@@ -268,6 +301,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     ))
                 )}
             </div>
+
             {/* Applicant Records — filter/export tool */}
             <div className="page-card">
                 <h4 className="sub-title">Applicant Records</h4>
@@ -323,6 +357,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </div>
                 </form>
             </div>
+
             <div className="page-card">
                 <h4 className="sub-title">Record Preview</h4>
                 <div className="table-responsive table-scroll">
@@ -353,6 +388,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </table>
                 </div>
             </div>
+
             <div className="page-card">
                 <h4 className="sub-title">Approved Applicants List</h4>
                 <div className="info-box">
@@ -368,4 +404,5 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         </>
     );
 }
+
 export default ApplicantRecordsSection;

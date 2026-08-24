@@ -1,11 +1,14 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
+
 function formatCurrency(amount) {
     return "₱" + Number(amount ?? 0).toLocaleString("en-PH");
 }
+
 function MethodologyNote({ children }) {
     return <div className="info-box">{children}</div>;
 }
+
 function CompareBar({ label, planned, reference, formatValue }) {
     const max = Math.max(planned, reference, 1);
     const plannedPct = Math.min(100, (planned / max) * 100);
@@ -13,6 +16,7 @@ function CompareBar({ label, planned, reference, formatValue }) {
     const delta = planned - reference;
     const deltaLabel =
         delta === 0 ? "same as last cycle" : `${delta > 0 ? "+" : ""}${formatValue(delta)} vs last cycle`;
+
     return (
         <div className="mb-3">
             <div className="d-flex justify-content-between small text-muted mb-1">
@@ -32,9 +36,12 @@ function CompareBar({ label, planned, reference, formatValue }) {
         </div>
     );
 }
+
 function UtilizationBar({ percent }) {
     if (percent === null) return "—";
+
     const color = percent >= 80 ? "#2e7d32" : percent >= 50 ? "#c9a227" : "#a33636";
+
     return (
         <div style={{ minWidth: 90 }}>
             <div className="small mb-1">{percent.toFixed(1)}%</div>
@@ -44,6 +51,7 @@ function UtilizationBar({ percent }) {
         </div>
     );
 }
+
 function BudgetPlanningSection() {
     const [estimation, setEstimation] = useState(null);
     const [forecast, setForecast] = useState(null);
@@ -56,6 +64,7 @@ function BudgetPlanningSection() {
     const [loadError, setLoadError] = useState(false);
     const [showInfo, setShowInfo] = useState(false);
     const [showForecastCard, setShowForecastCard] = useState(false);
+
     useEffect(() => {
         setLoading(true);
         setLoadError(false);
@@ -79,54 +88,63 @@ function BudgetPlanningSection() {
             .catch(() => setLoadError(true))
             .finally(() => setLoading(false));
     }, []);
+
     function handleBudgetChange(value) {
         setPlannedBudget(value);
         const budget = Number(value);
         const amount = Number(plannedAmount);
         if (budget > 0 && amount > 0) setPlannedSlots(String(Math.floor(budget / amount)));
     }
+
     function handleSlotsChange(value) {
         setPlannedSlots(value);
         const budget = Number(plannedBudget);
         const slots = Number(value);
         if (budget > 0 && slots > 0) setPlannedAmount(String(Math.round(budget / slots)));
     }
+
     function handleAmountChange(value) {
         setPlannedAmount(value);
         const budget = Number(plannedBudget);
         const amount = Number(value);
         if (budget > 0 && amount > 0) setPlannedSlots(String(Math.floor(budget / amount)));
     }
+
     function loadLastCycleValues() {
         if (!lastCycle?.available || lastCycle.is_unlimited) return;
         setPlannedBudget(String(lastCycle.total_budget_used));
         setPlannedSlots(String(lastCycle.slot_limit));
         setPlannedAmount(String(lastCycle.amount_per_student));
     }
+
     function clearPlanningFields() {
         setPlannedBudget("");
         setPlannedSlots("");
         setPlannedAmount("");
     }
+
     const est = estimation?.estimate ?? {};
+
     if (loading) {
         return (
             <div className="page-card">
-                <h4 className="sub-title">Budget Planning</h4>
-                <div className="spinner-border spinner-border-sm text-danger" role="status" />
+                <div className="d-flex justify-content-center align-items-center py-5">
+                    <div className="spinner-border text-danger" role="status" />
+                </div>
             </div>
         );
     }
+
     if (loadError) {
         return (
             <div className="page-card">
-                <h4 className="sub-title">Budget Planning</h4>
                 <div className="alert alert-danger mb-0">
                     Couldn't load budget planning data. Please refresh, or check the connection to the reports service.
                 </div>
             </div>
         );
     }
+
     return (
         <>
             {/* Budget Allocation Planning */}
@@ -152,6 +170,7 @@ function BudgetPlanningSection() {
                         </button>
                     </div>
                 </div>
+
                 {showInfo && (
                     <MethodologyNote>
                         A decision-support calculator, not a forecast — works entirely off a budget figure SK
@@ -162,6 +181,7 @@ function BudgetPlanningSection() {
                         <strong>Status:</strong> Usable today, regardless of system history.
                     </MethodologyNote>
                 )}
+
                 {lastCycle?.available && (
                     <div className="alert alert-primary py-2 mb-3">
                         <strong>Last completed cycle ({lastCycle.school_year}):</strong>{" "}
@@ -170,6 +190,7 @@ function BudgetPlanningSection() {
                             : `${lastCycle.slot_limit} slots at ${formatCurrency(lastCycle.amount_per_student)} each — total ${formatCurrency(lastCycle.total_budget_used)}`}
                     </div>
                 )}
+
                 <div className="row g-3 align-items-end mb-3">
                     <div className="col-md-4">
                         <label className="form-label">Total Allocated Budget</label>
@@ -211,6 +232,7 @@ function BudgetPlanningSection() {
                         </div>
                     </div>
                 </div>
+
                 {plannedBudget && plannedSlots && plannedAmount && (
                     <>
                         <div
@@ -225,6 +247,7 @@ function BudgetPlanningSection() {
                                 Total: <strong>{formatCurrency(plannedBudget)}</strong>
                             </div>
                         </div>
+
                         {lastCycle?.available && !lastCycle.is_unlimited && (
                             <div className="row g-4">
                                 <div className="col-md-6">
@@ -252,6 +275,7 @@ function BudgetPlanningSection() {
             {/* Budget Analysis — purely descriptive */}
             <div className="page-card">
                 <h4 className="sub-title">Budget Analysis</h4>
+
                 {showInfo && (
                     <MethodologyNote>
                         A historical funds ledger and plain average — shows what was allocated and actually
@@ -269,6 +293,7 @@ function BudgetPlanningSection() {
                         <strong>Status:</strong> Mechanism ready today; output grows more meaningful as real cycles accumulate.
                     </MethodologyNote>
                 )}
+
                 {!estimation?.historical?.length ? (
                     <div className="alert alert-info mb-0">No application period data available yet.</div>
                 ) : (
@@ -276,6 +301,7 @@ function BudgetPlanningSection() {
                         {(() => {
                             const completed = estimation.historical.filter((h) => !h.is_active);
                             if (completed.length < 2) return null;
+
                             const latest = completed[completed.length - 1];
                             const previous = completed[completed.length - 2];
                             const delta = latest.approved_count - previous.approved_count;
@@ -283,6 +309,7 @@ function BudgetPlanningSection() {
                                 delta === 0
                                     ? "same as"
                                     : `${delta > 0 ? "+" : ""}${delta} vs`;
+
                             return (
                                 <div className="small text-muted mb-3">
                                     Latest completed cycle ({latest.school_year}): {latest.approved_count} funded —{" "}
@@ -292,6 +319,7 @@ function BudgetPlanningSection() {
                                 </div>
                             );
                         })()}
+
                         <div className="table-responsive mb-4">
                             <table className="table table-bordered table-striped align-middle">
                                 <thead>
@@ -313,6 +341,7 @@ function BudgetPlanningSection() {
                                         const amountPerStudent = est.assistance_per_applicant ?? 2000;
                                         const utilization = allocated ? (funded / allocated) * 100 : null;
                                         const totalBudgetAllocated = allocated ? allocated * amountPerStudent : null;
+
                                         return (
                                             <tr
                                                 key={h.config_id}
@@ -336,6 +365,7 @@ function BudgetPlanningSection() {
                                 </tbody>
                             </table>
                         </div>
+
                         <div className="row g-4">
                             <div className="col-md-6">
                                 <div className="summary-card">
@@ -361,6 +391,7 @@ function BudgetPlanningSection() {
             {/* Unmet Demand Tracker — descriptive, made possible by the waitlist feature */}
             <div className="page-card">
                 <h4 className="sub-title">Unmet Demand Tracker</h4>
+
                 {showInfo && (
                     <MethodologyNote>
                         Counts applicants who passed every eligibility check but couldn't be given a slot —
@@ -386,6 +417,7 @@ function BudgetPlanningSection() {
                         blank by definition, not by omission.
                     </MethodologyNote>
                 )}
+
                 {!unmetDemand?.trend?.length ? (
                     <div className="alert alert-info mb-0">No application period data available yet.</div>
                 ) : (
@@ -423,6 +455,7 @@ function BudgetPlanningSection() {
             {showForecastCard && (
                 <div className="page-card">
                     <h4 className="sub-title">Budget Forecast</h4>
+
                     {showInfo && (
                         <MethodologyNote>
                             A genuine statistical forecast of the <strong>approval rate</strong> — the one number
@@ -439,6 +472,7 @@ function BudgetPlanningSection() {
                             <strong>Status:</strong> Mechanism correct today; range narrows as real data accumulates.
                         </MethodologyNote>
                     )}
+
                     {!forecast?.available ? (
                         <div className="alert alert-info mb-0">{forecast?.message ?? "Loading..."}</div>
                     ) : (
@@ -449,6 +483,7 @@ function BudgetPlanningSection() {
                                 range is too wide to be useful — it would tell you almost nothing more specific
                                 than "somewhere between very few and very many."
                             </div>
+
                             <div className="alert alert-primary py-3 mb-3">
                                 <strong>Projected Approved Applicants Next Cycle:</strong>{" "}
                                 <span style={{ fontSize: "1.3rem", fontWeight: 600 }}>
@@ -461,6 +496,7 @@ function BudgetPlanningSection() {
                                     at {formatCurrency(forecast.assistance_per_applicant)} each.
                                 </div>
                             </div>
+
                             <div className="row g-3">
                                 <div className="col-md-6">
                                     <div className="summary-card">
@@ -479,12 +515,14 @@ function BudgetPlanningSection() {
                                     </div>
                                 </div>
                             </div>
+
                             <div className="text-muted small mt-3 mb-3">
                                 Based on {forecast.pooled_approved} approved out of {forecast.pooled_total_submitted} total
                                 submissions, pooled across {forecast.periods_used} completed period(s). Range width:{" "}
                                 {((forecast.confidence_interval.upper - forecast.confidence_interval.lower) * 100).toFixed(1)}{" "}
                                 percentage points — this narrows as more completed cycles run on this system.
                             </div>
+
                             <div
                                 className="p-3"
                                 style={{ background: "#fff8e6", borderRadius: 8, borderLeft: "4px solid #c9a227" }}
@@ -504,6 +542,7 @@ function BudgetPlanningSection() {
                     <a href="/AdminReports" className="btn btn-custom">← Back to Reports</a>
                 </div>
             </div>
+
             <div className="d-flex justify-content-end mb-2">
                 <button
                     type="button"
@@ -525,4 +564,5 @@ function BudgetPlanningSection() {
         </>
     );
 }
+
 export default BudgetPlanningSection;

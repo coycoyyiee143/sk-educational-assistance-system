@@ -12,20 +12,28 @@ function formatDateTime(dateStr) {
   });
 }
 
-function DisbursementReportSection({ selectedConfigId }) {
+function DisbursementReportSection({ selectedConfigId, onReady }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
-    if (!selectedConfigId) return;
+    if (!selectedConfigId) {
+      setLoading(false);
+      onReady?.();
+      return;
+    }
     setLoading(true);
     setError("");
     api.get("/admin/reports/disbursement", { params: { config_id: selectedConfigId } })
       .then((res) => setData(res.data))
       .catch((err) => setError(err.response?.data?.message || "Failed to load disbursement report."))
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        onReady?.();
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConfigId]);
 
   async function handleDownloadPdf() {
