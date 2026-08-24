@@ -38,7 +38,7 @@ function DisbursementReportSection({ selectedConfigId }) {
       const url = URL.createObjectURL(res.data);
       const a = document.createElement("a");
       a.href = url;
-      a.download = "disbursement-report.pdf";
+      a.download = `disbursement-report-${data?.config?.school_year ?? new Date().toISOString().slice(0, 10)}.pdf`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -52,7 +52,10 @@ function DisbursementReportSection({ selectedConfigId }) {
     <div className="page-card">
       <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
         <div>
-          <h4 className="sub-title mb-1">Disbursement Report</h4>
+          <h4 className="sub-title mb-1">
+            Disbursement Report
+            {data?.config && <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>{" "}— {data.config.school_year}</span>}
+          </h4>
           <p className="text-muted small mb-0">
             Final list of applicants who received their educational assistance, along with the
             verifier who processed the disbursement.
@@ -75,7 +78,19 @@ function DisbursementReportSection({ selectedConfigId }) {
         </div>
       ) : (
         <>
-          <div className="table-responsive">
+          {data?.entries?.length > 0 && (
+            <div className="d-flex flex-wrap gap-5 align-items-start mb-3 pb-3" style={{ borderBottom: "1px solid #eee" }}>
+              <div>
+                <span className="text-muted small text-uppercase" style={{ letterSpacing: "0.5px" }}>Total Disbursed</span>
+                <div className="fs-3 fw-bold" style={{ color: "#1a1a1a" }}>{data.total_disbursed} <span className="fs-6 fw-normal text-muted">applicant(s)</span></div>
+              </div>
+              <div>
+                <span className="text-muted small text-uppercase" style={{ letterSpacing: "0.5px" }}>Total Amount</span>
+                <div className="fs-3 fw-bold" style={{ color: "#b71c1c" }}>₱{Number(data.total_amount).toLocaleString()}</div>
+              </div>
+            </div>
+          )}
+          <div className="table-responsive table-scroll">
             <table className="table table-bordered table-striped align-middle">
               <thead>
                 <tr>
@@ -113,14 +128,6 @@ function DisbursementReportSection({ selectedConfigId }) {
               </tbody>
             </table>
           </div>
-
-          {data?.entries?.length > 0 && (
-            <div className="summary-card mt-2" style={{ maxWidth: "320px" }}>
-              <h6>Summary</h6>
-              <p className="mb-1"><strong>Total Disbursed:</strong> {data.total_disbursed} applicant(s)</p>
-              <p className="mb-0"><strong>Total Amount:</strong> ₱{Number(data.total_amount).toLocaleString()}</p>
-            </div>
-          )}
         </>
       )}
     </div>

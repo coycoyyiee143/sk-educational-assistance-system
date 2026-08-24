@@ -325,9 +325,9 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             </div>
             <div className="page-card">
                 <h4 className="sub-title">Record Preview</h4>
-                <div className="table-responsive" style={{ maxHeight: "420px", overflowY: "auto" }}>
+                <div className="table-responsive table-scroll">
                     <table className="table table-bordered table-striped align-middle mb-0">
-                        <thead style={{ position: "sticky", top: 0, background: "#fff", zIndex: 1 }}>
+                        <thead>
                             <tr>
                                 <th>Application ID</th><th>Control Number</th><th>Applicant Name</th>
                                 <th>Submission Date</th><th>Status</th><th>School</th><th>Course / Strand</th><th>Year Level</th>

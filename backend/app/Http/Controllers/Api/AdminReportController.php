@@ -250,7 +250,7 @@ class AdminReportController extends Controller
         $applicants = $this->buildApprovedApplicantsList($config);
         $perPage = (int) $request->query('per_page', 100);
 
-        $pdf = Pdf::loadView('reports.approved-applicants', [
+        $pdf = Pdf::loadView('official-lists.approved-applicants', [
             'schoolYear' => $config->school_year,
             'applicants' => $applicants,
             'perPage'    => $perPage,
@@ -269,7 +269,7 @@ class AdminReportController extends Controller
         $applicants = $this->buildApprovedApplicantsList($config);
         $perPage = (int) $request->query('per_page', 100);
 
-        return view('reports.approved-applicants-content', [
+        return view('official-lists.approved-applicants-content', [
             'schoolYear' => $config->school_year,
             'applicants' => $applicants,
             'forPdf'     => false,
@@ -300,7 +300,7 @@ class AdminReportController extends Controller
             return response()->json(['message' => 'No active application period.'], 404);
         }
         $list = $this->buildGracePeriodClaimingList($config);
-        $pdf = Pdf::loadView('reports.grace-period-claiming-list', [
+        $pdf = Pdf::loadView('claiming.grace-period-claiming-list', [
             'title'    => 'Grace Period Claiming List',
             'config'   => $config,
             'retrying' => $list['retrying'],
@@ -368,7 +368,9 @@ class AdminReportController extends Controller
             'totalAmount'    => $data['total_amount'],
         ]);
 
-        return $pdf->download('disbursement-report-' . now()->format('Y-m-d') . '.pdf');
+        return $pdf->download('disbursement-report-' . ($config->school_year ?? now()->format('Y-m-d')) . '.pdf');
+    }
+
     public function unmetDemand(Request $request)
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
