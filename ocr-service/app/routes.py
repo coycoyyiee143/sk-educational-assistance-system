@@ -6,6 +6,7 @@ from app.verification import (
     verify_school_id
 )
 from app.forgery.ela import compute_ela, describe_ela_score
+from app.forgery.pdf_metadata import check_pdf_metadata, describe_pdf_metadata_score
 import tempfile
 import os
 
@@ -52,6 +53,41 @@ def process_voters_certificate():
             guardian_middle_name=guardian_middle_name,
             guardian_last_name=guardian_last_name
         )
+        # ELA runs on the raw image file, separate from OCR/text-based
+        # verification above — must happen before tmp_path is deleted below.
+        ela_result = compute_ela(tmp_path)
+        forgery_check = {
+            "check": "image_integrity",
+            "passed": ela_result.passed,
+            "flagged": not ela_result.passed,
+            "extracted": describe_ela_score(ela_result.score),
+            "reason": "; ".join(ela_result.flags) if ela_result.flags else None,
+            "score": ela_result.score,
+        }
+        verification["checks"]["image_integrity"] = forgery_check
+        if not ela_result.passed:
+            verification["flagged"] = True
+            verification["flag_reason"] = "eligibility_issues"
+
+        # PDF authoring-tool metadata check — flags documents created in
+        # general-purpose design software (Canva, Photoshop, etc.) rather
+        # than scanned or exported from a school system. Silent/passes on
+        # non-PDF uploads.
+        applicant_full_name = f"{first_name} {last_name}".strip()
+        pdf_meta_result = check_pdf_metadata(tmp_path, applicant_full_name)
+        pdf_meta_check = {
+            "check": "document_origin",
+            "passed": pdf_meta_result.passed,
+            "flagged": not pdf_meta_result.passed,
+            "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
+            "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
+            "score": pdf_meta_result.score,
+        }
+        verification["checks"]["document_origin"] = pdf_meta_check
+        if not pdf_meta_result.passed:
+            verification["flagged"] = True
+            verification["flag_reason"] = "eligibility_issues"
+
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
         return jsonify({
             "success": True,
@@ -85,7 +121,6 @@ def process_registration_form():
             declared_school,
             configured_school_year
         )
-
         # ELA runs on the raw image file, separate from OCR/text-based
         # verification above — must happen before tmp_path is deleted below.
         ela_result = compute_ela(tmp_path)
@@ -99,6 +134,24 @@ def process_registration_form():
         }
         verification["checks"]["image_integrity"] = forgery_check
         if not ela_result.passed:
+            verification["flagged"] = True
+            verification["flag_reason"] = "eligibility_issues"
+
+        # PDF authoring-tool metadata check — flags documents created in
+        # general-purpose design software (Canva, Photoshop, etc.) rather
+        # than scanned or exported from a school system. Silent/passes on
+        # non-PDF uploads.
+        pdf_meta_result = check_pdf_metadata(tmp_path)
+        pdf_meta_check = {
+            "check": "document_origin",
+            "passed": pdf_meta_result.passed,
+            "flagged": not pdf_meta_result.passed,
+            "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
+            "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
+            "score": pdf_meta_result.score,
+        }
+        verification["checks"]["document_origin"] = pdf_meta_check
+        if not pdf_meta_result.passed:
             verification["flagged"] = True
             verification["flag_reason"] = "eligibility_issues"
 
@@ -135,6 +188,40 @@ def process_school_id():
             first_name, middle_name, last_name,
             declared_school
         )
+        # ELA runs on the raw image file, separate from OCR/text-based
+        # verification above — must happen before tmp_path is deleted below.
+        ela_result = compute_ela(tmp_path)
+        forgery_check = {
+            "check": "image_integrity",
+            "passed": ela_result.passed,
+            "flagged": not ela_result.passed,
+            "extracted": describe_ela_score(ela_result.score),
+            "reason": "; ".join(ela_result.flags) if ela_result.flags else None,
+            "score": ela_result.score,
+        }
+        verification["checks"]["image_integrity"] = forgery_check
+        if not ela_result.passed:
+            verification["flagged"] = True
+            verification["flag_reason"] = "eligibility_issues"
+
+        # PDF authoring-tool metadata check — flags documents created in
+        # general-purpose design software (Canva, Photoshop, etc.) rather
+        # than scanned or exported from a school system. Silent/passes on
+        # non-PDF uploads.
+        pdf_meta_result = check_pdf_metadata(tmp_path)
+        pdf_meta_check = {
+            "check": "document_origin",
+            "passed": pdf_meta_result.passed,
+            "flagged": not pdf_meta_result.passed,
+            "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
+            "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
+            "score": pdf_meta_result.score,
+        }
+        verification["checks"]["document_origin"] = pdf_meta_check
+        if not pdf_meta_result.passed:
+            verification["flagged"] = True
+            verification["flag_reason"] = "eligibility_issues"
+
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
         return jsonify({
             "success": True,

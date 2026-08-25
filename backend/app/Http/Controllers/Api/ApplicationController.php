@@ -12,7 +12,7 @@ class ApplicationController extends Controller
     public function index(Request $request)
     {
         $applications = Application::where('user_id', $request->user()->id)
-            ->with(['documents', 'latestVerifierAction'])
+            ->with(['configuration', 'documents', 'latestVerifierAction'])
             ->latest()
             ->get();
 
@@ -120,8 +120,10 @@ class ApplicationController extends Controller
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
 
-        // Only allow edits before any document has actually been processed.
-        if ($application->status !== 'pending_prescreening') {
+        // Allow edits before any document has been processed, or when the
+        // verifier has requested a reupload (since the applicant may need
+        // to correct a mistake, e.g. wrong school selected).
+        if (!in_array($application->status, ['pending_prescreening', 'reupload_requested'])) {
             return response()->json([
                 'message' => 'This application can no longer be edited because it has already entered document verification.',
             ], 400);

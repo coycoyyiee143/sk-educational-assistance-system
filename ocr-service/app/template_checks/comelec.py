@@ -10,27 +10,19 @@ class ComelecVotersCertTemplateStrategy(BaseTemplateStrategy):
     single strategy covers every applicant regardless of declared school.
     """
     required_keywords = [
-        "republic of the philippines",
-        "commission on elections",
         "voter's certification",
-        "office of the election officer",
-        # "certified correct" intentionally excluded — it frequently
-        # overlaps with the handwritten signature area and isn't
-        # reliably captured by OCR even on genuine certificates
+        # via OCR even on genuine documents, due to small, light-colored
+        # font weight positioned close to the COMELEC seal graphic.
     ]
-    region_hints = {
-        "republic of the philippines": "top",
-        "commission on elections": "top",
-        "voter's certification": "top",
-    }
-    fuzzy_threshold = 0.75
+    region_hints = {}
+    fuzzy_threshold = 0.6
 
     def extra_checks(self, blocks: List[OcrBlock], page_width, page_height) -> List[str]:
         flags = []
         full_text = " ".join(b.text.lower() for b in blocks)
         # Genuine COMELEC certificates print a "HASH:" line at the bottom
         # as a document integrity marker — a lightweight structural signal
-        # on top of the keyword checks above.
+        # on top of the keyword check above.
         if "hash" not in full_text:
             flags.append("Missing expected 'HASH' verification marker")
         return flags

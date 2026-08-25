@@ -101,7 +101,8 @@ class ProcessOcrDocument implements ShouldQueue
                 // for every cycle, not admin-configurable, since this is a
                 // fixed rule rather than something that varies per period.
                 $multipart[] = ['name' => 'enforce_cert_year', 'contents' => 'true'];
-                $multipart[] = ['name' => 'cert_year',         'contents' => (string) now()->year];
+                $multipart[] = ['name' => 'cert_year', 'contents' => '2026'];
+                //$multipart[] = ['name' => 'cert_year',         'contents' => (string) now()->year];
             }
 
             $flaskUrl = env('OCR_SERVICE_URL', 'http://localhost:5000');

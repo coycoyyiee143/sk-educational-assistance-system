@@ -246,3 +246,85 @@ sk-educational-assistance-system/
 ├── frontend/          # React app
 └── ocr-service/       # Python/Flask OCR microservice
 ```
+
+HERE IS DOCUMENATAION FOR FORGERY
+
+# Forgery Detection — Blur Threshold Calibration Scripts
+
+Standalone diagnostic scripts used to determine the sharpness threshold used in client-side upload validation (`MIN_SHARPNESS` in `ApplicantSubmission.jsx`). These are **not part of the live application** — they were run manually, once, to calibrate the threshold, and can be re-run in the future if the threshold needs to be re-validated against a larger or different sample set.
+
+Location: `ocr-service/test_blur.py` and `ocr-service/make_blurry_test.py`
+
+---
+
+## Purpose
+
+Before adding blur-detection logic to the actual applicant-facing upload form, we needed to answer one question: **does the Laplacian variance technique reliably distinguish a sharp document from a blurry one, and what threshold value should we use?**
+
+These two scripts exist to answer that question. The number they produced (`150`) is what actually made it into production code — the scripts themselves are just the "lab equipment" used to derive it.
+
+---
+
+## Scripts
+
+### `make_blurry_test.py`
+
+Generates an artificially blurred version of an image using Gaussian blur, so we have a controlled test case to compare against a sharp original.
+
+**Usage:**
+```bash
+python make_blurry_test.py <input_image_path> <output_path>
+```
+
+**Example:**
+```bash
+python make_blurry_test.py "samples/reg_form.png" blurred_test.png
+```
+
+The blur intensity is controlled by the `blur_radius` parameter inside the script (default `8`, which produces heavy blur). Edit this value directly in the script to test different blur intensities — e.g. `3` for a milder blur that's closer to a real out-of-focus phone photo.
+
+### `test_blur.py`
+
+Computes the Laplacian variance (a standard sharpness metric) of one or more images. Higher variance = sharper image. Lower variance = blurrier image.
+
+**Usage:**
+```bash
+python test_blur.py <image_path_1> <image_path_2> ...
+```
+
+**Example:**
+```bash
+python test_blur.py "samples/reg_form.png" blurred_test.png
+```
+
+**Requires:** `scipy` (`pip install scipy` if not already installed).
+
+---
+
+## Calibration Results (Aug 25, 2026)
+
+Tested against a genuine PUP Registration Form sample (`2. RF - VILLANUEVA.png`) at three sharpness levels:
+
+| Sample | Laplacian Variance |
+|---|---|
+| Original (sharp) | 5,865.65 |
+| Mild blur (`blur_radius=3`) | 79.14 |
+| Heavy blur (`blur_radius=8`) | 3.04 |
+
+**Chosen threshold:** `MIN_SHARPNESS = 150`
+
+This value sits between the sharp and mild-blur cases, with margin on both sides — low enough to pass genuinely sharp photos, high enough to catch documents blurred even moderately.
+
+---
+
+## Known Limitations of This Calibration
+
+- **Single-sample basis.** The threshold was derived from one document type (Registration Form). It has not yet been validated against School ID or Voter's Certification samples, which have different visual textures (more whitespace, different photo/logo placement) and may have different baseline variance even when sharp.
+- **Artificial blur, not real-world blur.** Gaussian blur (used here) produces a different noise signature than genuine camera motion blur or out-of-focus shots. The threshold is a reasonable starting estimate, not a fully field-validated production value.
+- **Recommended future work:** re-run this calibration against a larger set of real (not artificially blurred) sharp and blurry phone photos across all three document types, and adjust `MIN_SHARPNESS` accordingly if the distributions differ significantly from this initial test.
+
+---
+
+## Where the Result Is Actually Used
+
+The derived threshold is implemented client-side in `frontend/src/pages/ApplicantSubmission.jsx`, via the `checkImageSharpness()` function — a pure JavaScript/Canvas implementation of the same Laplacian variance technique, run in-browser before a file is accepted for upload. No external library is required; it uses the HTML5 Canvas API directly.

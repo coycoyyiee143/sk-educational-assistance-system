@@ -4,14 +4,15 @@ from app.template_checks.base_strategy import BaseTemplateStrategy
 
 
 class PncRegFormTemplateStrategy(BaseTemplateStrategy):
-    # Selected based on OCR sample: lines that read clearly even with
-    # the diagonal watermark overlay across the whole PNC form
     required_keywords = [
         "republic of the philippines",
         "registration form",
         "office of the university registrar",
         "university registrar",
-        "unifast grantee",
+        # "unifast grantee" removed — not reliably captured by OCR even
+        # on genuine documents; the header field near the watermark area
+        # is frequently missed in the same way "certified correct" was
+        # on the Voter's Certification.
     ]
     region_hints = {
         "republic of the philippines": "top",
@@ -22,10 +23,6 @@ class PncRegFormTemplateStrategy(BaseTemplateStrategy):
     fuzzy_threshold = 0.75
 
     def extra_checks(self, blocks: List[OcrBlock], page_width, page_height) -> List[str]:
-        # Strict "PNC:OUR-FO-XX" doc code check removed for now — it's
-        # not read consistently by OCR even on genuine documents (small
-        # text, affected by the watermark). Could be reintroduced as a
-        # soft/optional signal instead of a hard flag.
         return []
 
 
