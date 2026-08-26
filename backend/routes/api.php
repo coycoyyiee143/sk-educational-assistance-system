@@ -46,11 +46,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
         Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
         Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
+        Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);
         Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
         Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
         Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
         Route::get('/admin/claiming-schedule/{id}/preview', [AdminScheduleController::class, 'preview']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
+        Route::get('/admin/claiming-schedule/lanes/{laneId}/printable/pdf', [AdminScheduleController::class, 'printableLanePdf']);
         Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
         Route::get('/admin/announcements', [AnnouncementController::class, 'adminIndex']);
         Route::post('/admin/announcements', [AnnouncementController::class, 'store']);

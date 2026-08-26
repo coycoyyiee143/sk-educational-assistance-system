@@ -14,7 +14,6 @@ use Barryvdh\DomPDF\Facade\Pdf;
 
 class AdminReportController extends Controller
 {
-    const ASSISTANCE_AMOUNT = 2000;
 
     // "Approved" means currently eligible to claim, or already claimed —
     // approved (pre-claiming-day) + claimed (successfully received) +
@@ -40,6 +39,14 @@ class AdminReportController extends Controller
             return ApplicationConfiguration::find($request->query('config_id'));
         }
         return ApplicationConfiguration::where('is_active', true)->first();
+    }
+
+    // Fallback only for rows/configs that predate the assistance_amount
+    // column (should be rare — the migration backfills existing configs
+    // to 2000, but this guards against a null slipping through anywhere).
+    private function assistanceAmountFor(?ApplicationConfiguration $config): int
+    {
+        return $config->assistance_amount ?? 2000;
     }
 
     public function listPeriods()
@@ -89,9 +96,16 @@ class AdminReportController extends Controller
     {
         $type = $request->query('type');
         $map = [
-            'Approved Students'     => $this->slotHoldingStatuses(),
-            'Rejected Applications' => ['rejected'],
-            'Pending Applications'  => $this->pendingStatuses(),
+            'Pending Prescreening' => ['pending_prescreening'],
+            'For Review'           => ['for_review'],
+            'Reupload Requested'   => ['reupload_requested'],
+            'Approved'             => ['approved'],
+            'Waitlisted'           => ['waitlisted'],
+            'Claimed'              => ['claimed'],
+            'Not Cleared'          => ['not_cleared'],
+            'Unclaimed'            => ['unclaimed'],
+            'Not Selected'         => ['not_selected'],
+            'Rejected'             => ['rejected'],
         ];
         if ($type && isset($map[$type])) {
             $query->whereIn('status', $map[$type]);
@@ -250,7 +264,7 @@ class AdminReportController extends Controller
         $applicants = $this->buildApprovedApplicantsList($config);
         $perPage = (int) $request->query('per_page', 100);
 
-        $pdf = Pdf::loadView('reports.approved-applicants', [
+        $pdf = Pdf::loadView('official-lists.approved-applicants', [
             'schoolYear' => $config->school_year,
             'applicants' => $applicants,
             'perPage'    => $perPage,
@@ -269,7 +283,7 @@ class AdminReportController extends Controller
         $applicants = $this->buildApprovedApplicantsList($config);
         $perPage = (int) $request->query('per_page', 100);
 
-        return view('reports.approved-applicants-content', [
+        return view('official-lists.approved-applicants-content', [
             'schoolYear' => $config->school_year,
             'applicants' => $applicants,
             'forPdf'     => false,
@@ -300,13 +314,13 @@ class AdminReportController extends Controller
             return response()->json(['message' => 'No active application period.'], 404);
         }
         $list = $this->buildGracePeriodClaimingList($config);
-        $pdf = Pdf::loadView('reports.grace-period-claiming-list', [
+        $pdf = Pdf::loadView('claiming.grace-period-claiming-list', [
             'title'    => 'Grace Period Claiming List',
             'config'   => $config,
             'retrying' => $list['retrying'],
             'promoted' => $list['promoted'],
         ]);
-        return $pdf->download('grace-period-claiming-list-' . now()->format('Y-m-d') . '.pdf');
+        return $pdf->stream('grace-period-claiming-list-' . now()->format('Y-m-d') . '.pdf');
     }
 
     /**
@@ -316,6 +330,13 @@ class AdminReportController extends Controller
      * completed disbursements rather than approvals, and surfacing the
      * verifier accountability data that ClaimingAssignment already
      * records on every claim but was not previously shown anywhere.
+     *
+     * amount per entry reads from the snapshot taken at claim time
+     * (ClaimingAssignment.amount) — NOT the config's current
+     * assistance_amount — so this report stays historically accurate
+     * even if the amount is changed for a later period. Rows claimed
+     * before this snapshot column existed fall back to the config's
+     * amount, since no snapshot was ever taken for them.
      */
     public function disbursementReport(Request $request)
     {
@@ -323,14 +344,14 @@ class AdminReportController extends Controller
         if (!$config) {
             return response()->json(['message' => 'No active application period.'], 404);
         }
-
-        $assignments = ClaimingAssignment::with(['application.user', 'verifier', 'lane'])
+        $assignments = ClaimingAssignment::with(['application.user', 'application.configuration', 'verifier', 'lane'])
             ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
             ->where('claim_status', 'claimed')
             ->orderBy('verified_at')
             ->get();
 
         $entries = $assignments->map(function ($a) {
+            $amount = $a->amount ?? $this->assistanceAmountFor($a->application->configuration);
             return [
                 'control_number' => $a->application->control_number,
                 'applicant_name' => trim($a->application->user->first_name . ' ' . $a->application->user->last_name),
@@ -339,7 +360,7 @@ class AdminReportController extends Controller
                 'claiming_date'  => $a->lane->claiming_date ?? null,
                 'verifier_name'  => $a->verifier ? trim($a->verifier->first_name . ' ' . $a->verifier->last_name) : null,
                 'verified_at'    => $a->verified_at,
-                'amount'         => self::ASSISTANCE_AMOUNT,
+                'amount'         => $amount,
             ];
         });
 
@@ -347,7 +368,7 @@ class AdminReportController extends Controller
             'config'          => $config,
             'entries'         => $entries,
             'total_disbursed' => $entries->count(),
-            'total_amount'    => $entries->count() * self::ASSISTANCE_AMOUNT,
+            'total_amount'    => $entries->sum('amount'),
         ]);
     }
 
@@ -368,7 +389,9 @@ class AdminReportController extends Controller
             'totalAmount'    => $data['total_amount'],
         ]);
 
-        return $pdf->download('disbursement-report-' . now()->format('Y-m-d') . '.pdf');
+        return $pdf->download('disbursement-report-' . ($config->school_year ?? now()->format('Y-m-d')) . '.pdf');
+    }
+
     public function unmetDemand(Request $request)
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
@@ -398,7 +421,6 @@ class AdminReportController extends Controller
     }
 
     // ── OTHER REPORTS (JSON) ─────────────────────────────────────────
-
     public function claimingOutcomeSummary(Request $request)
     {
         $config = $this->resolveConfig($request);
@@ -607,7 +629,6 @@ class AdminReportController extends Controller
     }
 
     // ── PDF EXPORTS ──────────────────────────────────────────────────
-
     public function claimingOutcomesPdf(Request $request)
     {
         $data = $this->claimingOutcomeSummary($request)->getData(true);
@@ -707,7 +728,7 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('submission-vs-approval-trend-' . now()->format('Y-m-d') . '.pdf');
     }
-
+    
     /**
      * BUDGET FORECAST — isolates the approval-rate side only. Uses a
      * plain average for projected volume (same as Budget Estimation),
@@ -715,11 +736,18 @@ class AdminReportController extends Controller
      * interval, pooled across completed periods. This is the one
      * quantity here that's statistically valid to forecast, since it's
      * unaffected by unmet demand outside the applied pool.
+     *
+     * Uses the ACTIVE config's assistance_amount for the budget range —
+     * this is a forward-looking projection ("what would the upcoming
+     * period cost"), so it should reflect the current stated amount,
+     * not a historical one.
      */
     public function budgetForecast()
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
         $completed = $configs->where('is_active', false);
+        $activeConfig = $configs->firstWhere('is_active', true);
+        $assistanceAmount = $this->assistanceAmountFor($activeConfig);
         $pooledTotal = 0;
         $pooledApproved = 0;
         $volumes = [];
@@ -765,16 +793,21 @@ class AdminReportController extends Controller
                 'upper' => round($projectedVolume * $upperRate),
             ],
             'projected_budget_range' => [
-                'lower' => round($projectedVolume * $lowerRate) * self::ASSISTANCE_AMOUNT,
-                'upper' => round($projectedVolume * $upperRate) * self::ASSISTANCE_AMOUNT,
+                'lower' => round($projectedVolume * $lowerRate) * $assistanceAmount,
+                'upper' => round($projectedVolume * $upperRate) * $assistanceAmount,
             ],
-            'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
+            'assistance_per_applicant' => $assistanceAmount,
             'periods_used' => $completed->count(),
         ]);
     }
 
     /**
      * BUDGET ESTIMATION — plain historical average, no statistical claim.
+     *
+     * Each historical period's estimated_disbursement uses THAT period's
+     * own assistance_amount (what it actually was at the time) — only the
+     * final projected_budget (for the upcoming period) uses the active
+     * config's current amount.
      */
     public function budgetEstimation()
     {
@@ -793,7 +826,7 @@ class AdminReportController extends Controller
                 'pass_rate'              => $total > 0 ? round($approved / $total, 4) : 0,
                 'is_unlimited'           => $config->is_unlimited,
                 'slot_limit'             => $config->slot_limit,
-                'estimated_disbursement' => $approved * self::ASSISTANCE_AMOUNT,
+                'estimated_disbursement' => $approved * $this->assistanceAmountFor($config),
             ];
         });
         $completed = $historical->where('is_active', false)->where('total_applications', '>', 0);
@@ -806,6 +839,7 @@ class AdminReportController extends Controller
             $avgPassRate = $current['pass_rate'] ?? 0;
         }
         $activeConfig = $configs->firstWhere('is_active', true);
+        $assistanceAmount = $this->assistanceAmountFor($activeConfig);
         $projectedSlots = $activeConfig && !$activeConfig->is_unlimited
             ? $activeConfig->slot_limit
             : null;
@@ -820,15 +854,16 @@ class AdminReportController extends Controller
                 'is_unlimited'             => $activeConfig->is_unlimited ?? false,
                 'projected_slots'          => $projectedSlots,
                 'projected_approved'       => $projectedApproved,
-                'projected_budget'         => round($projectedApproved) * self::ASSISTANCE_AMOUNT,
-                'assistance_per_applicant' => self::ASSISTANCE_AMOUNT,
+                'projected_budget'         => round($projectedApproved) * $assistanceAmount,
+                'assistance_per_applicant' => $assistanceAmount,
             ],
         ]);
     }
 
     /**
      * BUDGET ALLOCATION PLANNING — a decision-support calculator, not a
-     * forecast.
+     * forecast. Uses the most recent COMPLETED period's own amount, since
+     * this reports on what that period's actuals really were.
      */
     public function lastCycleActuals()
     {
@@ -838,13 +873,14 @@ class AdminReportController extends Controller
         if (!$mostRecent) {
             return response()->json(['available' => false]);
         }
+        $assistanceAmount = $this->assistanceAmountFor($mostRecent);
         return response()->json([
             'available'          => true,
             'school_year'        => $mostRecent->school_year,
             'slot_limit'         => $mostRecent->slot_limit,
             'is_unlimited'       => $mostRecent->is_unlimited,
-            'amount_per_student' => self::ASSISTANCE_AMOUNT,
-            'total_budget_used'  => $mostRecent->is_unlimited ? null : $mostRecent->slot_limit * self::ASSISTANCE_AMOUNT,
+            'amount_per_student' => $assistanceAmount,
+            'total_budget_used'  => $mostRecent->is_unlimited ? null : $mostRecent->slot_limit * $assistanceAmount,
         ]);
     }
 

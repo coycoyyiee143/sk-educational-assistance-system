@@ -367,15 +367,27 @@ class VerifierController extends Controller
             'notes'                 => 'nullable|string',
         ]);
     
-        $assignment = ClaimingAssignment::where('application_id', $id)->firstOrFail();
-        $assignment->update([
+        $assignment = ClaimingAssignment::where('application_id', $id)->with('application.configuration')->firstOrFail();
+
+        $updateData = [
             'claim_status'       => $request->claim_status,
             'reason_categories'  => $request->claim_status === 'not_cleared' ? $request->reason_categories : null,
             'verified_documents' => $request->verified_documents ?? [],
             'verifier_notes'     => $request->notes,
             'verified_by'        => $request->user()->id,
             'verified_at'        => now(),
-        ]);
+        ];
+
+        // Snapshot the assistance amount at the moment of claiming, so this
+        // record stays historically accurate even if the amount is changed
+        // for a later period. Only set on the actual 'claimed' outcome —
+        // not_cleared/unclaimed never disbursed anything, so no amount
+        // applies to those.
+        if ($request->claim_status === 'claimed') {
+            $updateData['amount'] = $assignment->application->configuration->assistance_amount ?? 2000;
+        }
+
+        $assignment->update($updateData);
     
         $app = Application::with(['user', 'configuration'])->findOrFail($id);
         $previousStatus = $app->status;

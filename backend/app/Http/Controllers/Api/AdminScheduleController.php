@@ -7,6 +7,7 @@ use App\Models\ClaimingSchedule;
 use App\Models\ClaimingLane;
 use App\Models\ClaimingAssignment;
 use App\Notifications\ClaimingScheduleNotification;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
 class AdminScheduleController extends Controller
@@ -214,7 +215,32 @@ class AdminScheduleController extends Controller
     public function printableLane($laneId)
     {
         $lane = ClaimingLane::with(['assignments.application.user'])->findOrFail($laneId);
+        $list = $lane->assignments
+            ->map(function ($a) {
+                return [
+                    'control_number' => $a->application->control_number,
+                    'name'           => trim($a->application->user->first_name . ' ' . $a->application->user->last_name),
+                ];
+            })
+            ->sortBy('control_number')
+            ->values();
+        return response()->json([
+            'lane_name'     => $lane->lane_name,
+            'batch'         => $lane->batch,
+            'claiming_date' => $lane->claiming_date,
+            'applicants'    => $list,
+        ]);
+    }
 
+    /**
+     * PDF version of printableLane() — same data, rendered through
+     * Blade + dompdf instead of raw JSON. Streamed inline (not
+     * downloaded) so it opens in the browser's PDF viewer, where the
+     * verifier can print directly using the viewer's own print button.
+     */
+    public function printableLanePdf($laneId)
+    {
+        $lane = ClaimingLane::with(['assignments.application.user'])->findOrFail($laneId);
         $list = $lane->assignments
             ->map(function ($a) {
                 return [
@@ -225,11 +251,67 @@ class AdminScheduleController extends Controller
             ->sortBy('control_number')
             ->values();
 
+            $pdf = Pdf::loadView('claiming.lane-claiming-list', [
+                'title'        => $lane->lane_name . ' — Claiming List',
+                'batch'        => $lane->batch,
+                'claimingDate' => $lane->claiming_date,
+                'applicants'   => $list,
+            ]);
+
+        // ->stream() not ->download() — every other export in this codebase
+        // downloads immediately (attachment), but this one needs to open in
+        // a tab first so the verifier can preview before printing.
+        return $pdf->stream('lane-claiming-list-' . $lane->id . '.pdf');
+    }
+
+    /**
+     * Closes an application period — the deliberate, manual action that
+     * marks a period as fully settled, not just no-longer-accepting-new-
+     * applications. Two things happen atomically:
+     * 1. Every still-waitlisted applicant for this config becomes
+     *    not_selected — they passed every check but ran out of room by
+     *    the time grace period ended. Not a rejection.
+     * 2. closed_at is stamped, so this period now has a real "settled"
+     *    timestamp distinct from its planned close_date.
+     */
+    public function closePeriod($id)
+    {
+        $config = ApplicationConfiguration::findOrFail($id);
+    
+        if ($config->closed_at) {
+            return response()->json(['message' => 'This period is already closed.'], 400);
+        }
+    
+        $schedule = ClaimingSchedule::where('config_id', $config->id)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+    
+        if ($schedule && $schedule->grace_period_end_date && now()->lt($schedule->grace_period_end_date)) {
+            return response()->json([
+                'message' => 'Cannot close this period until the grace period has ended (' . $schedule->grace_period_end_date . ').',
+            ], 400);
+        }
+    
+        $waitlisted = Application::where('config_id', $config->id)
+            ->where('status', 'waitlisted')
+            ->get();
+    
+        foreach ($waitlisted as $app) {
+            $app->update(['status' => 'not_selected']);
+    
+            \App\Models\AuditLog::record(
+                'application_not_selected',
+                $app,
+                "Application #{$app->id} marked not_selected — period closed with no remaining slots ({$app->user->first_name} {$app->user->last_name})"
+            );
+        }
+    
+        $config->update(['closed_at' => now()]);
+    
         return response()->json([
-            'lane_name'     => $lane->lane_name,
-            'batch'         => $lane->batch,
-            'claiming_date' => $lane->claiming_date,
-            'applicants'    => $list,
+            'message' => "Period closed. {$waitlisted->count()} waitlisted applicant(s) marked not_selected.",
+            'config'  => $config,
         ]);
     }
 }

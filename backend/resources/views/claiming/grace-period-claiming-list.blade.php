@@ -1,4 +1,4 @@
-@extends('reports.layout')
+@extends('claiming.layout')
 
 @section('content')
     <table>

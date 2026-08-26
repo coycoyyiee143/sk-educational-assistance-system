@@ -163,7 +163,6 @@ function AdminUsers() {
   const filteredApplicants = applicants.filter((a) =>
     `${a.first_name} ${a.last_name} ${a.email}`.toLowerCase().includes(applicantSearch.toLowerCase())
   );
-
   const filteredPersonnel = personnel.filter((p) =>
     `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(personnelSearch.toLowerCase())
   );
@@ -173,12 +172,10 @@ function AdminUsers() {
       <AdminNavigation />
       <section className="page-section">
         <div className="container">
-
           <div className="page-card">
             <h3 className="section-title">User Management</h3>
             <p className="text-muted mb-0">View registered applicants and manage authorized system personnel.</p>
           </div>
-
           {error && <div className="alert alert-danger">{error}</div>}
 
           {/* Applicants */}
@@ -190,7 +187,7 @@ function AdminUsers() {
               </div>
             </div>
             {loading ? <div className="spinner-border text-danger" /> : (
-              <div className="table-responsive">
+              <div className="table-responsive table-scroll">
                 <table className="table table-bordered table-striped align-middle">
                   <thead>
                     <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
@@ -229,7 +226,7 @@ function AdminUsers() {
               </div>
             </div>
             {loading ? <div className="spinner-border text-danger" /> : (
-              <div className="table-responsive">
+              <div className="table-responsive table-scroll">
                 <table className="table table-bordered table-striped align-middle">
                   <thead>
                     <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
@@ -255,7 +252,6 @@ function AdminUsers() {
               </div>
             )}
           </div>
-
         </div>
       </section>
       <footer>
@@ -263,7 +259,6 @@ function AdminUsers() {
           <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Admin Panel</p>
         </div>
       </footer>
-
       {viewApplicant && <ViewApplicantModal applicant={viewApplicant} onClose={() => setViewApplicant(null)} />}
       {showAdd && <AddPersonnelModal onClose={() => setShowAdd(false)} onSave={savePersonnel} />}
     </div>
