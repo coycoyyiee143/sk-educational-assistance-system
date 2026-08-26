@@ -96,9 +96,16 @@ class AdminReportController extends Controller
     {
         $type = $request->query('type');
         $map = [
-            'Approved Students'     => $this->slotHoldingStatuses(),
-            'Rejected Applications' => ['rejected'],
-            'Pending Applications'  => $this->pendingStatuses(),
+            'Pending Prescreening' => ['pending_prescreening'],
+            'For Review'           => ['for_review'],
+            'Reupload Requested'   => ['reupload_requested'],
+            'Approved'             => ['approved'],
+            'Waitlisted'           => ['waitlisted'],
+            'Claimed'              => ['claimed'],
+            'Not Cleared'          => ['not_cleared'],
+            'Unclaimed'            => ['unclaimed'],
+            'Not Selected'         => ['not_selected'],
+            'Rejected'             => ['rejected'],
         ];
         if ($type && isset($map[$type])) {
             $query->whereIn('status', $map[$type]);
@@ -876,7 +883,7 @@ class AdminReportController extends Controller
             'total_budget_used'  => $mostRecent->is_unlimited ? null : $mostRecent->slot_limit * $assistanceAmount,
         ]);
     }
-    
+
     /**
      * OCR QUEUE HEALTH
      */

@@ -1,7 +1,19 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
 
-const reportTypes = ["All Applications", "Approved Students", "Rejected Applications", "Pending Applications"];
+const reportTypes = [
+    "All Applications",
+    "Pending Prescreening",
+    "For Review",
+    "Reupload Requested",
+    "Approved",
+    "Waitlisted",
+    "Claimed",
+    "Not Cleared",
+    "Unclaimed",
+    "Not Selected",
+    "Rejected",
+];
 const applicantTypes = ["All Applicants", "Minor", "Adult"];
 const yearLevelOptions = ["All Year Levels", "1st Year", "2nd Year", "3rd Year", "4th Year"];
 const emptyFilter = {
@@ -9,14 +21,20 @@ const emptyFilter = {
     school_name: "All Schools", course: "All Courses",
     year_level: "All Year Levels", applicant_type: "All Applicants",
 };
-const APPROVED_SET = ["approved", "claimed", "not_cleared", "unclaimed"];
-const PENDING_SET = ["pending_prescreening", "for_review", "reupload_requested"];
+
+// Three-tier semantic grouping for badge color — not the same as the
+// filter dropdown above, which lists every status individually for
+// precision. This grouping is purely visual: "did this outcome succeed,
+// is it still in progress, or did it not succeed."
+const SUCCESS_SET = ["approved", "claimed"];
+const ATTENTION_SET = ["pending_prescreening", "for_review", "reupload_requested", "waitlisted", "unclaimed"];
+const UNSUCCESSFUL_SET = ["rejected", "not_cleared", "not_selected"];
 
 function StatusBadge({ status }) {
     let cls = "badge-review";
-    if (status === "rejected") cls = "badge-rejected";
-    else if (APPROVED_SET.includes(status)) cls = "badge-approved";
-    else if (PENDING_SET.includes(status)) cls = "badge-review";
+    if (UNSUCCESSFUL_SET.includes(status)) cls = "badge-rejected";
+    else if (SUCCESS_SET.includes(status)) cls = "badge-approved";
+    else if (ATTENTION_SET.includes(status)) cls = "badge-review";
     return <span className={cls}>{status.replace(/_/g, " ")}</span>;
 }
 

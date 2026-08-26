@@ -263,4 +263,55 @@ class AdminScheduleController extends Controller
         // a tab first so the verifier can preview before printing.
         return $pdf->stream('lane-claiming-list-' . $lane->id . '.pdf');
     }
+
+    /**
+     * Closes an application period — the deliberate, manual action that
+     * marks a period as fully settled, not just no-longer-accepting-new-
+     * applications. Two things happen atomically:
+     * 1. Every still-waitlisted applicant for this config becomes
+     *    not_selected — they passed every check but ran out of room by
+     *    the time grace period ended. Not a rejection.
+     * 2. closed_at is stamped, so this period now has a real "settled"
+     *    timestamp distinct from its planned close_date.
+     */
+    public function closePeriod($id)
+    {
+        $config = ApplicationConfiguration::findOrFail($id);
+    
+        if ($config->closed_at) {
+            return response()->json(['message' => 'This period is already closed.'], 400);
+        }
+    
+        $schedule = ClaimingSchedule::where('config_id', $config->id)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+    
+        if ($schedule && $schedule->grace_period_end_date && now()->lt($schedule->grace_period_end_date)) {
+            return response()->json([
+                'message' => 'Cannot close this period until the grace period has ended (' . $schedule->grace_period_end_date . ').',
+            ], 400);
+        }
+    
+        $waitlisted = Application::where('config_id', $config->id)
+            ->where('status', 'waitlisted')
+            ->get();
+    
+        foreach ($waitlisted as $app) {
+            $app->update(['status' => 'not_selected']);
+    
+            \App\Models\AuditLog::record(
+                'application_not_selected',
+                $app,
+                "Application #{$app->id} marked not_selected — period closed with no remaining slots ({$app->user->first_name} {$app->user->last_name})"
+            );
+        }
+    
+        $config->update(['closed_at' => now()]);
+    
+        return response()->json([
+            'message' => "Period closed. {$waitlisted->count()} waitlisted applicant(s) marked not_selected.",
+            'config'  => $config,
+        ]);
+    }
 }

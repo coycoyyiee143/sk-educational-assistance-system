@@ -23,7 +23,6 @@ function generateSchoolYearOptions() {
 }
 
 const SCHOOL_YEAR_OPTIONS = generateSchoolYearOptions();
-
 const emptyForm = {
   school_year: "",
   open_date: "",
@@ -38,6 +37,7 @@ function AdminSettings() {
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -100,11 +100,29 @@ function AdminSettings() {
     setError("");
   }
 
+  async function handleClosePeriod() {
+    if (!config) return;
+    if (!window.confirm(
+      "Close this application period? This will mark every remaining waitlisted applicant as not selected, and cannot be undone."
+    )) return;
+    setClosing(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await api.post(`/admin/application-configs/${config.id}/close`);
+      setSuccess(res.data.message);
+      setConfig((prev) => ({ ...prev, closed_at: res.data.config.closed_at }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to close period.");
+    } finally {
+      setClosing(false);
+    }
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSuccess("");
-
     if (form.open_date && form.close_date) {
       const openTime = new Date(form.open_date).getTime();
       const closeTime = new Date(`${form.close_date.slice(0, 10)}T23:59:59`).getTime();
@@ -113,19 +131,16 @@ function AdminSettings() {
         return;
       }
     }
-
     if (needsConfirmation()) {
       setShowConfirmModal(true);
       return;
     }
-
     saveSettings();
   }
 
   async function saveSettings() {
     setShowConfirmModal(false);
     setSaving(true);
-
     try {
       const payload = {
         ...form,
@@ -135,19 +150,14 @@ function AdminSettings() {
         slot_limit: form.is_unlimited ? null : form.slot_limit,
         assistance_amount: form.assistance_amount,
       };
-
       let response;
-
       if (config) {
         response = await api.put(`/admin/application-configs/${config.id}`, payload);
       } else {
         response = await api.post("/application-config", payload);
       }
-
       const updated = response.data.config;
-
       setConfig(updated);
-
       setForm({
         school_year: updated.school_year,
         open_date: updated.open_date,
@@ -156,7 +166,6 @@ function AdminSettings() {
         is_unlimited: updated.is_unlimited,
         assistance_amount: String(updated.assistance_amount ?? 2000),
       });
-
       setSuccess("Settings saved successfully.");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save settings.");
@@ -196,6 +205,7 @@ function AdminSettings() {
       <AdminNavigation />
       <section className="page-section">
         <div className="container">
+
           <div className="page-card">
             <h3 className="section-title mb-2">Application Settings</h3>
             <p className="text-muted mb-0">
@@ -246,7 +256,6 @@ function AdminSettings() {
             )}
 
             {success && <div className="alert alert-success">{success}</div>}
-
             {error && <div className="alert alert-danger">{error}</div>}
 
             {loading ? (
@@ -318,11 +327,9 @@ function AdminSettings() {
                           }
                           disabled={hasStarted}
                         />
-
                         <label className="btn btn-outline-danger" htmlFor="slotLimited">
                           Limited
                         </label>
-
                         <input
                           type="radio"
                           className="btn-check"
@@ -365,6 +372,7 @@ function AdminSettings() {
                     </div>
                   </div>
                 </div>
+
                 {/* Assistance Amount */}
                 <div className="mb-4 p-3 border rounded">
                   <h6 className="text-muted text-uppercase small fw-bold mb-3">Assistance Amount</h6>
@@ -392,6 +400,7 @@ function AdminSettings() {
                     only affects future periods, not this one.
                   </div>
                 </div>
+
                 <div className="d-flex justify-content-end gap-2">
                   <button type="button" className="btn btn-secondary" onClick={() => setForm(emptyForm)}>
                     Clear
@@ -431,6 +440,37 @@ function AdminSettings() {
               </table>
             </div>
           </div>
+
+          {config && !config.closed_at && (
+            <div className="page-card">
+              <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                  <h4 className="sub-title mb-1">Close This Period</h4>
+                  <p className="text-muted small mb-0">
+                    Marks this period as fully settled. Any remaining waitlisted applicants will be
+                    finalized as "not selected." Only available once the grace period has ended.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-outline-danger"
+                  onClick={handleClosePeriod}
+                  disabled={closing}
+                >
+                  {closing ? "Closing..." : "Close Period"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {config?.closed_at && (
+            <div className="page-card">
+              <div className="alert alert-secondary mb-0">
+                This period was closed on {formatDateTime(config.closed_at)}.
+              </div>
+            </div>
+          )}
+
         </div>
       </section>
 
