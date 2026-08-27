@@ -150,7 +150,7 @@ class VerifierController extends Controller
                 [
                     'claiming_schedule_id' => $schedule->id,
                     'claiming_lane_id'     => $lane->id,
-                    'claim_status'         => 'pending',
+                    'claim_status'         => 'pending_claiming',
                     'source'               => 'waitlist_promotion',
                 ]
             );
@@ -212,7 +212,7 @@ class VerifierController extends Controller
                     [
                         'claiming_schedule_id' => $schedule->id,
                         'claiming_lane_id'     => $lane->id,
-                        'claim_status'         => 'pending',
+                        'claim_status'         => 'pending_claiming',
                         'source'               => 'waitlist_promotion',
                     ]
                 );
@@ -360,7 +360,7 @@ class VerifierController extends Controller
     public function updateClaimStatus(Request $request, $id)
     {
         $request->validate([
-            'claim_status'          => 'required|in:claimed,not_cleared,unclaimed',
+            'claim_status'          => 'required|in:claimed,not_cleared',
             'reason_categories'     => 'required_if:claim_status,not_cleared|nullable|array',
             'reason_categories.*'   => 'string',
             'verified_documents'    => 'nullable|array',
@@ -432,15 +432,38 @@ class VerifierController extends Controller
     {
         $controlNumber = $request->query('control_number');
         $name          = $request->query('name');
+        $laneId        = $request->query('lane_id');
+        $gracePeriod   = $request->boolean('grace_period');
 
-            $query = Application::with(['user', 'documents', 'claimingAssignment.lane', 'claimingAssignment.verifier'])
+        $query = Application::with(['user', 'documents', 'claimingAssignment.lane', 'claimingAssignment.verifier'])
             ->whereIn('status', ['approved', 'claimed', 'not_cleared', 'unclaimed'])
             ->whereHas('claimingAssignment');
+
+        if ($gracePeriod) {
+            // Same pool as buildGracePeriodClaimingList(): original
+            // no-shows not yet swept, everyone promoted from the
+            // waitlist, and anyone the sweep has already reassigned into
+            // an active grace-period retry — regardless of
+            // name/control-number search.
+            $query->whereHas('claimingAssignment', function ($q) {
+                $q->where(function ($q2) {
+                    $q2->where('source', 'original')->where('claim_status', 'unclaimed');
+                })
+                ->orWhere('source', 'waitlist_promotion')
+                ->orWhere(function ($q3) {
+                    $q3->where('source', 'grace_period_retry')->where('claim_status', 'pending_claiming');
+                });
+            });
+        } elseif ($laneId) {
+            // Regular claiming day — scoped to one specific lane, so a
+            // verifier only ever sees the applicants assigned to the lane
+            // they're actually working.
+            $query->whereHas('claimingAssignment', fn($q) => $q->where('claiming_lane_id', $laneId));
+        }
 
         if ($controlNumber) {
             $query->where('control_number', 'like', "%{$controlNumber}%");
         }
-
         if ($name) {
             $query->whereHas('user', function ($q) use ($name) {
                 $q->where('first_name', 'like', "%{$name}%")
@@ -449,12 +472,72 @@ class VerifierController extends Controller
         }
 
         $results = $query->get();
-
         if ($results->isEmpty()) {
             return response()->json(['message' => 'No matching approved applicant found.'], 404);
         }
-
         return response()->json($results);
+    }
+
+    /**
+     * Returns the logged-in verifier's currently assigned lane (if any —
+     * whether set by an admin or previously self-picked), plus the full
+     * list of today's lanes so they can self-assign or switch if plans
+     * change. This is what lets VerifierClaiming.jsx default straight to
+     * "my lane's applicants" instead of requiring a broad search every
+     * time.
+     */
+    public function claimingLanes(Request $request)
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+        if (!$config) {
+            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+        }
+
+        $schedule = \App\Models\ClaimingSchedule::where('config_id', $config->id)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+
+        if (!$schedule) {
+            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+        }
+
+        $allLanes = $schedule->lanes()
+            ->where('lane_name', '!=', 'Waitlist Promotions')
+            ->orderBy('claiming_date')
+            ->orderBy('lane_name')
+            ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id']);
+
+        $assignedLane = $allLanes->firstWhere('verifier_id', $request->user()->id);
+
+        return response()->json([
+            'assigned_lane' => $assignedLane,
+            'all_lanes'     => $allLanes,
+        ]);
+    }
+
+    /**
+     * Verifier self-assigns to a lane — the default, day-of mechanism.
+     * Clears them from any OTHER lane in the same schedule first, since
+     * a verifier can only physically be at one lane at a time. An admin
+     * assignment (via AdminScheduleController::assignVerifier()) can
+     * always override this later, and vice versa — whichever was set
+     * most recently wins, since it's the same column.
+     */
+    public function selfAssignLane(Request $request, $laneId)
+    {
+        $lane = \App\Models\ClaimingLane::findOrFail($laneId);
+
+        \App\Models\ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
+            ->where('verifier_id', $request->user()->id)
+            ->update(['verifier_id' => null]);
+
+        $lane->update(['verifier_id' => $request->user()->id]);
+
+        return response()->json([
+            'message' => "You're now assigned to {$lane->lane_name}.",
+            'lane'    => $lane,
+        ]);
     }
 
     // Returns the logged-in verifier's own activity history

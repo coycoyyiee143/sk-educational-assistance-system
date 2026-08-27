@@ -297,12 +297,27 @@ class AdminReportController extends Controller
             ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
             ->where(function ($q) {
                 $q->where(function ($q2) {
+                    // Original no-shows still sitting unclaimed — this
+                    // should only ever be true for rows the sweep hasn't
+                    // processed yet (e.g. same-day, before it runs), since
+                    // an original row past grace period end is genuinely
+                    // final and the sweep leaves it here on purpose.
                     $q2->where('source', 'original')->where('claim_status', 'unclaimed');
-                })->orWhere('source', 'waitlist_promotion');
+                })
+                ->orWhere('source', 'waitlist_promotion')
+                // Reassigned by the sweep — actively in their retry
+                // window. Only include while still pending_claiming;
+                // once resolved (claimed/not_cleared) or swept again to
+                // unclaimed, they've exited the "currently expected"
+                // list and belong in claiming outcomes / disbursement
+                // reports instead.
+                ->orWhere(function ($q3) {
+                    $q3->where('source', 'grace_period_retry')->where('claim_status', 'pending_claiming');
+                });
             })
             ->get();
         return [
-            'retrying' => $assignments->where('source', 'original')->values(),
+            'retrying' => $assignments->whereIn('source', ['original', 'grace_period_retry'])->values(),
             'promoted' => $assignments->where('source', 'waitlist_promotion')->values(),
         ];
     }

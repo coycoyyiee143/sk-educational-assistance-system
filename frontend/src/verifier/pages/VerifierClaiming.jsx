@@ -1,17 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
 import { DOC_TYPES, NOT_CLEARED_REASONS, OTHER } from "../constants/verificationReasons";
+import { STATUS_CONFIG } from "../../components/StatusConstants";
 
-const CLAIM_STATUS_BADGES = {
-  claimed: { label: "Claimed", className: "bg-success" },
-  not_cleared: { label: "Not Cleared", className: "bg-danger" },
-  unclaimed: { label: "Unclaimed", className: "bg-warning text-dark" },
-};
-
+// Replaces the old local CLAIM_STATUS_BADGES map — now reads directly
+// from the single source of truth. Falls back to a plain "Pending" badge
+// if `status` is null/undefined (no assignment yet) or an unrecognized
+// value slips through.
 function ClaimStatusBadge({ status }) {
-  const config = CLAIM_STATUS_BADGES[status] || { label: "Pending", className: "bg-secondary" };
-  return <span className={`badge ${config.className}`}>{config.label}</span>;
+  const config = STATUS_CONFIG[status];
+  if (!config) {
+    return <span className="status-badge status-pending">Pending</span>;
+  }
+  return <span className={`status-badge ${config.badgeClass}`}>{config.verifierLabel}</span>;
 }
 
 function VerifierClaiming() {
@@ -23,13 +25,65 @@ function VerifierClaiming() {
     DOC_TYPES.reduce((acc, d) => ({ ...acc, [d.key]: "unreviewed" }), {})
   );
   const [notes, setNotes] = useState("");
-  const [selectedAction, setSelectedAction] = useState(null); // null | 'claimed' | 'not_cleared' | 'unclaimed'
+  // 'unclaimed' removed from the possible values — no-shows are no longer
+  // a verifier-clicked action. There's no judgment call to make; the
+  // absence of a claiming action already tells the story. This will
+  // eventually be handled by an automatic scheduled sweep instead.
+  const [selectedAction, setSelectedAction] = useState(null); // null | 'claimed' | 'not_cleared'
   const [notClearedReasons, setNotClearedReasons] = useState([]);
   const [notClearedOtherText, setNotClearedOtherText] = useState("");
   const [searching, setSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const detailsRef = useRef(null);
+
+  // Lane selection + grace period mode — determines what searchClaiming()
+  // is scoped to. Regular mode: a specific lane's applicants only (or all
+  // lanes if none picked). Grace period mode: original no-shows still
+  // within grace period + everyone promoted from the waitlist — ignores
+  // lane selection entirely, since grace period isn't tied to one lane
+  // and doesn't use lane-verifier assignment at all. Who actually
+  // disbursed money during grace period is still fully tracked, just at
+  // the individual claiming_assignments.verified_by level (shown in
+  // Applicant Details below), not via a lane assignment.
+  const [assignedLane, setAssignedLane] = useState(null);
+  const [allLanes, setAllLanes] = useState([]);
+  const [selectedLaneId, setSelectedLaneId] = useState("");
+  const [gracePeriodMode, setGracePeriodMode] = useState(false);
+  const [assigningLane, setAssigningLane] = useState(false);
+
+  function fetchLanes() {
+    api.get("/verifier/claiming/lanes")
+      .then((res) => {
+        setAssignedLane(res.data.assigned_lane ?? null);
+        setAllLanes(res.data.all_lanes ?? []);
+        // Default the lane filter straight to their assigned lane, if
+        // any — this is what solves the "have to search SK to browse"
+        // problem, so a verifier lands directly on their own queue.
+        if (res.data.assigned_lane) {
+          setSelectedLaneId(String(res.data.assigned_lane.id));
+        }
+      })
+      .catch(() => { });
+  }
+
+  useEffect(() => {
+    fetchLanes();
+  }, []);
+
+  // Auto-loads the assigned lane's applicant list the moment it's known,
+  // instead of requiring a manual "Search" click after the page already
+  // pre-filled the lane dropdown — this is what actually makes "defaults
+  // to your lane" mean something, rather than just pre-selecting an
+  // option nobody's told to submit.
+  useEffect(() => {
+    if (assignedLane && !gracePeriodMode) {
+      handleSearch({ preventDefault: () => { } });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assignedLane]);
 
   function setDocStatus(key, status) {
     setDocStatusState((prev) => ({ ...prev, [key]: status }));
@@ -41,20 +95,58 @@ function VerifierClaiming() {
     );
   }
 
+  function switchToRegularMode() {
+    setGracePeriodMode(false);
+    setResults([]);
+    setSelected(null);
+    setError("");
+    setSuccess("");
+  }
+
+  function switchToGracePeriodMode() {
+    setGracePeriodMode(true);
+    setResults([]);
+    setSelected(null);
+    setSelectedLaneId("");
+    setError("");
+    setSuccess("");
+  }
+
+  async function handleSelfAssign(laneId) {
+    setAssigningLane(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await api.post(`/verifier/claiming/lanes/${laneId}/self-assign`);
+      setSuccess(res.data.message);
+      fetchLanes();
+      setSelectedLaneId(String(laneId));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to self-assign lane.");
+    } finally {
+      setAssigningLane(false);
+    }
+  }
+
   async function handleSearch(e) {
     e.preventDefault();
     setError("");
     setSuccess("");
     setSelected(null);
-    if (!controlNo.trim() && !applicantName.trim()) {
-      setError("Please enter a control number or applicant name.");
+    if (!gracePeriodMode && !controlNo.trim() && !applicantName.trim() && !selectedLaneId) {
+      setError("Please enter a control number, applicant name, or select a lane.");
       return;
     }
     setSearching(true);
     try {
       const params = {};
-      if (controlNo.trim()) params.control_number = controlNo.trim();
-      if (applicantName.trim()) params.name = applicantName.trim();
+      if (gracePeriodMode) {
+        params.grace_period = 1;
+      } else {
+        if (selectedLaneId) params.lane_id = selectedLaneId;
+        if (controlNo.trim()) params.control_number = controlNo.trim();
+        if (applicantName.trim()) params.name = applicantName.trim();
+      }
       const res = await api.get("/verifier/claiming/search", { params });
       setResults(res.data);
       if (res.data.length === 1) selectApplicant(res.data[0]);
@@ -75,6 +167,13 @@ function VerifierClaiming() {
     setNotClearedOtherText("");
     setError("");
     setSuccess("");
+    // Scroll to the Applicant Details card once it renders — setTimeout
+    // with 0 delay pushes this to after React actually mounts the
+    // section (since `selected` was just set above, the DOM node isn't
+    // there yet on this same tick).
+    setTimeout(() => {
+      detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   }
 
   function chooseAction(action) {
@@ -159,41 +258,108 @@ function VerifierClaiming() {
               Search the approved applicant, check the physical documents, and update the final claiming status.
             </p>
           </div>
+
           {error && <div className="alert alert-danger">{error}</div>}
           {success && <div className="alert alert-success">{success}</div>}
+
           <div className="content-card">
-            <h4>Search Applicant</h4>
+            <h4>Claiming Mode</h4>
+            <div className="d-flex flex-wrap gap-2 mb-3">
+              <button
+                type="button"
+                className={`btn btn-sm ${!gracePeriodMode ? "btn-custom" : "btn-outline-custom"}`}
+                onClick={switchToRegularMode}
+              >
+                Regular Claiming
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${gracePeriodMode ? "btn-custom" : "btn-outline-custom"}`}
+                onClick={switchToGracePeriodMode}
+              >
+                Grace Period List
+              </button>
+            </div>
+            {!gracePeriodMode && (
+              <div className="row g-3">
+                <div className="col-md-8">
+                  <label className="form-label">Lane / Schedule</label>
+                  {assignedLane && (
+                    <div className="alert alert-success py-2 mb-2 small">
+                      You're currently assigned to <strong>{assignedLane.lane_name}</strong> ({assignedLane.batch === "morning" ? "Morning" : "Afternoon"}, {assignedLane.claiming_date}).
+                    </div>
+                  )}
+                  <select
+                    className="form-select"
+                    value={selectedLaneId}
+                    onChange={(e) => setSelectedLaneId(e.target.value)}
+                  >
+                    <option value="">All lanes</option>
+                    {allLanes.map((lane) => (
+                      <option key={lane.id} value={lane.id}>
+                        {lane.claiming_date} — {lane.batch === "morning" ? "Morning" : "Afternoon"} — {lane.lane_name}
+                        {lane.verifier_id && lane.id !== assignedLane?.id ? " (assigned to another verifier)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedLaneId && (!assignedLane || String(assignedLane.id) !== selectedLaneId) && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-custom btn-sm mt-2"
+                      onClick={() => handleSelfAssign(selectedLaneId)}
+                      disabled={assigningLane}
+                    >
+                      {assigningLane ? "Assigning..." : "Make this my lane"}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="content-card">
+            <h4>{gracePeriodMode ? "Grace Period Applicants" : "Search Applicant"}</h4>
             <div className="search-box">
               <form onSubmit={handleSearch}>
-                <div className="row g-3 align-items-end">
-                  <div className="col-md-5">
-                    <label className="form-label">Control Number</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g. SK-2026-0001"
-                      value={controlNo}
-                      onChange={(e) => setControlNo(e.target.value)}
-                    />
+                {!gracePeriodMode && (
+                  <div className="row g-3 align-items-end">
+                    <div className="col-md-5">
+                      <label className="form-label">Control Number</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="e.g. SK-2026-0001"
+                        value={controlNo}
+                        onChange={(e) => setControlNo(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-md-5">
+                      <label className="form-label">Applicant Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        placeholder="Enter first or last name"
+                        value={applicantName}
+                        onChange={(e) => setApplicantName(e.target.value)}
+                      />
+                    </div>
+                    <div className="col-md-2 d-grid">
+                      <button className="btn btn-custom" type="submit" disabled={searching}>
+                        {searching ? "Searching..." : "Search"}
+                      </button>
+                    </div>
                   </div>
-                  <div className="col-md-5">
-                    <label className="form-label">Applicant Name</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Enter first or last name"
-                      value={applicantName}
-                      onChange={(e) => setApplicantName(e.target.value)}
-                    />
-                  </div>
-                  <div className="col-md-2 d-grid">
+                )}
+                {gracePeriodMode && (
+                  <div className="d-flex justify-content-end">
                     <button className="btn btn-custom" type="submit" disabled={searching}>
-                      {searching ? "Searching..." : "Search"}
+                      {searching ? "Loading..." : "Load Grace Period List"}
                     </button>
                   </div>
-                </div>
+                )}
               </form>
             </div>
+
             {results.length > 1 && (
               <div className="table-responsive mt-3">
                 <table className="table table-bordered table-hover align-middle">
@@ -208,34 +374,41 @@ function VerifierClaiming() {
                     </tr>
                   </thead>
                   <tbody>
-                    {results.map((app) => (
-                      <tr key={app.id}>
-                        <td>{app.control_number}</td>
-                        <td>{app.user?.first_name} {app.user?.last_name}</td>
-                        <td>{app.school_name}</td>
-                        <td>
-                          <ClaimStatusBadge status={app.claiming_assignment?.claim_status} />
-                        </td>
-                        <td>
-                          {app.claiming_assignment?.source === "waitlist_promotion" && (
-                            <span className="badge bg-warning text-dark">Grace Period</span>
-                          )}
-                        </td>
-                        <td>
-                          <button className="btn btn-outline-custom btn-sm" onClick={() => selectApplicant(app)}>
-                            Select
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {[...results]
+                      .sort((a, b) => {
+                        const aPending = a.claiming_assignment?.claim_status === "pending_claiming" ? 0 : 1;
+                        const bPending = b.claiming_assignment?.claim_status === "pending_claiming" ? 0 : 1;
+                        return aPending - bPending;
+                      })
+                      .map((app) => (
+                        <tr key={app.id}>
+                          <td>{app.control_number}</td>
+                          <td>{app.user?.first_name} {app.user?.last_name}</td>
+                          <td>{app.school_name}</td>
+                          <td>
+                            <ClaimStatusBadge status={app.claiming_assignment?.claim_status} />
+                          </td>
+                          <td>
+                            {app.claiming_assignment?.source === "waitlist_promotion" && (
+                              <span className="badge bg-warning text-dark">Grace Period</span>
+                            )}
+                          </td>
+                          <td>
+                            <button className="btn btn-outline-custom btn-sm" onClick={() => selectApplicant(app)}>
+                              Select
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
             )}
           </div>
+
           {selected && (
             <>
-              <div className="content-card">
+              <div className="content-card" ref={detailsRef}>
                 <h4>Applicant Details</h4>
                 <div className="table-responsive">
                   <table className="table table-bordered info-table align-middle">
@@ -264,7 +437,7 @@ function VerifierClaiming() {
                       {selected.claiming_assignment?.source === "waitlist_promotion" && (
                         <tr><th>Assignment Type</th><td><span className="badge bg-warning text-dark">Grace Period — Waitlist Promotion</span></td></tr>
                       )}
-                        {selected.claiming_assignment?.verifier && (
+                      {selected.claiming_assignment?.verifier && (
                         <tr><th>Disbursed By</th><td>{selected.claiming_assignment.verifier.first_name} {selected.claiming_assignment.verifier.last_name}</td></tr>
                       )}
                       {selected.claiming_assignment?.verified_at && (
@@ -274,6 +447,7 @@ function VerifierClaiming() {
                   </table>
                 </div>
               </div>
+
               <div className="content-card">
                 <h4>Document Verification</h4>
                 <p className="text-muted small mb-3">
@@ -332,6 +506,7 @@ function VerifierClaiming() {
                   The verifier only checks if the physical documents match the approved application record before updating the final claiming status.
                 </div>
               </div>
+
               <div className="content-card">
                 <h4>Claiming Action</h4>
                 {selectedAction === "claimed" && claimedBlocked && (
@@ -342,6 +517,11 @@ function VerifierClaiming() {
                     {" "}All documents must be marked Matched, or this applicant should be marked Not Cleared instead.
                   </div>
                 )}
+                {/* Unclaimed removed from this button group — no-shows are
+                    no longer a verifier decision. If someone never showed
+                    up, there's nothing to confirm here; that transition
+                    will happen automatically once the scheduled sweep is
+                    built. */}
                 <div className="d-flex flex-wrap gap-2 mb-3">
                   <button
                     type="button"
@@ -356,13 +536,6 @@ function VerifierClaiming() {
                     onClick={() => chooseAction("not_cleared")}
                   >
                     Mark as Not Cleared
-                  </button>
-                  <button
-                    type="button"
-                    className={`btn ${selectedAction === "unclaimed" ? "btn-warning text-dark" : "btn-outline-warning"}`}
-                    onClick={() => chooseAction("unclaimed")}
-                  >
-                    Mark as Unclaimed
                   </button>
                 </div>
                 {selectedAction === "not_cleared" && (
@@ -404,11 +577,11 @@ function VerifierClaiming() {
                     </div>
                     <div className="text-end">
                       <button
-                        className={`btn ${selectedAction === "claimed" ? "btn-success" : selectedAction === "not_cleared" ? "btn-danger" : "btn-warning text-dark"}`}
+                        className={`btn ${selectedAction === "claimed" ? "btn-success" : "btn-danger"}`}
                         onClick={handleConfirm}
                         disabled={submitting || (selectedAction === "claimed" && claimedBlocked)}
                       >
-                        {submitting ? "Submitting..." : `Confirm — Mark as ${selectedAction === "claimed" ? "Claimed" : selectedAction === "not_cleared" ? "Not Cleared" : "Unclaimed"}`}
+                        {submitting ? "Submitting..." : `Confirm — Mark as ${selectedAction === "claimed" ? "Claimed" : "Not Cleared"}`}
                       </button>
                     </div>
                   </>

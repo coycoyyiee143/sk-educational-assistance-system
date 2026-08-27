@@ -14,7 +14,7 @@ export const STATUS_CONFIG = {
     // genuinely different situations for a verifier to see.
     draft_incomplete: {
         applicantLabel: "Incomplete",
-        verifierLabel: "Incomplete — Documents Pending",
+        verifierLabel: "Incomplete",
         boxClass: "status-box-pending",
         badgeClass: "status-pending",
         applicantMessage: "Your application has been started, but one or more required documents still need to be uploaded and pass our initial quality check. Please go to the Application Submission page to finish uploading your documents.",
@@ -157,7 +157,7 @@ export const STATUS_CONFIG = {
     // grouped together for admin summary reporting.
     not_cleared: {
         applicantLabel: "Not Cleared",
-        verifierLabel: "Not Cleared — Claiming Day",
+        verifierLabel: "Not Cleared",
         boxClass: "status-box-rejected",
         badgeClass: "status-rejected",
         applicantMessage: "Your physical documents did not match your application record on claiming day. Please contact the SK office for further assistance.",

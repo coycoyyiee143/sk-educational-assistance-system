@@ -1,7 +1,5 @@
 <?php
-
 namespace Database\Seeders;
-
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
 use App\Models\ClaimingAssignment;
@@ -167,16 +165,18 @@ class FullDemoSeeder extends Seeder
             'is_active'    => true,
             'created_by'   => $admin->id,
         ]);
-
         $this->seedApprovedApplicants($configActive, 150);
         $this->seedMixedStatusApplications($configActive);
         $this->seedWaitlistedApplicants($configActive, 6);
 
         $schedule = $this->seedClaimingSchedule($configActive);
 
-        // Assign EVERY approved applicant to the lane, matching what
-        // AdminScheduleController::publish() actually does for a real
-        // schedule.
+        // Assign EVERY approved applicant across the schedule's real
+        // lanes/dates, matching what AdminScheduleController::publish()
+        // actually does. Split across lanes (not one giant lane) so the
+        // new lane-filter dropdown in VerifierClaiming.jsx has real
+        // demo material — different lanes genuinely show different
+        // applicants, same as the intended feature.
         $this->seedAllClaimingAssignments($configActive, $schedule);
 
         // Only not_cleared frees a slot for waitlist promotion — confirmed
@@ -190,13 +190,14 @@ class FullDemoSeeder extends Seeder
         // show without requiring a manual promote click first.
         $this->seedOnePromotedApplicant($configActive, $schedule);
 
-        $this->command->info('FullDemoSeeder complete: 4 completed periods (2022–2026, growing trend, full claiming variety, zero waitlist data by design) + 1 active period (2026-2027) — the only period with waitlist/unmet-demand data, 150 approved applicants ALL assigned to the claiming lane, 6 not_cleared, 5 unclaimed, grace period, and one pre-promoted applicant.');
+        $this->command->info('FullDemoSeeder complete: 4 completed periods (2022–2026, growing trend, full claiming variety, zero waitlist data by design) + 1 active period (2026-2027) — the only period with waitlist/unmet-demand data, 150 approved applicants split across multiple lanes/dates, 6 not_cleared, 5 unclaimed (still within grace period, feeds the "Retrying" bucket), grace period, and one pre-promoted applicant.');
     }
 
     private function seedHistoricalPeriod(ApplicationConfiguration $config, int $approvedCount, int $totalCount, bool $withClaiming): void
     {
         $rejectedCount = (int) round(($totalCount - $approvedCount) * 0.7);
         $staleCount    = $totalCount - $approvedCount - $rejectedCount;
+
         $controlSeq = 1;
         $approvedApps = [];
 
@@ -260,7 +261,6 @@ class FullDemoSeeder extends Seeder
                 'status'            => 'for_review',
                 'submitted_at'      => $config->open_date->copy()->addDays(rand(0, 20)),
             ]);
-
             if (rand(0, 1) === 1) {
                 $docType = array_rand($this->reuploadReasonsByDoc);
                 $reasonCategories = collect($this->reuploadReasonsByDoc[$docType])->random(rand(1, 2))->values()->all();
@@ -292,7 +292,6 @@ class FullDemoSeeder extends Seeder
             'is_published' => true,
             'published_at' => $config->close_date->copy()->addDays(5),
         ]);
-
         $lane = ClaimingLane::create([
             'claiming_schedule_id' => $schedule->id,
             'lane_name'            => 'Lane A',
@@ -324,7 +323,6 @@ class FullDemoSeeder extends Seeder
                 'verified_by'          => $this->verifier->id,
                 'verified_at'          => $lane->claiming_date,
             ]);
-
             $app->update(['status' => $status]);
         }
     }
@@ -369,12 +367,10 @@ class FullDemoSeeder extends Seeder
                     'status'            => $status,
                     'submitted_at'      => now()->subDays(rand(0, 10)),
                 ];
-
                 if ($status === 'rejected') {
                     $reasonCategories = collect($this->rejectionReasons)->random(rand(1, 2))->values()->all();
                     $data['rejection_reason'] = implode(' ', $reasonCategories);
                 }
-
                 $app = Application::create($data);
 
                 if ($status === 'rejected') {
@@ -434,6 +430,16 @@ class FullDemoSeeder extends Seeder
         }
     }
 
+    /**
+     * Creates a schedule with THREE real lanes across TWO claiming dates.
+     * Capacities (60 + 60 + 40 = 160) deliberately cover all 150 approved
+     * applicants with fixed, sequential ranges — matching how real
+     * scheduling actually works (AdminScheduleController::partitionApplicants()
+     * fills each lane in order by capacity, not round-robin). This means
+     * Lane A gets control numbers 0001–0060, Lane B gets 0061–0120, Lane C
+     * gets the remaining 0121–0150 — a real, demonstrable range per lane
+     * for the lane-filter dropdown.
+     */
     private function seedClaimingSchedule(ApplicationConfiguration $config): ClaimingSchedule
     {
         $schedule = ClaimingSchedule::create([
@@ -448,30 +454,75 @@ class FullDemoSeeder extends Seeder
         ClaimingLane::create([
             'claiming_schedule_id' => $schedule->id,
             'lane_name'            => 'Lane A',
-            'capacity'             => 200,
+            'capacity'             => 60,
             'batch'                => 'morning',
             'claiming_date'        => now()->subDays(2)->toDateString(),
+        ]);
+        ClaimingLane::create([
+            'claiming_schedule_id' => $schedule->id,
+            'lane_name'            => 'Lane B',
+            'capacity'             => 60,
+            'batch'                => 'afternoon',
+            'claiming_date'        => now()->subDays(2)->toDateString(),
+        ]);
+        ClaimingLane::create([
+            'claiming_schedule_id' => $schedule->id,
+            'lane_name'            => 'Lane C',
+            'capacity'             => 40,
+            'batch'                => 'morning',
+            'claiming_date'        => now()->subDays(1)->toDateString(),
         ]);
 
         return $schedule;
     }
 
+    /**
+     * Assigns every approved applicant to a lane SEQUENTIALLY by control
+     * number, filling each lane to its capacity before moving to the
+     * next — exactly matching AdminScheduleController::partitionApplicants(),
+     * which does the same thing for real published schedules (fixed-
+     * capacity lanes get spliced off the front of the ordered applicant
+     * list, in order). This is NOT round-robin — Lane A gets the first
+     * batch of control numbers, Lane B the next batch, etc., so the demo
+     * data actually reflects how a real claiming day is organized.
+     */
     private function seedAllClaimingAssignments(ApplicationConfiguration $config, ClaimingSchedule $schedule): void
     {
-        $lane = $schedule->lanes()->first();
-
-        $approvedApps = Application::where('config_id', $config->id)
+        $lanes = $schedule->lanes()->orderBy('claiming_date')->orderBy('id')->get();
+        $remaining = Application::where('config_id', $config->id)
             ->where('status', 'approved')
-            ->get();
+            ->orderBy('control_number')
+            ->get()
+            ->values();
 
-        foreach ($approvedApps as $app) {
-            ClaimingAssignment::create([
-                'application_id'       => $app->id,
-                'claiming_schedule_id' => $schedule->id,
-                'claiming_lane_id'     => $lane->id,
-                'claim_status'         => 'pending',
-                'source'               => 'original',
-            ]);
+        foreach ($lanes as $lane) {
+            $chunk = $remaining->splice(0, $lane->capacity);
+            foreach ($chunk as $app) {
+                ClaimingAssignment::create([
+                    'application_id'       => $app->id,
+                    'claiming_schedule_id' => $schedule->id,
+                    'claiming_lane_id'     => $lane->id,
+                    'claim_status'         => 'pending_claiming',
+                    'source'               => 'original',
+                ]);
+            }
+        }
+
+        // Safety net matching partitionApplicants()'s own overflow
+        // handling: if total lane capacity somehow fell short (it doesn't
+        // here — 160 covers all 150 — but this mirrors the real method's
+        // guard so nobody is silently dropped from the demo data either).
+        if ($remaining->count() > 0) {
+            $lastLane = $lanes->last();
+            foreach ($remaining as $app) {
+                ClaimingAssignment::create([
+                    'application_id'       => $app->id,
+                    'claiming_schedule_id' => $schedule->id,
+                    'claiming_lane_id'     => $lastLane->id,
+                    'claim_status'         => 'pending_claiming',
+                    'source'               => 'original',
+                ]);
+            }
         }
     }
 
@@ -491,7 +542,6 @@ class FullDemoSeeder extends Seeder
                 'verified_by'       => $this->verifier->id,
                 'verified_at'       => now()->subDays(1),
             ]);
-
             $app->update(['status' => 'not_cleared']);
         }
 
@@ -513,7 +563,6 @@ class FullDemoSeeder extends Seeder
                 'verified_by'  => $this->verifier->id,
                 'verified_at'  => now()->subDays(1),
             ]);
-
             $app->update(['status' => 'unclaimed']);
         }
     }
@@ -559,7 +608,7 @@ class FullDemoSeeder extends Seeder
             'application_id'       => $app->id,
             'claiming_schedule_id' => $schedule->id,
             'claiming_lane_id'     => $lane->id,
-            'claim_status'         => 'pending',
+            'claim_status'         => 'pending_claiming',
             'source'               => 'waitlist_promotion',
             'verified_by'          => $this->verifier->id,
             'verified_at'          => now()->subDays(1),
