@@ -23,11 +23,13 @@ class Application extends Model
         'rejection_reason',
         'submitted_at',
         'waitlisted_at',
+        'attestation_accepted_at',
     ];
 
     protected $casts = [
         'submitted_at'  => 'datetime',
         'waitlisted_at' => 'datetime',
+        'attestation_accepted_at' => 'datetime',
     ];
 
     public function user()

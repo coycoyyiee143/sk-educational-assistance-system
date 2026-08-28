@@ -45,17 +45,31 @@ class ProfileController extends Controller
         ], 201);
     }
 
-    public function update(Request $request)
+        public function update(Request $request)
     {
         $data = $this->validateProfile($request);
-
         $profile = $request->user()->profile;
-        $profile->update($data);
 
+        // Recompute completeness on every update — a profile becomes
+        // "complete" once these core fields are filled in, regardless of
+        // whether it was set via store() (first-time setup) or here (later edits).
+        $data['is_profile_complete'] = (bool) (
+            ($data['birthdate'] ?? null) &&
+            ($data['gender'] ?? null) &&
+            ($data['civil_status'] ?? null) &&
+            ($data['house_no'] ?? null) &&
+            ($data['street'] ?? null) &&
+            ($data['purok_type'] ?? null) &&
+            ($data['purok'] ?? null) &&
+            ($data['barangay'] ?? null) &&
+            ($data['city'] ?? null) &&
+            ($data['province'] ?? null)
+        );
+
+        $profile->update($data);
         // Log which specific fields were changed, so the trail is meaningful
         $changes = $profile->getChanges();
         unset($changes['updated_at']);
-
         if (!empty($changes)) {
             $fieldList = implode(', ', array_keys($changes));
             \App\Models\AuditLog::record(
@@ -64,7 +78,6 @@ class ProfileController extends Controller
                 "You updated your profile information"
             );
         }
-
         return response()->json([
             'message' => 'Profile updated.',
             'profile' => $request->user()->profile,
@@ -130,6 +143,7 @@ class ProfileController extends Controller
             'civil_status'           => 'nullable|in:single,married,widowed,separated',
             'house_no'               => 'nullable|string',
             'street'                 => 'nullable|string',
+            'purok_type'             => 'nullable|in:purok,phase',
             'purok'                  => 'nullable|string',
             'barangay'               => 'nullable|string',
             'city'                   => 'nullable|string',
