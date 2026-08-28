@@ -12,7 +12,7 @@ use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
-    public function register(Request $request)
+        public function register(Request $request)
     {
         $request->validate([
             'first_name'    => 'required|string|max:255',
@@ -24,6 +24,30 @@ class AuthController extends Controller
             'birthdate'     => 'required|date|before:today',
             'barangay'      => 'required|string|max:255',
         ]);
+
+        // Duplicate-applicant check (registration-time): block a new account
+        // if the name + birthdate already matches someone who has an approved
+        // or claimed application on file. This is the first of two checks —
+        // the second runs again at application submission time, since a
+        // determined duplicate could still theoretically slip past this one
+        // (e.g. a slight name variation the string match doesn't catch).
+        $normalizedFirstName = strtolower(trim($request->first_name));
+        $normalizedLastName = strtolower(trim($request->last_name));
+
+        $possibleDuplicates = User::whereHas('profile', function ($q) use ($request) {
+                $q->where('birthdate', $request->birthdate);
+            })
+            ->get()
+            ->filter(function ($otherUser) use ($normalizedFirstName, $normalizedLastName) {
+                return strtolower(trim($otherUser->first_name)) === $normalizedFirstName
+                    && strtolower(trim($otherUser->last_name)) === $normalizedLastName;
+            });
+
+                if ($possibleDuplicates->isNotEmpty()) {
+            return response()->json([
+                'message' => 'An account matching your name and date of birth already exists under a different account. Please contact the SK office if you believe this is an error.',
+            ], 400);
+        }
 
         $user = User::create([
             'first_name'    => $request->first_name,
@@ -44,7 +68,6 @@ class AuthController extends Controller
         ]);
         // TRIGGER: Automatically dispatches Laravel's email verification link via your Log/Mail system
         $user->sendEmailVerificationNotification();
-
         $token = $user->createToken('auth_token')->plainTextToken;
         
         return response()->json([
@@ -53,7 +76,6 @@ class AuthController extends Controller
             'user'    => $user,
         ], 201);
     }
-
     public function login(Request $request)
     {
         $request->validate([
