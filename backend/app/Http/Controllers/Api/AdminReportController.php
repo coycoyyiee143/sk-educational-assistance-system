@@ -497,7 +497,7 @@ class AdminReportController extends Controller
         ]);
     }
 
-    public function applicantDistribution(Request $request)
+        public function applicantDistribution(Request $request)
     {
         $config = $this->resolveConfig($request);
         $query = Application::query();
@@ -525,12 +525,28 @@ class AdminReportController extends Controller
             $query->clone()->selectRaw('year_level, COUNT(*) as total')
                 ->groupBy('year_level')->orderBy('year_level')->get()
         );
+        // Purok/Phase lives on student_profiles, not applications, so this
+        // one needs a join. Applicants who haven't set purok_type/purok yet
+        // are grouped under "Unspecified" rather than dropped, so the
+        // report total still reconciles with total_applications.
+        $purokQuery = $query->clone()
+            ->join('student_profiles', 'applications.user_id', '=', 'student_profiles.user_id')
+            ->selectRaw("
+                COALESCE(student_profiles.purok_type, 'unspecified') as purok_type,
+                COALESCE(student_profiles.purok, 'Unspecified') as purok,
+                COUNT(*) as total
+            ")
+            ->groupBy('purok_type', 'purok')
+            ->orderBy('purok_type')
+            ->orderBy('purok');
+        $byPurok = $addPercentage($purokQuery->get());
         return response()->json([
             'config'        => $config,
             'total_applications' => $totalApplications,
             'by_school'     => $bySchool,
             'by_course'     => $byCourse,
             'by_year_level' => $byYearLevel,
+            'by_purok'      => $byPurok,
         ]);
     }
 
@@ -656,7 +672,7 @@ class AdminReportController extends Controller
         return $pdf->download('document-failure-breakdown-' . now()->format('Y-m-d') . '.pdf');
     }
 
-    public function applicantDistributionPdf(Request $request)
+        public function applicantDistributionPdf(Request $request)
     {
         $data = $this->applicantDistribution($request)->getData(true);
         $pdf = Pdf::loadView('reports.applicant-distribution', [
@@ -665,10 +681,11 @@ class AdminReportController extends Controller
             'bySchool'    => collect($data['by_school'])->map(fn($r) => (object) $r),
             'byCourse'    => collect($data['by_course'])->map(fn($r) => (object) $r),
             'byYearLevel' => collect($data['by_year_level'])->map(fn($r) => (object) $r),
+            'byPurok'     => collect($data['by_purok'])->map(fn($r) => (object) $r),
         ]);
         return $pdf->download('applicant-distribution-' . now()->format('Y-m-d') . '.pdf');
     }
-
+    
     public function schoolProgramPdf(Request $request)
     {
         $data = $this->applicantDistribution($request)->getData(true);
