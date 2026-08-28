@@ -37,7 +37,7 @@ function ApplicantNavigation() {
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
           <Link className="navbar-brand-custom" to="/ApplicantDashboard">
-            <img src="/logo.png" alt="SK Logo" />
+            <img src="/icons/logo-in.png" alt="SK Logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Applicant Panel</span>

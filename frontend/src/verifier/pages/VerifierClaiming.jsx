@@ -3,6 +3,17 @@ import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
 import { DOC_TYPES, NOT_CLEARED_REASONS, OTHER } from "../constants/verificationReasons";
 
+const CLAIM_STATUS_BADGES = {
+  claimed: { label: "Claimed", className: "bg-success" },
+  not_cleared: { label: "Not Cleared", className: "bg-danger" },
+  unclaimed: { label: "Unclaimed", className: "bg-warning text-dark" },
+};
+
+function ClaimStatusBadge({ status }) {
+  const config = CLAIM_STATUS_BADGES[status] || { label: "Pending", className: "bg-secondary" };
+  return <span className={`badge ${config.className}`}>{config.label}</span>;
+}
+
 function VerifierClaiming() {
   const [controlNo, setControlNo] = useState("");
   const [applicantName, setApplicantName] = useState("");
@@ -203,9 +214,7 @@ function VerifierClaiming() {
                         <td>{app.user?.first_name} {app.user?.last_name}</td>
                         <td>{app.school_name}</td>
                         <td>
-                          <span className="badge bg-secondary">
-                            {app.claiming_assignment?.claim_status ?? "pending"}
-                          </span>
+                          <ClaimStatusBadge status={app.claiming_assignment?.claim_status} />
                         </td>
                         <td>
                           {app.claiming_assignment?.source === "waitlist_promotion" && (
@@ -251,9 +260,15 @@ function VerifierClaiming() {
                           </tr>
                         </>
                       )}
-                      <tr><th>Current Claim Status</th><td>{selected.claiming_assignment?.claim_status ?? "pending"}</td></tr>
+                      <tr><th>Current Claim Status</th><td><ClaimStatusBadge status={selected.claiming_assignment?.claim_status} /></td></tr>
                       {selected.claiming_assignment?.source === "waitlist_promotion" && (
                         <tr><th>Assignment Type</th><td><span className="badge bg-warning text-dark">Grace Period — Waitlist Promotion</span></td></tr>
+                      )}
+                        {selected.claiming_assignment?.verifier && (
+                        <tr><th>Disbursed By</th><td>{selected.claiming_assignment.verifier.first_name} {selected.claiming_assignment.verifier.last_name}</td></tr>
+                      )}
+                      {selected.claiming_assignment?.verified_at && (
+                        <tr><th>Disbursed At</th><td>{new Date(selected.claiming_assignment.verified_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td></tr>
                       )}
                     </tbody>
                   </table>

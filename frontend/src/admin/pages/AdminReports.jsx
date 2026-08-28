@@ -3,7 +3,7 @@ import AdminNavigation from "../components/AdminNavigation";
 import ApplicantRecordsSection from "../components/ApplicantRecordsSection";
 import ApplicantProfileSection from "../components/ApplicantProfileSection";
 import VerificationOutcomesSection from "../components/VerificationOutcomesSection";
-import BudgetPlanningSection from "../components/BudgetPlanningSection";
+import DisbursementReportSection from "../components/DisbursementReportSection";
 import api from "../../services/api";
 
 function AdminReports() {
@@ -61,6 +61,7 @@ function AdminReports() {
           <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
           <ApplicantProfileSection selectedConfigId={selectedConfigId} />
           <VerificationOutcomesSection selectedConfigId={selectedConfigId} />
+          <DisbursementReportSection selectedConfigId={selectedConfigId} />
 
           <div className="page-card">
             <div className="d-flex justify-content-end flex-wrap gap-3">

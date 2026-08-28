@@ -46,11 +46,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
         Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
         Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
+        Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);
         Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
         Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
         Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
         Route::get('/admin/claiming-schedule/{id}/preview', [AdminScheduleController::class, 'preview']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
+        Route::get('/admin/claiming-schedule/lanes/{laneId}/printable/pdf', [AdminScheduleController::class, 'printableLanePdf']);
         Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
         Route::get('/admin/announcements', [AnnouncementController::class, 'adminIndex']);
         Route::post('/admin/announcements', [AnnouncementController::class, 'store']);
@@ -83,12 +85,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/approved-applicants/pdf', [AdminReportController::class, 'approvedApplicantsPdf']);
         Route::get('/admin/reports/approved-applicants/html', [AdminReportController::class, 'approvedApplicantsHtml']);
         Route::get('/admin/reports/grace-period-claiming-list', [AdminReportController::class, 'gracePeriodClaimingList']);
+        Route::get('/admin/reports/disbursement', [AdminReportController::class, 'disbursementReport']);
+        Route::get('/admin/reports/disbursement/pdf', [AdminReportController::class, 'disbursementReportPdf']);
         Route::get('/admin/reports/budget-estimation', [AdminReportController::class, 'budgetEstimation']);
         Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
+        Route::get('/admin/reports/unmet-demand', [AdminReportController::class, 'unmetDemand']);
         Route::get('/admin/reports/last-cycle-actuals', [AdminReportController::class, 'lastCycleActuals']);
         Route::get('/admin/reports/ocr-queue-health', [AdminReportController::class, 'ocrQueueHealth']);
         Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
         Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
+        
     });
 
     Route::middleware(['auth:sanctum', 'log.visit'])->group(function () {

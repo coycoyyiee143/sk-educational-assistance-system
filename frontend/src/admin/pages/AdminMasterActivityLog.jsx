@@ -99,7 +99,7 @@ function AdminMasterActivityLog() {
         (roleFilter === "me" && log.user?.id === currentUser?.id) ||
         (roleFilter === "sk_admin" && log.user?.role === "sk_admin" && log.user?.id !== currentUser?.id) ||
         (roleFilter === "sk_verifier" && log.user?.role === "sk_verifier");
-        return matchesQuery && matchesAction && matchesRole;
+      return matchesQuery && matchesAction && matchesRole;
     });
   }, [logs, query, actionFilter, roleFilter, currentUser]);
 
@@ -168,7 +168,7 @@ function AdminMasterActivityLog() {
                 <div className="spinner-border text-danger" />
               </div>
             ) : (
-              <div className="table-responsive">
+              <div className="table-responsive table-scroll">
                 <table className="table table-bordered align-middle mb-0">
                   <thead>
                     <tr>
@@ -194,8 +194,8 @@ function AdminMasterActivityLog() {
                           <td>
                             {log.user
                               ? (log.user.id === currentUser?.id
-                                  ? "You"
-                                  : `${log.user.first_name} ${log.user.last_name}`)
+                                ? "You"
+                                : `${log.user.first_name} ${log.user.last_name}`)
                               : <span className="text-muted fst-italic">Deleted user</span>}
                           </td>
                           <td>{log.user && <RoleBadge role={log.user.role} />}</td>

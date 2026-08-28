@@ -320,7 +320,7 @@ function AdminEvents() {
             {loading ? (
               <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
             ) : (
-              <div className="table-responsive">
+              <div className="table-responsive table-scroll">
                 <table className="table table-bordered table-striped align-middle">
                   <thead>
                     <tr>

@@ -246,49 +246,21 @@ function AdminSchedule() {
   }
 
   async function handlePrint(laneId, laneName) {
+    // Opened synchronously (before the await) so popup blockers don't
+    // treat this as an unsolicited new-tab open — the fetch fills it in.
+    const printWindow = window.open("", "_blank");
     try {
-      const res = await api.get(`/admin/claiming-schedule/lanes/${laneId}/printable`);
-      const { applicants, batch, claiming_date } = res.data;
-      const rows = applicants.map((a, i) => `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${a.control_number}</td>
-          <td>${a.name}</td>
-          <td></td>
-        </tr>
-      `).join("");
-      const html = `
-        <html>
-          <head>
-            <title>${laneName} — Claiming List</title>
-            <style>
-              body { font-family: Arial, sans-serif; color: #222; padding: 24px; }
-              h2 { color: #b71c1c; margin-bottom: 4px; }
-              p { margin-top: 0; color: #555; }
-              table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-              th, td { border: 1px solid #333; padding: 8px; text-align: left; font-size: 14px; }
-              thead { background: #b71c1c; color: white; }
-              td:last-child, th:last-child { width: 220px; }
-            </style>
-          </head>
-          <body>
-            <h2>${laneName} — Claiming List</h2>
-            <p>Batch: ${batch === "morning" ? "Morning" : "Afternoon"} &nbsp;|&nbsp; Date: ${claiming_date}</p>
-            <table>
-              <thead>
-                <tr><th>#</th><th>Control Number</th><th>Applicant Name</th><th>Signature</th></tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </body>
-        </html>
-      `;
-      const printWindow = window.open("", "_blank");
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
+      const res = await api.get(`/admin/claiming-schedule/lanes/${laneId}/printable/pdf`, {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      if (printWindow) {
+        printWindow.location.href = url;
+      }
+      // Not revoking the object URL here — the new tab's PDF viewer needs
+      // it to stay valid while the user is looking at / printing from it.
     } catch (err) {
+      if (printWindow) printWindow.close();
       setError("Failed to generate printable list.");
     }
   }
@@ -597,7 +569,7 @@ function AdminSchedule() {
                       Adjust lane capacities above and save again if the split doesn't look right.
                     </div>
                   )}
-                  <div className="table-responsive mt-3">
+                  <div className="table-responsive mt-3 table-scroll">
                     <table className="table table-bordered table-striped align-middle">
                       <thead>
                         <tr>
@@ -688,7 +660,7 @@ function AdminSchedule() {
                   <p className="text-muted small mb-3">
                     Everyone expected during grace period — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
                   </p>
-                  <div className="table-responsive">
+                  <div className="table-responsive table-scroll">
                     <table className="table table-bordered table-striped align-middle">
                       <thead>
                         <tr>

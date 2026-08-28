@@ -30,12 +30,16 @@ function VerificationOutcomesSection({ selectedConfigId }) {
     const [documentFailures, setDocumentFailures] = useState(null);
     const [claimingOutcomes, setClaimingOutcomes] = useState(null);
     const [trends, setTrends] = useState(null);
+    const [sectionLoading, setSectionLoading] = useState(true);
 
     useEffect(() => {
+        setSectionLoading(true);
         const params = selectedConfigId ? { config_id: selectedConfigId } : {};
-        api.get("/admin/reports/document-failures", { params }).then((res) => setDocumentFailures(res.data)).catch(() => { });
-        api.get("/admin/reports/claiming-outcomes", { params }).then((res) => setClaimingOutcomes(res.data)).catch(() => { });
-        api.get("/admin/reports/submission-trends", { params }).then((res) => setTrends(res.data)).catch(() => { });
+        Promise.all([
+            api.get("/admin/reports/document-failures", { params }).then((res) => setDocumentFailures(res.data)).catch(() => { }),
+            api.get("/admin/reports/claiming-outcomes", { params }).then((res) => setClaimingOutcomes(res.data)).catch(() => { }),
+            api.get("/admin/reports/submission-trends", { params }).then((res) => setTrends(res.data)).catch(() => { }),
+        ]).finally(() => setSectionLoading(false));
     }, [selectedConfigId]);
 
     async function handlePdfExport(endpoint, filenamePrefix) {
@@ -65,6 +69,17 @@ function VerificationOutcomesSection({ selectedConfigId }) {
     const maxWeeklyCount = Math.max(1, ...weeklyTrend.map((w) => w.total));
     const notClearedTotal = Object.values(notClearedReasons).reduce((sum, v) => sum + v, 0);
     const maxNotClearedReasons = Math.max(1, ...Object.values(notClearedReasons));
+
+    if (sectionLoading) {
+        return (
+            <div className="page-card">
+                <h4 className="sub-title">Verification Outcomes</h4>
+                <div className="d-flex justify-content-center align-items-center py-5">
+                    <div className="spinner-border text-danger" role="status" />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <>
