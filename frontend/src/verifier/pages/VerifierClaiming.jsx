@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
+import ClaimingFaceVerify from "../components/ClaimingFaceVerify";
 import api from "../../services/api";
 import { DOC_TYPES, NOT_CLEARED_REASONS, OTHER } from "../constants/verificationReasons";
 import { STATUS_CONFIG } from "../../components/StatusConstants";
@@ -446,6 +447,14 @@ function VerifierClaiming() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+
+              <div className="content-card">
+                <h4>Face Verification</h4>
+                <p className="text-muted small mb-3">
+                  Confirm this is really the applicant before proceeding to document checks.
+                </p>
+                <ClaimingFaceVerify applicationId={selected.id} />
               </div>
 
               <div className="content-card">

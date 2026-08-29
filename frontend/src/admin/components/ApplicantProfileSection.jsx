@@ -48,9 +48,11 @@ function ApplicantProfileSection({ selectedConfigId }) {
     const bySchool = distribution?.by_school ?? [];
     const byCourse = distribution?.by_course ?? [];
     const byYearLevel = distribution?.by_year_level ?? [];
+    const byPurok = distribution?.by_purok ?? [];
     const maxSchoolCount = Math.max(1, ...bySchool.map((r) => r.total));
     const maxCourseCount = Math.max(1, ...byCourse.map((r) => r.total));
     const maxYearLevelCount = Math.max(1, ...byYearLevel.map((r) => r.total));
+    const maxPurokCount = Math.max(1, ...byPurok.map((r) => r.total));
 
     const ageCounts = ageDistribution?.counts ?? {};
     const ageRates = ageDistribution?.rates ?? {};
@@ -166,11 +168,32 @@ function ApplicantProfileSection({ selectedConfigId }) {
                         ) : (
                             <div className="text-muted small">No data available.</div>
                         )}
-                    </div>
+                                        </div>
                 </div>
+            </div>
+            {/* Purok / Phase */}
+            <div className="page-card">
+                <h4 className="sub-title">
+                    Applicant Profile — Purok / Phase
+                    {distribution?.config && <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>{" "}— {distribution.config.school_year}</span>}
+                </h4>
+                {byPurok.length === 0 ? (
+                    <div className="alert alert-info mb-0">No applicant data available for the selected period.</div>
+                ) : (
+                    byPurok.map((r) => (
+                        <CategoryBar
+                            key={`${r.purok_type}-${r.purok}`}
+                            label={r.purok_type === "unspecified" ? "Unspecified" : `${r.purok_type.charAt(0).toUpperCase() + r.purok_type.slice(1)} ${r.purok}`}
+                            count={r.total}
+                            percentage={r.percentage}
+                            max={maxPurokCount}
+                        />
+                    ))
+                )}
             </div>
         </>
     );
 }
+
 
 export default ApplicantProfileSection;

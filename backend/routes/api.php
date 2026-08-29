@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\AdminScheduleController;
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\VerifierController;
+use App\Http\Controllers\Api\FaceVerificationController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -30,10 +31,10 @@ Route::get('/application-config/active', [ApplicationConfigurationController::cl
 
 // Authenticated routes
 // SECURITY FIX: Previously these routes only required authentication
-    // (any logged-in user, regardless of role, could call them). Now
-    // wrapped in role:sk_admin so only users with role = 'sk_admin' can
-    // access admin endpoints (user management, app config, schedules,
-    // announcements, events, reports).
+// (any logged-in user, regardless of role, could call them). Now
+// wrapped in role:sk_admin so only users with role = 'sk_admin' can
+// access admin endpoints (user management, app config, schedules,
+// announcements, events, reports).
 
 Route::middleware(['auth:sanctum'])->group(function () {
     // ── Admin routes ────────────────────────────────────────────────
@@ -96,23 +97,23 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/ocr-queue-health', [AdminReportController::class, 'ocrQueueHealth']);
         Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
         Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
-        
+
     });
 
     Route::middleware(['auth:sanctum', 'log.visit'])->group(function () {
-    // ── Admin routes ────────────────────────────────────────────────
-    Route::middleware(['role:sk_admin'])->group(function () {
-    });
+        // ── Admin routes ────────────────────────────────────────────────
+        Route::middleware(['role:sk_admin'])->group(function () {
+        });
 
-    // ── Verifier routes ─────────────────────────────────────────────
-    Route::middleware(['role:sk_verifier'])->group(function () {
-    });
+        // ── Verifier routes ─────────────────────────────────────────────
+        Route::middleware(['role:sk_verifier'])->group(function () {
+        });
 
-    // ── Applicant routes ────────────────────────────────────────────
-    Route::middleware(['role:applicant'])->group(function () {
-    });
+        // ── Applicant routes ────────────────────────────────────────────
+        Route::middleware(['role:applicant'])->group(function () {
+        });
 
-});
+    });
 
     // ── Verifier routes ─────────────────────────────────────────────
     Route::middleware(['role:sk_verifier'])->group(function () {
@@ -130,6 +131,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/verifier/applications/config/{configId}/promote-all-waitlist', [VerifierController::class, 'promoteAllFromWaitlist']);
         Route::get('/verifier/waitlist', [VerifierController::class, 'waitlist']);
         Route::get('/verifier/activity-log', [VerifierController::class, 'activityLog']);
+        Route::post('/verifier/claiming/{applicationId}/verify-face', [FaceVerificationController::class, 'verifyClaiming']);
     });
 
     // ── Applicant routes ────────────────────────────────────────────
@@ -143,7 +145,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/applications/{id}/documents', [DocumentController::class, 'upload']);
         Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
         Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);
-       
+        Route::post('/face-verification', [FaceVerificationController::class, 'store']);
+        Route::get('/face-verification', [FaceVerificationController::class, 'show']);
+
     });
 
     // ── Shared routes (any authenticated role) ─────────────────────

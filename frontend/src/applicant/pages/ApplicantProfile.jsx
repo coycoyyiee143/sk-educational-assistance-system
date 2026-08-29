@@ -19,6 +19,7 @@ function ApplicantProfile() {
     province: "",
     houseNo: "",
     street: "",
+    purokType: "",
     purok: "",
     guardianFirstName: "",
     guardianMiddleName: "",
@@ -50,6 +51,7 @@ function ApplicantProfile() {
           province: p?.province ?? "",
           houseNo: p?.house_no ?? "",
           street: p?.street ?? "",
+          purokType: p?.purok_type ?? "",
           purok: p?.purok ?? "",
           guardianFirstName: p?.guardian_first_name ?? "",
           guardianMiddleName: p?.guardian_middle_name ?? "",
@@ -101,30 +103,30 @@ function ApplicantProfile() {
       // other name displays update immediately without needing to re-login
       login(accountRes.data.user, token)
 
+            // Always send every profile field (with null fallback when empty), so
+      // clearing a field in the form actually clears it in the database too
+      // — previously, an empty field was simply omitted from the payload,
+      // which left the old value untouched server-side.
+      const profilePayload = {
+        birthdate: form.dob || null,
+        gender: form.gender ? form.gender.toLowerCase() : null,
+        civil_status: form.civilStatus ? form.civilStatus.toLowerCase() : null,
+        house_no: form.houseNo || null,
+        street: form.street || null,
+        purok_type: form.purokType || null,
+        purok: form.purok || null,
+        barangay: form.barangay || null,
+        city: form.city || null,
+        province: form.province || null,
+        guardian_first_name: form.guardianFirstName || null,
+        guardian_middle_name: form.guardianMiddleName || null,
+        guardian_last_name: form.guardianLastName || null,
+        guardian_relationship: form.guardianRelationship || null,
+        guardian_contact: form.guardianContact || null,
+      };
+      await api.put("/profile", profilePayload);
 
-
-      // Only send profile fields that actually have a value, so partial
-      // edits (e.g. just fixing the barangay) don't require filling everything
-      const profilePayload = {};
-      if (form.dob) profilePayload.birthdate = form.dob;
-      if (form.gender) profilePayload.gender = form.gender.toLowerCase();
-      if (form.civilStatus) profilePayload.civil_status = form.civilStatus.toLowerCase();
-      if (form.houseNo) profilePayload.house_no = form.houseNo;
-      if (form.street) profilePayload.street = form.street;
-      if (form.purok) profilePayload.purok = form.purok;
-      if (form.barangay) profilePayload.barangay = form.barangay;
-      if (form.city) profilePayload.city = form.city;
-      if (form.province) profilePayload.province = form.province;
-      if (form.guardianFirstName) profilePayload.guardian_first_name = form.guardianFirstName;
-      if (form.guardianMiddleName) profilePayload.guardian_middle_name = form.guardianMiddleName;
-      if (form.guardianLastName) profilePayload.guardian_last_name = form.guardianLastName;
-      if (form.guardianRelationship) profilePayload.guardian_relationship = form.guardianRelationship;
-      if (form.guardianContact) profilePayload.guardian_contact = form.guardianContact;
-
-      if (Object.keys(profilePayload).length > 0) {
-        await api.put("/profile", profilePayload);
-      }
-
+      
       setShowSavedPopup(true);
       setTimeout(() => setShowSavedPopup(false), 1500);
     } catch (err) {
@@ -185,7 +187,8 @@ function ApplicantProfile() {
 
                     <div className="col-md-6">
                       <label className="form-label">Middle Name</label>
-                      <input className="form-control" value={form.middleName} onChange={set("middleName")} />
+                      <input className="form-control" placeholder="Leave blank if none" value={form.middleName} onChange={set("middleName")} />
+                      <div className="form-text">Optional - leave blank if you don't have a middle name.</div>
                     </div>
 
                     <div className="col-md-6">
@@ -234,9 +237,18 @@ function ApplicantProfile() {
                       <input className="form-control" placeholder="Street" value={form.street} onChange={set("street")} />
                     </div>
 
-                    <div className="col-md-4">
-                      <label className="form-label">Purok</label>
-                      <input className="form-control" placeholder="Purok" value={form.purok} onChange={set("purok")} />
+                    <div className="col-md-2">
+                      <label className="form-label">Purok/Phase</label>
+                      <select className="form-select" value={form.purokType} onChange={set("purokType")}>
+                        <option value="" disabled>Select</option>
+                        <option value="purok">Purok</option>
+                        <option value="phase">Phase</option>
+                      </select>
+                    </div>
+
+                    <div className="col-md-2">
+                      <label className="form-label">Number</label>
+                      <input className="form-control" placeholder="e.g. 2" value={form.purok} onChange={set("purok")} />
                     </div>
 
                     <div className="col-md-4">

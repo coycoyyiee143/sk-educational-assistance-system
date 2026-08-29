@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import api from "../../services/api";
-
 const SCHOOLS = [
   "Pamantasan ng Cabuyao",
   "Mapúa Malayan Colleges Laguna",
@@ -21,7 +20,6 @@ const SCHOOLS = [
   "Dominican College of Santa Rosa",
   "Polytechnic University of the Philippines Santa Rosa",
 ];
-
 const COURSES = [
   "AB Communication",
   "AB English Language Studies",
@@ -82,18 +80,8 @@ const COURSES = [
   "BS Tourism Management",
   "Other",
 ];
-
 const YEAR_LEVELS = ["1st Year", "2nd Year", "3rd Year", "4th Year"];
-
-// Minimum resolution threshold per the paper's stated Limitation: "a
-// minimum resolution threshold for uploaded files" as part of client-side
-// pre-validation (Fig 7.3). Measured on the shorter dimension so both
-// portrait and landscape photos are treated fairly. Only applies to image
-// files — PDFs are allowed through without a resolution check, since
-// checking PDF page dimensions client-side would require a heavy
-// rendering library that isn't justified for this.
 const MIN_SHORT_SIDE_PX = 800;
-
 function checkImageResolution(file) {
   if (file.type === "application/pdf") {
     return Promise.resolve({ valid: true, skipped: true });
@@ -117,7 +105,6 @@ function checkImageResolution(file) {
     img.src = url;
   });
 }
-
 function getDocFields(isMinor) {
   return [
     {
@@ -142,7 +129,6 @@ function getDocFields(isMinor) {
     },
   ];
 }
-
 const STATUS_LABELS = {
   pending_prescreening: "Pending Prescreening",
   for_review: "For Review",
@@ -153,20 +139,15 @@ const STATUS_LABELS = {
   not_cleared: "Not Cleared",
   unclaimed: "Unclaimed",
 };
-
 function formatStatus(status) {
   return STATUS_LABELS[status] || status;
 }
-
 const emptyForm = {
   schoolName: "",
   course: "",
   yearLevel: "",
 };
-
 const DRAFT_STORAGE_KEY = "applicant_submission_draft";
-
-// Component
 function ApplicantSubmission() {
   const [form, setForm] = useState(emptyForm);
   const [files, setFiles] = useState({
@@ -189,19 +170,17 @@ function ApplicantSubmission() {
     schoolId: "",
     voters: "",
   });
-
   const [applicationId, setApplicationId] = useState(null);
   const [existingApp, setExistingApp] = useState(null);
   const [existingDocs, setExistingDocs] = useState([]);
-
-  const [step, setStep] = useState("form"); // "form" | "documents" | "reupload" | "done"
+  const [step, setStep] = useState("form");
   const [checkingApp, setCheckingApp] = useState(true);
   const [loading, setLoading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [draftSaved, setDraftSaved] = useState(false);
-
+  const [attestationChecked, setAttestationChecked] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
   const [otherCourse, setOtherCourse] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
@@ -214,7 +193,6 @@ function ApplicantSubmission() {
     s.toLowerCase().includes(schoolSearch.toLowerCase())
   );
   const [yearLevelDropdownOpen, setYearLevelDropdownOpen] = useState(false);
-
   useEffect(() => {
     if (showOtherCourseInput && otherCourseInputRef.current) {
       otherCourseInputRef.current.focus();
@@ -223,11 +201,6 @@ function ApplicantSubmission() {
   const filteredCourses = COURSES.filter(
     (c) => c !== "Other" && c.toLowerCase().includes(courseSearch.toLowerCase())
   );
-
-  // Both setFile and setReupload now run the resolution check before
-  // accepting a file into state. If the check fails, the file is rejected
-  // (state stays null, input is cleared) and an inline error explains why —
-  // matching the paper's "client-side pre-validation" step in Fig 7.3.
   const setFile = (k) => async (e) => {
     const file = e.target.files[0] ?? null;
     if (!file) {
@@ -250,7 +223,6 @@ function ApplicantSubmission() {
     setFileErrors((fe) => ({ ...fe, [k]: "" }));
     setFiles((f) => ({ ...f, [k]: file }));
   };
-
   const setReupload = (k) => async (e) => {
     const file = e.target.files[0] ?? null;
     if (!file) {
@@ -273,13 +245,9 @@ function ApplicantSubmission() {
     setReuploadFileErrors((fe) => ({ ...fe, [k]: "" }));
     setReuploadFiles((f) => ({ ...f, [k]: file }));
   };
-
   const [activeConfig, setActiveConfig] = useState(null);
-
   const periodStatus = getApplicationPeriodStatus(activeConfig);
-
   const [docUrls, setDocUrls] = useState({});
-
   useEffect(() => {
     let createdUrls = [];
     async function loadDocUrls() {
@@ -293,34 +261,24 @@ function ApplicantSubmission() {
           const url = URL.createObjectURL(res.data);
           urls[doc.id] = url;
           createdUrls.push(url);
-        } catch {
-          // skip on failure, recap will show a fallback
-        }
+        } catch {}
       }
       setDocUrls(urls);
     }
     if (applicationId && existingDocs.length > 0) loadDocUrls();
     return () => createdUrls.forEach((u) => URL.revokeObjectURL(u));
   }, [existingDocs, applicationId]);
-
-  // Preview modal state
   const [previewFile, setPreviewFile] = useState(null);
   function isImageFile(doc) {
     if (doc?.mime_type) return doc.mime_type.startsWith("image/");
     return /\.(jpg|jpeg|png)$/i.test(doc?.file_name || "");
   }
-
   useEffect(() => {
     api
       .get("/application-config/active")
       .then((res) => setActiveConfig(res.data))
-      .catch(() => { });
+      .catch(() => {});
   }, []);
-
-  // Resume in-progress application on load. If no backend application
-  // exists yet (e.g. the applicant filled in info before the period
-  // opened), fall back to a locally saved draft so their typed info
-  // isn't lost between visits.
   useEffect(() => {
     api
       .get("/applications")
@@ -329,18 +287,13 @@ function ApplicantSubmission() {
           const app = res.data[0];
           setExistingApp(app);
           setApplicationId(app.id);
-
-          // pre-fill form so Back button shows what they entered
           setForm({
             schoolName: app.school_name ?? "",
             course: app.course ?? "",
             yearLevel: app.year_level ?? "",
           });
-
-          // fetch existing documents for reupload flow
           const docsRes = await api.get(`/applications/${app.id}/documents`);
           setExistingDocs(docsRes.data);
-
           if (app.status === "reupload_requested") {
             setStep("reupload");
           } else if (docsRes.data.length < 3) {
@@ -353,29 +306,23 @@ function ApplicantSubmission() {
           if (draft) {
             try {
               setForm(JSON.parse(draft));
-            } catch {
-              // corrupted draft, ignore
-            }
+            } catch {}
           }
         }
       })
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => setCheckingApp(false));
   }, []);
-
   const [profile, setProfile] = useState(null);
-
   useEffect(() => {
     api
       .get("/profile")
       .then((res) => setProfile(res.data.profile))
-      .catch(() => { });
+      .catch(() => {});
   }, []);
-
   const isMinor = profile?.is_minor ?? false;
   const DOC_FIELDS = getDocFields(isMinor);
-
-  // Reupload validation
+  const isProfileComplete = profile?.is_profile_complete ?? false;
   const reuploadDetails =
     existingApp?.latest_verifier_action?.reupload_details ?? [];
   const missingReuploadFields = DOC_FIELDS.filter((field) => {
@@ -386,14 +333,11 @@ function ApplicantSubmission() {
     return isRequested && !hasNewFile;
   });
   const isReuploadDisabled = missingReuploadFields.length > 0;
-
   function handleSaveDraft() {
     localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(form));
     setDraftSaved(true);
     setTimeout(() => setDraftSaved(false), 2500);
   }
-
-  // Step 1: create or edit application info
   async function handleSubmitForm(e) {
     e.preventDefault();
     setError("");
@@ -404,18 +348,13 @@ function ApplicantSubmission() {
         course: form.course,
         year_level: form.yearLevel,
       };
-
       if (applicationId) {
-        // already created earlier — user came back via Back button, just update
         await api.put(`/applications/${applicationId}`, payload);
       } else {
         const res = await api.post("/applications", payload);
         setApplicationId(res.data.application.id);
       }
-
-      // Now backed by a real application record — the local draft is redundant
       localStorage.removeItem(DRAFT_STORAGE_KEY);
-
       setStep("documents");
     } catch (err) {
       const errors = err.response?.data?.errors;
@@ -428,17 +367,18 @@ function ApplicantSubmission() {
       setLoading(false);
     }
   }
-
-  // Step 2: upload documents
   async function handleUploadDocuments(e) {
     e.preventDefault();
     setError("");
+    if (!attestationChecked) {
+      setError("You must certify that your documents are true, accurate, and unaltered before submitting.");
+      return;
+    }
     if (!files.enrollment || !files.schoolId || !files.voters) {
       setError("Please upload all three required documents.");
       return;
     }
     setLoading(true);
-
     const uploadDoc = async (file, documentType, label) => {
       setUploadProgress(`Uploading ${label}...`);
       const formData = new FormData();
@@ -446,24 +386,18 @@ function ApplicantSubmission() {
       formData.append("document_type", documentType);
       await api.post(`/applications/${applicationId}/documents`, formData);
     };
-
     try {
-      await uploadDoc(
-        files.enrollment,
-        "registration_form",
-        "Registration Form",
-      );
+      await uploadDoc(files.enrollment, "registration_form", "Registration Form");
       await uploadDoc(files.schoolId, "school_id", "School ID");
-      await uploadDoc(
-        files.voters,
-        "voters_certificate",
-        "Voter's Certificate",
-      );
-
-      // Re-fetch documents so the recap view shows the newly uploaded files immediately
+      await uploadDoc(files.voters, "voters_certificate", "Voter's Certificate");
+      await api.put(`/applications/${applicationId}`, {
+        school_name: form.schoolName,
+        course: form.course,
+        year_level: form.yearLevel,
+        attestation_accepted: true,
+      });
       const docsRes = await api.get(`/applications/${applicationId}/documents`);
       setExistingDocs(docsRes.data);
-
       setUploadProgress("");
       setSuccess(
         "Application and documents submitted successfully! Your documents are being processed.",
@@ -481,22 +415,14 @@ function ApplicantSubmission() {
       setLoading(false);
     }
   }
-
-  // ── Reupload flow ────────────────────────────────────────────────────────────
   async function handleReupload(e) {
     e.preventDefault();
     setError("");
-
     if (isReuploadDisabled) {
-      const missingLabels = missingReuploadFields
-        .map((f) => f.label)
-        .join(", ");
-      setError(
-        `You must upload all documents flagged for corrections. Missing: ${missingLabels}`,
-      );
+      const missingLabels = missingReuploadFields.map((f) => f.label).join(", ");
+      setError(`You must upload all documents flagged for corrections. Missing: ${missingLabels}`);
       return;
     }
-
     setLoading(true);
     const reuploadDoc = async (file, docType, label) => {
       if (!file) return;
@@ -505,58 +431,34 @@ function ApplicantSubmission() {
       setUploadProgress(`Re-uploading ${label}...`);
       const formData = new FormData();
       formData.append("file", file);
-      await api.post(
-        `/applications/${applicationId}/documents/${existingDoc.id}/reupload`,
-        formData,
-      );
+      await api.post(`/applications/${applicationId}/documents/${existingDoc.id}/reupload`, formData);
     };
-
     try {
-      await reuploadDoc(
-        reuploadFiles.enrollment,
-        "registration_form",
-        "Registration Form",
-      );
+      await reuploadDoc(reuploadFiles.enrollment, "registration_form", "Registration Form");
       await reuploadDoc(reuploadFiles.schoolId, "school_id", "School ID");
-      await reuploadDoc(
-        reuploadFiles.voters,
-        "voters_certificate",
-        "Voter's Certificate",
-      );
-
-      // Re-fetch documents so the recap view shows the newly uploaded files immediately
+      await reuploadDoc(reuploadFiles.voters, "voters_certificate", "Voter's Certificate");
       const docsRes = await api.get(`/applications/${applicationId}/documents`);
       setExistingDocs(docsRes.data);
-
       setUploadProgress("");
-      setSuccess(
-        "Documents re-uploaded successfully! Your application is being re-processed.",
-      );
+      setSuccess("Documents re-uploaded successfully! Your application is being re-processed.");
       setStep("done");
     } catch (err) {
       setUploadProgress("");
-      setError(
-        `Re-upload failed: ${err.response?.data?.message || "Please try again."}`,
-      );
+      setError(`Re-upload failed: ${err.response?.data?.message || "Please try again."}`);
     } finally {
       setLoading(false);
     }
   }
-
   if (checkingApp) {
     return (
       <div>
         <ApplicantNavigation />
-        <div
-          className="d-flex justify-content-center align-items-center"
-          style={{ height: "60vh" }}
-        >
+        <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
           <div className="spinner-border text-danger" role="status" />
         </div>
       </div>
     );
   }
-
   return (
     <div>
       <ApplicantNavigation />
@@ -568,11 +470,8 @@ function ApplicantSubmission() {
               Complete the educational information and upload the required
               supporting documents for verification.
             </p>
-
             {error && <div className="alert alert-danger">{error}</div>}
             {success && <div className="alert alert-success">{success}</div>}
-
-            {/* Already applied - done state */}
             {step === "done" && (
               <>
                 {!success && (
@@ -585,70 +484,53 @@ function ApplicantSubmission() {
                     )}
                   </div>
                 )}
-                {/* Educational Info Recap */}
                 <div className="sub-card mb-4">
                   <h5>Educational Information</h5>
                   <div className="row">
                     <div className="col-md-6 mb-3">
-                      <label className="form-label text-muted">
-                        School Name
-                      </label>
-                      <div className="fw-semibold">
-                        {form.schoolName || "—"}
-                      </div>
+                      <label className="form-label text-muted">School Name</label>
+                      <div className="fw-semibold">{form.schoolName || "—"}</div>
                     </div>
                     <div className="col-md-6 mb-3">
-                      <label className="form-label text-muted">
-                        Course / Program
-                      </label>
+                      <label className="form-label text-muted">Course / Program</label>
                       <div className="fw-semibold">{form.course || "—"}</div>
                     </div>
                     <div className="col-md-6 mb-3">
-                      <label className="form-label text-muted">
-                        Year Level
-                      </label>
+                      <label className="form-label text-muted">Year Level</label>
                       <div className="fw-semibold">{form.yearLevel || "—"}</div>
                     </div>
                   </div>
                 </div>
-
-                {/* Fixed UI uneven size and not rendering properly */}
-                {/* Uploaded Documents Recap */}
                 <div className="sub-card">
                   <h5>Uploaded Documents</h5>
                   <div className="row g-3">
                     {DOC_FIELDS.map((field) => {
                       const doc = existingDocs.find((d) => d.document_type === field.type);
                       if (!doc) return null;
-
                       const fileUrl = docUrls[doc.id];
-                      if (!fileUrl) return (
-                        <div className="col-md-4" key={field.key}>
-                          <div className="upload-box d-flex align-items-center justify-content-center" style={{ height: "280px" }}>
-                            <div className="spinner-border spinner-border-sm text-danger" role="status" />
+                      if (!fileUrl)
+                        return (
+                          <div className="col-md-4" key={field.key}>
+                            <div
+                              className="upload-box d-flex align-items-center justify-content-center"
+                              style={{ height: "280px" }}
+                            >
+                              <div className="spinner-border spinner-border-sm text-danger" role="status" />
+                            </div>
                           </div>
-                        </div>
-                      );
-
+                        );
                       const imageDoc = isImageFile(doc);
-
                       return (
                         <div className="col-md-4" key={field.key}>
                           <div className="upload-box d-flex flex-column" style={{ height: "280px" }}>
                             <label className="form-label fw-semibold">{field.label}</label>
-
                             <div
                               className="position-relative border rounded overflow-hidden flex-shrink-0"
                               style={{ height: "180px", background: "#f8f9fa", cursor: "pointer" }}
                               onClick={() => setPreviewFile({ url: fileUrl, isImage: imageDoc, name: doc.file_name })}
                             >
                               {imageDoc ? (
-                                <img
-                                  src={fileUrl}
-                                  alt={field.label}
-                                  className="w-100 h-100"
-                                  style={{ objectFit: "cover" }}
-                                />
+                                <img src={fileUrl} alt={field.label} className="w-100 h-100" style={{ objectFit: "cover" }} />
                               ) : (
                                 <iframe
                                   src={`${fileUrl}#toolbar=0&navpanes=0&scrollbar=0`}
@@ -669,13 +551,8 @@ function ApplicantSubmission() {
                                 ⤢
                               </button>
                             </div>
-
                             <div className="form-text mt-1 flex-grow-1 d-flex flex-column justify-content-between">
-                              <div
-                                className="text-truncate"
-                                style={{ maxWidth: "100%" }}
-                                title={doc.file_name}
-                              >
+                              <div className="text-truncate" style={{ maxWidth: "100%" }} title={doc.file_name}>
                                 {doc.file_name}
                               </div>
                             </div>
@@ -684,23 +561,19 @@ function ApplicantSubmission() {
                       );
                     })}
                   </div>
-                </div>              </>
+                </div>
+              </>
             )}
-            {/* Re-upload form */}
             {step === "reupload" && (
               <form onSubmit={handleReupload}>
                 <div className="alert alert-warning mb-3">
-                  <strong>Re-upload Required:</strong> The SK Verifier has
-                  requested you to re-upload your documents.
+                  <strong>Re-upload Required:</strong> The SK Verifier has requested you to re-upload your documents.
                 </div>
-
                 {existingApp?.latest_verifier_action?.notes && (
                   <div className="alert alert-info mb-3">
-                    <strong>Verifier Note:</strong>{" "}
-                    {existingApp.latest_verifier_action.notes}
+                    <strong>Verifier Note:</strong> {existingApp.latest_verifier_action.notes}
                   </div>
                 )}
-
                 <div className="sub-card mb-4">
                   <h5>Current Documents</h5>
                   <div className="table-responsive mb-4">
@@ -715,25 +588,16 @@ function ApplicantSubmission() {
                       </thead>
                       <tbody>
                         {DOC_FIELDS.map((field) => {
-                          const doc = existingDocs.find(
-                            (d) => d.document_type === field.type,
-                          );
-                          const docReason = reuploadDetails.find(
-                            (r) => r.document_type === field.type,
-                          );
+                          const doc = existingDocs.find((d) => d.document_type === field.type);
+                          const docReason = reuploadDetails.find((r) => r.document_type === field.type);
                           return (
-                            <tr
-                              key={field.key}
-                              className={docReason ? "table-warning" : ""}
-                            >
+                            <tr key={field.key} className={docReason ? "table-warning" : ""}>
                               <td>{field.label}</td>
                               <td>{doc?.file_name ?? "—"}</td>
                               <td>{doc && doc.status}</td>
                               <td>
                                 {docReason ? (
-                                  <span className="text-danger fw-semibold">
-                                    {docReason.reason}
-                                  </span>
+                                  <span className="text-danger fw-semibold">{docReason.reason}</span>
                                 ) : (
                                   <span className="text-muted">—</span>
                                 )}
@@ -744,41 +608,30 @@ function ApplicantSubmission() {
                       </tbody>
                     </table>
                   </div>
-
                   <h5>Upload New Documents</h5>
-
                   {activeConfig && (
                     <div className="alert alert-secondary py-2 mb-3">
                       <strong>Note:</strong> Your Registration Form must be for{" "}
-                      <strong>A.Y. {activeConfig.school_year}</strong> — the
-                      most recent enrollment period. Registration forms from a
-                      different school year will not be accepted.
+                      <strong>A.Y. {activeConfig.school_year}</strong> — the most recent enrollment period.
+                      Registration forms from a different school year will not be accepted.
                       {isMinor && (
                         <>
-                          {" "}As a minor applicant, upload your{" "}
-                          <strong>parent/guardian's</strong> Voter's Certificate
-                          for the Voter's Certificate requirement — not your
-                          own.
+                          {" "}As a minor applicant, upload your <strong>parent/guardian's</strong> Voter's
+                          Certificate for the Voter's Certificate requirement — not your own.
                         </>
                       )}
                     </div>
                   )}
-
                   <p className="text-muted small mb-3">
-                    Upload replacements for the documents flagged by the
-                    verifier. Leave blank to keep existing.
+                    Upload replacements for the documents flagged by the verifier. Leave blank to keep existing.
                   </p>
                   <div className="row g-3">
                     {DOC_FIELDS.map((field) => {
-                      const isRequested = reuploadDetails.some(
-                        (r) => r.document_type === field.type,
-                      );
+                      const isRequested = reuploadDetails.some((r) => r.document_type === field.type);
                       return (
                         <div className="col-md-4" key={field.key}>
                           <div className="upload-box">
-                            <label
-                              className={`form-label fw-semibold ${isRequested ? "text-danger" : ""}`}
-                            >
+                            <label className={`form-label fw-semibold ${isRequested ? "text-danger" : ""}`}>
                               {field.label}
                             </label>
                             <input
@@ -789,14 +642,10 @@ function ApplicantSubmission() {
                             />
                             <div className="form-text">{field.hint}</div>
                             {reuploadFileErrors[field.key] && (
-                              <small className="text-danger d-block mt-1">
-                                {reuploadFileErrors[field.key]}
-                              </small>
+                              <small className="text-danger d-block mt-1">{reuploadFileErrors[field.key]}</small>
                             )}
                             {reuploadFiles[field.key] && (
-                              <small className="text-success">
-                                ✓ {reuploadFiles[field.key].name}
-                              </small>
+                              <small className="text-success">✓ {reuploadFiles[field.key].name}</small>
                             )}
                           </div>
                         </div>
@@ -804,61 +653,44 @@ function ApplicantSubmission() {
                     })}
                   </div>
                 </div>
-
                 {uploadProgress && (
                   <div className="alert alert-info mt-3 mb-0">
-                    <div
-                      className="spinner-border spinner-border-sm me-2"
-                      role="status"
-                    />
+                    <div className="spinner-border spinner-border-sm me-2" role="status" />
                     {uploadProgress}
                   </div>
                 )}
-
                 {isReuploadDisabled && (
                   <div className="alert alert-danger py-2 mt-3 mb-0">
-                    <strong>Cannot Submit:</strong> You must attach replacement
-                    files for all requested items:{" "}
-                    <span className="fw-semibold">
-                      {missingReuploadFields.map((f) => f.label).join(", ")}
-                    </span>
-                    .
+                    <strong>Cannot Submit:</strong> You must attach replacement files for all requested items:{" "}
+                    <span className="fw-semibold">{missingReuploadFields.map((f) => f.label).join(", ")}</span>.
                   </div>
                 )}
-
                 <div className="d-flex justify-content-end gap-2 mt-4">
-                  <button
-                    type="submit"
-                    className="btn btn-submit"
-                    disabled={loading || isReuploadDisabled}
-                  >
-                    {loading
-                      ? "Re-uploading..."
-                      : "Submit Re-uploaded Documents"}
+                  <button type="submit" className="btn btn-submit" disabled={loading || isReuploadDisabled}>
+                    {loading ? "Re-uploading..." : "Submit Re-uploaded Documents"}
                   </button>
                 </div>
               </form>
             )}
-
             {periodStatus === "scheduled" && activeConfig && (
               <div className="alert alert-warning">
-                <strong>Applications are not open yet.</strong> This application period
-                opens on{" "}
+                <strong>Applications are not open yet.</strong> This application period opens on{" "}
                 {new Date(activeConfig.open_date).toLocaleString("en-PH", {
-                  month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit"
-                })}. You can fill in your information now and use{" "}
-                <strong>Save Draft</strong> to keep it on this device — submissions
-                will not be accepted until the period opens.
+                  month: "long",
+                  day: "numeric",
+                  year: "numeric",
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}
+                . You can fill in your information now and use <strong>Save Draft</strong> to keep it on this
+                device — submissions will not be accepted until the period opens.
               </div>
             )}
-
             {periodStatus === "closed" && activeConfig && (
               <div className="alert alert-warning">
                 <strong>This application period has closed.</strong> New submissions are no longer being accepted.
               </div>
             )}
-
-            {/* Step 1: Application Form */}
             {step === "form" && (
               <form onSubmit={handleSubmitForm}>
                 <div className="row g-4">
@@ -866,16 +698,14 @@ function ApplicantSubmission() {
                     <div className="sub-card">
                       <h5>Educational Information</h5>
                       <div className="alert alert-warning py-2 mb-3">
-                        <strong>Important:</strong> Make sure the details you
-                        input match exactly how they appear on your Registration
-                        Form. This is used to verify your document.
+                        <strong>Important:</strong> Make sure the details you input match exactly how they appear
+                        on your Registration Form. This is used to verify your document.
                       </div>
                       <div className="row">
                         <div className="col-md-6 mb-3">
                           <label className="form-label">
                             School Name <span className="text-danger">*</span>
                           </label>
-
                           <div style={{ position: "relative" }}>
                             <input
                               type="text"
@@ -896,7 +726,6 @@ function ApplicantSubmission() {
                               required={!form.schoolName}
                               autoComplete="off"
                             />
-
                             {schoolDropdownOpen && (
                               <div
                                 className="border rounded bg-white shadow-sm"
@@ -912,9 +741,7 @@ function ApplicantSubmission() {
                                 }}
                               >
                                 {filteredSchools.length === 0 ? (
-                                  <div className="px-3 py-2 text-muted small">
-                                    No matching school found.
-                                  </div>
+                                  <div className="px-3 py-2 text-muted small">No matching school found.</div>
                                 ) : (
                                   filteredSchools.map((s) => (
                                     <div
@@ -936,17 +763,14 @@ function ApplicantSubmission() {
                               </div>
                             )}
                           </div>
-
                           <div className="form-text">
-                            Select the school as it appears on your Registration
-                            Form.
+                            Select the school as it appears on your Registration Form.
                           </div>
                         </div>
                         <div className="col-md-6 mb-3">
                           <label className="form-label">
                             Year Level <span className="text-danger">*</span>
                           </label>
-
                           <div style={{ position: "relative" }}>
                             <input
                               type="text"
@@ -961,7 +785,6 @@ function ApplicantSubmission() {
                               required={!form.yearLevel}
                               style={{ cursor: "pointer", backgroundColor: "#fff" }}
                             />
-
                             {yearLevelDropdownOpen && (
                               <div
                                 className="border rounded bg-white shadow-sm"
@@ -995,16 +818,14 @@ function ApplicantSubmission() {
                         </div>
                         <div className="col-md-6 mb-3">
                           <label className="form-label">
-                            Course / Program{" "}
-                            <span className="text-danger">*</span>
+                            Course / Program <span className="text-danger">*</span>
                           </label>
-
                           <div style={{ position: "relative" }}>
                             <input
                               type="text"
                               className="form-control"
                               placeholder="Search or select your course"
-                              value={courseDropdownOpen ? courseSearch : (showOtherCourseInput ? "Other" : form.course)}
+                              value={courseDropdownOpen ? courseSearch : showOtherCourseInput ? "Other" : form.course}
                               onFocus={() => {
                                 setCourseDropdownOpen(true);
                                 setCourseSearch("");
@@ -1014,13 +835,11 @@ function ApplicantSubmission() {
                                 setCourseDropdownOpen(true);
                               }}
                               onBlur={() => {
-                                // Delay closing so onClick on list items can register first
                                 setTimeout(() => setCourseDropdownOpen(false), 150);
                               }}
                               required={!form.course}
                               autoComplete="off"
                             />
-
                             {courseDropdownOpen && (
                               <div
                                 className="border rounded bg-white shadow-sm"
@@ -1036,9 +855,7 @@ function ApplicantSubmission() {
                                 }}
                               >
                                 {filteredCourses.length === 0 && courseSearch !== "" ? (
-                                  <div className="px-3 py-2 text-muted small">
-                                    No matching course found.
-                                  </div>
+                                  <div className="px-3 py-2 text-muted small">No matching course found.</div>
                                 ) : (
                                   filteredCourses.map((c) => (
                                     <div
@@ -1075,7 +892,6 @@ function ApplicantSubmission() {
                               </div>
                             )}
                           </div>
-
                           {showOtherCourseInput && (
                             <div className="mt-2">
                               <input
@@ -1096,17 +912,10 @@ function ApplicantSubmission() {
                     </div>
                   </div>
                 </div>
-
                 <div className="d-flex justify-content-end align-items-center gap-2 mt-4">
-                  {draftSaved && (
-                    <span className="text-success small me-auto">Draft saved.</span>
-                  )}
+                  {draftSaved && <span className="text-success small me-auto">Draft saved.</span>}
                   {!applicationId && (
-                    <button
-                      type="button"
-                      className="btn btn-secondary-custom"
-                      onClick={handleSaveDraft}
-                    >
+                    <button type="button" className="btn btn-secondary-custom" onClick={handleSaveDraft}>
                       Save Draft
                     </button>
                   )}
@@ -1121,41 +930,47 @@ function ApplicantSubmission() {
               </form>
             )}
 
-            {/* Step 2: Document Upload */}
-            {step === "documents" && (
+            {step === "documents" && !isProfileComplete && (
+              <div className="sub-card">
+                <div className="alert alert-warning mb-3">
+                  <strong>Complete Your Profile First</strong>
+                  <p className="mb-2 mt-2">
+                    Before uploading documents, please complete your profile
+                    (address, gender, civil status, and other required information).
+                    This information is needed to properly process your application.
+                  </p>
+                  <a href="/ApplicantProfile" className="btn btn-submit btn-sm">
+                    Go to Profile
+                  </a>
+                </div>
+              </div>
+            )}
+            {step === "documents" && isProfileComplete && (
               <form onSubmit={handleUploadDocuments}>
                 <div className="sub-card">
                   <h5>Required Document Upload</h5>
-
                   {activeConfig && (
                     <div className="alert alert-secondary py-2 mb-3">
                       <strong>Note:</strong> Your Registration Form must be for{" "}
-                      <strong>A.Y. {activeConfig.school_year}</strong> — the
-                      most recent enrollment period. Registration forms from a
-                      different school year will not be accepted.
+                      <strong>A.Y. {activeConfig.school_year}</strong> — the most recent enrollment period.
+                      Registration forms from a different school year will not be accepted.
                       {isMinor && (
                         <>
-                          {" "}As a minor applicant, upload your{" "}
-                          <strong>parent/guardian's</strong> Voter's Certificate
-                          for the Voter's Certificate requirement below — not
-                          your own.
+                          {" "}As a minor applicant, upload your <strong>parent/guardian's</strong> Voter's
+                          Certificate for the Voter's Certificate requirement below — not your own.
                         </>
                       )}
                     </div>
                   )}
-
                   <p className="text-muted mb-3">
-                    Application info saved. Now upload your three required
-                    documents. These will be automatically verified by the
-                    system.
+                    Application info saved. Now upload your three required documents. These will be automatically
+                    verified by the system.
                   </p>
                   <div className="alert alert-warning py-2 mb-3">
-                    <strong>Image Quality Guidelines:</strong> Upload clear,
-                    readable photos or scans. Ensure good lighting, avoid
-                    blur, and keep the full document in frame. Images below{" "}
-                    {MIN_SHORT_SIDE_PX}px on the shortest side will be
-                    rejected automatically. Supported formats: JPG, PNG, PDF.
-                    Max size: 5MB per file.
+                    <strong>Image Quality Guidelines:</strong> Upload clear, readable photos or scans. Ensure good
+                    lighting, avoid blur, and keep the full document in frame. Images below {MIN_SHORT_SIDE_PX}px on
+                    the shortest side will be rejected automatically. Supported formats: JPG, PNG, PDF. Max size:
+                    5MB per file.
                   </div>
                   <div className="row g-3">
                     {DOC_FIELDS.map((field) => (
@@ -1172,31 +987,34 @@ function ApplicantSubmission() {
                           />
                           <div className="form-text">{field.hint}</div>
                           {fileErrors[field.key] && (
-                            <small className="text-danger d-block mt-1">
-                              {fileErrors[field.key]}
-                            </small>
+                            <small className="text-danger d-block mt-1">{fileErrors[field.key]}</small>
                           )}
-                          {files[field.key] && (
-                            <small className="text-success">
-                              ✓ {files[field.key].name}
-                            </small>
-                          )}
+                          {files[field.key] && <small className="text-success">✓ {files[field.key].name}</small>}
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-
+                <div className="form-check mt-4 mb-3">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="attestationCheck"
+                    checked={attestationChecked}
+                    onChange={(e) => setAttestationChecked(e.target.checked)}
+                  />
+                  <label className="form-check-label" htmlFor="attestationCheck">
+                    I certify that all documents submitted are true, accurate, and unaltered. I understand that any
+                    falsification of documents, if discovered, will result in immediate termination from the
+                    program and forfeiture of any assistance received.
+                  </label>
+                </div>
                 {uploadProgress && (
                   <div className="alert alert-info mt-3 mb-0">
-                    <div
-                      className="spinner-border spinner-border-sm me-2"
-                      role="status"
-                    />
+                    <div className="spinner-border spinner-border-sm me-2" role="status" />
                     {uploadProgress}
                   </div>
                 )}
-
                 <div className="d-flex justify-content-between gap-2 mt-4">
                   <button
                     type="button"
@@ -1206,11 +1024,7 @@ function ApplicantSubmission() {
                   >
                     ← Back to Application Info
                   </button>
-                  <button
-                    type="submit"
-                    className="btn btn-submit"
-                    disabled={loading}
-                  >
+                  <button type="submit" className="btn btn-submit" disabled={loading || !attestationChecked}>
                     {loading ? "Uploading..." : "Submit Documents"}
                   </button>
                 </div>
@@ -1219,8 +1033,6 @@ function ApplicantSubmission() {
           </div>
         </div>
       </section>
-
-      {/* File preview modal */}
       {previewFile && (
         <div
           className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
@@ -1246,27 +1058,20 @@ function ApplicantSubmission() {
                   />
                 </div>
               ) : (
-                <iframe
-                  src={previewFile.url}
-                  title={previewFile.name}
-                  className="w-100 h-100 border-0"
-                />
+                <iframe src={previewFile.url} title={previewFile.name} className="w-100 h-100 border-0" />
               )}
             </div>
           </div>
         </div>
       )}
-
       <footer>
         <div className="container">
           <p className="mb-0">
-            © 2026 Sangguniang Kabataan of Barangay Mamatid | Educational
-            Assistance Application System
+            © 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance Application System
           </p>
         </div>
       </footer>
     </div>
   );
 }
-
 export default ApplicantSubmission;

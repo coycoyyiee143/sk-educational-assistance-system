@@ -5,13 +5,30 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\StudentProfile;
+use App\Models\FaceVerification;
 use App\Notifications\ApplicationStatusNotification;
+use App\Services\FaceMatchingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
 {
+    protected FaceMatchingService $faceService;
+
+    public function __construct(FaceMatchingService $faceService)
+    {
+        $this->faceService = $faceService;
+    }
+
+    /**
+     * Registration is now ATOMIC with face verification: the account,
+     * profile, and email-verification notice are only created/sent if the
+     * uploaded ID photo matches the live cam capture. If the match fails,
+     * NOTHING is saved — no orphaned "half-registered" account is left
+     * behind, so the applicant can just retake the photo and resubmit
+     * without ever hitting an "email already taken" wall.
+     */
     public function register(Request $request)
     {
         $request->validate([
@@ -23,8 +40,40 @@ class AuthController extends Controller
             'password'      => 'required|string|min:8|confirmed',
             'birthdate'     => 'required|date|before:today',
             'barangay'      => 'required|string|max:255',
+            'id_image'      => 'required|file|mimes:jpg,jpeg,png|max:5120',
+            'live_photo'    => 'required|file|mimes:jpg,jpeg,png|max:5120',
         ]);
 
+        $idImage = $request->file('id_image');
+        $livePhoto = $request->file('live_photo');
+
+        // Compare BEFORE creating any database records. getRealPath() reads
+        // straight from PHP's temp upload location — no need to store the
+        // files anywhere first just to run the comparison.
+        $result = $this->faceService->compareImages(
+            $idImage->getRealPath(),
+            $livePhoto->getRealPath(),
+            $idImage->getClientOriginalName(),
+            $livePhoto->getClientOriginalName()
+        );
+
+        if (isset($result['error'])) {
+            // "Face service unavailable/unreachable" = something's wrong on
+            // our end (503). Anything else is the service rejecting the
+            // image itself (bad ID shape, no face found) — that's the
+            // applicant's to fix, so 422.
+            $isServiceDown = str_contains($result['error'], 'unavailable') || str_contains($result['error'], 'unreachable');
+            return response()->json(['message' => $result['error']], $isServiceDown ? 503 : 422);
+        }
+
+        if (!$result['match']) {
+            return response()->json([
+                'message' => 'The live photo does not match the uploaded ID. Please retake the photo with better lighting and try again.',
+                'score'   => $result['score'],
+            ], 422);
+        }
+
+        // Face matched — now it's safe to actually create the account.
         $user = User::create([
             'first_name'    => $request->first_name,
             'middle_name'   => $request->middle_name,
@@ -34,6 +83,7 @@ class AuthController extends Controller
             'password'      => Hash::make($request->password),
             'role'          => 'applicant',
         ]);
+
         // Profile starts pre-filled with what Register already collected —
         // is_profile_complete stays false until the applicant fills in the
         // rest via the Profile page.
@@ -42,11 +92,35 @@ class AuthController extends Controller
             'birthdate' => $request->birthdate,
             'barangay'  => $request->barangay,
         ]);
+
+        // Now persist the ID + live photo to permanent storage under this
+        // user's folder, and record the verification result.
+        $idImagePath = $idImage->storeAs(
+            "face-verifications/{$user->id}",
+            'id_' . time() . '.' . $idImage->getClientOriginalExtension(),
+            'local'
+        );
+        $livePhotoPath = $livePhoto->storeAs(
+            "face-verifications/{$user->id}",
+            'live_' . time() . '.' . $livePhoto->getClientOriginalExtension(),
+            'local'
+        );
+
+        FaceVerification::create([
+            'user_id'                  => $user->id,
+            'id_image_path'            => $idImagePath,
+            'live_photo_path'          => $livePhotoPath,
+            'face_embedding'           => $result['embedding'],
+            'registration_match_score' => $result['score'],
+            'status'                   => 'verified',
+            'verified_at'              => now(),
+        ]);
+
         // TRIGGER: Automatically dispatches Laravel's email verification link via your Log/Mail system
         $user->sendEmailVerificationNotification();
 
         $token = $user->createToken('auth_token')->plainTextToken;
-        
+
         return response()->json([
             'message' => 'Registration successful. Please check your email to verify your account.',
             'token'   => $token,
