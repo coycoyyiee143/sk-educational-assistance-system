@@ -85,26 +85,22 @@ class ClaimingFaceTestSeeder extends Seeder
             ]
         );
 
-        // Applicant approved and ready to claim. Register THIS account's
-        // face yourself through the UI first (registration face scan) —
-        // that populates FaceVerification's registration_match_score/status
-        // columns. Then log in as this user and go through claiming-day
-        // verification, which populates the separate
-        // claiming_photo_path/claiming_match_score/claiming_status columns
-        // on the same FaceVerification row.
-        $claimant = User::firstOrCreate(
-            ['email' => 'claimtest@test.com'],
-            [
-                'first_name'        => 'Claim',
-                'middle_name'       => 'Test',
-                'last_name'         => 'Applicant',
-                'mobile_number'     => '09555555555',
-                'password'          => Hash::make('applicant123'),
-                'role'              => 'applicant',
-                'is_active'         => true,
-                'email_verified_at' => now(),
-            ]
-        );
+        // This seeder no longer FABRICATES the applicant account — face
+        // verification is atomic with registration in this system, so
+        // there's no real path to a logged-in applicant without a face
+        // record. Instead, register a real account through the app's
+        // normal signup page FIRST (any real face photo works), then set
+        // TEST_CLAIMANT_EMAIL below to that account's email. This seeder
+        // just attaches the approved-application/claiming-assignment test
+        // scaffolding to that already-real, already-face-verified user.
+        $testClaimantEmail = 'reginaga88@gmail.com'; // <-- change to the email you registered
+
+        $claimant = User::where('email', $testClaimantEmail)->first();
+
+        if (!$claimant) {
+            $this->command->error("No user found with email '{$testClaimantEmail}'. Register that account through the app's normal signup page first (with a real face photo), then re-run this seeder.");
+            return;
+        }
 
         StudentProfile::firstOrCreate(
             ['user_id' => $claimant->id],
@@ -148,14 +144,16 @@ class ClaimingFaceTestSeeder extends Seeder
 
         // Required for this application to appear in VerifierClaiming
         // search — the controller filters with ->whereHas('claimingAssignment').
-        // claim_status: 'pending' and source: 'original' confirmed exactly
-        // from WaitlistScenarioSeeder / FullDemoSeeder's real usage.
+        // 'pending' was renamed to 'pending_claiming' as part of the
+        // claiming-status overhaul — the old value was fully dropped from
+        // the DB enum, so inserting 'pending' here throws a truncation
+        // error, not a soft failure.
         ClaimingAssignment::firstOrCreate(
             ['application_id' => $app->id],
             [
                 'claiming_schedule_id' => $schedule->id,
                 'claiming_lane_id'     => $lane->id,
-                'claim_status'         => 'pending',
+                'claim_status'         => 'pending_claiming',
                 'source'               => 'original',
             ]
         );

@@ -154,6 +154,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/user/profile', [ProfileController::class, 'updateAccount']);
     Route::put('/user/password', [ProfileController::class, 'updatePassword']);
     Route::get('/applications/{id}/documents/{docId}/file', [DocumentController::class, 'show']);
+    Route::get('/claiming/face-verifications/{id}/photo', [FaceVerificationController::class, 'showClaimingPhoto'])->name('claiming.face-photo');
 
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);

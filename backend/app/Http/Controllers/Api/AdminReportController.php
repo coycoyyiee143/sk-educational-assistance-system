@@ -359,7 +359,7 @@ class AdminReportController extends Controller
         if (!$config) {
             return response()->json(['message' => 'No active application period.'], 404);
         }
-        $assignments = ClaimingAssignment::with(['application.user', 'application.configuration', 'verifier', 'lane'])
+        $assignments = ClaimingAssignment::with(['application.user', 'application.configuration', 'verifier', 'lane', 'latestFaceVerification.verifier'])
             ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
             ->where('claim_status', 'claimed')
             ->orderBy('verified_at')
@@ -367,6 +367,7 @@ class AdminReportController extends Controller
 
         $entries = $assignments->map(function ($a) {
             $amount = $a->amount ?? $this->assistanceAmountFor($a->application->configuration);
+            $face = $a->latestFaceVerification;
             return [
                 'control_number' => $a->application->control_number,
                 'applicant_name' => trim($a->application->user->first_name . ' ' . $a->application->user->last_name),
@@ -376,6 +377,17 @@ class AdminReportController extends Controller
                 'verifier_name'  => $a->verifier ? trim($a->verifier->first_name . ' ' . $a->verifier->last_name) : null,
                 'verified_at'    => $a->verified_at,
                 'amount'         => $amount,
+                // Present only when a face check was actually run for this
+                // claim — mandatory in grace period, optional (verifier's
+                // call) in regular claiming, so this may legitimately be
+                // null for a regular-claiming row nobody chose to verify.
+                'face_verification' => $face ? [
+                    'matched'       => $face->matched,
+                    'match_score'   => $face->match_score,
+                    'verified_at'   => $face->verified_at,
+                    'verified_by'   => $face->verifier ? trim($face->verifier->first_name . ' ' . $face->verifier->last_name) : null,
+                    'photo_url'     => route('claiming.face-photo', $face->id),
+                ] : null,
             ];
         });
 
@@ -446,7 +458,7 @@ class AdminReportController extends Controller
         $claimed    = $query->clone()->where('claim_status', 'claimed')->count();
         $notCleared = $query->clone()->where('claim_status', 'not_cleared')->count();
         $unclaimed  = $query->clone()->where('claim_status', 'unclaimed')->count();
-        $pending    = $query->clone()->where('claim_status', 'pending')->count();
+        $pending    = $query->clone()->where('claim_status', 'pending_claiming')->count();
         $total = $claimed + $notCleared + $unclaimed + $pending;
         $notClearedReasons = $query->clone()
             ->where('claim_status', 'not_cleared')

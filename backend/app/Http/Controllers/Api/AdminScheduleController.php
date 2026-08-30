@@ -259,7 +259,7 @@ class AdminScheduleController extends Controller
 
         $lanes = $schedule->lanes()
             ->with('verifier:id,first_name,last_name')
-            ->where('lane_name', '!=', 'Waitlist Promotions')
+            ->where('lane_name', '!=', 'Grace Period Claiming')
             ->orderBy('claiming_date')
             ->orderBy('lane_name')
             ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id']);

@@ -126,8 +126,8 @@ export const STATUS_CONFIG = {
     // sounding value — it gets its own honest terminal status (unclaimed)
     // instead, so no row's status can ever be misread out of context.
     pending_claiming: {
-        applicantLabel: "Pending",
-        verifierLabel: "Pending",
+        applicantLabel: "Pending Claiming",
+        verifierLabel: "Pending Claiming",
         boxClass: "status-box-pending",
         badgeClass: "status-pending",
         applicantMessage: "You have an upcoming claiming schedule. Please check your assigned date, time, and lane below.",

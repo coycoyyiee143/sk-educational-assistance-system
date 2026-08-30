@@ -190,7 +190,7 @@ class FullDemoSeeder extends Seeder
         // show without requiring a manual promote click first.
         $this->seedOnePromotedApplicant($configActive, $schedule);
 
-        $this->command->info('FullDemoSeeder complete: 4 completed periods (2022–2026, growing trend, full claiming variety, zero waitlist data by design) + 1 active period (2026-2027) — the only period with waitlist/unmet-demand data, 150 approved applicants split across multiple lanes/dates, 6 not_cleared, 5 unclaimed (still within grace period, feeds the "Retrying" bucket), grace period, and one pre-promoted applicant.');
+        $this->command->info('FullDemoSeeder complete: 4 completed periods (2022–2026, growing trend, full claiming variety, zero waitlist data by design) + 1 active period (2026-2027) — the only period with waitlist/unmet-demand data, 150 approved applicants split across multiple lanes/dates, 6 not_cleared, 5 retrying (grace_period_retry, reassigned to the flex lane), grace period, and one pre-promoted applicant.');
     }
 
     private function seedHistoricalPeriod(ApplicationConfiguration $config, int $approvedCount, int $totalCount, bool $withClaiming): void
@@ -548,8 +548,38 @@ class FullDemoSeeder extends Seeder
         $config->decrement('slots_filled', $targets->count());
     }
 
+    /**
+     * These 5 applicants missed their original claiming lane and are
+     * genuinely RETRYING — reassigned onto the flex grace-period lane,
+     * exactly the shape SweepUnclaimedAssignments::handle() itself
+     * produces for a real no-show while grace period is still open.
+     * NOT 'unclaimed' — per the sweep's own logic, 'original'+'unclaimed'
+     * can only legitimately exist once grace_period_end_date has fully
+     * passed, which this active config's schedule (grace period starts
+     * NEXT WEEK) never reaches. Previously this method wrote
+     * claim_status: 'unclaimed' directly, an impossible state the real
+     * app could never produce — same class of bug as an earlier mistake
+     * in VerifierClaimingUiTestSeeder.
+     */
     private function applyUnclaimedOutcomes(ApplicationConfiguration $config, int $count, int $startingAt): void
     {
+        $schedule = ClaimingSchedule::where('config_id', $config->id)->latest()->first();
+        if (!$schedule || !$schedule->grace_period_date) {
+            return;
+        }
+
+        $graceLane = ClaimingLane::firstOrCreate(
+            [
+                'claiming_schedule_id' => $schedule->id,
+                'lane_name'            => 'Grace Period Claiming',
+            ],
+            [
+                'batch'         => 'morning',
+                'claiming_date' => $schedule->grace_period_date,
+                'capacity'      => null,
+            ]
+        );
+
         $targets = Application::where('config_id', $config->id)
             ->where('status', 'approved')
             ->orderBy('id')
@@ -559,11 +589,15 @@ class FullDemoSeeder extends Seeder
 
         foreach ($targets as $app) {
             ClaimingAssignment::where('application_id', $app->id)->update([
-                'claim_status' => 'unclaimed',
-                'verified_by'  => $this->verifier->id,
-                'verified_at'  => now()->subDays(1),
+                'claiming_lane_id' => $graceLane->id,
+                'claim_status'     => 'pending_claiming',
+                'source'           => 'grace_period_retry',
             ]);
-            $app->update(['status' => 'unclaimed']);
+            // Application.status stays 'approved' — matches real
+            // SweepUnclaimedAssignments behavior, which never touches
+            // Application.status when reassigning to a retry (only
+            // updateClaimStatus() syncs app.status, and only for the
+            // final claimed/not_cleared outcomes).
         }
     }
 
@@ -595,7 +629,7 @@ class FullDemoSeeder extends Seeder
         $lane = ClaimingLane::firstOrCreate(
             [
                 'claiming_schedule_id' => $schedule->id,
-                'lane_name'            => 'Waitlist Promotions',
+                'lane_name'            => 'Grace Period Claiming',
             ],
             [
                 'batch'         => 'morning',
