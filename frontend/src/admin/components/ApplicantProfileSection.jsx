@@ -19,11 +19,15 @@ function CategoryBar({ label, count, percentage, max }) {
 function ApplicantProfileSection({ selectedConfigId }) {
     const [distribution, setDistribution] = useState(null);
     const [ageDistribution, setAgeDistribution] = useState(null);
+    const [sectionLoading, setSectionLoading] = useState(true);
 
     useEffect(() => {
+        setSectionLoading(true);
         const params = selectedConfigId ? { config_id: selectedConfigId } : {};
-        api.get("/admin/reports/applicant-distribution", { params }).then((res) => setDistribution(res.data)).catch(() => { });
-        api.get("/admin/reports/age-distribution", { params }).then((res) => setAgeDistribution(res.data)).catch(() => { });
+        Promise.all([
+            api.get("/admin/reports/applicant-distribution", { params }).then((res) => setDistribution(res.data)).catch(() => { }),
+            api.get("/admin/reports/age-distribution", { params }).then((res) => setAgeDistribution(res.data)).catch(() => { }),
+        ]).finally(() => setSectionLoading(false));
     }, [selectedConfigId]);
 
     async function handlePdfExport(endpoint, filenamePrefix) {
@@ -59,7 +63,19 @@ function ApplicantProfileSection({ selectedConfigId }) {
     if (ageCounts.unknown > 0) {
         ageCards.push({ key: "unknown", value: ageCounts.unknown, label: `Unknown (${ageRates.unknown_rate}%)` });
     }
+
     const ageColClass = ageCards.length === 3 ? "col-md-4" : "col-md-6";
+
+    if (sectionLoading) {
+        return (
+            <div className="page-card">
+                <h4 className="sub-title">Applicant Profile</h4>
+                <div className="d-flex justify-content-center align-items-center py-5">
+                    <div className="spinner-border text-danger" role="status" />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <>
