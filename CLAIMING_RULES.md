@@ -93,7 +93,7 @@ An assignment is grace-period-eligible if ANY of:
    - `claim_status: unclaimed` (finalized), or
    - `claim_status: pending_claiming` with its lane's `claiming_date`
      already past AND grace period currently open (surfaced
-     immediately — don't wait for the hourly sweep to formally
+     immediately — don't wait for the daily sweep to formally
      reassign it first)
 3. `source: original`, RESOLVED (`claimed`/`not_cleared`), AND
    `verified_at` falls on/after the schedule's `grace_period_date` —
@@ -115,6 +115,18 @@ open and an `original` applicant's lane day hasn't happened yet.
 - Each verification attempt gets its OWN row in
   `claiming_face_verifications` — never overwrites a prior attempt, so
   multiple grace-period retries each keep independent proof.
+
+**⚠️ This rule has silently broken twice already — test it, don't just
+trust the comment.** First, the eligibility check that decides "is this
+grace period" was too narrow (only recognized `source IN
+[waitlist_promotion, grace_period_retry]`, missing unswept `original`
+no-shows who were grace-eligible by the broader rule above). Then,
+separately, the actual enforcement block — the code that returns the
+400 rejection — was found **completely missing** at one point, meaning
+`claimed` could be submitted during grace period with zero face
+verification on file. Both were fixed, but if you're editing
+`updateClaimStatus()`, manually verify the reject-without-face-check
+case still works after your change, don't assume it does.
 
 ## UI display rules
 
