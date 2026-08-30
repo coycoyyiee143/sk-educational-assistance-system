@@ -377,7 +377,22 @@ class VerifierController extends Controller
         // proof of identity available, so it's required here. Regular
         // claiming already has a scheduled lane + control number + a verifier
         // who selected them off that lane's list, so it stays optional there.
-        $isGracePeriod = in_array($assignment->source, ['waitlist_promotion', 'grace_period_retry']);
+        //
+        // FIXED: this used to only check source IN ('waitlist_promotion',
+        // 'grace_period_retry') — but an applicant already visible in the
+        // Grace Period List because their lane day passed and grace
+        // period is open, while still technically source: 'original'
+        // because the sweep hasn't formally reassigned them yet, was
+        // slipping through this check entirely. That's exactly the same
+        // eligibility question the Grace Period List itself answers, so
+        // this now uses the identical shared condition instead of a
+        // narrower approximation that only covered two of the three
+        // grace-period cases.
+        $today = now()->toDateString();
+        $isGracePeriod = ClaimingAssignment::where('id', $assignment->id)
+            ->where(fn($q) => $this->applyGracePeriodEligibleCondition($q, $today))
+            ->exists();
+
         if ($isGracePeriod && $request->claim_status === 'claimed') {
             $lastFace = $assignment->latestFaceVerification;
             if (!$lastFace || !$lastFace->matched) {

@@ -11,4 +11,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command(SendClaimingReminders::class)->dailyAt('08:00');
-Schedule::command(SweepUnclaimedAssignments::class)->hourly();
+Schedule::command(SweepUnclaimedAssignments::class)->dailyAt('22:00');

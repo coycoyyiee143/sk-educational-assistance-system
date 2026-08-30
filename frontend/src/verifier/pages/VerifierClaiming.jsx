@@ -65,6 +65,13 @@ function VerifierClaiming() {
   const detailsRef = useRef(null);
   const claimingActionRef = useRef(null);
 
+  // Registration reference photo — the live photo captured at
+  // registration, displayed automatically the moment an applicant is
+  // selected, at zero cost. Separate from ClaimingFaceVerify's active
+  // capture-and-compare below, which actually records a new attempt.
+  const [registrationPhotoUrl, setRegistrationPhotoUrl] = useState(null);
+  const [registrationPhotoStatus, setRegistrationPhotoStatus] = useState("idle"); // idle | loading | ready | none
+
   // Lane selection + grace period mode — determines what searchClaiming()
   // is scoped to. Regular mode: a specific lane's applicants only (or all
   // lanes if none picked). Grace period mode: original no-shows still
@@ -143,6 +150,15 @@ function VerifierClaiming() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lanesLoaded, gracePeriodMode, assignedLane]);
 
+  // Revoke any lingering photo blob URL if the verifier navigates away
+  // from this page entirely, so it doesn't leak.
+  useEffect(() => {
+    return () => {
+      if (registrationPhotoUrl) URL.revokeObjectURL(registrationPhotoUrl);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function setDocStatus(key, status) {
     setDocStatusState((prev) => ({ ...prev, [key]: status }));
   }
@@ -161,6 +177,13 @@ function VerifierClaiming() {
     setSearchError("");
     setClaimError("");
     setClaimSuccess("");
+    // Re-select the verifier's assigned lane in the dropdown — switching
+    // to Grace Period mode clears selectedLaneId, so without this a
+    // verifier bouncing between tabs would silently lose their assigned
+    // lane selection and land on "All lanes" instead.
+    if (assignedLane) {
+      setSelectedLaneId(String(assignedLane.id));
+    }
   }
 
   function switchToGracePeriodMode() {
@@ -231,6 +254,21 @@ function VerifierClaiming() {
     setNotClearedOtherText("");
     setClaimError("");
     setClaimSuccess("");
+
+    // Clean up the previous applicant's photo blob URL before loading the
+    // next one, so object URLs don't pile up in memory across selections.
+    setRegistrationPhotoUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return null;
+    });
+    setRegistrationPhotoStatus("loading");
+    api.get(`/claiming/applications/${app.id}/registration-photo`, { responseType: "blob" })
+      .then((res) => {
+        setRegistrationPhotoUrl(URL.createObjectURL(res.data));
+        setRegistrationPhotoStatus("ready");
+      })
+      .catch(() => setRegistrationPhotoStatus("none"));
+
     setTimeout(() => {
       detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 0);
@@ -282,7 +320,7 @@ function VerifierClaiming() {
     } catch (err) {
       setClaimError(err.response?.data?.message || "Failed to update claiming status.");
       setTimeout(() => {
-        claimingActionRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+        claimingActionRef.current?.scrollIntoView({ behavior: "smooth", center: "center" });
       }, 0);
     } finally {
       setSubmitting(false);
@@ -551,16 +589,42 @@ function VerifierClaiming() {
                 style={{ position: "sticky", top: `${navHeight + 8}px`, zIndex: 10, border: "2px solid #b71c1c" }}
               >
                 <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <div>
-                    <strong>{selected.user?.first_name} {selected.user?.last_name}</strong>
-                    <span className="text-muted mx-2">·</span>
-                    <span className="text-muted">{selected.control_number}</span>
-                    <span className="ms-2">
-                      <ClaimStatusBadge status={selected.claiming_assignment?.claim_status} />
-                    </span>
-                    {gracePeriodMode && (
-                      <span className="badge bg-warning text-dark ms-2">Grace Period</span>
+                  <div className="d-flex align-items-center gap-2">
+                    {registrationPhotoStatus === "ready" && (
+                      <img
+                        src={registrationPhotoUrl}
+                        alt="Registered photo on file"
+                        style={{ width: "36px", height: "36px", objectFit: "cover", borderRadius: "50%", border: "1px solid #b71c1c", flexShrink: 0 }}
+                      />
                     )}
+                    {registrationPhotoStatus === "loading" && (
+                      <div
+                        className="d-flex align-items-center justify-content-center bg-light rounded-circle"
+                        style={{ width: "36px", height: "36px", flexShrink: 0 }}
+                      >
+                        <div className="spinner-border spinner-border-sm text-secondary" role="status" style={{ width: "16px", height: "16px" }} />
+                      </div>
+                    )}
+                    {registrationPhotoStatus === "none" && (
+                      <div
+                        className="d-flex align-items-center justify-content-center bg-light rounded-circle text-muted"
+                        style={{ width: "36px", height: "36px", flexShrink: 0, fontSize: "10px", border: "1px dashed #ccc" }}
+                        title="No photo on file"
+                      >
+                        N/A
+                      </div>
+                    )}
+                    <div>
+                      <strong>{selected.user?.first_name} {selected.user?.last_name}</strong>
+                      <span className="text-muted mx-2">·</span>
+                      <span className="text-muted">{selected.control_number}</span>
+                      <span className="ms-2">
+                        <ClaimStatusBadge status={selected.claiming_assignment?.claim_status} />
+                      </span>
+                      {gracePeriodMode && (
+                        <span className="badge bg-warning text-dark ms-2">Grace Period</span>
+                      )}
+                    </div>
                   </div>
                   <div className="d-flex flex-wrap gap-2">
                     <button type="button" className="btn btn-outline-custom btn-sm" onClick={() => jumpTo(detailsRef)}>
@@ -634,6 +698,44 @@ function VerifierClaiming() {
                 <p className="text-muted small mb-3">
                   Confirm this is really the applicant before proceeding to document checks.
                 </p>
+
+                {/* Passive reference photo — the registration-time live
+                    photo, shown automatically for every applicant in
+                    every mode, at zero cost. No capture, no button, no
+                    wait — just a visual reference for the verifier to
+                    glance at alongside the person presenting for
+                    claiming, right where the actual comparison happens.
+                    Separate from ClaimingFaceVerify's active capture
+                    below, which actually records a new match attempt. */}
+                <div className="mb-3 d-flex align-items-center gap-3">
+                  {registrationPhotoStatus === "ready" && (
+                    <img
+                      src={registrationPhotoUrl}
+                      alt="Registered photo on file"
+                      style={{ width: "100px", height: "100px", objectFit: "cover", borderRadius: "8px", border: "2px solid #b71c1c" }}
+                    />
+                  )}
+                  {registrationPhotoStatus === "loading" && (
+                    <div
+                      className="d-flex align-items-center justify-content-center bg-light rounded"
+                      style={{ width: "100px", height: "100px" }}
+                    >
+                      <div className="spinner-border spinner-border-sm text-secondary" role="status" />
+                    </div>
+                  )}
+                  {registrationPhotoStatus === "none" && (
+                    <div
+                      className="d-flex align-items-center justify-content-center bg-light rounded text-muted small text-center p-2"
+                      style={{ width: "100px", height: "100px" }}
+                    >
+                      No photo on file
+                    </div>
+                  )}
+                  <div className="text-muted small">
+                    Registered reference photo.<br />Compare against the person presenting for claiming.
+                  </div>
+                </div>
+
                 <ClaimingFaceVerify applicationId={selected.id} required={gracePeriodMode} />
               </div>
 

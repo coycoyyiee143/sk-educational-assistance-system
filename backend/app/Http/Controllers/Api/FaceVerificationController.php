@@ -147,6 +147,47 @@ class FaceVerificationController extends Controller
     }
 
     /**
+     * Passive reference-photo display — the live photo captured at
+     * REGISTRATION (not a claiming-day capture), shown automatically to
+     * a verifier the moment they select an applicant, at zero cost — no
+     * button, no capture, no wait. This is deliberately separate from
+     * verifyClaiming()'s active capture-and-compare: this route only
+     * displays what's already on file, it never captures or compares
+     * anything new. Directly answers the panel's ask that the
+     * applicant's photo be visible on the claiming page as a passive
+     * human-glance reference, distinct from (and free alongside) the
+     * mandatory active face check in grace period.
+     */
+    public function registrationPhoto(Request $request, $applicationId)
+    {
+        $application = Application::findOrFail($applicationId);
+
+        $user = $request->user();
+        $isOwner    = $user->id === $application->user_id;
+        $isVerifier = $user->role === 'sk_verifier';
+        $isAdmin    = $user->role === 'sk_admin';
+
+        if (!$isOwner && !$isVerifier && !$isAdmin) {
+            abort(403, 'You are not authorized to view this photo.');
+        }
+
+        $verification = FaceVerification::where('user_id', $application->user_id)->first();
+
+        if (!$verification || !$verification->live_photo_path) {
+            abort(404, 'No registration photo on file for this applicant.');
+        }
+
+        if (!Storage::disk('local')->exists($verification->live_photo_path)) {
+            abort(404, 'File not found.');
+        }
+
+        return Storage::disk('local')->response(
+            $verification->live_photo_path,
+            basename($verification->live_photo_path)
+        );
+    }
+
+    /**
      * CLAIMING DAY STEP
      * Verifier captures a fresh live photo of the applicant standing in
      * front of them, and we compare it against the embedding stored at
