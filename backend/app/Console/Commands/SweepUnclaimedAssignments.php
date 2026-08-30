@@ -25,10 +25,10 @@ class SweepUnclaimedAssignments extends Command
                        ->whereHas('lane', fn($l) => $l->where('claiming_date', '<', now()->toDateString()));
                 })
                 // Waitlist promotions and grace-period retries both sit on
-                // the flexible "Waitlist Promotions" lane — not tied to one
-                // calendar day, since the whole point of grace period is
-                // walking in any day within the window. Only overdue once
-                // the grace period ITSELF has ended.
+                // the flexible "Grace Period Claiming" lane — not tied to
+                // one calendar day, since the whole point of grace period
+                // is walking in any day within the window. Only overdue
+                // once the grace period ITSELF has ended.
                 ->orWhere(function ($q3) {
                     $q3->whereIn('source', ['waitlist_promotion', 'grace_period_retry'])
                        ->whereHas('schedule', fn($s) => $s->whereNotNull('grace_period_end_date')
@@ -75,16 +75,27 @@ class SweepUnclaimedAssignments extends Command
                     'claim_status'     => 'pending_claiming',
                     'source'           => 'grace_period_retry',
                 ]);
+                // Application.status intentionally NOT touched here — a
+                // retry reassignment is not a resolution, the applicant
+                // still has an active pending chance to claim. It stays
+                // whatever it already was ('approved').
                 $reassigned++;
                 continue;
             }
 
             // Grace period has genuinely ended (or was never configured
             // with an end date) — this is now final, regardless of
-            // source. Log unconditionally, not just for 'original' rows —
-            // a promoted or retrying applicant who never claims deserves
-            // the same permanent audit trail as an original no-show does.
+            // source. Sync Application.status alongside claim_status,
+            // mirroring exactly what VerifierController::updateClaimStatus()
+            // already does for claimed/not_cleared. Without this,
+            // Application.status stays stuck at 'approved' forever for a
+            // finalized no-show — AdminReportController::applyFilters()'s
+            // direct status-filter map ('Unclaimed' => ['unclaimed']) would
+            // silently return zero results even when genuinely-unclaimed
+            // applicants exist, since it filters on Application.status,
+            // not ClaimingAssignment.claim_status.
             $assignment->update(['claim_status' => 'unclaimed']);
+            $assignment->application->update(['status' => 'unclaimed']);
             $flippedFinal++;
             AuditLog::record(
                 'claiming_unclaimed_final',

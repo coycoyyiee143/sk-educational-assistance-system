@@ -77,9 +77,12 @@ try to infer applicant type from lane name.
 
 ## Regular Claiming vs. Grace Period List — the eligibility rule
 
-One function decides this, used as an inclusion filter in Grace mode
-and an exclusion filter in Regular mode, so the two views can never
-disagree: `VerifierController::applyGracePeriodEligibleCondition()`.
+One function decides this, shared via the `GracePeriodEligibility` trait
+and used identically by both `VerifierController::searchClaiming()` and
+`AdminReportController::buildGracePeriodClaimingList()` — as an
+inclusion filter (`whereHas`) in Grace mode / the admin report, and an
+exclusion filter (`whereDoesntHave`) in Regular mode, so all three
+views can never disagree: `GracePeriodEligibility::applyGracePeriodEligibleCondition()`.
 
 An assignment is grace-period-eligible if ANY of:
 1. `source` is `waitlist_promotion` or `grace_period_retry` —

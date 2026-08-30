@@ -9,13 +9,15 @@ use App\Models\VerifierAction;
 use App\Models\ClaimingAssignment;
 use App\Models\ClaimingSchedule;
 use App\Models\ClaimingLane;
+use App\Traits\GracePeriodEligibility;
 use App\Notifications\ClaimingScheduleNotification;
 use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
-use Illuminate\Database\Eloquent\Builder;
 
 class VerifierController extends Controller
 {
+    use GracePeriodEligibility;
+
     public function stats()
     {
         return response()->json([
@@ -425,15 +427,17 @@ class VerifierController extends Controller
             "Marked application #{$app->id} as {$request->claim_status}"
         );
     
+        // 'unclaimed' intentionally not a key here — this method's own
+        // validation only ever allows 'claimed'/'not_cleared' as input.
+        // 'unclaimed' is exclusively set by SweepUnclaimedAssignments,
+        // never through this endpoint.
         $messages = [
             'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
             'not_cleared' => 'Your physical documents did not match your application record on claiming day. Please contact the SK office for further assistance.',
-            'unclaimed'   => 'The claiming period has passed and your assistance was not claimed within the grace period. Please coordinate with the SK office.',
         ];
         $labels = [
             'claimed'     => 'Claimed',
             'not_cleared' => 'Rejected — Document Mismatch at Claiming',
-            'unclaimed'   => 'Unclaimed',
         ];
     
         $app->user->notify(new ApplicationStatusNotification(
@@ -442,101 +446,6 @@ class VerifierController extends Controller
         ));
     
         return response()->json(['message' => 'Claiming status updated.', 'assignment' => $assignment]);
-    }
-
-    /**
-     * Adds the condition that identifies a claiming_assignments row as
-     * "belongs in the grace period pool" — shared by both directions:
-     * used as an INCLUSION filter (whereHas) when browsing Grace Period
-     * List, and as an EXCLUSION filter (whereDoesntHave) when browsing
-     * Regular Claiming, so the two views can never disagree about which
-     * side a given applicant belongs on — they're checking the exact
-     * same condition, just inverted.
-     *
-     * Covers three groups:
-     *
-     * 1. source: waitlist_promotion / grace_period_retry — ALWAYS grace
-     *    period, unconditional on claim_status. These sources only ever
-     *    exist because of a grace-period-specific event (a waitlist
-     *    promotion, or the sweep reassigning a no-show), so even once
-     *    resolved to claimed/not_cleared, that resolution is grace
-     *    period history and must stay here — never bounce back to
-     *    Regular just because the status changed off pending_claiming.
-     *
-     * 2. source: original, still UNRESOLVED — either already finalized
-     *    unclaimed, or still pending_claiming with its lane day already
-     *    passed while grace period is CURRENTLY open (surfaced
-     *    immediately here rather than waiting on the hourly sweep to
-     *    formally reassign it first — since regular lane days are
-     *    always scheduled before grace period starts, by definition
-     *    every original lane's date is already in the past once grace
-     *    period opens).
-     *
-     * 3. source: original, RESOLVED (claimed/not_cleared) — but only
-     *    when verified_at falls on/after the schedule's
-     *    grace_period_date, meaning the applicant actually walked in
-     *    during grace period even though their assignment's source was
-     *    never flipped away from 'original' (only the sweep does that,
-     *    and a same-day walk-in before the sweep runs never gets
-     *    reassigned). Uses verified_at (when the action happened), not
-     *    today's date, so this stays correct permanently — including
-     *    after grace period itself has ended.
-     */
-    private function applyGracePeriodEligibleCondition(Builder $query, string $today): Builder
-    {
-        return $query->where(function ($q1) use ($today) {
-            // waitlist_promotion / grace_period_retry: ALWAYS grace
-            // period, regardless of claim_status. These sources only
-            // ever exist because of grace-period-specific events (a
-            // waitlist promotion, or the sweep reassigning a no-show) —
-            // once resolved to claimed/not_cleared, that resolution
-            // belongs to grace period history and should stay visible
-            // here, not bounce back to Regular just because the status
-            // changed. Unconditional-by-source is what fixes that.
-            $q1->whereIn('source', ['waitlist_promotion', 'grace_period_retry'])
-                ->orWhere(function ($q2) use ($today) {
-                    // 'original' rows are trickier — they start life as
-                    // regular claiming, so the source alone can't tell you
-                    // whether a resolution happened before grace period
-                    // (stays Regular history) or during it (belongs here).
-                    $q2->where('source', 'original')
-                        ->where(function ($q3) use ($today) {
-                            // Still unresolved and genuinely finalized as a
-                            // no-show.
-                            $q3->where('claim_status', 'unclaimed')
-                                // Still unresolved, lane day passed, sweep
-                                // hasn't reassigned it yet, but grace period
-                                // is currently open.
-                                ->orWhere(function ($q4) use ($today) {
-                                    $q4->where('claim_status', 'pending_claiming')
-                                        ->whereHas('lane', fn($l) => $l->where('claiming_date', '<', $today))
-                                        ->whereHas('schedule', fn($s) => $s->whereNotNull('grace_period_date')
-                                            ->whereNotNull('grace_period_end_date')
-                                            ->where('grace_period_date', '<=', $today)
-                                            ->where('grace_period_end_date', '>=', $today));
-                                })
-                                // RESOLVED (claimed/not_cleared) — but the
-                                // resolution itself happened ON OR AFTER
-                                // grace_period_date, meaning the applicant
-                                // walked in during grace period even though
-                                // their assignment's source was never
-                                // flipped away from 'original'. Compares
-                                // verified_at (when the action happened)
-                                // against the schedule's grace_period_date,
-                                // not today's date — so this correctly
-                                // stays true forever after the fact, even
-                                // once grace period itself has ended.
-                                ->orWhere(function ($q5) {
-                                    $q5->whereIn('claim_status', ['claimed', 'not_cleared'])
-                                        ->whereNotNull('verified_at')
-                                        ->whereHas('schedule', function ($s) {
-                                            $s->whereNotNull('grace_period_date')
-                                                ->whereRaw('claiming_schedules.grace_period_date <= DATE(claiming_assignments.verified_at)');
-                                        });
-                                });
-                        });
-                });
-        });
     }
 
     public function searchClaiming(Request $request)

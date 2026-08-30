@@ -1,5 +1,7 @@
 <?php
+
 namespace Database\Seeders;
+
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
 use App\Models\ClaimingAssignment;
@@ -183,7 +185,7 @@ class FullDemoSeeder extends Seeder
         // business rule. unclaimed does NOT decrement slots_filled. Both
         // UPDATE the existing assignments created above.
         $this->applyNotClearedOutcomes($configActive, 6, startingAt: 0);
-        $this->applyUnclaimedOutcomes($configActive, 5, startingAt: 6);
+        $this->applyRetryingOutcomes($configActive, 5, startingAt: 6);
 
         // One already-promoted applicant, seeded directly so the "Grace
         // Period" badge and Grace Period Claiming List have something to
@@ -284,20 +286,40 @@ class FullDemoSeeder extends Seeder
         }
     }
 
+    /**
+     * FIXED (this session): schedule now sets a real grace_period_date /
+     * grace_period_end_date, both fully in the past — since this whole
+     * config closed years ago, there's no reason not to. Without these,
+     * any 'unclaimed' row written below would be in the same ambiguous
+     * state flagged as a gap in the active-period seeder: per this
+     * session's rule, 'unclaimed' can only be legitimate once a real,
+     * concluded grace period actually happened. Also stopped setting
+     * verified_by/verified_at on 'unclaimed' rows — in the real system,
+     * SweepUnclaimedAssignments finalizes a no-show automatically and
+     * never sets those fields (no verifier performed an action); only
+     * claimed/not_cleared are genuine verifier actions that should carry
+     * them.
+     */
     private function seedHistoricalClaiming(ApplicationConfiguration $config, array $approvedApps): void
     {
+        $laneDate = $config->close_date->copy()->addDays(10);
+        $gracePeriodStart = $laneDate->copy()->addDays(3);
+        $gracePeriodEnd = $gracePeriodStart->copy()->addDays(5);
+
         $schedule = ClaimingSchedule::create([
-            'config_id'    => $config->id,
-            'location'     => 'Barangay Mamatid Covered Court',
-            'is_published' => true,
-            'published_at' => $config->close_date->copy()->addDays(5),
+            'config_id'             => $config->id,
+            'location'              => 'Barangay Mamatid Covered Court',
+            'is_published'          => true,
+            'published_at'          => $config->close_date->copy()->addDays(5),
+            'grace_period_date'     => $gracePeriodStart->toDateString(),
+            'grace_period_end_date' => $gracePeriodEnd->toDateString(),
         ]);
         $lane = ClaimingLane::create([
             'claiming_schedule_id' => $schedule->id,
             'lane_name'            => 'Lane A',
             'capacity'             => count($approvedApps) + 10,
             'batch'                => 'morning',
-            'claiming_date'        => $config->close_date->copy()->addDays(10)->toDateString(),
+            'claiming_date'        => $laneDate->toDateString(),
         ]);
 
         foreach ($approvedApps as $app) {
@@ -313,6 +335,8 @@ class FullDemoSeeder extends Seeder
                 $reasonCategories = null;
             }
 
+            $isVerifierAction = in_array($status, ['claimed', 'not_cleared']);
+
             ClaimingAssignment::create([
                 'application_id'       => $app->id,
                 'claiming_schedule_id' => $schedule->id,
@@ -320,8 +344,12 @@ class FullDemoSeeder extends Seeder
                 'claim_status'         => $status,
                 'source'               => 'original',
                 'reason_categories'    => $reasonCategories,
-                'verified_by'          => $this->verifier->id,
-                'verified_at'          => $lane->claiming_date,
+                // Only claimed/not_cleared are real verifier actions.
+                // 'unclaimed' is finalized automatically by the sweep,
+                // which never sets these — leaving them null here matches
+                // that.
+                'verified_by'          => $isVerifierAction ? $this->verifier->id : null,
+                'verified_at'          => $isVerifierAction ? $lane->claiming_date : null,
             ]);
             $app->update(['status' => $status]);
         }
@@ -549,19 +577,19 @@ class FullDemoSeeder extends Seeder
     }
 
     /**
-     * These 5 applicants missed their original claiming lane and are
-     * genuinely RETRYING — reassigned onto the flex grace-period lane,
-     * exactly the shape SweepUnclaimedAssignments::handle() itself
-     * produces for a real no-show while grace period is still open.
-     * NOT 'unclaimed' — per the sweep's own logic, 'original'+'unclaimed'
-     * can only legitimately exist once grace_period_end_date has fully
-     * passed, which this active config's schedule (grace period starts
-     * NEXT WEEK) never reaches. Previously this method wrote
-     * claim_status: 'unclaimed' directly, an impossible state the real
-     * app could never produce — same class of bug as an earlier mistake
-     * in VerifierClaimingUiTestSeeder.
+     * RENAMED (this session, was applyUnclaimedOutcomes) — the old name
+     * was misleading after an earlier fix in this same session changed
+     * what this method actually produces. These 5 applicants missed
+     * their original claiming lane and are genuinely RETRYING —
+     * reassigned onto the flex grace-period lane, exactly the shape
+     * SweepUnclaimedAssignments::handle() itself produces for a real
+     * no-show while grace period is still open. NOT 'unclaimed' — per
+     * the sweep's own logic, 'original'+'unclaimed' can only legitimately
+     * exist once grace_period_end_date has fully passed, which this
+     * active config's schedule (grace period starts NEXT WEEK) never
+     * reaches.
      */
-    private function applyUnclaimedOutcomes(ApplicationConfiguration $config, int $count, int $startingAt): void
+    private function applyRetryingOutcomes(ApplicationConfiguration $config, int $count, int $startingAt): void
     {
         $schedule = ClaimingSchedule::where('config_id', $config->id)->latest()->first();
         if (!$schedule || !$schedule->grace_period_date) {
