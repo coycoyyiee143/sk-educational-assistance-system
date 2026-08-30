@@ -191,7 +191,7 @@ class AdminScheduleController extends Controller
                     [
                         'claiming_schedule_id' => $schedule->id,
                         'claiming_lane_id'     => $laneId,
-                        'claim_status'         => 'pending',
+                        'claim_status'         => 'pending_claiming',
                     ]
                 );
                 $assignedCount++;
@@ -229,6 +229,81 @@ class AdminScheduleController extends Controller
             'batch'         => $lane->batch,
             'claiming_date' => $lane->claiming_date,
             'applicants'    => $list,
+        ]);
+    }
+
+    /**
+     * Lists every lane for the active period's published schedule, plus
+     * every available verifier — so an admin can assign or reassign who's
+     * working which lane, ANYTIME (before or after publish, before or
+     * during claiming day). This is deliberately separate from
+     * store()/publish() — lane-verifier staffing is day-of operational
+     * reality for a small SK team, not something that should be locked
+     * once the schedule itself is finalized.
+     */
+    public function laneAssignments()
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+        if (!$config) {
+            return response()->json(['lanes' => [], 'verifiers' => []]);
+        }
+
+        $schedule = ClaimingSchedule::where('config_id', $config->id)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+
+        if (!$schedule) {
+            return response()->json(['lanes' => [], 'verifiers' => []]);
+        }
+
+        $lanes = $schedule->lanes()
+            ->with('verifier:id,first_name,last_name')
+            ->where('lane_name', '!=', 'Grace Period Claiming')
+            ->orderBy('claiming_date')
+            ->orderBy('lane_name')
+            ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id']);
+
+        $verifiers = \App\Models\User::where('role', 'sk_verifier')
+            ->where('is_active', true)
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'last_name']);
+
+        return response()->json(['lanes' => $lanes, 'verifiers' => $verifiers]);
+    }
+
+    /**
+     * Admin sets (or clears, if verifier_id is null) which verifier is
+     * assigned to a specific lane. Editable at any time — not gated by
+     * is_published, since staffing can change on the day itself.
+     */
+    public function assignVerifier(Request $request, $laneId)
+    {
+        $request->validate([
+            'verifier_id' => 'nullable|exists:users,id',
+        ]);
+
+        $lane = ClaimingLane::findOrFail($laneId);
+
+        // Enforce one lane per verifier — same constraint selfAssignLane()
+        // already applies on the verifier side. Without this, an admin
+        // could put the same person on two lanes at once, which doesn't
+        // make sense physically (they can't be in two places at the same
+        // claiming session).
+        if ($request->verifier_id) {
+            ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
+                ->where('verifier_id', $request->verifier_id)
+                ->where('id', '!=', $lane->id)
+                ->update(['verifier_id' => null]);
+        }
+
+        $lane->update(['verifier_id' => $request->verifier_id]);
+
+        return response()->json([
+            'message' => $request->verifier_id
+                ? 'Verifier assigned to lane.'
+                : 'Verifier unassigned from lane.',
+            'lane' => $lane->load('verifier:id,first_name,last_name'),
         ]);
     }
 

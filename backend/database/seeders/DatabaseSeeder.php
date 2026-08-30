@@ -14,6 +14,8 @@ class DatabaseSeeder extends Seeder
         //$this->call(DemoDataSeeder::class); // for testing reports / admin features / etc.
         //$this->call(BudgetScaleTestSeeder::class); // for budget forecasting
         //$this->call(WaitlistScenarioSeeder::class); // for testing waitlist / grace period / promotion
-        $this->call(FullDemoSeeder::class); // for admin reports, budget tools and claiming/waitlist
+        //$this->call(ClaimingFaceTestSeeder::class); // for testing face verification during claiming
+        //$this->call(FullDemoSeeder::class); // for admin reports, budget tools and claiming/waitlist
+        $this->call(VerifierClaimingUiTestSeeder::class); // for testing VerifierClaiming.jsx layout/UI: multiple lanes, statuses, and grace period sources at once
     }
 }

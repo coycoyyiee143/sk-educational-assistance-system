@@ -140,6 +140,9 @@ const Register = () => {
                     Take a live photo to match against the ID you uploaded. Your account
                     will only be created once we confirm it's really you.
                   </p>
+                  <div className="alert alert-info small mb-4">
+                    This photo will also be shown to SK staff as a reference when you come to claim your assistance, so please make sure it clearly shows your face.
+                  </div>
 
                   {idPreview && (
                     <div className="mb-4">

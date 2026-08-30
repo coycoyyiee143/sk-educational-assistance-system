@@ -9,12 +9,15 @@ use App\Models\VerifierAction;
 use App\Models\ClaimingAssignment;
 use App\Models\ClaimingSchedule;
 use App\Models\ClaimingLane;
+use App\Traits\GracePeriodEligibility;
 use App\Notifications\ClaimingScheduleNotification;
 use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 
 class VerifierController extends Controller
 {
+    use GracePeriodEligibility;
+
     public function stats()
     {
         return response()->json([
@@ -136,7 +139,7 @@ class VerifierController extends Controller
             $lane = ClaimingLane::firstOrCreate(
                 [
                     'claiming_schedule_id' => $schedule->id,
-                    'lane_name'            => 'Waitlist Promotions',
+                    'lane_name'            => 'Grace Period Claiming',
                 ],
                 [
                     'batch'         => 'morning',
@@ -150,7 +153,7 @@ class VerifierController extends Controller
                 [
                     'claiming_schedule_id' => $schedule->id,
                     'claiming_lane_id'     => $lane->id,
-                    'claim_status'         => 'pending',
+                    'claim_status'         => 'pending_claiming',
                     'source'               => 'waitlist_promotion',
                 ]
             );
@@ -198,7 +201,7 @@ class VerifierController extends Controller
                 $lane = ClaimingLane::firstOrCreate(
                     [
                         'claiming_schedule_id' => $schedule->id,
-                        'lane_name'            => 'Waitlist Promotions',
+                        'lane_name'            => 'Grace Period Claiming',
                     ],
                     [
                         'batch'         => 'morning',
@@ -212,7 +215,7 @@ class VerifierController extends Controller
                     [
                         'claiming_schedule_id' => $schedule->id,
                         'claiming_lane_id'     => $lane->id,
-                        'claim_status'         => 'pending',
+                        'claim_status'         => 'pending_claiming',
                         'source'               => 'waitlist_promotion',
                     ]
                 );
@@ -360,14 +363,44 @@ class VerifierController extends Controller
     public function updateClaimStatus(Request $request, $id)
     {
         $request->validate([
-            'claim_status'          => 'required|in:claimed,not_cleared,unclaimed',
+            'claim_status'          => 'required|in:claimed,not_cleared',
             'reason_categories'     => 'required_if:claim_status,not_cleared|nullable|array',
             'reason_categories.*'   => 'string',
             'verified_documents'    => 'nullable|array',
             'notes'                 => 'nullable|string',
         ]);
     
-        $assignment = ClaimingAssignment::where('application_id', $id)->with('application.configuration')->firstOrFail();
+        $assignment = ClaimingAssignment::where('application_id', $id)->with(['application.configuration', 'latestFaceVerification'])->firstOrFail();
+
+        // Grace period claims are unscheduled walk-ins with no lane/time
+        // structure backing them up — face verification is the only real
+        // proof of identity available, so it's required here. Regular
+        // claiming already has a scheduled lane + control number + a verifier
+        // who selected them off that lane's list, so it stays optional there.
+        //
+        // FIXED: this used to only check source IN ('waitlist_promotion',
+        // 'grace_period_retry') — but an applicant already visible in the
+        // Grace Period List because their lane day passed and grace
+        // period is open, while still technically source: 'original'
+        // because the sweep hasn't formally reassigned them yet, was
+        // slipping through this check entirely. That's exactly the same
+        // eligibility question the Grace Period List itself answers, so
+        // this now uses the identical shared condition instead of a
+        // narrower approximation that only covered two of the three
+        // grace-period cases.
+        $today = now()->toDateString();
+        $isGracePeriod = ClaimingAssignment::where('id', $assignment->id)
+            ->where(fn($q) => $this->applyGracePeriodEligibleCondition($q, $today))
+            ->exists();
+
+        if ($isGracePeriod && $request->claim_status === 'claimed') {
+            $lastFace = $assignment->latestFaceVerification;
+            if (!$lastFace || !$lastFace->matched) {
+                return response()->json([
+                    'message' => 'Face verification must pass before this applicant can be marked Claimed during grace period.',
+                ], 400);
+            }
+        }
 
         $updateData = [
             'claim_status'       => $request->claim_status,
@@ -409,15 +442,17 @@ class VerifierController extends Controller
             "Marked application #{$app->id} as {$request->claim_status}"
         );
     
+        // 'unclaimed' intentionally not a key here — this method's own
+        // validation only ever allows 'claimed'/'not_cleared' as input.
+        // 'unclaimed' is exclusively set by SweepUnclaimedAssignments,
+        // never through this endpoint.
         $messages = [
             'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
             'not_cleared' => 'Your physical documents did not match your application record on claiming day. Please contact the SK office for further assistance.',
-            'unclaimed'   => 'The claiming period has passed and your assistance was not claimed within the grace period. Please coordinate with the SK office.',
         ];
         $labels = [
             'claimed'     => 'Claimed',
             'not_cleared' => 'Rejected — Document Mismatch at Claiming',
-            'unclaimed'   => 'Unclaimed',
         ];
     
         $app->user->notify(new ApplicationStatusNotification(
@@ -432,15 +467,51 @@ class VerifierController extends Controller
     {
         $controlNumber = $request->query('control_number');
         $name          = $request->query('name');
+        $laneId        = $request->query('lane_id');
+        $gracePeriod   = $request->boolean('grace_period');
+        $today         = now()->toDateString();
 
-            $query = Application::with(['user', 'documents', 'claimingAssignment.lane', 'claimingAssignment.verifier'])
+        // Scoped to the ACTIVE application period only. Without this,
+        // any historical applicant from any past, already-closed cycle
+        // bleeds into whatever's currently being viewed — a genuinely
+        // finalized 'unclaimed' from a period that ended months ago
+        // would otherwise appear mixed into today's active Grace Period
+        // List with no indication it belongs to a different period at
+        // all, misleadingly suggesting it happened during the CURRENT
+        // still-open grace period.
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+        if (!$activeConfig) {
+            return response()->json(['message' => 'No active application period.'], 404);
+        }
+
+        $query = Application::with(['user', 'documents', 'claimingAssignment.lane', 'claimingAssignment.verifier'])
+            ->where('config_id', $activeConfig->id)
             ->whereIn('status', ['approved', 'claimed', 'not_cleared', 'unclaimed'])
             ->whereHas('claimingAssignment');
+
+        if ($gracePeriod) {
+            $query->whereHas('claimingAssignment', fn($q) => $this->applyGracePeriodEligibleCondition($q, $today));
+        } else {
+            // Regular Claiming NEVER shows anyone currently grace-period-
+            // eligible — once someone's overdue into the grace window,
+            // they belong exclusively on that tab from then on. What's
+            // left here is: still-active pending applicants (haven't hit
+            // their day yet, or it's today and grace period hasn't
+            // started), plus resolved outcomes (claimed/not_cleared) kept
+            // visible as a same-day history/reference check.
+            $query->whereDoesntHave('claimingAssignment', fn($q) => $this->applyGracePeriodEligibleCondition($q, $today));
+
+            if ($laneId) {
+                // Regular claiming day — scoped to one specific lane, so a
+                // verifier only ever sees the applicants assigned to the
+                // lane they're actually working.
+                $query->whereHas('claimingAssignment', fn($q) => $q->where('claiming_lane_id', $laneId));
+            }
+        }
 
         if ($controlNumber) {
             $query->where('control_number', 'like', "%{$controlNumber}%");
         }
-
         if ($name) {
             $query->whereHas('user', function ($q) use ($name) {
                 $q->where('first_name', 'like', "%{$name}%")
@@ -449,12 +520,77 @@ class VerifierController extends Controller
         }
 
         $results = $query->get();
-
         if ($results->isEmpty()) {
             return response()->json(['message' => 'No matching approved applicant found.'], 404);
         }
-
         return response()->json($results);
+    }
+
+    /**
+     * Returns the logged-in verifier's currently assigned lane (if any —
+     * whether set by an admin or previously self-picked), plus the full
+     * list of today's lanes so they can self-assign or switch if plans
+     * change. This is what lets VerifierClaiming.jsx default straight to
+     * "my lane's applicants" instead of requiring a broad search every
+     * time.
+     */
+    public function claimingLanes(Request $request)
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+        if (!$config) {
+            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+        }
+
+        $schedule = \App\Models\ClaimingSchedule::where('config_id', $config->id)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+
+        if (!$schedule) {
+            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+        }
+
+        $allLanes = $schedule->lanes()
+            ->where('lane_name', '!=', 'Grace Period Claiming')
+            ->orderBy('claiming_date')
+            ->orderBy('lane_name')
+            ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id']);
+
+        $assignedLane = $allLanes->firstWhere('verifier_id', $request->user()->id);
+
+        return response()->json([
+            'assigned_lane'         => $assignedLane,
+            'all_lanes'             => $allLanes,
+            // So the frontend can auto-default to whichever mode actually
+            // matches today, instead of always opening on Regular Claiming
+            // regardless of what day it is.
+            'grace_period_date'     => $schedule->grace_period_date,
+            'grace_period_end_date' => $schedule->grace_period_end_date,
+        ]);
+    }
+
+    /**
+     * Verifier self-assigns to a lane — the default, day-of mechanism.
+     * Clears them from any OTHER lane in the same schedule first, since
+     * a verifier can only physically be at one lane at a time. An admin
+     * assignment (via AdminScheduleController::assignVerifier()) can
+     * always override this later, and vice versa — whichever was set
+     * most recently wins, since it's the same column.
+     */
+    public function selfAssignLane(Request $request, $laneId)
+    {
+        $lane = \App\Models\ClaimingLane::findOrFail($laneId);
+
+        \App\Models\ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
+            ->where('verifier_id', $request->user()->id)
+            ->update(['verifier_id' => null]);
+
+        $lane->update(['verifier_id' => $request->user()->id]);
+
+        return response()->json([
+            'message' => "You're now assigned to {$lane->lane_name}.",
+            'lane'    => $lane,
+        ]);
     }
 
     // Returns the logged-in verifier's own activity history

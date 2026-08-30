@@ -50,8 +50,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);
         Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
         Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
+        Route::get('/admin/claiming-schedule/lane-assignments', [AdminScheduleController::class, 'laneAssignments']);       
         Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
         Route::get('/admin/claiming-schedule/{id}/preview', [AdminScheduleController::class, 'preview']);
+        Route::post('/admin/claiming-schedule/lanes/{laneId}/assign-verifier', [AdminScheduleController::class, 'assignVerifier']); 
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable/pdf', [AdminScheduleController::class, 'printableLanePdf']);
         Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
@@ -122,6 +124,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/verifier/applications/{id}/reupload', [VerifierController::class, 'requestReupload']);
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
+        Route::get('/verifier/claiming/lanes', [VerifierController::class, 'claimingLanes']);
+        Route::post('/verifier/claiming/lanes/{laneId}/self-assign', [VerifierController::class, 'selfAssignLane']);
         Route::post('/verifier/claiming/{id}/status', [VerifierController::class, 'updateClaimStatus']);
         Route::post('/verifier/applications/config/{configId}/promote-waitlist', [VerifierController::class, 'promoteFromWaitlist']);
         Route::post('/verifier/applications/config/{configId}/promote-all-waitlist', [VerifierController::class, 'promoteAllFromWaitlist']);
@@ -150,6 +154,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::put('/user/profile', [ProfileController::class, 'updateAccount']);
     Route::put('/user/password', [ProfileController::class, 'updatePassword']);
     Route::get('/applications/{id}/documents/{docId}/file', [DocumentController::class, 'show']);
+    Route::get('/claiming/face-verifications/{id}/photo', [FaceVerificationController::class, 'showClaimingPhoto'])->name('claiming.face-photo');
+    Route::get('/claiming/applications/{applicationId}/registration-photo', [FaceVerificationController::class, 'registrationPhoto']);
 
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);

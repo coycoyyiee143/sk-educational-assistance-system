@@ -15,6 +15,7 @@ import AdminDashboard from "./admin/pages/AdminDashboard";
 import AdminUsers from "./admin/pages/AdminUsers";
 import AdminSettings from "./admin/pages/AdminSettings";
 import AdminSchedule from "./admin/pages/AdminSchedule";
+import AdminLaneAssignments from "./admin/pages/AdminLaneAssignments.jsx";
 import AdminAnnouncements from "./admin/pages/AdminAnnouncements.jsx";
 import AdminEvents from "./admin/pages/AdminEvents.jsx";
 import AdminReports from "./admin/pages/AdminReports.jsx";
@@ -69,6 +70,11 @@ function App() {
         <Route path="/AdminSchedule" element={
           <ProtectedRoute allowedRoles={["sk_admin"]}>
             <AdminSchedule />
+          </ProtectedRoute>
+        } />
+        <Route path="/AdminLaneAssignments" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminLaneAssignments />
           </ProtectedRoute>
         } />
         <Route path="/AdminAnnouncements" element={

@@ -587,7 +587,7 @@ function AdminSchedule() {
                       <tbody>
                         {isPublished ? (
                           schedule.lanes
-                            ?.filter((lane) => lane.lane_name !== "Waitlist Promotions")
+                            ?.filter((lane) => lane.lane_name !== "Grace Period Claiming")
                             .map((lane) => (
                               <tr key={lane.id}>
                                 <td>{lane.lane_name}</td>
@@ -605,7 +605,7 @@ function AdminSchedule() {
                             ))
                         ) : preview ? (
                           preview.lanes
-                            .filter((lane) => lane.lane_name !== "Waitlist Promotions")
+                            .filter((lane) => lane.lane_name !== "Grace Period Claiming")
                             .map((lane) => (
                               <tr key={lane.id}>
                                 <td>{lane.lane_name}</td>
