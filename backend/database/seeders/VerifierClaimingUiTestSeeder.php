@@ -29,10 +29,14 @@ use Illuminate\Support\Facades\Hash;
  *     but verified_at falls on/after grace_period_date)
  *   - Promoted, unresolved (Rosa — waitlist_promotion, still pending)
  *   - Promoted, resolved (Diego — waitlist_promotion, already claimed)
- *   - Genuinely terminal Unclaimed (Fernando — in a SEPARATE, already-
- *     finished period, since 'unclaimed' can only be legitimate once
- *     grace period has actually ended; it can't coexist with an open
- *     grace period on the same schedule)
+ *
+ * NOT INCLUDED: a genuinely terminal Unclaimed example. 'unclaimed' can
+ * only legitimately exist once grace period has actually ended, which
+ * means it'd need its own separate, already-closed config — and
+ * searchClaiming() now scopes by the ACTIVE config_id only, so a
+ * closed-period example wouldn't appear in this scenario's Grace Period
+ * List anyway. Not worth seeding here; see ClaimingFaceTestSeeder or a
+ * standalone scenario if this case needs covering later.
  *
  * DELIBERATELY NOT INCLUDED: a "still genuinely pending, not yet
  * overdue" regular lane example (previously "Lane C" / Ramon, now
@@ -297,48 +301,6 @@ class VerifierClaimingUiTestSeeder extends Seeder
             ]
         );
 
-        // ── SEPARATE, ALREADY-FINISHED period — for a genuine terminal
-        // Unclaimed example. 'unclaimed' can only legitimately exist once
-        // grace period has actually ended (that's the whole point of the
-        // sweep bug we fixed earlier) — it can't coexist with an open
-        // grace period on the SAME schedule, so this needs its own,
-        // already-concluded period entirely.
-        $pastConfig = ApplicationConfiguration::firstOrCreate(
-            ['school_year' => '2024-2025-uitest-past'],
-            [
-                'open_date'          => now()->subDays(90)->startOfDay(),
-                'close_date'         => now()->subDays(70)->endOfDay(),
-                'slot_limit'         => 500,
-                'slots_filled'       => 1,
-                'assistance_amount'  => 5000,
-                'is_unlimited'       => false,
-                'is_active'          => false,
-                'created_by'         => $admin->id,
-            ]
-        );
-
-        $pastSchedule = ClaimingSchedule::firstOrCreate(
-            ['config_id' => $pastConfig->id],
-            [
-                'location'              => 'Barangay Mamatid Covered Court',
-                'is_published'          => true,
-                'published_at'          => now()->subDays(65),
-                'grace_period_date'     => now()->subDays(60)->toDateString(),
-                'grace_period_end_date' => now()->subDays(55)->toDateString(), // ended 55 days ago — genuinely over
-            ]
-        );
-
-        $pastLane = ClaimingLane::firstOrCreate(
-            ['claiming_schedule_id' => $pastSchedule->id, 'lane_name' => 'Lane A'],
-            ['capacity' => 50, 'batch' => 'morning', 'claiming_date' => now()->subDays(62)->toDateString()]
-        );
-
-        $fernando = $makeApplicant('past-unclaimed', 'Fernando', 'Aquino', $pastConfig);
-        ClaimingAssignment::updateOrCreate(
-            ['application_id' => $fernando->id],
-            ['claiming_schedule_id' => $pastSchedule->id, 'claiming_lane_id' => $pastLane->id, 'claim_status' => 'unclaimed', 'source' => 'original']
-        );
-
         $this->command->info('VerifierClaimingUiTestSeeder done. Log in as verifier@skmamatid.com / verifier123.');
         $this->command->info('--- Regular Claiming ---');
         $this->command->info('Lane A (assigned to you): Maria + Juan pending — WILL move to Grace Period (overdue).');
@@ -349,7 +311,6 @@ class VerifierClaimingUiTestSeeder extends Seeder
         $this->command->info('Retrying, resolved: Elena — CLAIMED during grace period, stays here as history.');
         $this->command->info('Promoted, unresolved: Rosa (waitlist_promotion).');
         $this->command->info('Promoted, resolved: Diego — CLAIMED, stays here as history.');
-        $this->command->info('Fernando (past, closed period): genuinely UNCLAIMED — note: searchClaiming() does not scope by config_id, so this shows up in the current Grace Period list regardless of the active period, a pre-existing behavior worth being aware of.');
         $this->command->info('NOTE: "still pending, not yet overdue" regular claiming is NOT demonstrated here — see class docblock for why it cannot coexist with an already-open grace period.');
     }
 }

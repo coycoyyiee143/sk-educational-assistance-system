@@ -17,7 +17,7 @@ Two endpoints, matching what backend/app/Services/FaceMatchingService.php calls:
     embedding captured at registration, without needing the ID image again.
 
 Run locally:
-    python app.py            (dev server, http://127.0.0.1:5000)
+    python app.py            (dev server, http://127.0.0.1:5001)
 
 Run in production (VPS), see README notes at the bottom of this file.
 """
