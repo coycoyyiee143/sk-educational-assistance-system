@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Log;
  * Keeps all HTTP/JSON details out of the controller.
  *
  * Expects the microservice to run locally on the same VPS
- * (see FACE_SERVICE_URL in .env, default http://127.0.0.1:5000).
+ * (see FACE_SERVICE_URL in .env, default http://127.0.0.1:5001).
  */
 class FaceMatchingService
 {
@@ -18,7 +18,7 @@ class FaceMatchingService
 
     public function __construct()
     {
-        $this->baseUrl = rtrim(config('services.face_service.url', 'http://127.0.0.1:5000'), '/');
+        $this->baseUrl = rtrim(config('services.face_service.url', 'http://127.0.0.1:5001'), '/');
     }
 
     /**
