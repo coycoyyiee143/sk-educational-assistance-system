@@ -19,11 +19,15 @@ function CategoryBar({ label, count, percentage, max }) {
 function ApplicantProfileSection({ selectedConfigId }) {
     const [distribution, setDistribution] = useState(null);
     const [ageDistribution, setAgeDistribution] = useState(null);
+    const [sectionLoading, setSectionLoading] = useState(true);
 
     useEffect(() => {
+        setSectionLoading(true);
         const params = selectedConfigId ? { config_id: selectedConfigId } : {};
-        api.get("/admin/reports/applicant-distribution", { params }).then((res) => setDistribution(res.data)).catch(() => { });
-        api.get("/admin/reports/age-distribution", { params }).then((res) => setAgeDistribution(res.data)).catch(() => { });
+        Promise.all([
+            api.get("/admin/reports/applicant-distribution", { params }).then((res) => setDistribution(res.data)).catch(() => { }),
+            api.get("/admin/reports/age-distribution", { params }).then((res) => setAgeDistribution(res.data)).catch(() => { }),
+        ]).finally(() => setSectionLoading(false));
     }, [selectedConfigId]);
 
     async function handlePdfExport(endpoint, filenamePrefix) {
@@ -44,9 +48,11 @@ function ApplicantProfileSection({ selectedConfigId }) {
     const bySchool = distribution?.by_school ?? [];
     const byCourse = distribution?.by_course ?? [];
     const byYearLevel = distribution?.by_year_level ?? [];
+    const byPurok = distribution?.by_purok ?? [];
     const maxSchoolCount = Math.max(1, ...bySchool.map((r) => r.total));
     const maxCourseCount = Math.max(1, ...byCourse.map((r) => r.total));
     const maxYearLevelCount = Math.max(1, ...byYearLevel.map((r) => r.total));
+    const maxPurokCount = Math.max(1, ...byPurok.map((r) => r.total));
 
     const ageCounts = ageDistribution?.counts ?? {};
     const ageRates = ageDistribution?.rates ?? {};
@@ -57,7 +63,19 @@ function ApplicantProfileSection({ selectedConfigId }) {
     if (ageCounts.unknown > 0) {
         ageCards.push({ key: "unknown", value: ageCounts.unknown, label: `Unknown (${ageRates.unknown_rate}%)` });
     }
+
     const ageColClass = ageCards.length === 3 ? "col-md-4" : "col-md-6";
+
+    if (sectionLoading) {
+        return (
+            <div className="page-card">
+                <h4 className="sub-title">Applicant Profile</h4>
+                <div className="d-flex justify-content-center align-items-center py-5">
+                    <div className="spinner-border text-danger" role="status" />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -150,11 +168,32 @@ function ApplicantProfileSection({ selectedConfigId }) {
                         ) : (
                             <div className="text-muted small">No data available.</div>
                         )}
-                    </div>
+                                        </div>
                 </div>
+            </div>
+            {/* Purok / Phase */}
+            <div className="page-card">
+                <h4 className="sub-title">
+                    Applicant Profile — Purok / Phase
+                    {distribution?.config && <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>{" "}— {distribution.config.school_year}</span>}
+                </h4>
+                {byPurok.length === 0 ? (
+                    <div className="alert alert-info mb-0">No applicant data available for the selected period.</div>
+                ) : (
+                    byPurok.map((r) => (
+                        <CategoryBar
+                            key={`${r.purok_type}-${r.purok}`}
+                            label={r.purok_type === "unspecified" ? "Unspecified" : `${r.purok_type.charAt(0).toUpperCase() + r.purok_type.slice(1)} ${r.purok}`}
+                            count={r.total}
+                            percentage={r.percentage}
+                            max={maxPurokCount}
+                        />
+                    ))
+                )}
             </div>
         </>
     );
 }
+
 
 export default ApplicantProfileSection;

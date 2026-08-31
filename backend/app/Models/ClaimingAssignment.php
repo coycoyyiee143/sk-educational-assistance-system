@@ -11,6 +11,7 @@ class ClaimingAssignment extends Model
         'claiming_schedule_id',
         'claiming_lane_id',
         'claim_status',
+        'amount',
         'source',
         'reason_categories',
         'verified_documents',
@@ -45,5 +46,17 @@ class ClaimingAssignment extends Model
     public function verifier()
     {
         return $this->belongsTo(User::class, 'verified_by');
+    }
+
+    public function faceVerifications()
+    {
+        return $this->hasMany(ClaimingFaceVerification::class);
+    }
+
+    // Most recent attempt for this assignment — what the UI and the
+    // claimed-gate check against.
+    public function latestFaceVerification()
+    {
+        return $this->hasOne(ClaimingFaceVerification::class)->latestOfMany();
     }
 }

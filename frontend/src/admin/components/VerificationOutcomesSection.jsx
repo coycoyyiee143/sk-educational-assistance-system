@@ -1,11 +1,5 @@
 import { useState, useEffect } from "react";
-import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import api from "../../services/api";
-
-function formatDate(dateStr) {
-    if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-}
 
 function formatDocType(type) {
     return type.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -29,13 +23,18 @@ function DistributionBar({ label, count, percentage, max }) {
 function VerificationOutcomesSection({ selectedConfigId }) {
     const [documentFailures, setDocumentFailures] = useState(null);
     const [claimingOutcomes, setClaimingOutcomes] = useState(null);
+    // eslint-disable-next-line no-unused-vars -- fetched for the future weekly trend chart, not yet rendered
     const [trends, setTrends] = useState(null);
+    const [sectionLoading, setSectionLoading] = useState(true);
 
     useEffect(() => {
+        setSectionLoading(true);
         const params = selectedConfigId ? { config_id: selectedConfigId } : {};
-        api.get("/admin/reports/document-failures", { params }).then((res) => setDocumentFailures(res.data)).catch(() => { });
-        api.get("/admin/reports/claiming-outcomes", { params }).then((res) => setClaimingOutcomes(res.data)).catch(() => { });
-        api.get("/admin/reports/submission-trends", { params }).then((res) => setTrends(res.data)).catch(() => { });
+        Promise.all([
+            api.get("/admin/reports/document-failures", { params }).then((res) => setDocumentFailures(res.data)).catch(() => { }),
+            api.get("/admin/reports/claiming-outcomes", { params }).then((res) => setClaimingOutcomes(res.data)).catch(() => { }),
+            api.get("/admin/reports/submission-trends", { params }).then((res) => setTrends(res.data)).catch(() => { }),
+        ]).finally(() => setSectionLoading(false));
     }, [selectedConfigId]);
 
     async function handlePdfExport(endpoint, filenamePrefix) {
@@ -61,10 +60,22 @@ function VerificationOutcomesSection({ selectedConfigId }) {
     const reuploadReasonsByDoc = documentFailures?.reupload_reasons_by_document ?? {};
     const automatedFailuresByDoc = documentFailures?.automated_check_failures_by_document ?? {};
     const maxReuploadFlags = Math.max(1, ...Object.values(reuploadFlagCounts));
-    const weeklyTrend = trends?.weekly ?? [];
-    const maxWeeklyCount = Math.max(1, ...weeklyTrend.map((w) => w.total));
+    // NOTE: `trends` (weekly submission trend data) is fetched above but not
+    // yet rendered anywhere in this section. Wire up a chart here (e.g. with
+    // recharts) when the weekly trend visualization is built.
     const notClearedTotal = Object.values(notClearedReasons).reduce((sum, v) => sum + v, 0);
     const maxNotClearedReasons = Math.max(1, ...Object.values(notClearedReasons));
+
+    if (sectionLoading) {
+        return (
+            <div className="page-card">
+                <h4 className="sub-title">Verification Outcomes</h4>
+                <div className="d-flex justify-content-center align-items-center py-5">
+                    <div className="spinner-border text-danger" role="status" />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <>

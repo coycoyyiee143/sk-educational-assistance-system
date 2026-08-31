@@ -41,7 +41,7 @@ function EditAnnouncementModal({ announcement, onClose, onSave, saving }) {
           <form onSubmit={handleSubmit}>
             <div className="modal-body">
               <div className="row g-3">
-              <div className="col-md-8">
+                <div className="col-md-8">
                   <label className="form-label">Announcement Title</label>
                   <input type="text" className="form-control" placeholder="Enter announcement title" value={form.title} onChange={set("title")} required />
                 </div>
@@ -198,7 +198,7 @@ function AdminAnnouncements() {
             {loading ? (
               <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
             ) : (
-              <div className="table-responsive">
+              <div className="table-responsive table-scroll">
                 <table className="table table-bordered table-striped align-middle">
                   <thead>
                     <tr>

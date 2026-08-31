@@ -17,7 +17,7 @@ class SendClaimingReminders extends Command
 
         $assignments = ClaimingAssignment::with(['application.user', 'lane', 'schedule'])
             ->whereNull('reminder_sent_at')
-            ->where('claim_status', 'pending')
+            ->where('claim_status', 'pending_claiming')
             ->whereHas('lane', function ($q) use ($tomorrow) {
                 $q->whereDate('claiming_date', $tomorrow);
             })

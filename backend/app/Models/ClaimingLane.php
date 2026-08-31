@@ -12,6 +12,7 @@ class ClaimingLane extends Model
         'capacity',
         'batch',
         'claiming_date',
+        'verifier_id',
     ];
 
     public function schedule()
@@ -22,5 +23,10 @@ class ClaimingLane extends Model
     public function assignments()
     {
         return $this->hasMany(ClaimingAssignment::class);
+    }
+
+    public function verifier()
+    {
+        return $this->belongsTo(User::class, 'verifier_id');
     }
 }
