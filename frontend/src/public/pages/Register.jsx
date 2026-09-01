@@ -5,13 +5,6 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
 import FaceCapture from "../../applicant/components/FaceCapture";
-
-const CABUYAO_BARANGAYS = [
-  "Baclaran", "Banaybanay", "Banlic", "Bigaa", "Butong", "Casile",
-  "Diezmo", "Gulod", "Mamatid", "Marinig", "Niugan", "Pittland",
-  "Poblacion Uno", "Poblacion Dos", "Poblacion Tres", "Pulo", "Sala", "San Isidro",
-];
-
 const Register = () => {
   const [form, setForm] = useState({
     firstName: "",
@@ -20,12 +13,10 @@ const Register = () => {
     mobile: "",
     email: "",
     birthdate: "",
-    barangay: "",
+    barangay: "Mamatid",
     password: "",
     confirmPassword: "",
   });
-  const [showOtherBarangay, setShowOtherBarangay] = useState(false);
-  const [otherBarangay, setOtherBarangay] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
@@ -38,33 +29,17 @@ const Register = () => {
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
-  const handleBarangaySelect = (e) => {
-    const value = e.target.value;
-    if (value === "Other") {
-      setShowOtherBarangay(true);
-      setForm({ ...form, barangay: otherBarangay });
-    } else {
-      setShowOtherBarangay(false);
-      setForm({ ...form, barangay: value });
-    }
-  };
-
   function handleIdChange(e) {
     const file = e.target.files[0];
     if (!file) return;
     setIdImage(file);
     setIdPreview(URL.createObjectURL(file));
   }
-
   const handleNext = (e) => {
     e.preventDefault();
     setError("");
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
-      return;
-    }
-    if (!form.barangay.trim()) {
-      setError("Please select your barangay.");
       return;
     }
     if (!idImage) {
@@ -73,7 +48,6 @@ const Register = () => {
     }
     setStep("face");
   };
-
   async function handleRegisterWithFace({ idImage: capturedIdImage, liveBlob }) {
     setError("");
     setLoading(true);
@@ -90,9 +64,7 @@ const Register = () => {
       formData.append("password_confirmation", form.confirmPassword);
       formData.append("id_image", capturedIdImage);
       formData.append("live_photo", liveBlob, "live.jpg");
-
       await api.post("/register", formData);
-
       navigate("/verify-email-notice", { state: { email: form.email } });
     } catch (err) {
       const errors = err.response?.data?.errors;
@@ -105,13 +77,11 @@ const Register = () => {
       setLoading(false);
     }
   }
-
   if (user) {
     if (user.role === "sk_admin") return <Navigate to="/AdminDashboard" replace />;
     if (user.role === "sk_verifier") return <Navigate to="/VerifierDashboard" replace />;
     return <Navigate to="/ApplicantDashboard" replace />;
   }
-
   if (step === "face") {
     return (
       <>
@@ -126,7 +96,6 @@ const Register = () => {
             </a>
           </div>
         </nav>
-
         <section className="register-split-section">
           <div className="register-split-wrap">
             <div className="register-split-form" style={{ margin: "0 auto" }}>
@@ -143,7 +112,6 @@ const Register = () => {
                   <div className="alert alert-info small mb-4">
                     This photo will also be shown to SK staff as a reference when you come to claim your assistance, so please make sure it clearly shows your face.
                   </div>
-
                   {idPreview && (
                     <div className="mb-4">
                       <label className="form-label fw-semibold">Your Uploaded ID</label>
@@ -155,9 +123,7 @@ const Register = () => {
                       />
                     </div>
                   )}
-
                   {error && <div className="alert alert-danger">{error}</div>}
-
                   <FaceCapture
                     mode="registration"
                     externalIdImage={idImage}
@@ -165,7 +131,6 @@ const Register = () => {
                     disabled={loading}
                     onSubmitCapture={handleRegisterWithFace}
                   />
-
                   <button
                     type="button"
                     className="btn btn-link mt-3 p-0"
@@ -179,12 +144,10 @@ const Register = () => {
             </div>
           </div>
         </section>
-
         <Footer />
       </>
     );
   }
-
   return (
     <>
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
@@ -211,7 +174,6 @@ const Register = () => {
           </div>
         </div>
       </nav>
-
       <section className="register-split-section">
         <div className="register-split-wrap">
           <div className="register-split-image">
@@ -225,9 +187,7 @@ const Register = () => {
               <div className="card card-custom p-4">
                 <h3 className="text-start text-danger login-title-bold">Create Applicant Account</h3>
                 <p className="text-start text-muted login-subtext-lg mb-4">Register to apply for educational assistance.</p>
-
                 {error && <div className="alert alert-danger">{error}</div>}
-
                 <form onSubmit={handleNext} className="register-form-spaced">
                   <div className="row">
                     <div className="col-md-4 mb-3">
@@ -243,7 +203,6 @@ const Register = () => {
                       <input name="lastName" className="form-control" placeholder="Last Name" value={form.lastName} onChange={handleChange} required />
                     </div>
                   </div>
-
                   <div className="row">
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Mobile Number</label>
@@ -291,35 +250,18 @@ const Register = () => {
                         required
                       />
                     </div>
-                    <div className="col-md-6 mb-3">
-                      <label className="form-label">Barangay <span className="text-danger">*</span></label>
-                      <select
-                        className="form-select"
-                        value={showOtherBarangay ? "Other" : form.barangay}
-                        onChange={handleBarangaySelect}
-                        required
-                      >
-                        <option value="" disabled>Select your barangay</option>
-                        {CABUYAO_BARANGAYS.map((b) => (
-                          <option key={b} value={b}>{b}</option>
-                        ))}
-                        <option value="Other">Other (outside Cabuyao)</option>
-                      </select>
-                      {showOtherBarangay && (
-                        <input
-                          className="form-control mt-2"
-                          placeholder="Enter your barangay"
-                          value={otherBarangay}
-                          onChange={(e) => {
-                            setOtherBarangay(e.target.value);
-                            setForm({ ...form, barangay: e.target.value });
-                          }}
-                          required
-                        />
-                      )}
+                      <div className="col-md-6 mb-3">
+                      <label className="form-label">Barangay</label>
+                      <input
+                        className="form-control"
+                        value="Mamatid"
+                        disabled
+                      />
+                      <div className="form-text">
+                        This Educational Assistance Program is only exclusive for residents of Barangay Mamatid.
+                      </div>
                     </div>
                   </div>
-
                   <div className="mb-3">
                     <label className="form-label">
                       Valid ID <span className="text-danger">*</span>
@@ -344,7 +286,6 @@ const Register = () => {
                       />
                     )}
                   </div>
-
                   <div className="mb-3">
                     <label className="form-label">Password <span className="text-danger">*</span></label>
                     <div className="register-input-wrap">
@@ -378,7 +319,6 @@ const Register = () => {
                       </button>
                     </div>
                   </div>
-
                   <div className="mb-3">
                     <label className="form-label">Confirm Password <span className="text-danger">*</span></label>
                     <div className="register-input-wrap">
@@ -412,7 +352,6 @@ const Register = () => {
                       </button>
                     </div>
                   </div>
-
                   <button className="btn btn-danger w-100" type="submit">
                     Next: Verify Identity
                   </button>
@@ -425,10 +364,8 @@ const Register = () => {
           </div>
         </div>
       </section>
-
       <Footer />
     </>
   );
 };
-
 export default Register;
