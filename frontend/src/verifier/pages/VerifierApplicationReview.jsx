@@ -11,6 +11,17 @@ function OcrBadge({ passed }) {
     : <span className="badge bg-danger">Failed</span>;
 }
 
+// Human-readable labels for check_name values shown in the verification
+// table, same idea as StatusConstants.js — keeps raw internal identifiers
+// out of the verifier-facing UI. Falls back to the raw check_name for any
+// check not listed here, so nothing silently disappears if a new check
+// gets added without updating this map.
+const CHECK_NAME_LABELS = {
+  image_integrity: "Edited/Tampered Image Detection",
+  document_origin: "Suspicious File Origin (Design Software)",
+  ai_generation_provenance: "AI-Generated or AI-Edited Image",
+};
+
 // Builds initial flaggedDocs state from the application's most recent
 // verifier action, so revisiting this page shows what was actually stored,
 // not a blank slate. Only prefills while the re-upload request is still
@@ -123,6 +134,13 @@ function VerifierApplicationReview() {
   const hasFailedCheck = (app.verification_checks || []).some(
     (c) => latestDocIds.includes(c.document_id) && !c.passed
   );
+  // Dedicated, higher-visibility signal for the AI-generation provenance
+  // check specifically — a materially more serious signal than a routine
+  // OCR mismatch, so it gets its own badge instead of being lumped into
+  // the generic "Failed Eligibility Check(s)" bucket below.
+  const hasAiProvenanceFlag = (app.verification_checks || []).some(
+    (c) => latestDocIds.includes(c.document_id) && c.check_name === "ai_generation_provenance" && !c.passed
+  );
   const showFlagSummary = hasLowConfidence || hasFailedCheck;
 
   function toggleReason(docType, reasonText) {
@@ -165,6 +183,9 @@ function VerifierApplicationReview() {
                 <span className="text-muted small fw-semibold">Flagged for:</span>
                 {hasLowConfidence && (
                   <span className="badge bg-warning text-dark">Low Image Confidence</span>
+                )}
+                {hasAiProvenanceFlag && (
+                  <span className="badge bg-dark">⚠ AI-Generated/Edited Image Signals Detected</span>
                 )}
                 {hasFailedCheck && (
                   <span className="badge bg-danger">Failed Eligibility Check(s)</span>
@@ -317,7 +338,7 @@ function VerifierApplicationReview() {
                         <tbody>
                           {relatedChecks.map((check) => (
                             <tr key={check.id} className={check.passed ? "" : "table-danger"}>
-                              <td><code className="small">{check.check_name}</code></td>
+                              <td><code className="small">{CHECK_NAME_LABELS[check.check_name] ?? check.check_name}</code></td>
                               <td>
                                 {check.extracted_value
                                   ? <span className="text-success fw-semibold">{check.extracted_value}</span>

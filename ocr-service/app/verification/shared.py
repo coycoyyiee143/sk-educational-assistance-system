@@ -3,11 +3,12 @@ from app.extraction import extract_name, extract_school
 
 CONFIDENCE_THRESHOLD = 0.75
 
-def _flag(check_name, reason, extracted=None, raw=None, expected=None, context=None):
+def _flag(check_name, reason, extracted=None, raw=None, expected=None, context=None, score=None, metadata=None):
     return {
         "check": check_name, "passed": False, "flagged": True,
         "reason": reason, "extracted": extracted, "raw": raw,
-        "expected": expected, "context": context
+        "expected": expected, "context": context, "score": score,
+        "metadata": metadata or {},
     }
 
 def _pass(check_name, extracted=None, raw=None, score=None, context=None, expected=None):

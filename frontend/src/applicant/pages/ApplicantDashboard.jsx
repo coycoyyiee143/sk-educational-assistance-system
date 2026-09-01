@@ -14,8 +14,13 @@ function ApplicantDashboard() {
   const periodStatus = getApplicationPeriodStatus(config);
 
   useEffect(() => {
-    api.get("/applications")
-      .then((res) => setApplication(res.data[0] ?? null))
+    Promise.all([api.get("/applications"), api.get("/application-config/active")])
+      .then(([applicationsRes, configRes]) => {
+        const currentConfig = configRes.data;
+        setApplication(
+          applicationsRes.data.find((app) => app.config_id === currentConfig.id) ?? null,
+        );
+      })
       .catch(() => { })
       .finally(() => setLoadingApp(false));
 
