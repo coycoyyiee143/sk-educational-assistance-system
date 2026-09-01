@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { SCHOOLS, COURSES, YEAR_LEVELS } from "../constants/schoolsAndCourses";
 
-function FormStep({ form, setForm, onSubmit, loading, draftSaved, onSaveDraft, applicationId, periodStatus }) {
+function FormStep({ form, setForm, onSubmit, loading, draftSaved, onSaveDraft, applicationId, periodStatus, onCancel }) {
     const [otherCourse, setOtherCourse] = useState("");
     const [courseSearch, setCourseSearch] = useState("");
     const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
