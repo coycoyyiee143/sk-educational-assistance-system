@@ -1,10 +1,15 @@
+# app/verification/voters_cert.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_barangay, extract_cert_year
+from app.extraction.hash import extract_document_hash
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name
+from app.template_checks import get_template_strategy
+from app.template_checks.base_strategy import describe_score
 
 def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_name, last_name,
                                enforce_cert_year=False, configured_cert_year=None,
                                is_minor=False,
                                guardian_first_name=None, guardian_middle_name=None, guardian_last_name=None,
+                               declared_school=None,
                                *args, **kwargs):
     if avg_confidence < CONFIDENCE_THRESHOLD:
         return {"document": "voters_certificate", "low_confidence": True, "flagged": True}
@@ -12,13 +17,6 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
     blocks = parse_ocr_blocks(ocr_result)
     page_w, page_h = get_page_dimensions(blocks)
 
-    # For minor applicants, the Voter's Certificate belongs to the parent/
-    # guardian on file, not the applicant — so identity_match checks the
-    # OCR'd name against the guardian's name from the profile instead of the
-    # applicant's own name. This is deliberately kept as a single swap on
-    # who we're checking against, not a separate check, so downstream
-    # reporting (which document/reason causes flags) stays consistent
-    # regardless of applicant age.
     if is_minor:
         if not (guardian_first_name and guardian_last_name):
             checks = {
@@ -44,7 +42,6 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
 
     checks["residency_geofence"] = residency_check
 
-    # Cert year enforced unconditionally, every cycle. Not admin-configurable.
     cert_year_res = extract_cert_year(blocks)
     cert_year_display = cert_year_res.value if cert_year_res.found else None
 
@@ -54,6 +51,33 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
         else:
             reason = "Certificate year not found — please verify manually" if not cert_year_res.found else "Certificate year does not match current cycle"
             checks["cert_year_match"] = _flag("cert_year_match", reason, extracted=cert_year_res.value, raw=cert_year_res.raw, expected=str(configured_cert_year), context=cert_year_res.context)
+
+    # HASH integrity marker. Uses the bottom-strip-boosted OCR pass to
+    # give a fair shot at detecting this small, bottom-of-page text.
+    # metadata carries an auto_reupload hint for future use once Stage 1
+    # (synchronous, pre-queue completeness gating) exists — not currently
+    # acted on anywhere; this check still routes through the normal
+    # for_review path like every other Stage 2 finding, consistent with
+    # the "no separate automated reupload status at this stage" rule.
+    hash_res = extract_document_hash(blocks)
+    if hash_res.found:
+        checks["document_hash"] = _pass("document_hash", extracted=hash_res.value, raw=hash_res.raw, context=hash_res.context)
+    else:
+        checks["document_hash"] = _flag("document_hash", hash_res.context, metadata=hash_res.metadata)
+
+    template_strategy = get_template_strategy(declared_school, "voters_certificate")
+    template_result = template_strategy.check(blocks)
+    description = describe_score(template_result.score)
+
+    if template_result.passed:
+        checks["template_consistency"] = _pass("template_consistency", extracted=description, score=template_result.score)
+    else:
+        checks["template_consistency"] = _flag(
+            "template_consistency",
+            "; ".join(template_result.flags),
+            extracted=description,
+            score=template_result.score,
+        )
 
     return {
         "document":            "voters_certificate",

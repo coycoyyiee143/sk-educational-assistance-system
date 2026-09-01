@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AdminNavigation from "../components/AdminNavigation";
 import api from "../../services/api";
 
@@ -81,9 +81,23 @@ function AdminSchedule() {
   const [gracePeriodList, setGracePeriodList] = useState(null);
   const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
 
-  useEffect(() => { loadSchedule(); }, []);
+  const loadPreview = useCallback((scheduleId) => {
+    setPreviewing(true);
+    return api.get(`/admin/claiming-schedule/${scheduleId}/preview`)
+      .then((res) => setPreview(res.data))
+      .catch(() => setPreview(null))
+      .finally(() => setPreviewing(false));
+  }, []);
 
-  function loadSchedule() {
+  const loadGracePeriodClaimingList = useCallback(() => {
+    setLoadingGracePeriodList(true);
+    api.get("/admin/reports/grace-period-claiming-list")
+      .then((res) => setGracePeriodList(res.data))
+      .catch(() => setGracePeriodList(null))
+      .finally(() => setLoadingGracePeriodList(false));
+  }, []);
+
+  const loadSchedule = useCallback(() => {
     setLoading(true);
     api.get("/admin/claiming-schedule")
       .then((res) => {
@@ -118,23 +132,11 @@ function AdminSchedule() {
         }
       })
       .finally(() => setLoading(false));
-  }
+  }, [loadPreview, loadGracePeriodClaimingList]);
 
-  function loadPreview(scheduleId) {
-    setPreviewing(true);
-    api.get(`/admin/claiming-schedule/${scheduleId}/preview`)
-      .then((res) => setPreview(res.data))
-      .catch(() => setPreview(null))
-      .finally(() => setPreviewing(false));
-  }
-
-  function loadGracePeriodClaimingList() {
-    setLoadingGracePeriodList(true);
-    api.get("/admin/reports/grace-period-claiming-list")
-      .then((res) => setGracePeriodList(res.data))
-      .catch(() => setGracePeriodList(null))
-      .finally(() => setLoadingGracePeriodList(false));
-  }
+  useEffect(() => {
+    loadSchedule();
+  }, [loadSchedule]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -585,7 +587,7 @@ function AdminSchedule() {
                       <tbody>
                         {isPublished ? (
                           schedule.lanes
-                            ?.filter((lane) => lane.lane_name !== "Waitlist Promotions")
+                            ?.filter((lane) => lane.lane_name !== "Grace Period Claiming")
                             .map((lane) => (
                               <tr key={lane.id}>
                                 <td>{lane.lane_name}</td>
@@ -603,7 +605,7 @@ function AdminSchedule() {
                             ))
                         ) : preview ? (
                           preview.lanes
-                            .filter((lane) => lane.lane_name !== "Waitlist Promotions")
+                            .filter((lane) => lane.lane_name !== "Grace Period Claiming")
                             .map((lane) => (
                               <tr key={lane.id}>
                                 <td>{lane.lane_name}</td>

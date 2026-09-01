@@ -40,21 +40,22 @@ class ProcessOcrDocument implements ShouldQueue
 
     public function handle()
     {
-        // Idempotency guard — if a queue retry re-runs this job after the
-        // document already finished processing (e.g. worker crash between
-        // commit and job acknowledgment), don't reprocess and create
-        // duplicate OcrResult/VerificationCheck rows.
         if ($this->document->status === 'processed') {
             return;
         }
-
+    
         try {
-            // Get full path to stored file
             $storagePath = Storage::disk('local')->path($this->filePath);
-
             if (!file_exists($storagePath)) {
                 throw new \Exception("File not found: {$storagePath}");
             }
+    
+            // Clear any stale results from a prior processing attempt on
+            // this exact document row, so reprocessing (retry, manual
+            // re-trigger during testing, etc.) doesn't leave old and new
+            // checks sitting side by side in the same table.
+            \App\Models\VerificationCheck::where('document_id', $this->document->id)->delete();
+            \App\Models\OcrResult::where('document_id', $this->document->id)->delete();
 
             // Update the timeout to 180 seconds to accommodate heavy PaddleOCR models
             $client = new Client([
@@ -101,7 +102,8 @@ class ProcessOcrDocument implements ShouldQueue
                 // for every cycle, not admin-configurable, since this is a
                 // fixed rule rather than something that varies per period.
                 $multipart[] = ['name' => 'enforce_cert_year', 'contents' => 'true'];
-                $multipart[] = ['name' => 'cert_year',         'contents' => (string) now()->year];
+                $multipart[] = ['name' => 'cert_year', 'contents' => '2026'];
+                //$multipart[] = ['name' => 'cert_year',         'contents' => (string) now()->year];
             }
 
             $flaskUrl = env('OCR_SERVICE_URL', 'http://localhost:5000');
@@ -113,15 +115,17 @@ class ProcessOcrDocument implements ShouldQueue
                 return;
             }
 
+            $data = $result['verification'] ?? [];
+            $isLowConfidenceFlag = $data['low_confidence'] ?? false;
+
             $ocrResult = OcrResult::create([
                 'document_id'      => $this->document->id,
                 'extracted_fields' => $result['verification'] ?? [],
                 'confidence_score' => $result['avg_confidence'] ?? null,
-                'is_low_confidence'=> ($result['avg_confidence'] ?? 1) < 0.7,
+                'is_low_confidence'=> $isLowConfidenceFlag,
                 'raw_text'         => json_encode($result['ocr_lines'] ?? []),
             ]);
 
-            $data = $result['verification'] ?? [];
             $verification = isset($data['checks']) ? $data['checks'] : $data;
 
             foreach ($verification as $checkName => $checkData) {

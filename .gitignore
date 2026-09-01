@@ -24,6 +24,12 @@ ocr-service/**/*.pyc
 ocr-service/**/*.pyo
 ocr-service/.env
 
+face-service/venv/
+face-service/**/__pycache__/
+face-service/**/*.pyc
+face-service/**/*.pyo
+face-service/.env
+
 # OS
 .DS_Store
 Thumbs.db

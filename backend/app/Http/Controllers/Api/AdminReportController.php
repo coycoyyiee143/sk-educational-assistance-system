@@ -8,12 +8,14 @@ use App\Models\ApplicationConfiguration;
 use App\Models\ClaimingAssignment;
 use App\Models\VerificationCheck;
 use App\Models\VerifierAction;
+use App\Traits\GracePeriodEligibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class AdminReportController extends Controller
 {
+    use GracePeriodEligibility;
 
     // "Approved" means currently eligible to claim, or already claimed —
     // approved (pre-claiming-day) + claimed (successfully received) +
@@ -293,17 +295,15 @@ class AdminReportController extends Controller
 
     private function buildGracePeriodClaimingList(ApplicationConfiguration $config)
     {
+        $today = now()->toDateString();
         $assignments = ClaimingAssignment::with(['application.user', 'lane'])
             ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
-            ->where(function ($q) {
-                $q->where(function ($q2) {
-                    $q2->where('source', 'original')->where('claim_status', 'unclaimed');
-                })->orWhere('source', 'waitlist_promotion');
-            })
+            ->where(fn($q) => $this->applyGracePeriodEligibleCondition($q, $today))
             ->get();
+
         return [
-            'retrying' => $assignments->where('source', 'original')->values(),
-            'promoted' => $assignments->where('source', 'waitlist_promotion')->values(),
+            'retrying' => $assignments->filter(fn($a) => $this->gracePeriodType($a->source) === 'retrying')->values(),
+            'promoted' => $assignments->filter(fn($a) => $this->gracePeriodType($a->source) === 'promoted')->values(),
         ];
     }
 
@@ -344,7 +344,7 @@ class AdminReportController extends Controller
         if (!$config) {
             return response()->json(['message' => 'No active application period.'], 404);
         }
-        $assignments = ClaimingAssignment::with(['application.user', 'application.configuration', 'verifier', 'lane'])
+        $assignments = ClaimingAssignment::with(['application.user', 'application.configuration', 'verifier', 'lane', 'latestFaceVerification.verifier'])
             ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
             ->where('claim_status', 'claimed')
             ->orderBy('verified_at')
@@ -352,6 +352,7 @@ class AdminReportController extends Controller
 
         $entries = $assignments->map(function ($a) {
             $amount = $a->amount ?? $this->assistanceAmountFor($a->application->configuration);
+            $face = $a->latestFaceVerification;
             return [
                 'control_number' => $a->application->control_number,
                 'applicant_name' => trim($a->application->user->first_name . ' ' . $a->application->user->last_name),
@@ -361,6 +362,17 @@ class AdminReportController extends Controller
                 'verifier_name'  => $a->verifier ? trim($a->verifier->first_name . ' ' . $a->verifier->last_name) : null,
                 'verified_at'    => $a->verified_at,
                 'amount'         => $amount,
+                // Present only when a face check was actually run for this
+                // claim — mandatory in grace period, optional (verifier's
+                // call) in regular claiming, so this may legitimately be
+                // null for a regular-claiming row nobody chose to verify.
+                'face_verification' => $face ? [
+                    'matched'       => $face->matched,
+                    'match_score'   => $face->match_score,
+                    'verified_at'   => $face->verified_at,
+                    'verified_by'   => $face->verifier ? trim($face->verifier->first_name . ' ' . $face->verifier->last_name) : null,
+                    'photo_url'     => route('claiming.face-photo', $face->id),
+                ] : null,
             ];
         });
 
@@ -431,7 +443,7 @@ class AdminReportController extends Controller
         $claimed    = $query->clone()->where('claim_status', 'claimed')->count();
         $notCleared = $query->clone()->where('claim_status', 'not_cleared')->count();
         $unclaimed  = $query->clone()->where('claim_status', 'unclaimed')->count();
-        $pending    = $query->clone()->where('claim_status', 'pending')->count();
+        $pending    = $query->clone()->where('claim_status', 'pending_claiming')->count();
         $total = $claimed + $notCleared + $unclaimed + $pending;
         $notClearedReasons = $query->clone()
             ->where('claim_status', 'not_cleared')

@@ -41,15 +41,20 @@ def fuzzy_match_name(extracted: str, first_name: str, middle_name: str,
     candidates += [f"{fn} {ln}", f"{ln} {fn}", f"{ln}, {fn}"]
 
     best_score = 0
+    # Deliberately based on the FULL combined name length, not a single
+    # component — a lone surname or given-name fragment should never be
+    # trusted as a complete identity match on its own. Fragmented names
+    # are handled by extract_adjacent_name_lines() joining them into one
+    # candidate BEFORE it reaches this function; once properly joined,
+    # the combined text is naturally close to full-name length and
+    # scores correctly via token_sort_ratio without needing partial_ratio
+    # leniency at all.
     min_len = max(4, len(normalize_name(f"{fn} {ln}")) - 4)
+
     for candidate in candidates:
-        score = fuzz.token_sort_ratio(
-            extracted_norm, normalize_name(candidate)
-        )
+        score = fuzz.token_sort_ratio(extracted_norm, normalize_name(candidate))
         if len(extracted_norm) >= min_len:
-            score = max(score, fuzz.partial_ratio(
-                extracted_norm, normalize_name(candidate)
-            ))
+            score = max(score, fuzz.partial_ratio(extracted_norm, normalize_name(candidate)))
         best_score = max(best_score, score)
 
     return {"score": best_score, "passed": best_score >= threshold}

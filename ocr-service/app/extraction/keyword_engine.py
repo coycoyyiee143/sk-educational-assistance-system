@@ -8,7 +8,8 @@ FIELD_KEYWORDS = {
     "name": ["student name", "name of student", "name", "name of voter", "voter's name", "voters name", "apellido", "user"],
     "school_year": ["school year", "s.y.", "sy", "academic year", "a.y.", "ay", "sch. yr.", "sch yr", "school year sem"],
     "barangay": ["barangay", "brgy", "brgy.", "precinct"],
-    "date_issued": ["date issued", "date of issuance", "issuance date", "issued"]
+    "date_issued": ["date issued", "date of issuance", "issuance date", "issued"],
+    "hash": ["hash"],
 }
 
 def find_label_block(blocks: List[OcrBlock], field_name: str) -> Optional[OcrBlock]:
