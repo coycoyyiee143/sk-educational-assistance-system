@@ -7,6 +7,7 @@ from app.verification import (
 )
 from app.forgery.ela import compute_ela, describe_ela_score
 from app.forgery.pdf_metadata import check_pdf_metadata, describe_pdf_metadata_score
+from app.forgery.image_metadata import check_image_metadata, describe_image_metadata_score
 import tempfile
 import os
 
@@ -34,7 +35,8 @@ def process_voters_certificate():
     try:
         if "file" not in request.files:
             return jsonify({"success": False, "error": "No file uploaded"}), 400
-        tmp_path = save_temp_image(request.files["file"])
+        uploaded_file = request.files["file"]
+        tmp_path = save_temp_image(uploaded_file)
         first_name, middle_name, last_name = get_name_fields(request.form)
         enforce_cert_year = request.form.get("enforce_cert_year", "false").lower() == "true"
         configured_cert_year = request.form.get("cert_year", None)
@@ -42,7 +44,9 @@ def process_voters_certificate():
         guardian_first_name = request.form.get("guardian_first_name", "") or None
         guardian_middle_name = request.form.get("guardian_middle_name", "") or None
         guardian_last_name = request.form.get("guardian_last_name", "") or None
-        ocr_result = run_ocr(tmp_path)
+        # boost_bottom_strip=True only for this doc type — Voter's Cert is
+        # the one with the HASH marker at a known fixed bottom position.
+        ocr_result = run_ocr(tmp_path, boost_bottom_strip=True)
         avg_confidence = get_average_confidence(ocr_result)
         verification = verify_voters_certificate(
             ocr_result, avg_confidence,
@@ -53,8 +57,6 @@ def process_voters_certificate():
             guardian_middle_name=guardian_middle_name,
             guardian_last_name=guardian_last_name
         )
-        # ELA runs on the raw image file, separate from OCR/text-based
-        # verification above — must happen before tmp_path is deleted below.
         ela_result = compute_ela(tmp_path)
         forgery_check = {
             "check": "image_integrity",
@@ -69,10 +71,6 @@ def process_voters_certificate():
             verification["flagged"] = True
             verification["flag_reason"] = "eligibility_issues"
 
-        # PDF authoring-tool metadata check — flags documents created in
-        # general-purpose design software (Canva, Photoshop, etc.) rather
-        # than scanned or exported from a school system. Silent/passes on
-        # non-PDF uploads.
         applicant_full_name = f"{first_name} {last_name}".strip()
         pdf_meta_result = check_pdf_metadata(tmp_path, applicant_full_name)
         pdf_meta_check = {
@@ -85,6 +83,20 @@ def process_voters_certificate():
         }
         verification["checks"]["document_origin"] = pdf_meta_check
         if not pdf_meta_result.passed:
+            verification["flagged"] = True
+            verification["flag_reason"] = "eligibility_issues"
+
+        img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
+        img_meta_check = {
+            "check": "ai_generation_provenance",
+            "passed": img_meta_result.passed,
+            "flagged": not img_meta_result.passed,
+            "extracted": describe_image_metadata_score(img_meta_result.score),
+            "reason": "; ".join(img_meta_result.flags) if img_meta_result.flags else None,
+            "score": img_meta_result.score,
+        }
+        verification["checks"]["ai_generation_provenance"] = img_meta_check
+        if not img_meta_result.passed:
             verification["flagged"] = True
             verification["flag_reason"] = "eligibility_issues"
 
@@ -109,7 +121,8 @@ def process_registration_form():
         if "file" not in request.files:
             return jsonify({"success": False, "error": "No file uploaded"}), 400
         
-        tmp_path = save_temp_image(request.files["file"])
+        uploaded_file = request.files["file"]
+        tmp_path = save_temp_image(uploaded_file)
         first_name, middle_name, last_name = get_name_fields(request.form)
         declared_school = request.form.get("declared_school", "")
         configured_school_year = request.form.get("school_year", "")
@@ -121,8 +134,6 @@ def process_registration_form():
             declared_school,
             configured_school_year
         )
-        # ELA runs on the raw image file, separate from OCR/text-based
-        # verification above — must happen before tmp_path is deleted below.
         ela_result = compute_ela(tmp_path)
         forgery_check = {
             "check": "image_integrity",
@@ -137,10 +148,6 @@ def process_registration_form():
             verification["flagged"] = True
             verification["flag_reason"] = "eligibility_issues"
 
-        # PDF authoring-tool metadata check — flags documents created in
-        # general-purpose design software (Canva, Photoshop, etc.) rather
-        # than scanned or exported from a school system. Silent/passes on
-        # non-PDF uploads.
         pdf_meta_result = check_pdf_metadata(tmp_path)
         pdf_meta_check = {
             "check": "document_origin",
@@ -152,6 +159,20 @@ def process_registration_form():
         }
         verification["checks"]["document_origin"] = pdf_meta_check
         if not pdf_meta_result.passed:
+            verification["flagged"] = True
+            verification["flag_reason"] = "eligibility_issues"
+
+        img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
+        img_meta_check = {
+            "check": "ai_generation_provenance",
+            "passed": img_meta_result.passed,
+            "flagged": not img_meta_result.passed,
+            "extracted": describe_image_metadata_score(img_meta_result.score),
+            "reason": "; ".join(img_meta_result.flags) if img_meta_result.flags else None,
+            "score": img_meta_result.score,
+        }
+        verification["checks"]["ai_generation_provenance"] = img_meta_check
+        if not img_meta_result.passed:
             verification["flagged"] = True
             verification["flag_reason"] = "eligibility_issues"
 
@@ -178,7 +199,8 @@ def process_school_id():
         if "file" not in request.files:
             return jsonify({"success": False, "error": "No file uploaded"}), 400
         
-        tmp_path = save_temp_image(request.files["file"])
+        uploaded_file = request.files["file"]
+        tmp_path = save_temp_image(uploaded_file)
         first_name, middle_name, last_name = get_name_fields(request.form)
         declared_school = request.form.get("declared_school", "")
         ocr_result = run_ocr(tmp_path)
@@ -188,8 +210,6 @@ def process_school_id():
             first_name, middle_name, last_name,
             declared_school
         )
-        # ELA runs on the raw image file, separate from OCR/text-based
-        # verification above — must happen before tmp_path is deleted below.
         ela_result = compute_ela(tmp_path)
         forgery_check = {
             "check": "image_integrity",
@@ -204,10 +224,6 @@ def process_school_id():
             verification["flagged"] = True
             verification["flag_reason"] = "eligibility_issues"
 
-        # PDF authoring-tool metadata check — flags documents created in
-        # general-purpose design software (Canva, Photoshop, etc.) rather
-        # than scanned or exported from a school system. Silent/passes on
-        # non-PDF uploads.
         pdf_meta_result = check_pdf_metadata(tmp_path)
         pdf_meta_check = {
             "check": "document_origin",
@@ -219,6 +235,20 @@ def process_school_id():
         }
         verification["checks"]["document_origin"] = pdf_meta_check
         if not pdf_meta_result.passed:
+            verification["flagged"] = True
+            verification["flag_reason"] = "eligibility_issues"
+
+        img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
+        img_meta_check = {
+            "check": "ai_generation_provenance",
+            "passed": img_meta_result.passed,
+            "flagged": not img_meta_result.passed,
+            "extracted": describe_image_metadata_score(img_meta_result.score),
+            "reason": "; ".join(img_meta_result.flags) if img_meta_result.flags else None,
+            "score": img_meta_result.score,
+        }
+        verification["checks"]["ai_generation_provenance"] = img_meta_check
+        if not img_meta_result.passed:
             verification["flagged"] = True
             verification["flag_reason"] = "eligibility_issues"
 

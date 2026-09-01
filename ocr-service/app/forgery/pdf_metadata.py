@@ -22,10 +22,14 @@ def describe_pdf_metadata_score(score: float) -> str:
     return "Document Origin Signals Warrant Review"
 
 
+# Design/editing tools only — deliberately excludes word processors
+# (Word, LibreOffice, Google Docs, etc.), since a school registrar
+# exporting a Registration Form from Word to PDF is completely normal
+# and would otherwise flag every legitimate registrar-issued document
+# as "suspicious" alongside actual forgery tools.
 SUSPICIOUS_TOOLS = [
     "canva", "figma", "photoshop", "illustrator", "gimp",
     "sketch", "inkscape", "coreldraw", "affinity",
-    "word", "microsoft",
 ]
 
 

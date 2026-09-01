@@ -1,7 +1,10 @@
+import logging
 from dataclasses import dataclass, field
 from typing import List
 from PIL import Image, ImageChops
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -45,7 +48,11 @@ def compute_ela(image_path: str, quality: int = 90,
     try:
         original = Image.open(image_path).convert('RGB')
     except Exception as e:
-        return ElaResult(passed=True, flags=[], score=1.0)  # can't assess — don't block, don't false-flag
+        # Fail open deliberately (don't block a legit applicant over a
+        # code/format error), but log it — otherwise this check can
+        # silently no-op on every upload and nobody would ever notice.
+        logger.warning("ELA skipped — could not open image %s: %s", image_path, e)
+        return ElaResult(passed=True, flags=[], score=1.0)
 
     resaved_path = image_path + "_ela_tmp.jpg"
     try:

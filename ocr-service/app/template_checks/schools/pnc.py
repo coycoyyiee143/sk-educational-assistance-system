@@ -9,10 +9,6 @@ class PncRegFormTemplateStrategy(BaseTemplateStrategy):
         "registration form",
         "office of the university registrar",
         "university registrar",
-        # "unifast grantee" removed — not reliably captured by OCR even
-        # on genuine documents; the header field near the watermark area
-        # is frequently missed in the same way "certified correct" was
-        # on the Voter's Certification.
     ]
     region_hints = {
         "republic of the philippines": "top",
@@ -27,10 +23,15 @@ class PncRegFormTemplateStrategy(BaseTemplateStrategy):
 
 
 class PncIdTemplateStrategy(BaseTemplateStrategy):
-    required_keywords = [
-        "university of cabuyao",
+    # School name appears on the ID in both English and Filipino — either
+    # one being readable is sufficient, since which one OCR picks up
+    # cleanly depends on the specific ID's wear/chipping, not on whether
+    # it's genuine. Region hint dropped for now since it would need to
+    # apply to whichever variant actually matched, not a fixed keyword —
+    # a reasonable simplification for now, revisit if this needs to be
+    # positionally strict later.
+    required_keyword_groups = [
+        ["university of cabuyao", "pamantasan ng cabuyao"],
     ]
-    region_hints = {
-        "university of cabuyao": "top",
-    }
+    region_hints = {}
     fuzzy_threshold = 0.75

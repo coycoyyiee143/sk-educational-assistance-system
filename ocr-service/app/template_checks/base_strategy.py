@@ -1,3 +1,4 @@
+# app/template_checks/base_strategy.py
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict
 from difflib import SequenceMatcher
@@ -22,6 +23,16 @@ def fuzzy_contains(full_text: str, keyword: str, threshold: float = 0.75) -> boo
     keyword = keyword.lower()
     if keyword in full_text:
         return True
+
+    # Handles OCR occasionally merging a multi-word keyword into one
+    # unspaced token — e.g. "(PAMANTASANNGCABUYAO)" for "Pamantasan ng
+    # Cabuyao", confirmed on a real ID sample. Word-window matching
+    # below can't catch this since the word count no longer lines up.
+    keyword_squished = keyword.replace(" ", "")
+    full_text_squished = full_text.replace(" ", "")
+    if keyword_squished in full_text_squished:
+        return True
+
     words = full_text.split()
     kw_len = len(keyword.split())
     for i in range(len(words) - kw_len + 1):
@@ -45,6 +56,12 @@ def describe_score(score: float) -> str:
 
 class BaseTemplateStrategy:
     required_keywords: List[str] = []
+    # Each inner list is a set of acceptable ALTERNATIVES for one field —
+    # at least ONE keyword in the group must be found, not all of them.
+    # Use this instead of required_keywords when a document legitimately
+    # prints more than one valid variant of the same field (e.g. a
+    # school's English and Filipino name both appearing on an ID).
+    required_keyword_groups: List[List[str]] = []
     region_hints: Dict[str, str] = {}
     fuzzy_threshold: float = 0.75
 
@@ -63,6 +80,10 @@ class BaseTemplateStrategy:
                 block = self._find_closest_block(blocks, kw)
                 if block and not self._in_region(block, page_height, expected_region):
                     flags.append(f"'{kw}' found but not in expected {expected_region} region")
+
+        for group in self.required_keyword_groups:
+            if not any(fuzzy_contains(full_text, kw, self.fuzzy_threshold) for kw in group):
+                flags.append(f"Missing expected text: one of {group}")
 
         flags.extend(self.extra_checks(blocks, page_width, page_height))
         score = max(0.0, 1.0 - (0.2 * len(flags)))

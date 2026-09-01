@@ -1,6 +1,6 @@
 from typing import List
 from app.models import OcrBlock
-from app.template_checks.base_strategy import BaseTemplateStrategy
+from app.template_checks.base_strategy import BaseTemplateStrategy, fuzzy_contains
 
 
 class ComelecVotersCertTemplateStrategy(BaseTemplateStrategy):
@@ -11,18 +11,13 @@ class ComelecVotersCertTemplateStrategy(BaseTemplateStrategy):
     """
     required_keywords = [
         "voter's certification",
-        # via OCR even on genuine documents, due to small, light-colored
-        # font weight positioned close to the COMELEC seal graphic.
     ]
     region_hints = {}
     fuzzy_threshold = 0.6
 
     def extra_checks(self, blocks: List[OcrBlock], page_width, page_height) -> List[str]:
-        flags = []
-        full_text = " ".join(b.text.lower() for b in blocks)
-        # Genuine COMELEC certificates print a "HASH:" line at the bottom
-        # as a document integrity marker — a lightweight structural signal
-        # on top of the keyword check above.
-        if "hash" not in full_text:
-            flags.append("Missing expected 'HASH' verification marker")
-        return flags
+        # HASH presence is now handled by the dedicated extract_document_hash()
+        # check (document_hash), which does real value extraction — this
+        # crude presence-only check is redundant and removed to avoid two
+        # rows flagging the same underlying issue.
+        return []
