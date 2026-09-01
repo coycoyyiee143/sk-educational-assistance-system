@@ -141,6 +141,17 @@ function VerifierApplicationReview() {
   const hasAiProvenanceFlag = (app.verification_checks || []).some(
     (c) => latestDocIds.includes(c.document_id) && c.check_name === "ai_generation_provenance" && !c.passed
   );
+  // Signal carried through from Python via VerificationCheck.metadata —
+  // set when residency_geofence detects a CONTRADICTING barangay (a
+  // known Laguna barangay other than Mamatid), not just a not-found
+  // case. Never drives automated rejection on its own — this program is
+  // exclusive to Mamatid residents, so a confirmed non-resident is close
+  // to a certain ineligibility, but the actual reject decision stays a
+  // human call. Surfaced here so the verifier doesn't have to dig
+  // through the raw checks table to notice it.
+  const hasSuggestedDisapproval = (app.verification_checks || []).some(
+    (c) => latestDocIds.includes(c.document_id) && c.metadata?.flag === "SUGGESTED_DISAPPROVAL"
+  );
   const showFlagSummary = hasLowConfidence || hasFailedCheck;
 
   function toggleReason(docType, reasonText) {
@@ -178,6 +189,14 @@ function VerifierApplicationReview() {
               </div>
               <span className={`status-badge ${getVerifierBadgeClass(app)}`}>{getVerifierStatusLabel(app)}</span>
             </div>
+            {hasSuggestedDisapproval && (
+              <div className="alert alert-dark small mt-3 mb-0">
+                <strong>⚠ Suggested: Reject — Non-Resident.</strong> The document(s) below indicate a residency
+                outside Barangay Mamatid. This program is exclusive to Mamatid residents. This is a suggestion
+                only — please confirm before making a decision, since a data-entry or upload mistake is still
+                possible.
+              </div>
+            )}
             {showFlagSummary && (
               <div className="mt-3 d-flex flex-wrap gap-2">
                 <span className="text-muted small fw-semibold">Flagged for:</span>
@@ -338,7 +357,14 @@ function VerifierApplicationReview() {
                         <tbody>
                           {relatedChecks.map((check) => (
                             <tr key={check.id} className={check.passed ? "" : "table-danger"}>
-                              <td><code className="small">{CHECK_NAME_LABELS[check.check_name] ?? check.check_name}</code></td>
+                              <td>
+                                <code className="small">{CHECK_NAME_LABELS[check.check_name] ?? check.check_name}</code>
+                                {check.metadata?.flag === "SUGGESTED_DISAPPROVAL" && (
+                                  <span className="badge bg-dark ms-2" style={{ fontSize: "0.6rem" }}>
+                                    Suggested: Reject
+                                  </span>
+                                )}
+                              </td>
                               <td>
                                 {check.extracted_value
                                   ? <span className="text-success fw-semibold">{check.extracted_value}</span>

@@ -15,10 +15,12 @@ class VerificationCheck extends Model
         'extracted_value',
         'expected_value',
         'flag_reason',
+        'metadata',
     ];
 
     protected $casts = [
-        'passed' => 'boolean',
+        'passed'   => 'boolean',
+        'metadata' => 'array',
     ];
 
     public function application()

@@ -19,7 +19,7 @@ class ApplicationController extends Controller
         return response()->json($applications);
     }
 
-        public function store(Request $request)
+    public function store(Request $request)
     {
         $request->validate([
             'school_name'       => 'required|string',
@@ -53,7 +53,7 @@ class ApplicationController extends Controller
             ], 400);
         }
 
-                // Duplicate-applicant check: block a new registration if the person's
+        // Duplicate-applicant check: block a new registration if the person's
         // first name + last name + birthdate already matches someone who has
         // an approved or claimed application on file — regardless of which
         // account/email they used to apply. Middle name is deliberately

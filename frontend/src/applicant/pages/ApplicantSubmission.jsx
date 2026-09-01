@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import api from "../../services/api";
+import { STATUS_CONFIG } from "../../components/StatusConstants";
 const SCHOOLS = [
   "Pamantasan ng Cabuyao",
   "Mapúa Malayan Colleges Laguna",
@@ -198,6 +199,7 @@ const STATUS_LABELS = {
   approved: "Approved",
   rejected: "Rejected",
   reupload_requested: "Re-upload Requested",
+  auto_reupload_requested: "Re-upload Needed",
   claimed: "Claimed",
   not_cleared: "Not Cleared",
   unclaimed: "Unclaimed",
@@ -408,7 +410,7 @@ function ApplicantSubmission() {
           });
           const docsRes = await api.get(`/applications/${app.id}/documents`);
           setExistingDocs(docsRes.data);
-          if (app.status === "reupload_requested") {
+          if (STATUS_CONFIG[app.status]?.showReupload) {
             setStep("reupload");
           } else if (docsRes.data.length < 3) {
             setStep("documents");
@@ -437,9 +439,15 @@ function ApplicantSubmission() {
   const isMinor = profile?.is_minor ?? false;
   const DOC_FIELDS = getDocFields(isMinor);
   const isProfileComplete = profile?.is_profile_complete ?? false;
+  const isAutoReupload = existingApp?.status === "auto_reupload_requested";
   const reuploadDetails =
     existingApp?.latest_verifier_action?.reupload_details ?? [];
   const missingReuploadFields = DOC_FIELDS.filter((field) => {
+    // Auto-reupload has no per-document reupload_details (no VerifierAction
+    // exists — nothing pinpointed a specific document type). Until
+    // per-document highlighting is added for this case, treat every
+    // field as optional-to-replace here, same as the human-flow default.
+    if (isAutoReupload) return false;
     const isRequested = reuploadDetails.some(
       (r) => r.document_type === field.type,
     );
@@ -469,9 +477,10 @@ function ApplicantSubmission() {
         setApplicationId(res.data.application.id);
       }
 
-      // If the application is under reupload_requested status, go back to
-      // the reupload step instead of the normal document upload step
-      setStep(existingApp?.status === "reupload_requested" ? "reupload" : "documents");
+      // If the application is under a reupload-driven status (human or
+      // system-flagged), go back to the reupload step instead of the
+      // normal document upload step
+      setStep(STATUS_CONFIG[existingApp?.status]?.showReupload ? "reupload" : "documents");
 
       // Now backed by a real application record — the local draft is redundant
       localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -685,9 +694,16 @@ function ApplicantSubmission() {
             )}
             {step === "reupload" && (
               <form onSubmit={handleReupload}>
-                <div className="alert alert-warning mb-3">
-                  <strong>Re-upload Required:</strong> The SK Verifier has requested you to re-upload your documents.
-                </div>
+                {isAutoReupload ? (
+                  <div className="alert alert-warning mb-3">
+                    <strong>Re-upload Needed:</strong>{" "}
+                    {existingApp.auto_reupload_reason || "Our system detected an issue with one of your uploaded documents."}
+                  </div>
+                ) : (
+                  <div className="alert alert-warning mb-3">
+                    <strong>Re-upload Required:</strong> The SK Verifier has requested you to re-upload your documents.
+                  </div>
+                )}
 
                 <div className="d-flex justify-content-end mb-3">
                   <button
@@ -752,7 +768,9 @@ function ApplicantSubmission() {
                     </div>
                   )}
                   <p className="text-muted small mb-3">
-                    Upload replacements for the documents flagged by the verifier. Leave blank to keep existing.
+                    {isAutoReupload
+                      ? "Upload a replacement for the flagged document above. Leave the others blank to keep them as-is."
+                      : "Upload replacements for the documents flagged by the verifier. Leave blank to keep existing."}
                   </p>
                   <div className="row g-3">
                     {DOC_FIELDS.map((field) => {

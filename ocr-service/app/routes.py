@@ -55,50 +55,60 @@ def process_voters_certificate():
             is_minor=is_minor,
             guardian_first_name=guardian_first_name,
             guardian_middle_name=guardian_middle_name,
-            guardian_last_name=guardian_last_name
+            guardian_last_name=guardian_last_name,
+            image_path=tmp_path
         )
-        ela_result = compute_ela(tmp_path)
-        forgery_check = {
-            "check": "image_integrity",
-            "passed": ela_result.passed,
-            "flagged": not ela_result.passed,
-            "extracted": describe_ela_score(ela_result.score),
-            "reason": "; ".join(ela_result.flags) if ela_result.flags else None,
-            "score": ela_result.score,
-        }
-        verification["checks"]["image_integrity"] = forgery_check
-        if not ela_result.passed:
-            verification["flagged"] = True
-            verification["flag_reason"] = "eligibility_issues"
 
-        applicant_full_name = f"{first_name} {last_name}".strip()
-        pdf_meta_result = check_pdf_metadata(tmp_path, applicant_full_name)
-        pdf_meta_check = {
-            "check": "document_origin",
-            "passed": pdf_meta_result.passed,
-            "flagged": not pdf_meta_result.passed,
-            "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
-            "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
-            "score": pdf_meta_result.score,
-        }
-        verification["checks"]["document_origin"] = pdf_meta_check
-        if not pdf_meta_result.passed:
-            verification["flagged"] = True
-            verification["flag_reason"] = "eligibility_issues"
+        # If verify_voters_certificate already short-circuited (upload-check
+        # failure — wrong document type, too low quality, or a confidently
+        # wrong cert year), it has no 'checks' dict at all, since it never
+        # reached full field extraction. Skip the forgery/AI-provenance
+        # checks entirely in that case — Laravel reads flag_reason directly
+        # off this response and routes to auto-reupload without ever
+        # looking at 'checks'.
+        if verification.get("flag_reason") != "auto_reupload":
+            ela_result = compute_ela(tmp_path)
+            forgery_check = {
+                "check": "image_integrity",
+                "passed": ela_result.passed,
+                "flagged": not ela_result.passed,
+                "extracted": describe_ela_score(ela_result.score),
+                "reason": "; ".join(ela_result.flags) if ela_result.flags else None,
+                "score": ela_result.score,
+            }
+            verification["checks"]["image_integrity"] = forgery_check
+            if not ela_result.passed:
+                verification["flagged"] = True
+                verification["flag_reason"] = "eligibility_issues"
 
-        img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
-        img_meta_check = {
-            "check": "ai_generation_provenance",
-            "passed": img_meta_result.passed,
-            "flagged": not img_meta_result.passed,
-            "extracted": describe_image_metadata_score(img_meta_result.score),
-            "reason": "; ".join(img_meta_result.flags) if img_meta_result.flags else None,
-            "score": img_meta_result.score,
-        }
-        verification["checks"]["ai_generation_provenance"] = img_meta_check
-        if not img_meta_result.passed:
-            verification["flagged"] = True
-            verification["flag_reason"] = "eligibility_issues"
+            applicant_full_name = f"{first_name} {last_name}".strip()
+            pdf_meta_result = check_pdf_metadata(tmp_path, applicant_full_name)
+            pdf_meta_check = {
+                "check": "document_origin",
+                "passed": pdf_meta_result.passed,
+                "flagged": not pdf_meta_result.passed,
+                "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
+                "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
+                "score": pdf_meta_result.score,
+            }
+            verification["checks"]["document_origin"] = pdf_meta_check
+            if not pdf_meta_result.passed:
+                verification["flagged"] = True
+                verification["flag_reason"] = "eligibility_issues"
+
+            img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
+            img_meta_check = {
+                "check": "ai_generation_provenance",
+                "passed": img_meta_result.passed,
+                "flagged": not img_meta_result.passed,
+                "extracted": describe_image_metadata_score(img_meta_result.score),
+                "reason": "; ".join(img_meta_result.flags) if img_meta_result.flags else None,
+                "score": img_meta_result.score,
+            }
+            verification["checks"]["ai_generation_provenance"] = img_meta_check
+            if not img_meta_result.passed:
+                verification["flagged"] = True
+                verification["flag_reason"] = "eligibility_issues"
 
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
         return jsonify({
@@ -132,49 +142,52 @@ def process_registration_form():
             ocr_result, avg_confidence,
             first_name, middle_name, last_name,
             declared_school,
-            configured_school_year
+            configured_school_year,
+            image_path=tmp_path
         )
-        ela_result = compute_ela(tmp_path)
-        forgery_check = {
-            "check": "image_integrity",
-            "passed": ela_result.passed,
-            "flagged": not ela_result.passed,
-            "extracted": describe_ela_score(ela_result.score),
-            "reason": "; ".join(ela_result.flags) if ela_result.flags else None,
-            "score": ela_result.score,
-        }
-        verification["checks"]["image_integrity"] = forgery_check
-        if not ela_result.passed:
-            verification["flagged"] = True
-            verification["flag_reason"] = "eligibility_issues"
 
-        pdf_meta_result = check_pdf_metadata(tmp_path)
-        pdf_meta_check = {
-            "check": "document_origin",
-            "passed": pdf_meta_result.passed,
-            "flagged": not pdf_meta_result.passed,
-            "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
-            "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
-            "score": pdf_meta_result.score,
-        }
-        verification["checks"]["document_origin"] = pdf_meta_check
-        if not pdf_meta_result.passed:
-            verification["flagged"] = True
-            verification["flag_reason"] = "eligibility_issues"
+        if verification.get("flag_reason") != "auto_reupload":
+            ela_result = compute_ela(tmp_path)
+            forgery_check = {
+                "check": "image_integrity",
+                "passed": ela_result.passed,
+                "flagged": not ela_result.passed,
+                "extracted": describe_ela_score(ela_result.score),
+                "reason": "; ".join(ela_result.flags) if ela_result.flags else None,
+                "score": ela_result.score,
+            }
+            verification["checks"]["image_integrity"] = forgery_check
+            if not ela_result.passed:
+                verification["flagged"] = True
+                verification["flag_reason"] = "eligibility_issues"
 
-        img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
-        img_meta_check = {
-            "check": "ai_generation_provenance",
-            "passed": img_meta_result.passed,
-            "flagged": not img_meta_result.passed,
-            "extracted": describe_image_metadata_score(img_meta_result.score),
-            "reason": "; ".join(img_meta_result.flags) if img_meta_result.flags else None,
-            "score": img_meta_result.score,
-        }
-        verification["checks"]["ai_generation_provenance"] = img_meta_check
-        if not img_meta_result.passed:
-            verification["flagged"] = True
-            verification["flag_reason"] = "eligibility_issues"
+            pdf_meta_result = check_pdf_metadata(tmp_path)
+            pdf_meta_check = {
+                "check": "document_origin",
+                "passed": pdf_meta_result.passed,
+                "flagged": not pdf_meta_result.passed,
+                "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
+                "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
+                "score": pdf_meta_result.score,
+            }
+            verification["checks"]["document_origin"] = pdf_meta_check
+            if not pdf_meta_result.passed:
+                verification["flagged"] = True
+                verification["flag_reason"] = "eligibility_issues"
+
+            img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
+            img_meta_check = {
+                "check": "ai_generation_provenance",
+                "passed": img_meta_result.passed,
+                "flagged": not img_meta_result.passed,
+                "extracted": describe_image_metadata_score(img_meta_result.score),
+                "reason": "; ".join(img_meta_result.flags) if img_meta_result.flags else None,
+                "score": img_meta_result.score,
+            }
+            verification["checks"]["ai_generation_provenance"] = img_meta_check
+            if not img_meta_result.passed:
+                verification["flagged"] = True
+                verification["flag_reason"] = "eligibility_issues"
 
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
         return jsonify({
@@ -208,49 +221,52 @@ def process_school_id():
         verification = verify_school_id(
             ocr_result, avg_confidence,
             first_name, middle_name, last_name,
-            declared_school
+            declared_school,
+            image_path=tmp_path
         )
-        ela_result = compute_ela(tmp_path)
-        forgery_check = {
-            "check": "image_integrity",
-            "passed": ela_result.passed,
-            "flagged": not ela_result.passed,
-            "extracted": describe_ela_score(ela_result.score),
-            "reason": "; ".join(ela_result.flags) if ela_result.flags else None,
-            "score": ela_result.score,
-        }
-        verification["checks"]["image_integrity"] = forgery_check
-        if not ela_result.passed:
-            verification["flagged"] = True
-            verification["flag_reason"] = "eligibility_issues"
 
-        pdf_meta_result = check_pdf_metadata(tmp_path)
-        pdf_meta_check = {
-            "check": "document_origin",
-            "passed": pdf_meta_result.passed,
-            "flagged": not pdf_meta_result.passed,
-            "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
-            "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
-            "score": pdf_meta_result.score,
-        }
-        verification["checks"]["document_origin"] = pdf_meta_check
-        if not pdf_meta_result.passed:
-            verification["flagged"] = True
-            verification["flag_reason"] = "eligibility_issues"
+        if verification.get("flag_reason") != "auto_reupload":
+            ela_result = compute_ela(tmp_path)
+            forgery_check = {
+                "check": "image_integrity",
+                "passed": ela_result.passed,
+                "flagged": not ela_result.passed,
+                "extracted": describe_ela_score(ela_result.score),
+                "reason": "; ".join(ela_result.flags) if ela_result.flags else None,
+                "score": ela_result.score,
+            }
+            verification["checks"]["image_integrity"] = forgery_check
+            if not ela_result.passed:
+                verification["flagged"] = True
+                verification["flag_reason"] = "eligibility_issues"
 
-        img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
-        img_meta_check = {
-            "check": "ai_generation_provenance",
-            "passed": img_meta_result.passed,
-            "flagged": not img_meta_result.passed,
-            "extracted": describe_image_metadata_score(img_meta_result.score),
-            "reason": "; ".join(img_meta_result.flags) if img_meta_result.flags else None,
-            "score": img_meta_result.score,
-        }
-        verification["checks"]["ai_generation_provenance"] = img_meta_check
-        if not img_meta_result.passed:
-            verification["flagged"] = True
-            verification["flag_reason"] = "eligibility_issues"
+            pdf_meta_result = check_pdf_metadata(tmp_path)
+            pdf_meta_check = {
+                "check": "document_origin",
+                "passed": pdf_meta_result.passed,
+                "flagged": not pdf_meta_result.passed,
+                "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
+                "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
+                "score": pdf_meta_result.score,
+            }
+            verification["checks"]["document_origin"] = pdf_meta_check
+            if not pdf_meta_result.passed:
+                verification["flagged"] = True
+                verification["flag_reason"] = "eligibility_issues"
+
+            img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
+            img_meta_check = {
+                "check": "ai_generation_provenance",
+                "passed": img_meta_result.passed,
+                "flagged": not img_meta_result.passed,
+                "extracted": describe_image_metadata_score(img_meta_result.score),
+                "reason": "; ".join(img_meta_result.flags) if img_meta_result.flags else None,
+                "score": img_meta_result.score,
+            }
+            verification["checks"]["ai_generation_provenance"] = img_meta_check
+            if not img_meta_result.passed:
+                verification["flagged"] = True
+                verification["flag_reason"] = "eligibility_issues"
 
         formatted_ocr = [{"text": b["text"], "confidence": b["confidence"]} for b in ocr_result]
         return jsonify({

@@ -1,16 +1,36 @@
+# app/verification/reg_form.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_school_year
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name, _check_school
+from app.upload_checks.document_type_check import check_document_type
 from app.template_checks import get_template_strategy
 from app.template_checks.base_strategy import describe_score
 
 
-def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school, configured_school_year, *args, **kwargs):
+def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school, configured_school_year,
+                              image_path=None, *args, **kwargs):
     if avg_confidence < CONFIDENCE_THRESHOLD:
-        return {"document": "registration_form", "low_confidence": True, "flagged": True}
+        return {
+            "document": "registration_form",
+            "low_confidence": True,
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": "low_quality",
+            "auto_reupload_reason": "Image quality too low to read reliably — please retake or rescan with better lighting and focus.",
+        }
+
     blocks = parse_ocr_blocks(ocr_result)
     page_w, page_h = get_page_dimensions(blocks)
-    
-    # Using explicit string keys allows Laravel to save readable names in your verification_checks table
+
+    type_mismatch = check_document_type(blocks, "registration_form", image_path=image_path)
+    if type_mismatch:
+        return {
+            "document": "registration_form",
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": "wrong_document_type",
+            "auto_reupload_reason": type_mismatch["reason"],
+        }
+
     checks = {
         "identity_match": _check_name(blocks, page_w, page_h, first_name, middle_name, last_name),
         "institution_match": _check_school(blocks, page_w, page_h, declared_school)
@@ -19,13 +39,12 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
     if sy_res.found and sy_res.value == configured_school_year:
         checks["school_year_match"] = _pass("school_year_match", extracted=sy_res.raw, raw=sy_res.raw, context=sy_res.context, expected=configured_school_year)
     else:
+        # Same reasoning as cert_year_match — a value mismatch is
+        # genuinely ambiguous (could be an honest mistake), stays
+        # verifier-routed, NOT auto-reupload.
         reason = "School year not found — possible watermark interference, please verify manually" if not sy_res.found else "School year mismatch"
         checks["school_year_match"] = _flag("school_year_match", reason, extracted=sy_res.raw, raw=sy_res.raw, expected=configured_school_year, context=sy_res.context)
 
-    # Template/layout consistency check — a lightweight forgery-prevention
-    # signal, separate from identity/school/year field extraction above.
-    # This does NOT confirm authenticity; it flags documents whose layout
-    # deviates from the expected format for manual verifier review.
     template_strategy = get_template_strategy(declared_school, "registration_form")
     template_result = template_strategy.check(blocks)
     description = describe_score(template_result.score)
