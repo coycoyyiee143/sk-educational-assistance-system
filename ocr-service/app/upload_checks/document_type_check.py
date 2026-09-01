@@ -23,6 +23,16 @@ DOCUMENT_TYPE_LABELS = {
     "school_id":          "School ID",
 }
 
+# Higher than template_checks' default 0.75 — deliberately. Confirmed on
+# a real Voter's Certification: "Registration Type" (a genuine, unrelated
+# COMELEC field) scored ~0.76 against "registration form" purely because
+# both share the word "registration". A generic OCR-noise threshold
+# tolerates character-level garbling; it does NOT distinguish "same
+# phrase, slightly misread" from "different phrase, shares a word" — this
+# needs to be strict enough to require near-exact phrase match, since a
+# false positive here wrongly blocks a genuine document.
+MARKER_MATCH_THRESHOLD = 0.9
+
 
 def check_document_type(blocks: List[OcrBlock], expected_type: str, image_path: Optional[str] = None):
     """
@@ -42,7 +52,7 @@ def check_document_type(blocks: List[OcrBlock], expected_type: str, image_path: 
     for other_type, markers in DOCUMENT_TYPE_MARKERS.items():
         if other_type == expected_type:
             continue
-        if any(fuzzy_contains(full_text, m, threshold=0.75) for m in markers):
+        if any(fuzzy_contains(full_text, m, threshold=MARKER_MATCH_THRESHOLD) for m in markers):
             expected_label = DOCUMENT_TYPE_LABELS.get(expected_type, expected_type)
             other_label = DOCUMENT_TYPE_LABELS.get(other_type, other_type)
             return {
