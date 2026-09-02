@@ -108,14 +108,19 @@ function VerifierApplicationReview() {
     const doc = app.documents?.find(d => d.id === docId);
 
     if (checks.length === 0) {
-      const isProcessing = isLatestVersion && ["processing", "pending", "pending_prescreening"].includes(app.status);
+      // Prefer this DOCUMENT's own status field over the application-wide
+      // status — the application only advances once ALL three documents
+      // finish, so a document whose own job already completed could
+      // otherwise show a stale "still processing" state just because a
+      // sibling document is still in the queue.
+      const isProcessing = isLatestVersion && (
+        doc?.status === "processing" ||
+        doc?.status === "pending" ||
+        (!doc?.status && ["processing", "pending", "pending_prescreening"].includes(app.status))
+      );
       if (isProcessing) {
         return { text: "Processing Checks...", class: "bg-warning text-dark" };
       }
-      // No checks exist, and we're not mid-processing — this document
-      // either short-circuited at the upload-check stage (wrong type,
-      // low quality, cert-year mismatch) or is an old archived version
-      // that was superseded before it accumulated checks.
       if (doc?.needs_auto_reupload) {
         return { text: "Flagged — Auto Re-upload", class: "bg-secondary" };
       }
