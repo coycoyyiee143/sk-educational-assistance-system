@@ -7,25 +7,28 @@ from app.template_checks import get_template_strategy
 from app.template_checks.base_strategy import describe_score
 
 
-def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school, *args, **kwargs):
+def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school,
+                      image_path=None, *args, **kwargs):
     if avg_confidence < CONFIDENCE_THRESHOLD:
         return {
             "document": "school_id",
             "low_confidence": True,
             "flagged": True,
             "flag_reason": "auto_reupload",
+            "auto_reupload_category": "low_quality",
             "auto_reupload_reason": "Image quality too low to read reliably — please retake or rescan with better lighting and focus.",
         }
 
     blocks = parse_ocr_blocks(ocr_result)
     page_w, page_h = get_page_dimensions(blocks)
 
-    type_mismatch = check_document_type(blocks, "school_id")
+    type_mismatch = check_document_type(blocks, "school_id", image_path=image_path)
     if type_mismatch:
         return {
             "document": "school_id",
             "flagged": True,
             "flag_reason": "auto_reupload",
+            "auto_reupload_category": "wrong_document_type",
             "auto_reupload_reason": type_mismatch["reason"],
         }
 

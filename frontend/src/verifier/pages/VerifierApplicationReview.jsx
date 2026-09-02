@@ -11,25 +11,12 @@ function OcrBadge({ passed }) {
     : <span className="badge bg-danger">Failed</span>;
 }
 
-// Human-readable labels for check_name values shown in the verification
-// table, same idea as StatusConstants.js — keeps raw internal identifiers
-// out of the verifier-facing UI. Falls back to the raw check_name for any
-// check not listed here, so nothing silently disappears if a new check
-// gets added without updating this map.
 const CHECK_NAME_LABELS = {
   image_integrity: "Edited/Tampered Image Detection",
   document_origin: "Suspicious File Origin (Design Software)",
   ai_generation_provenance: "AI-Generated or AI-Edited Image",
 };
 
-// Builds initial flaggedDocs state from the application's most recent
-// verifier action, so revisiting this page shows what was actually stored,
-// not a blank slate. Only prefills while the re-upload request is still
-// unresolved (appStatus === 'reupload_requested') — once the applicant has
-// re-uploaded and the application moved to any other status (reprocessing,
-// approved, for_review, rejected), the old flagged reasons are resolved
-// history and should not pre-check anything, even if they technically
-// still belong to the "most recent" VerifierAction on record.
 function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
   const base = {
     registration_form: { reasons: [], otherText: "" },
@@ -102,23 +89,6 @@ function VerifierApplicationReview() {
     }
   };
 
-  const getOverallDocStatus = (docId) => {
-
-    const checks = app.verification_checks?.filter(c => c.document_id === docId) || [];
-
-    if (checks.length === 0) {
-      const isProcessing = ["processing", "pending", "pending_prescreening"].includes(app.status);
-      return isProcessing
-        ? { text: "Processing Checks...", class: "bg-warning text-dark" }
-        : { text: "No Verification Data", class: "bg-secondary" };
-    }
-
-    const failed = checks.some(c => !c.passed);
-    return failed
-      ? { text: "Failed Verification", class: "bg-danger" }
-      : { text: "Processed", class: "bg-success" };
-  };
-
   const latestDocsMap = {};
   if (app.documents) {
     app.documents.forEach((doc) => {
@@ -127,28 +97,46 @@ function VerifierApplicationReview() {
       }
     });
   }
-  const sortedDocuments = app.documents ? [...app.documents].sort((a, b) => b.id - a.id) : [];
 
+  // isLatestVersion is required here, not just app.status — an ARCHIVED
+  // (superseded) document version is frozen history and will NEVER be
+  // reprocessed again, no matter what the application's current overall
+  // status is. Without this check, every old version showed a permanent
+  // "Processing Checks..." spinner, since it only looked at app.status.
+  const getOverallDocStatus = (docId, isLatestVersion) => {
+    const checks = app.verification_checks?.filter(c => c.document_id === docId) || [];
+    const doc = app.documents?.find(d => d.id === docId);
+
+    if (checks.length === 0) {
+      const isProcessing = isLatestVersion && ["processing", "pending", "pending_prescreening"].includes(app.status);
+      if (isProcessing) {
+        return { text: "Processing Checks...", class: "bg-warning text-dark" };
+      }
+      // No checks exist, and we're not mid-processing — this document
+      // either short-circuited at the upload-check stage (wrong type,
+      // low quality, cert-year mismatch) or is an old archived version
+      // that was superseded before it accumulated checks.
+      if (doc?.needs_auto_reupload) {
+        return { text: "Flagged — Auto Re-upload", class: "bg-secondary" };
+      }
+      return { text: "No Verification Data", class: "bg-secondary" };
+    }
+
+    const failed = checks.some(c => !c.passed);
+    return failed
+      ? { text: "Failed Verification", class: "bg-danger" }
+      : { text: "Processed", class: "bg-success" };
+  };
+
+  const sortedDocuments = app.documents ? [...app.documents].sort((a, b) => b.id - a.id) : [];
   const latestDocIds = Object.values(latestDocsMap).map((d) => d.id);
   const hasLowConfidence = Object.values(latestDocsMap).some((d) => d.ocr_result?.is_low_confidence);
   const hasFailedCheck = (app.verification_checks || []).some(
     (c) => latestDocIds.includes(c.document_id) && !c.passed
   );
-  // Dedicated, higher-visibility signal for the AI-generation provenance
-  // check specifically — a materially more serious signal than a routine
-  // OCR mismatch, so it gets its own badge instead of being lumped into
-  // the generic "Failed Eligibility Check(s)" bucket below.
   const hasAiProvenanceFlag = (app.verification_checks || []).some(
     (c) => latestDocIds.includes(c.document_id) && c.check_name === "ai_generation_provenance" && !c.passed
   );
-  // Signal carried through from Python via VerificationCheck.metadata —
-  // set when residency_geofence detects a CONTRADICTING barangay (a
-  // known Laguna barangay other than Mamatid), not just a not-found
-  // case. Never drives automated rejection on its own — this program is
-  // exclusive to Mamatid residents, so a confirmed non-resident is close
-  // to a certain ineligibility, but the actual reject decision stays a
-  // human call. Surfaced here so the verifier doesn't have to dig
-  // through the raw checks table to notice it.
   const hasSuggestedDisapproval = (app.verification_checks || []).some(
     (c) => latestDocIds.includes(c.document_id) && c.metadata?.flag === "SUGGESTED_DISAPPROVAL"
   );
@@ -281,10 +269,10 @@ function VerifierApplicationReview() {
                 }
               }
 
-              const overallStatus = getOverallDocStatus(doc.id);
+              const isLatestVersion = latestDocsMap[doc.document_type]?.id === doc.id;
+              const overallStatus = getOverallDocStatus(doc.id, isLatestVersion);
               const relatedChecks = app.verification_checks?.filter(c => c.document_id === doc.id) || [];
 
-              const isLatestVersion = latestDocsMap[doc.document_type]?.id === doc.id;
               const isFailedLike = overallStatus.text === "Failed Verification" || overallStatus.text === "No Verification Data";
               let leftBorderColor = "#6c757d";
               if (isLatestVersion) {
@@ -380,7 +368,7 @@ function VerifierApplicationReview() {
                     </div>
                   ) : (
                     <div className="p-3 bg-light rounded text-muted mb-0 small fst-italic border">
-                      {["processing", "pending", "pending_prescreening"].includes(app.status) ? (
+                      {isLatestVersion && ["processing", "pending", "pending_prescreening"].includes(app.status) ? (
                         <span className="d-flex align-items-center gap-2">
                           <span className="spinner-border spinner-border-sm text-warning" role="status" />
                           System is extracting text via OCR and verifying rules. Try refreshing shortly.
