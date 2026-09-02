@@ -32,6 +32,14 @@ function ApplicantProfile() {
   const [showSavedPopup, setShowSavedPopup] = useState(false);
   const [error, setError] = useState("");
 
+  // Face verification: status + the registration live photo, shown as a
+  // read-only reference so the applicant can confirm what's on file. The
+  // photo endpoint requires auth, so we fetch it as a blob (not a plain
+  // <img src="...">) and turn it into an object URL for display.
+  const [faceStatus, setFaceStatus] = useState(null); // "verified" | "failed" | "not_started" | null (loading)
+  const [facePhotoUrl, setFacePhotoUrl] = useState(null);
+  const [facePhotoLoading, setFacePhotoLoading] = useState(true);
+
   useEffect(() => {
     api.get("/profile")
       .then((res) => {
@@ -62,6 +70,35 @@ function ApplicantProfile() {
       })
       .catch(() => setError("Failed to load profile."))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    let objectUrl = null;
+
+    api.get("/face-verification")
+      .then((res) => {
+        setFaceStatus(res.data.status);
+
+        if (res.data.photo_url) {
+          // Authenticated fetch — the interceptor on `api` attaches the
+          // bearer token, which a plain <img src> can't do on its own.
+          return api.get(res.data.photo_url, { responseType: "blob" });
+        }
+        return null;
+      })
+      .then((photoRes) => {
+        if (photoRes) {
+          objectUrl = URL.createObjectURL(photoRes.data);
+          setFacePhotoUrl(objectUrl);
+        }
+      })
+      .catch(() => setFaceStatus("not_started"))
+      .finally(() => setFacePhotoLoading(false));
+
+    // Release the blob URL when the component unmounts or refetches.
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, []);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -152,6 +189,14 @@ function ApplicantProfile() {
     );
   }
 
+  const FACE_STATUS_LABEL = {
+    verified: { text: "Verified", className: "badge bg-success" },
+    failed: { text: "Verification Failed", className: "badge bg-danger" },
+    pending: { text: "Pending", className: "badge bg-warning text-dark" },
+    not_started: { text: "Not Verified", className: "badge bg-secondary" },
+  };
+  const faceStatusInfo = FACE_STATUS_LABEL[faceStatus] || null;
+
   return (
     <div>
       <ApplicantNavigation />
@@ -163,11 +208,22 @@ function ApplicantProfile() {
               <div className="profile-card">
 
                 <div className="profile-header">
-                  <img src="/logo.png" alt="Profile Icon" className="profile-avatar" />
+                  {/* Shows the applicant's own live capture from registration
+                      once it's loaded; falls back to the system logo while
+                      loading or if no photo is on file yet. */}
+                  <img
+                    src={facePhotoUrl || "/logo.png"}
+                    alt={facePhotoUrl ? "Your registered photo" : "Profile Icon"}
+                    className="profile-avatar"
+                    style={facePhotoUrl ? { objectFit: "cover" } : undefined}
+                  />
                   <h3>Applicant Profile</h3>
                   <p className="text-muted mb-0">
                     View and update your personal information for your educational assistance application.
                   </p>
+                  {faceStatusInfo && (
+                    <span className={`${faceStatusInfo.className} mt-2`}>{faceStatusInfo.text}</span>
+                  )}
                 </div>
 
                 {error && <div className="alert alert-danger">{error}</div>}

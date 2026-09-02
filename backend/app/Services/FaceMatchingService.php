@@ -101,4 +101,20 @@ class FaceMatchingService
             return ['match' => false, 'score' => 0, 'error' => 'Face service unreachable.'];
         }
     }
+
+    /**
+     * Euclidean distance between two 128-d embeddings, computed directly in
+     * PHP since we already have both vectors in hand — no need to round-trip
+     * to the Python service for a plain distance calculation. Used for
+     * cross-user face duplicate checks at registration.
+     */
+    public function embeddingDistance(array $a, array $b): float
+    {
+        $sum = 0.0;
+        foreach ($a as $i => $val) {
+            $diff = $val - ($b[$i] ?? 0);
+            $sum += $diff * $diff;
+        }
+        return sqrt($sum);
+    }
 }
