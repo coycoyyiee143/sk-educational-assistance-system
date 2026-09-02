@@ -1,24 +1,39 @@
+# app/verification/school_id.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name, _check_school
+from app.upload_checks.document_type_check import check_document_type
 from app.normalization import get_strategy_for_school
 from app.template_checks import get_template_strategy
 from app.template_checks.base_strategy import describe_score
 
 
-def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school, *args, **kwargs):
+def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school,
+                      image_path=None, *args, **kwargs):
     if avg_confidence < CONFIDENCE_THRESHOLD:
-        return {"document": "school_id", "low_confidence": True, "flagged": True}
+        return {
+            "document": "school_id",
+            "low_confidence": True,
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": "low_quality",
+            "auto_reupload_reason": "Image quality too low to read reliably — please retake or rescan with better lighting and focus.",
+        }
+
     blocks = parse_ocr_blocks(ocr_result)
     page_w, page_h = get_page_dimensions(blocks)
 
-    # School-specific pre-merge (e.g. PUP splits its name/institution text
-    # across multiple OCR lines). No-op for schools without a custom strategy.
+    type_mismatch = check_document_type(blocks, "school_id", image_path=image_path)
+    if type_mismatch:
+        return {
+            "document": "school_id",
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": "wrong_document_type",
+            "auto_reupload_reason": type_mismatch["reason"],
+        }
+
     strategy = get_strategy_for_school(declared_school)
     blocks = strategy.preprocess_blocks(blocks)
-    print("=== DEBUG: blocks after preprocessing ===")
-    for b in blocks:
-        print(f"  '{b.text}'")
-    print("=== END DEBUG ===")
 
     name_check = _check_name(blocks, page_w, page_h, first_name, middle_name, last_name)
     institution_check = _check_school(blocks, page_w, page_h, declared_school)
@@ -27,10 +42,6 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
         "institution_match": institution_check,
     }
 
-    # Template/layout consistency check — a lightweight forgery-prevention
-    # signal, separate from identity/school field extraction above. This
-    # does NOT confirm authenticity; it flags documents whose layout
-    # deviates from the expected format for manual verifier review.
     template_strategy = get_template_strategy(declared_school, "school_id")
     template_result = template_strategy.check(blocks)
     description = describe_score(template_result.score)

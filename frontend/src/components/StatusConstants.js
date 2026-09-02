@@ -22,6 +22,26 @@ export const STATUS_CONFIG = {
         showReupload: false,
     },
 
+    // System auto-detected an objective, unambiguous problem with an
+    // uploaded document (wrong document type, or image quality too low
+    // to reliably read) — routed directly here from the OCR pipeline,
+    // with NO human verifier involved at any point. Distinct from
+    // reupload_requested specifically to preserve that status's own
+    // "Always human-initiated" invariant, rather than fabricating a
+    // fake VerifierAction to make this fit through the existing path.
+    // Reason detail comes from the relevant VerificationCheck row(s)
+    // on the flagged document, not from a VerifierAction — see
+    // getAutoReuploadReasons() usage in ApplicantSubmission.jsx.
+    auto_reupload_requested: {
+        applicantLabel: "Re-upload Needed",
+        verifierLabel: "Auto Re-upload Requested",
+        boxClass: "status-box-review",
+        badgeClass: "status-review",
+        applicantMessage: "Our system detected an issue with one of your uploaded documents (either the wrong document type, or an image that's too unclear to read). Please go to the Application Submission page to re-upload it.",
+        showClaiming: false,
+        showReupload: true,
+    },
+
     // All required documents cleared Stage 1 and are sitting in the async
     // OCR/verification queue. The applicant is waiting on automated
     // processing, not a human.

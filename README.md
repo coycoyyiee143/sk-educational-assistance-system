@@ -86,6 +86,17 @@ MAIL_PASSWORD=<the shared App Password>
 
 **Never commit real credentials to `.env.example` or anywhere else in the repo.**
 
+**Note on PHP's own upload size limit:** separately from Laravel's own file-size validation in the code, PHP itself enforces its own upload ceiling via `php.ini` — many default installs (especially XAMPP) ship with `upload_max_filesize = 2M`, which silently rejects any file over 2MB with a generic, unhelpful `422 "The file failed to upload"` error, regardless of what Laravel's own validation rule allows. Find your active `php.ini` with:
+
+php --ini
+
+Then confirm/raise these two values (must keep `post_max_size` ≥ `upload_max_filesize`):
+
+upload_max_filesize = 10M
+post_max_size = 10M
+
+Restart `php artisan serve` (or Apache, if using XAMPP) after editing — `php.ini` is only read at process startup, not hot-reloaded.
+
 This project also sets a longer queue retry window to accommodate PaddleOCR's processing time:
 
 DB_QUEUE_RETRY_AFTER=300

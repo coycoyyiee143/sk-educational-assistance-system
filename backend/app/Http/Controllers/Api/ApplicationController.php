@@ -19,7 +19,7 @@ class ApplicationController extends Controller
         return response()->json($applications);
     }
 
-        public function store(Request $request)
+    public function store(Request $request)
     {
         $request->validate([
             'school_name'       => 'required|string',
@@ -53,7 +53,7 @@ class ApplicationController extends Controller
             ], 400);
         }
 
-                // Duplicate-applicant check: block a new registration if the person's
+        // Duplicate-applicant check: block a new registration if the person's
         // first name + last name + birthdate already matches someone who has
         // an approved or claimed application on file — regardless of which
         // account/email they used to apply. Middle name is deliberately
@@ -124,17 +124,30 @@ class ApplicationController extends Controller
         return response()->json($application);
     }
 
-        public function update(Request $request, $id)
+    public function update(Request $request, $id)
     {
         $application = Application::where('id', $id)
             ->where('user_id', $request->user()->id)
             ->firstOrFail();
-        // Only allow edits before any document has actually been processed.
-        if ($application->status !== 'pending_prescreening') {
+    
+        // Editable while genuinely pending (never processed yet), OR while a
+        // reupload is in progress — human-requested, auto-flagged, or an
+        // incomplete draft — since the applicant may need to correct a
+        // mistake (e.g. wrong school selected) alongside fixing the flagged
+        // document itself.
+        $editableStatuses = [
+            'pending_prescreening',
+            'draft_incomplete',
+            'reupload_requested',
+            'auto_reupload_requested',
+        ];
+    
+        if (!in_array($application->status, $editableStatuses)) {
             return response()->json([
                 'message' => 'This application can no longer be edited because it has already entered document verification.',
             ], 400);
         }
+    
         $request->validate([
             'school_name'          => 'required|string',
             'school_address'       => 'nullable|string',
@@ -150,13 +163,10 @@ class ApplicationController extends Controller
             'year_level'        => $request->year_level,
             'student_id_number' => $request->student_id_number,
         ];
-        // Only stamp attestation_accepted_at the first time it's confirmed —
-        // never overwrite an existing timestamp on subsequent edits.
         if ($request->boolean('attestation_accepted') && !$application->attestation_accepted_at) {
             $updateData['attestation_accepted_at'] = now();
         }
         $application->update($updateData);
-        // Log the application edit for the audit trail
         \App\Models\AuditLog::record(
             'application_updated',
             $application,
