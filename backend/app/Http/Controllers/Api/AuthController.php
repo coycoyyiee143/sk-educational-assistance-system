@@ -209,9 +209,20 @@ class AuthController extends Controller
             ]);
         }
 
-        if (!$user->is_active) {
+                if (!$user->is_active) {
             return response()->json(['message' => 'Account is deactivated.'], 403);
         }
+        // Block login until the applicant has verified their email/OTP —
+        // without this, an account created but never confirmed could still
+        // log in and use the system.
+        if (!$user->email_verified_at) {
+            return response()->json([
+                'message'    => 'Please verify your email before logging in. Check your inbox for the verification code, or request a new one.',
+                'unverified' => true,
+                'email'      => $user->email,
+            ], 403);
+        }
+        $token = $user->createToken('auth_token')->plainTextToken;
 
         $token = $user->createToken('auth_token')->plainTextToken;
 
