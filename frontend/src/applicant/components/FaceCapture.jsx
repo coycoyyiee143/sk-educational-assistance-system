@@ -9,16 +9,6 @@ const STABLE_FRAMES_REQUIRED = 10;
 const DETECTION_INTERVAL_MS = 200;
 const MAX_ID_SIZE_MB = 5;
 
-// Blink liveness, calibrated per-user rather than a fixed absolute EAR —
-// baseline (open-eye) EAR varies a lot by eye shape, camera angle, and
-// lighting, so a fixed number is too strict for some faces and too loose
-// for others. We sample the first few open-eye frames for a baseline, then
-// watch for a relative drop-and-recover. Uses the FULL (non-tiny) landmark
-// model — tiny trades away exactly the precision blink detection needs.
-const EAR_BASELINE_SAMPLES = 4;
-const EAR_CLOSED_RATIO = 0.78; // dips below 78% of baseline = closed
-const EAR_OPEN_RATIO = 0.88; // back above 88% of baseline = reopened
-
 let modelsLoadPromise = null;
 async function loadModels() {
   if (!modelsLoadPromise) {
@@ -31,19 +21,9 @@ async function loadModels() {
         await faceapi.tf.ready();
       }
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
     })();
   }
   return modelsLoadPromise;
-}
-
-// EAR = (|p2-p6| + |p3-p5|) / (2*|p1-p4|), the standard 6-point eye-aspect-ratio.
-function eyeAspectRatio(eye) {
-  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  const vertical = dist(eye[1], eye[5]) + dist(eye[2], eye[4]);
-  const horizontal = dist(eye[0], eye[3]);
-  if (horizontal === 0) return 1;
-  return vertical / (2 * horizontal);
 }
 
 // ---- Small inline icons (no extra dependency) -----------------------------
@@ -73,12 +53,6 @@ const IconRefresh = (props) => (
     <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-const IconEye = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-);
 
 /**
  * Reusable face-verification capture step, with real-time face detection:
@@ -86,11 +60,7 @@ const IconEye = (props) => (
  * auto-capture once a face is centered and held steady — instead of just
  * a plain "Capture Photo" button.
  *
- * Registration mode additionally requires a real blink (calibrated,
- * relative-EAR liveness, full landmark model) before the stable-hold
- * counter starts, closing the "hold up a photo" spoof at account creation.
- * Claiming mode is unaffected.
- *
+
  * Falls back gracefully to a manual capture button whenever detection
  * can't run (models failed to load, browser incompatibility, etc.).
  *
@@ -110,12 +80,6 @@ function FaceCapture({
   const webcamRef = useRef(null);
   const detectionTimerRef = useRef(null);
   const stableCountRef = useRef(0);
-  const blinkDoneRef = useRef(false);
-  const sawClosedRef = useRef(false);
-  const earBaselineRef = useRef(null);
-  const earSamplesRef = useRef([]);
-
-  const requireLiveness = mode === "registration";
 
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
@@ -131,7 +95,7 @@ function FaceCapture({
   const [modelsReady, setModelsReady] = useState(false);
   const [modelsFailed, setModelsFailed] = useState(false);
   const [scanStatus, setScanStatus] = useState("loading");
-  // loading | searching | positioning | tooClose | tooFar | blink | holding | captured | manual
+  // loading | searching | positioning | tooClose | tooFar | holding | captured | manual
   const [progress, setProgress] = useState(0);
 
   const showIdUpload = mode === "registration" && !externalIdImage;
@@ -201,15 +165,12 @@ function FaceCapture({
       const video = webcamRef.current?.video;
       if (!video || video.readyState !== 4) return;
 
-      const needsLandmarks = requireLiveness && !blinkDoneRef.current;
-
       let detection;
       try {
-        const base = faceapi.detectSingleFace(
+        detection = await faceapi.detectSingleFace(
           video,
           new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
         );
-        detection = needsLandmarks ? await base.withFaceLandmarks() : await base;
       } catch (detectErr) {
         if (String(detectErr).includes("context")) {
           try {
@@ -229,7 +190,7 @@ function FaceCapture({
         return;
       }
 
-      const box = detection.detection ? detection.detection.box : detection.box;
+      const box = detection.box;
       const videoW = video.videoWidth;
       const videoH = video.videoHeight;
 
@@ -249,38 +210,6 @@ function FaceCapture({
         return;
       }
 
-      // Framed correctly. Registration + no blink yet: hold on the blink
-      // prompt instead of counting toward auto-capture.
-      if (needsLandmarks) {
-        const landmarks = detection.landmarks;
-        if (!landmarks) {
-          setScanStatus("blink");
-          return;
-        }
-        const leftEAR = eyeAspectRatio(landmarks.getLeftEye());
-        const rightEAR = eyeAspectRatio(landmarks.getRightEye());
-        const avgEAR = (leftEAR + rightEAR) / 2;
-
-        if (earBaselineRef.current === null) {
-          earSamplesRef.current.push(avgEAR);
-          if (earSamplesRef.current.length >= EAR_BASELINE_SAMPLES) {
-            const sorted = [...earSamplesRef.current].sort((a, b) => a - b);
-            earBaselineRef.current = sorted[Math.floor(sorted.length / 2)];
-          }
-          setScanStatus("blink");
-          return;
-        }
-
-        const ratio = avgEAR / earBaselineRef.current;
-        if (ratio < EAR_CLOSED_RATIO) {
-          sawClosedRef.current = true;
-        } else if (ratio > EAR_OPEN_RATIO && sawClosedRef.current) {
-          blinkDoneRef.current = true;
-        }
-        setScanStatus("blink");
-        return;
-      }
-
       stableCountRef.current += 1;
       setProgress(Math.min(stableCountRef.current / STABLE_FRAMES_REQUIRED, 1));
       setScanStatus("holding");
@@ -291,16 +220,12 @@ function FaceCapture({
     }, DETECTION_INTERVAL_MS);
 
     return () => clearInterval(detectionTimerRef.current);
-  }, [modelsReady, cameraReady, livePreview, doCapture, requireLiveness]);
+  }, [modelsReady, cameraReady, livePreview, doCapture]);
 
   function retake() {
     setLivePreview(null);
     setLiveBlob(null);
     stableCountRef.current = 0;
-    blinkDoneRef.current = false;
-    sawClosedRef.current = false;
-    earBaselineRef.current = null;
-    earSamplesRef.current = [];
     setProgress(0);
     setError("");
     setScanStatus(modelsFailed ? "manual" : "searching");
@@ -369,7 +294,6 @@ function FaceCapture({
     positioning: { text: "Center your face in the frame", color: "#f59e0b", dashed: true },
     tooClose: { text: "Move back a little", color: "#f59e0b", dashed: true },
     tooFar: { text: "Move a little closer", color: "#f59e0b", dashed: true },
-    blink: { text: "Close your eyes for about 1 second, then open", color: "#3b82f6", dashed: false },
     holding: { text: "Hold still...", color: "#3b82f6", dashed: false },
     captured: { text: "Captured!", color: "#22c55e", dashed: false },
     manual: { text: "Position your face, then tap Capture", color: "#94a3b8", dashed: true },
@@ -478,23 +402,6 @@ function FaceCapture({
                   style={{ transition: "stroke 0.25s" }}
                 />
 
-                {scanStatus === "blink" && (
-                  <ellipse
-                    cx="160"
-                    cy="118"
-                    rx="78"
-                    ry="98"
-                    fill="none"
-                    stroke="#3b82f6"
-                    strokeWidth="3"
-                    opacity="0.6"
-                  >
-                    <animate attributeName="rx" values="78;88;78" dur="1.2s" repeatCount="indefinite" />
-                    <animate attributeName="ry" values="98;110;98" dur="1.2s" repeatCount="indefinite" />
-                    <animate attributeName="opacity" values="0.6;0;0.6" dur="1.2s" repeatCount="indefinite" />
-                  </ellipse>
-                )}
-
                 {progress > 0 && (
                   <ellipse
                     cx="160"
@@ -541,7 +448,6 @@ function FaceCapture({
                 className="text-center text-white small py-2 fw-medium d-flex align-items-center justify-content-center gap-1"
                 style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.55)" }}
               >
-                {scanStatus === "blink" && <IconEye />}
                 {status.text}
               </div>
             </div>
@@ -562,11 +468,6 @@ function FaceCapture({
                 <li>Make sure you're in a well-lit area</li>
                 <li>Remove sunglasses, masks, or anything covering your face</li>
                 <li>Hold your device steady within the oval</li>
-                {requireLiveness && (
-                  <li>
-                    You'll be asked to blink — close your eyes for about <strong>1 second</strong>, then open them
-                  </li>
-                )}
               </ul>
             )}
           </div>
