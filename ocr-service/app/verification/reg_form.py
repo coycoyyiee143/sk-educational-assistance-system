@@ -2,20 +2,29 @@
 from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_school_year
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name, _check_school
 from app.upload_checks.document_type_check import check_document_type
+from app.upload_checks.image_quality_check import check_image_quality
 from app.template_checks import get_template_strategy
 from app.template_checks.base_strategy import describe_score
 
 
 def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school, configured_school_year,
                               image_path=None, *args, **kwargs):
-    if avg_confidence < CONFIDENCE_THRESHOLD:
+    # Upload check 1: image quality too low to reliably read at all —
+    # either OCR itself reported low average confidence, OR a direct
+    # Laplacian-variance sharpness measurement flags it as too blurry.
+    sharpness_result = check_image_quality(image_path) if image_path else None
+    if avg_confidence < CONFIDENCE_THRESHOLD or (sharpness_result and not sharpness_result.passed):
+        if sharpness_result and not sharpness_result.passed:
+            reason = "Image appears blurry — please retake or rescan with better focus and steady hands."
+        else:
+            reason = "Image quality too low to read reliably — please retake or rescan with better lighting and focus."
         return {
             "document": "registration_form",
             "low_confidence": True,
             "flagged": True,
             "flag_reason": "auto_reupload",
             "auto_reupload_category": "low_quality",
-            "auto_reupload_reason": "Image quality too low to read reliably — please retake or rescan with better lighting and focus.",
+            "auto_reupload_reason": reason,
         }
 
     blocks = parse_ocr_blocks(ocr_result)

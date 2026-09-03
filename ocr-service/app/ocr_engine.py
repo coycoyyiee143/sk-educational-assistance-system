@@ -11,7 +11,7 @@ def get_ocr():
             lang='en',
             use_angle_cls=True,
             show_log=False,
-            det_limit_side_len=2880,
+            det_limit_side_len=1600,
             det_limit_type='max',
         )
     return _ocr
