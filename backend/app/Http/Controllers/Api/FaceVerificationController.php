@@ -98,6 +98,9 @@ class FaceVerificationController extends Controller
 
     /**
      * Applicant checking their own verification status (e.g. Profile page).
+     * Now also returns a photo_url so the Profile page can show the live
+     * capture from registration alongside the status, without a second
+     * lookup call.
      */
     public function show(Request $request)
     {
@@ -110,7 +113,35 @@ class FaceVerificationController extends Controller
         return response()->json([
             'status'      => $verification->status,
             'verified_at' => $verification->verified_at,
+            'photo_url'   => $verification->live_photo_path
+                ? route('face-verification.my-photo')
+                : null,
         ]);
+    }
+
+    /**
+     * Streams the CURRENTLY AUTHENTICATED applicant's own live photo from
+     * registration — for the Profile page. Deliberately scoped to
+     * $request->user() only (no id/applicationId param), so an applicant
+     * can never pass someone else's id and pull their photo; this route
+     * only ever serves the caller's own file.
+     */
+    public function myPhoto(Request $request)
+    {
+        $verification = FaceVerification::where('user_id', $request->user()->id)->first();
+
+        if (!$verification || !$verification->live_photo_path) {
+            abort(404, 'No registration photo on file.');
+        }
+
+        if (!Storage::disk('local')->exists($verification->live_photo_path)) {
+            abort(404, 'File not found.');
+        }
+
+        return Storage::disk('local')->response(
+            $verification->live_photo_path,
+            basename($verification->live_photo_path)
+        );
     }
 
     /**
