@@ -16,8 +16,6 @@ class ComelecVotersCertTemplateStrategy(BaseTemplateStrategy):
     fuzzy_threshold = 0.6
 
     def extra_checks(self, blocks: List[OcrBlock], page_width, page_height) -> List[str]:
-        # HASH presence is now handled by the dedicated extract_document_hash()
-        # check (document_hash), which does real value extraction — this
-        # crude presence-only check is redundant and removed to avoid two
-        # rows flagging the same underlying issue.
+        # No extra checks beyond the base template match for this
+        # school — layout/keyword presence alone is enough here.
         return []

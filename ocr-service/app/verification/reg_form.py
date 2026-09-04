@@ -1,6 +1,6 @@
 # app/verification/reg_form.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_school_year
-from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name, _check_school
+from app.verification.shared import CONFIDENCE_THRESHOLD, RAW_FIELD_CONFIDENCE_FLOOR, _pass, _flag, _check_name, _check_school
 from app.upload_checks.document_type_check import check_document_type
 from app.upload_checks.image_quality_check import check_image_quality
 from app.template_checks import get_template_strategy
@@ -45,8 +45,18 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
         "institution_match": _check_school(blocks, page_w, page_h, declared_school)
     }
     sy_res = extract_school_year(blocks, page_w, page_h, declared_school, configured_school_year)
-    if sy_res.found and sy_res.value == configured_school_year:
+    if sy_res.found and sy_res.value == configured_school_year and sy_res.confidence >= RAW_FIELD_CONFIDENCE_FLOOR:
         checks["school_year_match"] = _pass("school_year_match", extracted=sy_res.raw, raw=sy_res.raw, context=sy_res.context, expected=configured_school_year)
+    elif sy_res.found and sy_res.value == configured_school_year:
+        # Text matched, but the OCR read behind it was too weak to trust
+        # outright — could be a coincidental/lucky partial read on a
+        # genuinely blurry field. Route to a verifier instead of
+        # auto-passing.
+        checks["school_year_match"] = _flag(
+            "school_year_match",
+            f"School year matched, but the OCR read itself was low-confidence ({sy_res.confidence:.2f}) — please verify manually.",
+            extracted=sy_res.raw, raw=sy_res.raw, expected=configured_school_year, context=sy_res.context,
+        )
     else:
         # Same reasoning as cert_year_match — a value mismatch is
         # genuinely ambiguous (could be an honest mistake), stays

@@ -110,11 +110,12 @@ def extract_name(blocks: List[OcrBlock], page_w: float, page_h: float,
     result = extract_via_keyword(blocks, "name")
     
     if result:
-        raw, context, matched_block = result
+        raw, context, value_block, label_block = result
         score = score_text(raw)
 
         if score >= 85:
-            combined = combine_confidence(matched_block.confidence, score)
+            combined_field_confidence = min(value_block.confidence, label_block.confidence)
+            combined = combine_confidence(combined_field_confidence, score)
             return ExtractionResult(value=raw, raw=raw, method="keyword", confidence=combined, context=f'found {context}')
 
     stacked = extract_stacked_name_fields(blocks)

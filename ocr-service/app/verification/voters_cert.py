@@ -1,6 +1,6 @@
 # app/verification/voters_cert.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_barangay, extract_cert_year
-from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name
+from app.verification.shared import CONFIDENCE_THRESHOLD, RAW_FIELD_CONFIDENCE_FLOOR, _pass, _flag, _check_name
 from app.upload_checks.document_type_check import check_document_type
 from app.upload_checks.image_quality_check import check_image_quality
 from app.template_checks import get_template_strategy
@@ -88,8 +88,17 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
         checks = {"identity_match": name_check}
 
     brgy_res = extract_barangay(blocks)
-    if brgy_res.found and brgy_res.value == "Mamatid":
+    if brgy_res.found and brgy_res.value == "Mamatid" and brgy_res.confidence >= RAW_FIELD_CONFIDENCE_FLOOR:
         residency_check = _pass("residency_geofence", extracted=brgy_res.value, raw=brgy_res.raw, context=brgy_res.context, expected="Mamatid")
+    elif brgy_res.found and brgy_res.value == "Mamatid":
+        # Matched "Mamatid" by text, but the OCR read was weak — this is
+        # a residency-eligibility gate, worth a human look rather than
+        # trusting a shaky read outright.
+        residency_check = _flag(
+            "residency_geofence",
+            f"Barangay matched Mamatid, but the OCR read itself was low-confidence ({brgy_res.confidence:.2f}) — please verify manually.",
+            extracted=brgy_res.value, raw=brgy_res.raw, expected="Mamatid", context=brgy_res.context,
+        )
     else:
         reason = brgy_res.context if brgy_res.context else "Barangay Mamatid not found in document"
         residency_check = _flag("residency_geofence", reason, extracted=brgy_res.value, raw=brgy_res.raw, expected="Mamatid", context=brgy_res.context, metadata=brgy_res.metadata)
@@ -100,8 +109,14 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
     cert_year_display = cert_year_res.value if cert_year_res.found else None
 
     if enforce_cert_year and configured_cert_year:
-        if cert_year_res.found and cert_year_res.value == str(configured_cert_year):
+        if cert_year_res.found and cert_year_res.value == str(configured_cert_year) and cert_year_res.confidence >= RAW_FIELD_CONFIDENCE_FLOOR:
             checks["cert_year_match"] = _pass("cert_year_match", extracted=cert_year_res.value, raw=cert_year_res.raw, context=cert_year_res.context, expected=str(configured_cert_year))
+        elif cert_year_res.found and cert_year_res.value == str(configured_cert_year):
+            checks["cert_year_match"] = _flag(
+                "cert_year_match",
+                f"Certificate year matched, but the OCR read itself was low-confidence ({cert_year_res.confidence:.2f}) — please verify manually.",
+                extracted=cert_year_res.value, raw=cert_year_res.raw, expected=str(configured_cert_year), context=cert_year_res.context,
+            )
         else:
             # Only reachable here for the LOW-confidence/not-found case —
             # the high-confidence mismatch already short-circuited above.

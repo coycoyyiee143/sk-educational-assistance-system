@@ -44,9 +44,7 @@ def process_voters_certificate():
         guardian_first_name = request.form.get("guardian_first_name", "") or None
         guardian_middle_name = request.form.get("guardian_middle_name", "") or None
         guardian_last_name = request.form.get("guardian_last_name", "") or None
-        # boost_bottom_strip=True only for this doc type — Voter's Cert is
-        # the one with the HASH marker at a known fixed bottom position.
-        ocr_result = run_ocr(tmp_path, boost_bottom_strip=True)
+        ocr_result = run_ocr(tmp_path)
         avg_confidence = get_average_confidence(ocr_result)
         verification = verify_voters_certificate(
             ocr_result, avg_confidence,

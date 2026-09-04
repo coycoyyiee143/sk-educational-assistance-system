@@ -9,7 +9,6 @@ FIELD_KEYWORDS = {
     "school_year": ["school year", "s.y.", "sy", "academic year", "a.y.", "ay", "sch. yr.", "sch yr", "school year sem"],
     "barangay": ["barangay", "brgy", "brgy.", "precinct"],
     "date_issued": ["date issued", "date of issuance", "issuance date", "issued"],
-    "hash": ["hash"],
 }
 
 def find_label_block(blocks: List[OcrBlock], field_name: str) -> Optional[OcrBlock]:
@@ -33,7 +32,22 @@ def find_label_block(blocks: List[OcrBlock], field_name: str) -> Optional[OcrBlo
                 return block
     return None
 
-def extract_via_keyword(blocks: List[OcrBlock], field_name: str) -> Optional[Tuple[str, str, OcrBlock]]:
+def extract_via_keyword(blocks: List[OcrBlock], field_name: str) -> Optional[Tuple[str, str, OcrBlock, OcrBlock]]:
+    """
+    Returns (value, context, value_block, label_block).
+
+    value_block and label_block are the SAME block when the label and
+    value sit on one line together (e.g. "School Year: 2025-2026") — in
+    that case there's only one block's OCR confidence to trust, so
+    value_block == label_block on purpose (not a bug, not a separate
+    read). They differ when the value lives on a different block than
+    its label ("School Year:" on one line, "2025-2026" to its right or
+    on the line below) — a real, common case on scanned/photographed
+    forms. Callers should combine both confidences (e.g. take the
+    minimum) rather than only trusting the value block's confidence:
+    a sharp value sitting next to a blurred, misread label is still a
+    field the system isn't actually sure it identified correctly.
+    """
     label_block = find_label_block(blocks, field_name)
 
     if not label_block:
@@ -45,21 +59,21 @@ def extract_via_keyword(blocks: List[OcrBlock], field_name: str) -> Optional[Tup
         parts = label_text.split(':', 1)
         value = parts[1].strip()
         if value and len(value) > 1:
-            return value, f'inline after "{parts[0].strip()}"', label_block
+            return value, f'inline after "{parts[0].strip()}"', label_block, label_block
         
     right = get_block_to_right(blocks, label_block)
 
     if right and len(right.text.strip()) > 1:
-        return right.text, f'to the right of "{label_text.strip()}"', right
+        return right.text, f'to the right of "{label_text.strip()}"', right, label_block
     
     below = get_block_below(blocks, label_block)
 
     if below and len(below.text.strip()) > 1:
-        return below.text, f'below "{label_text.strip()}"', below
+        return below.text, f'below "{label_text.strip()}"', below, label_block
     
     above = get_block_above(blocks, label_block)
 
     if above and len(above.text.strip()) > 1:
-        return above.text, f'above "{label_text.strip()}"', above
+        return above.text, f'above "{label_text.strip()}"', above, label_block
     
     return None
