@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
+import AnnouncementsCard from "../components/AnnouncementsCard";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import { STATUS_CONFIG } from "../../components/StatusConstants";
@@ -97,6 +98,11 @@ function ApplicantDashboard() {
                   <p className="text-muted mb-0">No active application period at this time.</p>
                 )}
               </div>
+            </div>
+
+            {/* Announcements */}
+            <div className="col-md-6">
+              <AnnouncementsCard />
             </div>
           </div>
         </div>
