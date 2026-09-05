@@ -22,7 +22,7 @@ function VerifierDashboard() {
         setStats(statsRes.data);
 
         const actionable = appsRes.data.filter((a) =>
-          ["for_review", "pending_prescreening"].includes(a.status)
+          ["for_review"].includes(a.status)
         );
         setApplications(actionable.slice(0, 10));
       })

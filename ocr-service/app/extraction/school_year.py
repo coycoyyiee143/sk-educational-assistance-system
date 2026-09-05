@@ -13,10 +13,11 @@ def extract_school_year(blocks: List[OcrBlock], page_w: float, page_h: float,
     result = extract_via_keyword(blocks, "school_year")
 
     if result:
-        raw, context, matched_block = result
+        raw, context, value_block, label_block = result
         normalized = strategy.extract_school_year(raw, configured_year)
         if normalized:
-            return ExtractionResult(value=normalized, raw=raw, method="keyword", confidence=matched_block.confidence, context=f'found {context}')
+            combined_confidence = min(value_block.confidence, label_block.confidence)
+            return ExtractionResult(value=normalized, raw=raw, method="keyword", confidence=combined_confidence, context=f'found {context}')
 
     for block in get_blocks_in_region(blocks, page_w, page_h, "top_half"):
         normalized = strategy.extract_school_year(block.text, configured_year)

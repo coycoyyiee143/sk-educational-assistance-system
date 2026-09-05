@@ -25,7 +25,6 @@ def fuzzy_match_name(extracted: str, first_name: str, middle_name: str,
                      last_name: str, threshold: int = 85) -> dict:
     if not extracted:
         return {"score": 0, "passed": False}
-
     extracted_norm = normalize_name(extracted)
     fn = first_name.strip().upper()
     mn = middle_name.strip().upper() if middle_name else ""
@@ -41,23 +40,81 @@ def fuzzy_match_name(extracted: str, first_name: str, middle_name: str,
     candidates += [f"{fn} {ln}", f"{ln} {fn}", f"{ln}, {fn}"]
 
     best_score = 0
-    # Deliberately based on the FULL combined name length, not a single
-    # component — a lone surname or given-name fragment should never be
-    # trusted as a complete identity match on its own. Fragmented names
-    # are handled by extract_adjacent_name_lines() joining them into one
-    # candidate BEFORE it reaches this function; once properly joined,
-    # the combined text is naturally close to full-name length and
-    # scores correctly via token_sort_ratio without needing partial_ratio
-    # leniency at all.
     min_len = max(4, len(normalize_name(f"{fn} {ln}")) - 4)
-
     for candidate in candidates:
         score = fuzz.token_sort_ratio(extracted_norm, normalize_name(candidate))
         if len(extracted_norm) >= min_len:
             score = max(score, fuzz.partial_ratio(extracted_norm, normalize_name(candidate)))
         best_score = max(best_score, score)
 
+    # An aggregate score across the whole name can stay high even when
+    # the most identity-distinguishing part is a DIFFERENT person's.
+    # First and last name are each required to independently appear as
+    # a strong SUBSTRING match somewhere in the extracted text (via
+    # partial_ratio) -- not just contribute to one blended aggregate
+    # score. Checked against the whole extracted string rather than
+    # token-by-token, since a first or middle name can be more than one
+    # word (e.g. "Regina Grace") and would never match a single split
+    # token on its own.
+    def component_present(target: str, threshold: int = 85) -> bool:
+        if not target or not extracted_norm:
+            return False
+        return fuzz.partial_ratio(target, extracted_norm) >= threshold
+
+    if not (component_present(fn) and component_present(ln)):
+        return {"score": best_score, "passed": False}
+
     return {"score": best_score, "passed": best_score >= threshold}
+
+
+def reinsert_name_spacing(raw: str, first_name: str, middle_name: str, last_name: str) -> str:
+    """
+    Some OCR reads glue a name into one unspaced token (a real
+    recognition-level quirk on certain fonts/kerning — not something
+    this pipeline causes). This reconstructs spacing by finding 
+    which known name arrangement's LETTERS actually line up, 
+    in order, with raw's own letters — not just matching total
+    length, since any reordering of the same letters has the same
+    length. fuzz.ratio (order-sensitive, unlike fuzzy_match_name's
+    token_sort_ratio) is used specifically so a wrong-order candidate
+    can't be mistaken for a match just because it happens to be the
+    same length. Only applies when that alignment is near-exact —
+    otherwise leaves raw untouched rather than guessing wrong.
+    """
+    if not raw:
+        return raw
+    if ' ' in raw.strip():
+        return raw  # already has spacing, nothing to fix
+
+    fn = first_name.strip().upper()
+    mn = middle_name.strip().upper() if middle_name else ""
+    ln = last_name.strip().upper()
+
+    candidates = []
+    if mn:
+        candidates += [f"{fn} {mn} {ln}", f"{ln} {fn} {mn}", f"{ln} {fn} {mn[0]}", f"{fn} {mn[0]} {ln}"]
+    candidates += [f"{fn} {ln}", f"{ln} {fn}"]
+
+    raw_letters = re.sub(r'[^A-Za-z]', '', raw).upper()
+
+    best_candidate, best_ratio = None, 0
+    for candidate in candidates:
+        candidate_letters = re.sub(r'[^A-Za-z]', '', candidate)
+        if len(candidate_letters) != len(raw_letters):
+            continue
+        ratio = fuzz.ratio(raw_letters, candidate_letters)
+        if ratio > best_ratio:
+            best_ratio, best_candidate = ratio, candidate
+
+    if best_candidate and best_ratio >= 90:
+        words = best_candidate.split(' ')
+        result, pos = [], 0
+        for w in words:
+            result.append(raw_letters[pos:pos + len(w)])
+            pos += len(w)
+        return ' '.join(result)
+
+    return raw  # no confident letter-order alignment — leave as-is, no harm done
 
 
 def fuzzy_match_school(extracted: str, expected: str, threshold: int = 85) -> dict:

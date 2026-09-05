@@ -17,11 +17,12 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
     result = extract_via_keyword(blocks, "barangay")
 
     if result:
-        raw, context, target_block = result
+        raw, context, target_block, label_block = result
         raw_lower = raw.lower()
+        combined_confidence = min(target_block.confidence, label_block.confidence)
 
         if 'mamatid' in raw_lower:
-            return ExtractionResult(value="Mamatid", raw=raw, method="keyword", confidence=target_block.confidence, context=f'found {context}')
+            return ExtractionResult(value="Mamatid", raw=raw, method="keyword", confidence=combined_confidence, context=f'found {context}')
         
         for brgy in known_laguna_barangays:
             if brgy != "mamatid" and brgy in raw_lower:
