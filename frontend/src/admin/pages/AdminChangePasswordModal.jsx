@@ -1,6 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import api from "../../services/api";
-
 function AdminChangePasswordModal({ show, onClose }) {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -11,7 +10,22 @@ function AdminChangePasswordModal({ show, onClose }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
+  const [countdown, setCountdown] = useState(10);
+  useEffect(() => {
+    if (!error && !success) return;
+    setCountdown(10);
+    const tick = setInterval(() => {
+      setCountdown((c) => (c <= 1 ? 0 : c - 1));
+    }, 1000);
+    const dismiss = setTimeout(() => {
+      setError("");
+      setSuccess("");
+    }, 10000);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(dismiss);
+    };
+  }, [error, success]);
   function resetForm() {
     setCurrentPassword("");
     setNewPassword("");
@@ -19,22 +33,18 @@ function AdminChangePasswordModal({ show, onClose }) {
     setError("");
     setSuccess("");
   }
-
   function handleClose() {
     resetForm();
     onClose();
   }
-
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSuccess("");
-
     if (newPassword !== confirmPassword) {
       setError("New password and confirmation do not match.");
       return;
     }
-
     setSaving(true);
     try {
       await api.put("/user/password", {
@@ -46,6 +56,7 @@ function AdminChangePasswordModal({ show, onClose }) {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+      onClose();
     } catch (err) {
       const message = err.response?.data?.message;
       const errors = err.response?.data?.errors;
@@ -58,106 +69,142 @@ function AdminChangePasswordModal({ show, onClose }) {
       setSaving(false);
     }
   }
-
-  if (!show) return null;
-
+  if (!show && !error && !success) return null;
   return (
     <>
-      <div className="modal-backdrop show" onClick={handleClose}></div>
-
-      <div className="modal show d-block" tabIndex="-1" role="dialog">
-        <div className="modal-dialog modal-dialog-centered" role="document">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h5 className="modal-title">Change Password</h5>
-              <button type="button" className="btn-close" onClick={handleClose}></button>
+      {show && (
+        <>
+          <div className="modal-backdrop show" onClick={handleClose}></div>
+          <div className="modal show d-block" tabIndex="-1" role="dialog">
+            <div className="modal-dialog modal-dialog-centered" role="document">
+              <div className="modal-content admin-password-modal admin-password-modal-new">
+                <div className="admin-password-modal-header-new">
+                  <div className="admin-password-modal-heading-new">
+                    <div className="admin-password-lock-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <rect x="5" y="11" width="14" height="10" rx="2"></rect>
+                        <path d="M8 11V7a4 4 0 0 1 8 0v4"></path>
+                      </svg>
+                    </div>
+                    <h5>Change Password</h5>
+                  </div>
+                  <button type="button" className="admin-password-close-new" onClick={handleClose}>×</button>
+                </div>
+                <form onSubmit={handleSubmit}>
+                  <div className="admin-password-modal-body-new">
+                    <div className="admin-password-field">
+                      <label>CURRENT PASSWORD</label>
+                      <div className="admin-password-input-wrap">
+                        <input
+                          type={showCurrent ? "text" : "password"}
+                          placeholder="Enter current password"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrent(!showCurrent)}
+                          tabIndex={-1}
+                        >
+                          {showCurrent ? "Hide" : "Show"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="admin-password-field">
+                      <label>NEW PASSWORD</label>
+                      <div className="admin-password-input-wrap">
+                        <input
+                          type={showNew ? "text" : "password"}
+                          placeholder="Enter new password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          minLength={8}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNew(!showNew)}
+                          tabIndex={-1}
+                        >
+                          {showNew ? "Hide" : "Show"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="admin-password-field">
+                      <label>CONFIRM NEW PASSWORD</label>
+                      <div className="admin-password-input-wrap">
+                        <input
+                          type={showConfirm ? "text" : "password"}
+                          placeholder="Confirm new password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          minLength={8}
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirm(!showConfirm)}
+                          tabIndex={-1}
+                        >
+                          {showConfirm ? "Hide" : "Show"}
+                        </button>
+                      </div>
+                      {confirmPassword && newPassword === confirmPassword && (
+                        <span className="admin-password-match">✓ Passwords match</span>
+                      )}
+                    </div>
+                    <div className="admin-password-requirements">
+                      <span className="admin-password-requirements-title">PASSWORD REQUIREMENTS</span>
+                      <div className="admin-password-requirement-item">
+                        <span>✓</span>
+                        <p>At least 8 characters</p>
+                      </div>
+                      <div className="admin-password-requirement-item">
+                        <span>✓</span>
+                        <p>Use a secure combination of characters</p>
+                      </div>
+                      <div className="admin-password-requirement-item">
+                        <span>✓</span>
+                        <p>Confirm your new password correctly</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="admin-password-modal-footer-new">
+                    <button type="button" className="btn btn-secondary-custom" onClick={handleClose}>
+                      Cancel
+                    </button>
+                    <button type="submit" className="admin-password-update-new" disabled={saving}>
+                      {saving ? "Saving..." : "Update Password"}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
-
-            <form onSubmit={handleSubmit}>
-              <div className="modal-body">
-                {error && <div className="error-box">{error}</div>}
-                {success && <div className="success-box">{success}</div>}
-
-                <div className="mb-3">
-                  <label className="form-label">Current Password</label>
-                  <div className="input-group">
-                    <input
-                      type={showCurrent ? "text" : "password"}
-                      className="form-control"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary"
-                      onClick={() => setShowCurrent(!showCurrent)}
-                      tabIndex={-1}
-                    >
-                      {showCurrent ? "Hide" : "Show"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mb-3">
-                  <label className="form-label">New Password</label>
-                  <div className="input-group">
-                    <input
-                      type={showNew ? "text" : "password"}
-                      className="form-control"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      minLength={8}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary"
-                      onClick={() => setShowNew(!showNew)}
-                      tabIndex={-1}
-                    >
-                      {showNew ? "Hide" : "Show"}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mb-3">
-                  <label className="form-label">Confirm New Password</label>
-                  <div className="input-group">
-                    <input
-                      type={showConfirm ? "text" : "password"}
-                      className="form-control"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      minLength={8}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary"
-                      onClick={() => setShowConfirm(!showConfirm)}
-                      tabIndex={-1}
-                    >
-                      {showConfirm ? "Hide" : "Show"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="modal-footer">
-                <button type="button" className="btn btn-secondary-custom" onClick={handleClose}>
-                  Close
-                </button>
-                <button type="submit" className="btn btn-save" disabled={saving}>
-                  {saving ? "Saving..." : "Update Password"}
-                </button>
-              </div>
-            </form>
+          </div>
+        </>
+      )}
+      {(error || success) && (
+        <div className="feedback-popup-backdrop">
+          <div className={`feedback-popup ${error ? "feedback-popup-error" : "feedback-popup-success"}`}>
+            <div className="feedback-popup-icon-wrap">
+              <span className="feedback-popup-icon">{error ? "!" : "✓"}</span>
+            </div>
+            <h4 className="feedback-popup-title">{error ? "Something Went Wrong" : "Password Updated"}</h4>
+            <p className="feedback-popup-message">{error || success}</p>
+            <button
+              type="button"
+              className="feedback-popup-dismiss"
+              onClick={() => { setError(""); setSuccess(""); }}
+            >
+              <span>Dismiss</span>
+              <span className="feedback-popup-arrow">→</span>
+              <span className="feedback-popup-timer">{countdown}s</span>
+            </button>
           </div>
         </div>
-      </div>
+      )}
     </>
   );
 }
-
 export default AdminChangePasswordModal;

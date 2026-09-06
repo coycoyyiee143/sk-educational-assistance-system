@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import AdminNavigation from "../components/AdminNavigation";
 import api from "../../services/api";
-
+import PanelFooter from "../../components/PanelFooter";
 function formatDateTime(value) {
   if (!value) return "—";
   return new Date(value).toLocaleString("en-PH", {
@@ -12,7 +12,6 @@ function formatDateTime(value) {
     minute: "2-digit",
   });
 }
-
 function generateSchoolYearOptions() {
   const currentYear = new Date().getFullYear();
   const years = [];
@@ -21,9 +20,7 @@ function generateSchoolYearOptions() {
   }
   return years;
 }
-
 const SCHOOL_YEAR_OPTIONS = generateSchoolYearOptions();
-
 const emptyForm = {
   school_year: "",
   open_date: "",
@@ -31,7 +28,6 @@ const emptyForm = {
   slot_limit: "",
   is_unlimited: false,
 };
-
 function AdminSettings() {
   const [config, setConfig] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -41,7 +37,6 @@ function AdminSettings() {
   const [error, setError] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showStartNewModal, setShowStartNewModal] = useState(false);
-
   useEffect(() => {
     api.get("/admin/application-configs")
       .then((res) => {
@@ -60,55 +55,25 @@ function AdminSettings() {
       .catch(() => setError("Failed to load current settings."))
       .finally(() => setLoading(false));
   }, []);
-
   const hasStarted = config?.open_date
     ? new Date() >= new Date(config.open_date)
     : false;
-
   const hasClosed = config?.close_date
     ? new Date() > new Date(config.close_date)
     : false;
-
   const isAtCapacity =
     config && !config.is_unlimited && config.slots_filled >= config.slot_limit;
-
   const set = (k) => (e) =>
     setForm((f) => ({
       ...f,
       [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
     }));
-
-  /**
   function needsConfirmation() {
-    const lockedFieldsChanging =
-      config &&
-      (form.school_year !== config.school_year ||
-        form.open_date?.slice(0, 10) !== config.open_date?.slice(0, 10) ||
-        form.is_unlimited !== config.is_unlimited ||
-        (!form.is_unlimited && Number(form.slot_limit) !== Number(config.slot_limit)));
-
-    const isFirstTimeSetup = !config;
-
-    return !hasStarted && (lockedFieldsChanging || isFirstTimeSetup);
-  } 
-    
-  or 
-  
-  |
-  V */
-
-  function needsConfirmation() {
-    // Show confirmation any time you're about to save a period that hasn't
-    // started yet — regardless of which specific field changed. Simpler and
-    // more predictable than diffing individual fields, which was the source
-    // of the inconsistent behavior.
     return !hasStarted;
   }
-
   function startNewPeriod() {
     setShowStartNewModal(true);
   }
-
   function confirmStartNewPeriod() {
     setShowStartNewModal(false);
     setConfig(null);
@@ -116,12 +81,10 @@ function AdminSettings() {
     setSuccess("");
     setError("");
   }
-
   function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSuccess("");
-
     if (form.open_date && form.close_date) {
       const openTime = new Date(form.open_date).getTime();
       const closeTime = new Date(`${form.close_date.slice(0, 10)}T23:59:59`).getTime();
@@ -130,14 +93,12 @@ function AdminSettings() {
         return;
       }
     }
-
     if (needsConfirmation()) {
       setShowConfirmModal(true);
       return;
     }
     saveSettings();
   }
-
   async function saveSettings() {
     setShowConfirmModal(false);
     setSaving(true);
@@ -171,7 +132,6 @@ function AdminSettings() {
       setSaving(false);
     }
   }
-
   const currentSettings = config
     ? [
       ["School Year", config.school_year],
@@ -196,304 +156,427 @@ function AdminSettings() {
       ],
     ]
     : [];
-
+  const settingIcons = {
+    "School Year": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+    ),
+    "Application Status": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="6" width="22" height="12" rx="6" />
+        <circle cx="8" cy="12" r="3" />
+      </svg>
+    ),
+    "Opening Date": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+        <path d="M9 16l2 2 4-4" />
+      </svg>
+    ),
+    "Closing Date": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+        <line x1="9.5" y1="14.5" x2="14.5" y2="19.5" />
+        <line x1="14.5" y1="14.5" x2="9.5" y2="19.5" />
+      </svg>
+    ),
+    "Slot Availability": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="4" y1="6" x2="20" y2="6" />
+        <line x1="4" y1="12" x2="20" y2="12" />
+        <line x1="4" y1="18" x2="20" y2="18" />
+        <circle cx="8" cy="6" r="1.5" fill="currentColor" />
+        <circle cx="16" cy="12" r="1.5" fill="currentColor" />
+        <circle cx="10" cy="18" r="1.5" fill="currentColor" />
+      </svg>
+    ),
+    "Number of Available Slots": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+        <circle cx="9" cy="7" r="4" />
+        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  };
+  const settingIconColors = {
+    "School Year": "gray",
+    "Application Status": "red",
+    "Opening Date": "blue",
+    "Closing Date": "blue",
+    "Slot Availability": "orange",
+    "Number of Available Slots": "red",
+  };
+  function statusBadgeClass(value) {
+    if (typeof value !== "string") return "settings-value-badge settings-value-badge-gray";
+    if (value === "Open" || value === "Unlimited") return "settings-value-badge settings-value-badge-green";
+    if (value === "Closed" || value === "Limited") return "settings-value-badge settings-value-badge-red";
+    return "settings-value-badge settings-value-badge-gray";
+  }
   return (
-    <div>
+    <div className="admin-layout">
       <AdminNavigation />
-      <section className="page-section">
-        <div className="container">
-          <div className="page-card">
-            <h3 className="section-title mb-2">Application Settings</h3>
-            <p className="text-muted mb-0">
-              Configure the application period, school year, applicant slot availability, and other important settings for the educational assistance program.
-            </p>
-          </div>
-
-          <div className="page-card">
-            <h4 className="sub-title">Program Configuration</h4>
-            <div className="info-box">
-              These settings control the availability and basic parameters of the educational assistance application process.
+      <div className="admin-main">
+        <div className="admin-topbar">
+          <div className="admin-topbar-user">
+            <div className="admin-topbar-user-text">
+              <span className="admin-topbar-user-name">Admin User</span>
+              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
             </div>
-
-            {hasStarted && !hasClosed && (
-              <div className="alert alert-warning">
-                <strong>This application period has already started.</strong>{" "}
-                School Year, Opening Date, Number of Available Slots, and
-                Slot Type can no longer be changed to protect data integrity
-                for applicants who have already applied. Closing Date can
-                still be updated.
-              </div>
-            )}
-
-            {hasClosed && (
-              <div className="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <div>
-                  <strong>This application period has closed.</strong>{" "}
-                  Applicants can no longer submit new applications. Extend the
-                  Closing Date below to reopen submissions under this same
-                  period, or start a new period entirely for a different
-                  school year.
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-outline-danger flex-shrink-0"
-                  onClick={startNewPeriod}
-                >
-                  Start New Application Period
-                </button>
-              </div>
-            )}
-
-            {isAtCapacity && (
-              <div className="alert alert-warning">
-                This period is already at capacity ({config.slots_filled}/{config.slot_limit} slots filled).
-                No new applicants can be accepted unless you increase the slot limit.
-              </div>
-            )}
-
-            {success && <div className="alert alert-success">{success}</div>}
-            {error && <div className="alert alert-danger">{error}</div>}
-
-            {loading ? (
-              <div className="spinner-border text-danger" />
-            ) : (
-              <form onSubmit={handleSubmit}>
-
-                {/* Application Period */}
-                <div className="mb-4 p-3 border rounded">
-                  <h6 className="text-muted text-uppercase small fw-bold mb-3">Application Period</h6>
-                  <div className="row g-3">
-                    <div className="col-md-4">
-                      <label className="form-label">School Year</label>
-                      <select
-                        className="form-select"
-                        value={form.school_year}
-                        onChange={set("school_year")}
-                        disabled={hasStarted}
-                        required
-                      >
-                        <option value="" disabled>Select school year</option>
-                        {SCHOOL_YEAR_OPTIONS.map((sy) => (
-                          <option key={sy} value={sy}>{sy}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-md-4">
-                      <label className="form-label">Opening Date &amp; Time</label>
-                      <input
-                        type="datetime-local"
-                        className="form-control"
-                        value={form.open_date ? form.open_date.slice(0, 16) : ""}
-                        onChange={set("open_date")}
-                        disabled={hasStarted}
-                        required
-                      />
-                    </div>
-                    <div className="col-md-4">
-                      <label className="form-label">Closing Date</label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={form.close_date ? form.close_date.slice(0, 10) : ""}
-                        onChange={set("close_date")}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="form-text mt-2">
-                    Applications are only accepted between the Opening and Closing Dates.
-                  </div>
-                </div>
-
-                {/* Slot Capacity */}
-                <div className="mb-4 p-3 border rounded">
-                  <h6 className="text-muted text-uppercase small fw-bold mb-3">Slot Capacity</h6>
-                  <div className="row g-3 align-items-end">
-                    <div className="col-md-6">
-                      <label className="form-label d-block">Slot Type</label>
-                      <div className="btn-group" role="group">
-                        <input
-                          type="radio"
-                          className="btn-check"
-                          name="slotType"
-                          id="slotLimited"
-                          autoComplete="off"
-                          checked={!form.is_unlimited}
-                          onChange={() =>
-                            setForm((f) => ({ ...f, is_unlimited: false, slot_limit: "" }))
-                          }
-                          disabled={hasStarted}
-                        />
-                        <label className="btn btn-outline-danger" htmlFor="slotLimited">
-                          Limited
-                        </label>
-
-                        <input
-                          type="radio"
-                          className="btn-check"
-                          name="slotType"
-                          id="slotUnlimited"
-                          autoComplete="off"
-                          checked={form.is_unlimited}
-                          onChange={() =>
-                            setForm((f) => ({ ...f, is_unlimited: true, slot_limit: "" }))
-                          }
-                          disabled={hasStarted}
-                        />
-                        <label className="btn btn-outline-danger" htmlFor="slotUnlimited">
-                          Unlimited
-                        </label>
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label">Number of Available Slots</label>
-                      {form.is_unlimited ? (
-                        <input
-                          type="text"
-                          className="form-control"
-                          value="No limit — unlimited slots"
-                          disabled
-                          readOnly
-                        />
-                      ) : (
-                        <input
-                          type="number"
-                          className="form-control"
-                          placeholder="e.g. 2000"
-                          value={form.slot_limit}
-                          onChange={set("slot_limit")}
-                          disabled={hasStarted}
-                          required
-                          min={1}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="d-flex justify-content-end gap-2">
-                  <button type="button" className="btn btn-secondary" onClick={() => setForm(emptyForm)}>
-                    Clear
-                  </button>
-                  <button type="submit" className="btn btn-custom" disabled={saving}>
-                    {saving ? "Saving..." : "Save Settings"}
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-
-          <div className="page-card">
-            <h4 className="sub-title">Current Application Settings</h4>
-            <div className="table-responsive">
-              <table className="table table-bordered table-striped align-middle">
-                <thead>
-                  <tr>
-                    <th>Setting</th>
-                    <th>Current Value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {config ? (
-                    currentSettings.map(([setting, value]) => (
-                      <tr key={setting}>
-                        <td>{setting}</td>
-                        <td>{value}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan={2} className="text-muted">No application period configured yet.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <div className="admin-topbar-avatar"></div>
           </div>
         </div>
-      </section>
-
-      {/* Confirmation Modal — replaces window.confirm() */}
+        <section className="page-section">
+          <div className="container-fluid">
+            <div className="page-card">
+              <h3 className="section-title mb-2">Application Settings</h3>
+              <p className="text-muted mb-0">
+                Configure the application period, school year, applicant slot availability, and other important settings for the educational assistance program.
+              </p>
+            </div>
+            <div className="page-card">
+              <h4 className="sub-title sub-title-dark">Program Configuration</h4>
+              <div className="visibility-notice">
+                <div className="visibility-notice-icon">!</div>
+                <div className="visibility-notice-body">
+                  <strong className="visibility-notice-title">Program Configuration Notice</strong>
+                  <p className="visibility-notice-text">
+                    These settings control the availability and basic parameters of the educational assistance application process.
+                  </p>
+                </div>
+              </div>
+              {hasStarted && !hasClosed && (
+                <div className="alert alert-warning">
+                  <strong>This application period has already started.</strong>{" "}
+                  School Year, Opening Date, Number of Available Slots, and
+                  Slot Type can no longer be changed to protect data integrity
+                  for applicants who have already applied. Closing Date can
+                  still be updated.
+                </div>
+              )}
+              {hasClosed && (
+                <div className="settings-warning-box d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <div>
+                    <strong>This application period has closed.</strong>{" "}
+                    Applicants can no longer submit new applications. Extend the
+                    Closing Date below to reopen submissions under this same
+                    period, or start a new period entirely for a different
+                    school year.
+                  </div>
+                  <button
+                    type="button"
+                    className="table-toolbar-btn admin-settings-blue-btn flex-shrink-0"
+                    onClick={startNewPeriod}
+                  >
+                    Start New Application Period
+                  </button>
+                </div>
+              )}
+              {isAtCapacity && (
+                <div className="alert alert-warning">
+                  This period is already at capacity ({config.slots_filled}/{config.slot_limit} slots filled).
+                  No new applicants can be accepted unless you increase the slot limit.
+                </div>
+              )}
+              {success && <div className="alert alert-success">{success}</div>}
+              {error && <div className="alert alert-danger">{error}</div>}
+              {loading ? (
+                <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
+              ) : (
+                <form onSubmit={handleSubmit}>
+                  <div className="settings-split-card">
+                    <div className="settings-split-col">
+                      <h6 className="settings-split-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="18" rx="2" />
+                          <line x1="16" y1="2" x2="16" y2="6" />
+                          <line x1="8" y1="2" x2="8" y2="6" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        Application Period
+                      </h6>
+                      <div className="row g-3">
+                        <div className="col-12">
+                          <label className="form-label">School Year</label>
+                          <select
+                            className="form-select"
+                            value={form.school_year}
+                            onChange={set("school_year")}
+                            disabled={hasStarted}
+                            required
+                          >
+                            <option value="" disabled>Select school year</option>
+                            {SCHOOL_YEAR_OPTIONS.map((sy) => (
+                              <option key={sy} value={sy}>{sy}</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label">Opening Date &amp; Time</label>
+                          <input
+                            type="datetime-local"
+                            className="form-control"
+                            value={form.open_date ? form.open_date.slice(0, 16) : ""}
+                            onChange={set("open_date")}
+                            disabled={hasStarted}
+                            required
+                          />
+                        </div>
+                        <div className="col-md-6">
+                          <label className="form-label">Closing Date</label>
+                          <input
+                            type="date"
+                            className="form-control"
+                            value={form.close_date ? form.close_date.slice(0, 10) : ""}
+                            onChange={set("close_date")}
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div className="form-text mt-2">
+                        Applications are only accepted between the Opening and Closing Dates.
+                      </div>
+                    </div>
+                    <div className="settings-split-col settings-split-col-border">
+                      <h6 className="settings-split-title">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                          <circle cx="9" cy="7" r="4" />
+                          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                        </svg>
+                        Slot Capacity
+                      </h6>
+                      <div className="row g-3">
+                        <div className="col-12">
+                          <label className="form-label d-block">Slot Type</label>
+                          <div className="btn-group admin-settings-slot-toggle" role="group">
+                            <input
+                              type="radio"
+                              className="btn-check"
+                              name="slotType"
+                              id="slotLimited"
+                              autoComplete="off"
+                              checked={!form.is_unlimited}
+                              onChange={() =>
+                                setForm((f) => ({ ...f, is_unlimited: false, slot_limit: "" }))
+                              }
+                              disabled={hasStarted}
+                            />
+                            <label className="btn" htmlFor="slotLimited">
+                              Limited
+                            </label>
+                            <input
+                              type="radio"
+                              className="btn-check"
+                              name="slotType"
+                              id="slotUnlimited"
+                              autoComplete="off"
+                              checked={form.is_unlimited}
+                              onChange={() =>
+                                setForm((f) => ({ ...f, is_unlimited: true, slot_limit: "" }))
+                              }
+                              disabled={hasStarted}
+                            />
+                            <label className="btn" htmlFor="slotUnlimited">
+                              Unlimited
+                            </label>
+                          </div>
+                        </div>
+                        <div className="col-12">
+                          <label className="form-label">Number of Available Slots</label>
+                          {form.is_unlimited ? (
+                            <input
+                              type="text"
+                              className="form-control"
+                              value="No limit — unlimited slots"
+                              disabled
+                              readOnly
+                            />
+                          ) : (
+                            <div className="settings-slot-stepper">
+                              <button
+                                type="button"
+                                className="settings-slot-stepper-btn"
+                                onClick={() =>
+                                  setForm((f) => ({ ...f, slot_limit: Math.max(1, (Number(f.slot_limit) || 1) - 1) }))
+                                }
+                                disabled={hasStarted}
+                                aria-label="Decrease slots"
+                              >
+                                −
+                              </button>
+                              <input
+                                type="number"
+                                className="settings-slot-stepper-input"
+                                placeholder="e.g. 2000"
+                                value={form.slot_limit}
+                                onChange={set("slot_limit")}
+                                disabled={hasStarted}
+                                required
+                                min={1}
+                              />
+                              <button
+                                type="button"
+                                className="settings-slot-stepper-btn"
+                                onClick={() =>
+                                  setForm((f) => ({ ...f, slot_limit: (Number(f.slot_limit) || 0) + 1 }))
+                                }
+                                disabled={hasStarted}
+                                aria-label="Increase slots"
+                              >
+                                +
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="d-flex justify-content-end gap-2">
+                    <button type="button" className="btn btn-clear-dark" onClick={() => setForm(emptyForm)}>
+                      Clear
+                    </button>
+                    <button type="submit" className="btn btn-save-green" disabled={saving}>
+                      {saving ? "Saving..." : "Save Settings"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+            <div className="page-card">
+              <h4 className="sub-title sub-title-dark">Current Application Settings</h4>
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped align-middle announcement-table settings-value-table">
+                  <colgroup>
+                    <col style={{ width: "50%" }} />
+                    <col style={{ width: "50%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Setting</th>
+                      <th>Current Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={2} className="text-center py-4">
+                          <div className="spinner-border text-danger" role="status" />
+                        </td>
+                      </tr>
+                    ) : config ? (
+                      currentSettings.map(([setting, value]) => (
+                        <tr key={setting}>
+                          <td>
+                            <span className="settings-value-row">
+                              <span className={`settings-value-row-icon-circle settings-value-row-icon-circle-${settingIconColors[setting]}`}>
+                                {settingIcons[setting]}
+                              </span>
+                              {setting}
+                            </span>
+                          </td>
+                          <td>
+                            {setting === "Application Status" ? (
+                              <span className={statusBadgeClass(value)}>{value}</span>
+                            ) : setting === "Slot Availability" ? (
+                              <span className="settings-value-badge settings-value-badge-red">{value}</span>
+                            ) : (
+                              value
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={2} className="text-muted">No application period configured yet.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+        <PanelFooter />
+      </div>
       {showConfirmModal && (
-        <div
-          className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
-          style={{ background: "rgba(0,0,0,0.5)", zIndex: 1055 }}
-        >
-          <div
-            className="bg-white rounded shadow"
-            style={{ maxWidth: "480px", width: "90%" }}
-          >
-            <div className="modal-header p-3 rounded-top">
-              <h5 className="mb-0">Confirm Application Period Settings</h5>
-            </div>
-            <div className="p-4">
-              <p className="mb-2">
-                Once this period opens on its scheduled <strong>Opening Date</strong>,
-                the following can no longer be changed:
-              </p>
-              <ul className="mb-3">
-                <li>School Year</li>
-                <li>Opening Date</li>
-                <li>Number of Available Slots</li>
-                <li>Slot Type (Limited / Unlimited)</li>
-              </ul>
-              <p className="mb-0 text-muted small">
-                Closing Date will still be editable after the period opens.
-              </p>
-            </div>
-            <div className="d-flex justify-content-end gap-2 p-3 border-top">
-              <button
-                type="button"
-                className="btn btn-secondary"
-                onClick={() => setShowConfirmModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-custom"
-                onClick={saveSettings}
-                disabled={saving}
-              >
-                {saving ? "Saving..." : "Confirm & Save"}
-              </button>
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content edit-announcement-modal">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirm Application Period Settings</h5>
+              </div>
+              <div className="p-4">
+                <p className="mb-2">
+                  Once this period opens on its scheduled <strong>Opening Date</strong>,
+                  the following can no longer be changed:
+                </p>
+                <ul className="mb-3">
+                  <li>School Year</li>
+                  <li>Opening Date</li>
+                  <li>Number of Available Slots</li>
+                  <li>Slot Type (Limited / Unlimited)</li>
+                </ul>
+                <p className="mb-0 text-muted small">
+                  Closing Date will still be editable after the period opens.
+                </p>
+              </div>
+              <div className="d-flex justify-content-end gap-2 p-3 border-top">
+                <button
+                  type="button"
+                  className="btn btn-clear-dark"
+                  onClick={() => setShowConfirmModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-save-green"
+                  onClick={saveSettings}
+                  disabled={saving}
+                >
+                  {saving ? "Saving..." : "Confirm & Save"}
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
-
-      {/* Confirmation Modal — Start New Application Period */}
       {showStartNewModal && (
-        <div
-          className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
-          style={{ background: "rgba(0,0,0,0.5)", zIndex: 1055 }}
-        >
-          <div
-            className="bg-white rounded shadow"
-            style={{ maxWidth: "480px", width: "90%" }}
-          >
-            <div className="modal-header p-3 rounded-top">
-              <h5 className="mb-0">Start New Application Period</h5>
+        <div className="feedback-popup-backdrop">
+          <div className="feedback-popup feedback-popup-error feedback-popup-wide">
+            <div className="feedback-popup-icon-wrap">
+              <span className="feedback-popup-icon">!</span>
             </div>
-            <div className="p-4">
-              <p className="mb-0">
-                This will clear the form below so you can set up a new
-                application period. The current period's data will remain
-                saved and accessible in your records — it will not be
-                deleted or altered.
-              </p>
-            </div>
-            <div className="d-flex justify-content-end gap-2 p-3 border-top">
+            <h4 className="feedback-popup-title">Start New Application Period</h4>
+            <p className="feedback-popup-message">
+              This will clear the form below so you can set up a new
+              application period. The current period's data will remain
+              saved and accessible in your records — it will not be
+              deleted or altered.
+            </p>
+            <div className="feedback-popup-confirm-actions">
               <button
                 type="button"
-                className="btn btn-secondary"
+                className="feedback-popup-cancel"
                 onClick={() => setShowStartNewModal(false)}
               >
                 Cancel
               </button>
               <button
                 type="button"
-                className="btn btn-custom"
+                className="feedback-popup-proceed"
                 onClick={confirmStartNewPeriod}
               >
                 Start New Period
@@ -502,14 +585,7 @@ function AdminSettings() {
           </div>
         </div>
       )}
-
-      <footer>
-        <div className="container">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Admin Panel</p>
-        </div>
-      </footer>
     </div>
   );
 }
-
 export default AdminSettings;
