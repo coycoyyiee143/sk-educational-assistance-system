@@ -23,6 +23,7 @@ ocr-service/**/__pycache__/
 ocr-service/**/*.pyc
 ocr-service/**/*.pyo
 ocr-service/.env
+face-service/venv/
 
 # OS
 .DS_Store
