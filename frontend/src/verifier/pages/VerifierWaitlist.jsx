@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
+import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
 
 function formatWaitTime(waitlistedAt) {
@@ -77,79 +78,95 @@ function VerifierWaitlist() {
     const nextApplicant = waitlist.find((a) => a.position === 1);
 
     return (
-        <div>
+        <div className="verifier-layout">
             <VerifierNavigation />
-            <section className="page-section">
-                <div className="container">
-                    <div className="content-card mb-4">
-                        <h3 className="section-title mb-2">Waitlist</h3>
-                        <p className="text-muted mb-0">
-                            Applicants who met all requirements but arrived after slots were filled. Promotion is
-                            strictly first-in-line — the applicant waiting longest is always promoted next, when a
-                            slot frees up (e.g. a claiming-day rejection).
-                        </p>
+            <div className="verifier-main">
+                <div className="verifier-topbar">
+                    <div className="verifier-topbar-user">
+                        <div className="verifier-topbar-user-text">
+                            <span className="verifier-topbar-user-name">Verifier User</span>
+                            <span className="verifier-topbar-user-role">Sangguniang Kabataan</span>
+                        </div>
+                        <div className="verifier-topbar-avatar"></div>
                     </div>
-
-                    {error && <div className="alert alert-danger">{error}</div>}
-                    {message && <div className="alert alert-success">{message}</div>}
-
-                    <div className="row g-4">
-                        <div className="col-md-4">
-                            <div className="summary-card">
-                                <h5>Applicants Waiting</h5>
-                                <div className="summary-number">
-                                    {loading ? <span className="small text-muted">...</span> : waitlist.length}
+                </div>
+                <section className="page-section">
+                    <div className="container-fluid">
+                        <div className="verifier-dashboard-header">
+                            <h3 className="verifier-dashboard-title">Waitlist</h3>
+                            <p className="verifier-dashboard-desc">Manage applicants who qualified for educational assistance but are currently waiting for an available slot.</p>
+                        </div>
+                        {error && <div className="alert alert-danger">{error}</div>}
+                        {message && <div className="alert alert-success">{message}</div>}
+                        <div className="page-card verifier-waitlist-summary-card">
+                            <h4 className="verifier-application-list-title">Waitlist Summary</h4>
+                            <div className="row g-4">
+                                <div className="col-md-4">
+                                    <div className="summary-card">
+                                        <h5>Applicants Waiting</h5>
+                                        <div className="summary-number">
+                                            {loading ? <span className="small text-muted">...</span> : waitlist.length}
+                                        </div>
+                                        <p className="text-muted mb-0">On the waitlist right now</p>
+                                    </div>
                                 </div>
-                                <p className="text-muted mb-0">On the waitlist right now</p>
-                            </div>
-                        </div>
-                        <div className="col-md-4">
-                            <div className="summary-card">
-                                <h5>Free Slots</h5>
-                                <div className="summary-number">
-                                    {loading ? <span className="small text-muted">...</span> : `${freeSlots} / ${notClearedCount}`}
+                                <div className="col-md-4">
+                                    <div className="summary-card">
+                                        <h5>Free Slots</h5>
+                                        <div className="summary-number">
+                                            {loading ? <span className="small text-muted">...</span> : `${freeSlots} / ${notClearedCount}`}
+                                        </div>
+                                        <p className="text-muted mb-0">Available to backfill right now</p>
+                                    </div>
                                 </div>
-                                <p className="text-muted mb-0">Available to backfill right now</p>
-                            </div>
-                        </div>
-                        <div className="col-md-4">
-                            <div className="summary-card">
-                                <h5>Next in Line</h5>
-                                <div className="summary-number" style={{ fontSize: nextApplicant ? "1.5rem" : undefined }}>
-                                    {loading ? <span className="small text-muted">...</span> : (nextApplicant?.name ?? "—")}
+                                <div className="col-md-4">
+                                    <div className="summary-card">
+                                        <h5>Next in Line</h5>
+                                        <div className="summary-number" style={{ fontSize: nextApplicant ? "1.5rem" : undefined }}>
+                                            {loading ? <span className="small text-muted">...</span> : (nextApplicant?.name ?? "—")}
+                                        </div>
+                                        <p className="text-muted mb-0">First to be promoted</p>
+                                    </div>
                                 </div>
-                                <p className="text-muted mb-0">First to be promoted</p>
                             </div>
                         </div>
-                    </div>
-
-                    <div className="content-card mt-4">
-                        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                            <h4 className="mb-0">Waitlisted Applicants</h4>
-                            <div className="d-flex gap-2">
-                                <button
-                                    className="btn btn-outline-custom btn-sm"
-                                    onClick={handlePromote}
-                                    disabled={promoting || promotingAll || waitlist.length === 0}
-                                >
-                                    {promoting ? "Promoting..." : "Promote Next Applicant"}
-                                </button>
-                                <button
-                                    className="btn btn-custom btn-sm"
-                                    onClick={handlePromoteAll}
-                                    disabled={promoting || promotingAll || waitlist.length === 0}
-                                >
-                                    {promotingAll ? "Promoting..." : "Promote All Available"}
-                                </button>
+                        <div className="page-card verifier-attention-card">
+                            <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                                <h4 className="verifier-application-list-title mb-0">Waitlisted Applicants</h4>
+                                <div className="d-flex gap-2">
+                                    <button
+                                        className="verifier-waitlist-action-btn"
+                                        onClick={handlePromote}
+                                        disabled={promoting || promotingAll || waitlist.length === 0}
+                                    >
+                                        {promoting ? "Promoting..." : "Promote Next Applicant"}
+                                    </button>
+                                    <button
+                                        className="verifier-waitlist-action-btn"
+                                        onClick={handlePromoteAll}
+                                        disabled={promoting || promotingAll || waitlist.length === 0}
+                                    >
+                                        {promotingAll ? "Promoting..." : "Promote All Available"}
+                                    </button>
+                                </div>
                             </div>
-                        </div>
-                        {loading ? (
-                            <div className="d-flex justify-content-center py-4">
-                                <div className="spinner-border text-danger" />
+                            <div className="verifier-waitlist-notice">
+                                <div className="verifier-waitlist-notice-icon">!</div>
+                                <div className="verifier-waitlist-notice-body">
+                                    <strong className="verifier-waitlist-notice-title">Waitlist Notice</strong>
+                                    <p className="verifier-waitlist-notice-text">
+                                        Applicants who met all requirements but arrived after slots were filled. Promotion is strictly first-in-line — the applicant waiting longest is always promoted next, when a slot frees up (e.g. a claiming-day rejection).
+                                    </p>
+                                </div>
                             </div>
-                        ) : (
                             <div className="table-responsive">
-                                <table className="table table-bordered table-striped align-middle">
+                                <table className="table table-bordered table-striped align-middle verifier-attention-table">
+                                    <colgroup>
+                                        <col style={{ width: "10%" }} />
+                                        <col style={{ width: "35%" }} />
+                                        <col style={{ width: "35%" }} />
+                                        <col style={{ width: "20%" }} />
+                                    </colgroup>
                                     <thead>
                                         <tr>
                                             <th>#</th>
@@ -159,13 +176,13 @@ function VerifierWaitlist() {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {waitlist.length === 0 ? (
+                                        {loading ? (
                                             <tr>
-                                                <td colSpan="4" className="text-center text-muted py-3">
-                                                    No applicants currently on the waitlist.
+                                                <td colSpan="4" className="text-center py-4">
+                                                    <div className="spinner-border text-danger" role="status" />
                                                 </td>
                                             </tr>
-                                        ) : (
+                                        ) : waitlist.length > 0 ? (
                                             waitlist.map((app) => (
                                                 <tr key={app.id} className={app.position === 1 ? "table-warning" : undefined}>
                                                     <td>
@@ -177,19 +194,31 @@ function VerifierWaitlist() {
                                                     <td>{formatWaitTime(app.waitlisted_at)}</td>
                                                 </tr>
                                             ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan="4" className="text-center text-muted">No applicants currently on the waitlist.</td>
+                                            </tr>
                                         )}
                                     </tbody>
                                 </table>
                             </div>
-                        )}
+                            {!loading && waitlist.length > 0 && (
+                                <div className="verifier-table-pagination-bar">
+                                    <span className="verifier-table-pagination-info">
+                                        Showing 1–{waitlist.length} of {waitlist.length} applicants
+                                    </span>
+                                    <div className="verifier-table-pagination-controls">
+                                        <button className="verifier-table-pagination-arrow" disabled aria-label="Previous page">‹</button>
+                                        <button className="verifier-table-pagination-page verifier-table-pagination-page-active">1</button>
+                                        <button className="verifier-table-pagination-arrow" disabled aria-label="Next page">›</button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
-            </section>
-            <footer>
-                <div className="container">
-                    <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Verifier Panel</p>
-                </div>
-            </footer>
+                </section>
+                <PanelFooter />
+            </div>
         </div>
     );
 }
