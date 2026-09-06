@@ -19,6 +19,7 @@ function ApplicantProfile() {
     province: "",
     houseNo: "",
     street: "",
+    purokType: "",
     purok: "",
     guardianFirstName: "",
     guardianMiddleName: "",
@@ -30,6 +31,14 @@ function ApplicantProfile() {
   const [saving, setSaving] = useState(false);
   const [showSavedPopup, setShowSavedPopup] = useState(false);
   const [error, setError] = useState("");
+
+  // Face verification: status + the registration live photo, shown as a
+  // read-only reference so the applicant can confirm what's on file. The
+  // photo endpoint requires auth, so we fetch it as a blob (not a plain
+  // <img src="...">) and turn it into an object URL for display.
+  const [faceStatus, setFaceStatus] = useState(null); // "verified" | "failed" | "not_started" | null (loading)
+  const [facePhotoUrl, setFacePhotoUrl] = useState(null);
+  const [facePhotoLoading, setFacePhotoLoading] = useState(true);
 
   useEffect(() => {
     api.get("/profile")
@@ -50,6 +59,7 @@ function ApplicantProfile() {
           province: p?.province ?? "",
           houseNo: p?.house_no ?? "",
           street: p?.street ?? "",
+          purokType: p?.purok_type ?? "",
           purok: p?.purok ?? "",
           guardianFirstName: p?.guardian_first_name ?? "",
           guardianMiddleName: p?.guardian_middle_name ?? "",
@@ -60,6 +70,35 @@ function ApplicantProfile() {
       })
       .catch(() => setError("Failed to load profile."))
       .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    let objectUrl = null;
+
+    api.get("/face-verification")
+      .then((res) => {
+        setFaceStatus(res.data.status);
+
+        if (res.data.photo_url) {
+          // Authenticated fetch — the interceptor on `api` attaches the
+          // bearer token, which a plain <img src> can't do on its own.
+          return api.get(res.data.photo_url, { responseType: "blob" });
+        }
+        return null;
+      })
+      .then((photoRes) => {
+        if (photoRes) {
+          objectUrl = URL.createObjectURL(photoRes.data);
+          setFacePhotoUrl(objectUrl);
+        }
+      })
+      .catch(() => setFaceStatus("not_started"))
+      .finally(() => setFacePhotoLoading(false));
+
+    // Release the blob URL when the component unmounts or refetches.
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
   }, []);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -101,30 +140,30 @@ function ApplicantProfile() {
       // other name displays update immediately without needing to re-login
       login(accountRes.data.user, token)
 
+            // Always send every profile field (with null fallback when empty), so
+      // clearing a field in the form actually clears it in the database too
+      // — previously, an empty field was simply omitted from the payload,
+      // which left the old value untouched server-side.
+      const profilePayload = {
+        birthdate: form.dob || null,
+        gender: form.gender ? form.gender.toLowerCase() : null,
+        civil_status: form.civilStatus ? form.civilStatus.toLowerCase() : null,
+        house_no: form.houseNo || null,
+        street: form.street || null,
+        purok_type: form.purokType || null,
+        purok: form.purok || null,
+        barangay: form.barangay || null,
+        city: form.city || null,
+        province: form.province || null,
+        guardian_first_name: form.guardianFirstName || null,
+        guardian_middle_name: form.guardianMiddleName || null,
+        guardian_last_name: form.guardianLastName || null,
+        guardian_relationship: form.guardianRelationship || null,
+        guardian_contact: form.guardianContact || null,
+      };
+      await api.put("/profile", profilePayload);
 
-
-      // Only send profile fields that actually have a value, so partial
-      // edits (e.g. just fixing the barangay) don't require filling everything
-      const profilePayload = {};
-      if (form.dob) profilePayload.birthdate = form.dob;
-      if (form.gender) profilePayload.gender = form.gender.toLowerCase();
-      if (form.civilStatus) profilePayload.civil_status = form.civilStatus.toLowerCase();
-      if (form.houseNo) profilePayload.house_no = form.houseNo;
-      if (form.street) profilePayload.street = form.street;
-      if (form.purok) profilePayload.purok = form.purok;
-      if (form.barangay) profilePayload.barangay = form.barangay;
-      if (form.city) profilePayload.city = form.city;
-      if (form.province) profilePayload.province = form.province;
-      if (form.guardianFirstName) profilePayload.guardian_first_name = form.guardianFirstName;
-      if (form.guardianMiddleName) profilePayload.guardian_middle_name = form.guardianMiddleName;
-      if (form.guardianLastName) profilePayload.guardian_last_name = form.guardianLastName;
-      if (form.guardianRelationship) profilePayload.guardian_relationship = form.guardianRelationship;
-      if (form.guardianContact) profilePayload.guardian_contact = form.guardianContact;
-
-      if (Object.keys(profilePayload).length > 0) {
-        await api.put("/profile", profilePayload);
-      }
-
+      
       setShowSavedPopup(true);
       setTimeout(() => setShowSavedPopup(false), 1500);
     } catch (err) {
@@ -150,6 +189,14 @@ function ApplicantProfile() {
     );
   }
 
+  const FACE_STATUS_LABEL = {
+    verified: { text: "Verified", className: "badge bg-success" },
+    failed: { text: "Verification Failed", className: "badge bg-danger" },
+    pending: { text: "Pending", className: "badge bg-warning text-dark" },
+    not_started: { text: "Not Verified", className: "badge bg-secondary" },
+  };
+  const faceStatusInfo = FACE_STATUS_LABEL[faceStatus] || null;
+
   return (
     <div>
       <ApplicantNavigation />
@@ -161,11 +208,22 @@ function ApplicantProfile() {
               <div className="profile-card">
 
                 <div className="profile-header">
-                  <img src="/logo.png" alt="Profile Icon" className="profile-avatar" />
+                  {/* Shows the applicant's own live capture from registration
+                      once it's loaded; falls back to the system logo while
+                      loading or if no photo is on file yet. */}
+                  <img
+                    src={facePhotoUrl || "/logo.png"}
+                    alt={facePhotoUrl ? "Your registered photo" : "Profile Icon"}
+                    className="profile-avatar"
+                    style={facePhotoUrl ? { objectFit: "cover" } : undefined}
+                  />
                   <h3>Applicant Profile</h3>
                   <p className="text-muted mb-0">
                     View and update your personal information for your educational assistance application.
                   </p>
+                  {faceStatusInfo && (
+                    <span className={`${faceStatusInfo.className} mt-2`}>{faceStatusInfo.text}</span>
+                  )}
                 </div>
 
                 {error && <div className="alert alert-danger">{error}</div>}
@@ -185,7 +243,8 @@ function ApplicantProfile() {
 
                     <div className="col-md-6">
                       <label className="form-label">Middle Name</label>
-                      <input className="form-control" value={form.middleName} onChange={set("middleName")} />
+                      <input className="form-control" placeholder="Leave blank if none" value={form.middleName} onChange={set("middleName")} />
+                      <div className="form-text">Optional - leave blank if you don't have a middle name.</div>
                     </div>
 
                     <div className="col-md-6">
@@ -234,9 +293,18 @@ function ApplicantProfile() {
                       <input className="form-control" placeholder="Street" value={form.street} onChange={set("street")} />
                     </div>
 
-                    <div className="col-md-4">
-                      <label className="form-label">Purok</label>
-                      <input className="form-control" placeholder="Purok" value={form.purok} onChange={set("purok")} />
+                    <div className="col-md-2">
+                      <label className="form-label">Purok/Phase</label>
+                      <select className="form-select" value={form.purokType} onChange={set("purokType")}>
+                        <option value="" disabled>Select</option>
+                        <option value="purok">Purok</option>
+                        <option value="phase">Phase</option>
+                      </select>
+                    </div>
+
+                    <div className="col-md-2">
+                      <label className="form-label">Number</label>
+                      <input className="form-control" placeholder="e.g. 2" value={form.purok} onChange={set("purok")} />
                     </div>
 
                     <div className="col-md-4">

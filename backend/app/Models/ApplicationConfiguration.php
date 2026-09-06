@@ -12,15 +12,19 @@ class ApplicationConfiguration extends Model
         'school_year',
         'open_date',
         'close_date',
+        'closed_at',
         'slot_limit',
         'slots_filled',
+        'assistance_amount',
         'is_unlimited',
         'is_active',
         'created_by',
     ];
+
     protected $casts = [
         'open_date'    => 'datetime',
         'close_date'   => 'datetime',
+        'closed_at'    => 'datetime',
         'is_active'    => 'boolean',
         'is_unlimited' => 'boolean',
     ];

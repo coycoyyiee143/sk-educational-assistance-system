@@ -4,38 +4,64 @@ import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
 import { getVerifierStatusLabel, getVerifierBadgeClass } from "../../components/StatusConstants";
 import PanelFooter from "../../components/PanelFooter";
+
 function StatusBadge({ app }) {
   return <span className={`status-badge ${getVerifierBadgeClass(app)}`}>{getVerifierStatusLabel(app)}</span>;
 }
+
+const STATUS_TABS = [
+  { key: "all", label: "All" },
+  { key: "for_review", label: "For Review" },
+  { key: "pending_prescreening", label: "Pending" },
+  { key: "approved", label: "Approved" },
+  { key: "rejected", label: "Rejected" },
+];
+
 function VerifierApplicationList() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusTab, setStatusTab] = useState("for_review");
   const [currentPage, setCurrentPage] = useState(1);
   const perPage = 10;
+
   const fetchData = () => {
     api.get("/verifier/applications")
       .then((res) => setApplications(res.data))
       .catch(() => { })
       .finally(() => setLoading(false));
   };
+
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
-  const filtered = applications.filter((app) =>
-    app.name.toLowerCase().includes(search.toLowerCase()) ||
-    String(app.id).includes(search) ||
-    (app.control_number ?? "").toLowerCase().includes(search.toLowerCase())
-  );
+
+  const counts = {
+    for_review: applications.filter((a) => a.status === "for_review").length,
+    pending_prescreening: applications.filter((a) => a.status === "pending_prescreening").length,
+    approved: applications.filter((a) => a.status === "approved").length,
+    rejected: applications.filter((a) => a.status === "rejected").length,
+  };
+
+  const filtered = applications
+    .filter((app) => statusTab === "all" || app.status === statusTab)
+    .filter((app) =>
+      app.name.toLowerCase().includes(search.toLowerCase()) ||
+      String(app.id).includes(search) ||
+      (app.control_number ?? "").toLowerCase().includes(search.toLowerCase())
+    );
+
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const pageStart = (currentPage - 1) * perPage;
   const pagedApplications = filtered.slice(pageStart, pageStart + perPage);
+
   function goToPage(page) {
     if (page < 1 || page > totalPages) return;
     setCurrentPage(page);
   }
+
   function getPageNumbers() {
     const pages = [];
     const maxVisible = 5;
@@ -52,6 +78,12 @@ function VerifierApplicationList() {
     pages.push(totalPages);
     return pages;
   }
+
+  function handleTabChange(key) {
+    setStatusTab(key);
+    setCurrentPage(1);
+  }
+
   return (
     <div className="verifier-layout">
       <VerifierNavigation />
@@ -72,6 +104,21 @@ function VerifierApplicationList() {
               <p className="verifier-dashboard-desc">View and manage submitted applications requiring verification.</p>
             </div>
             <div className="page-card verifier-attention-card">
+              <div className="d-flex flex-wrap gap-2 mb-3">
+                {STATUS_TABS.map((tab) => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    className={`btn btn-sm ${statusTab === tab.key ? "btn-custom" : "btn-outline-custom"}`}
+                    onClick={() => handleTabChange(tab.key)}
+                  >
+                    {tab.label}
+                    {tab.key === "for_review" && counts.for_review > 0 && (
+                      <span className="badge bg-danger ms-2">{counts.for_review}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
               <div className="verifier-application-search">
                 <input
                   type="text"
@@ -163,4 +210,5 @@ function VerifierApplicationList() {
     </div>
   );
 }
+
 export default VerifierApplicationList;

@@ -5,11 +5,19 @@ import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
 import { getReasonsByDocType, OTHER } from "../constants/verificationReasons";
 import { getVerifierStatusLabel, getVerifierBadgeClass } from "../../components/StatusConstants";
+
 function OcrBadge({ passed }) {
   return passed
     ? <span className="badge bg-success verifier-ocr-badge">Passed</span>
     : <span className="badge bg-danger verifier-ocr-badge">Failed</span>;
 }
+
+const CHECK_NAME_LABELS = {
+  image_integrity: "Edited/Tampered Image Detection",
+  document_origin: "Suspicious File Origin (Design Software)",
+  ai_generation_provenance: "AI-Generated or AI-Edited Image",
+};
+
 function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
   const base = {
     registration_form: { reasons: [], otherText: "" },
@@ -29,6 +37,7 @@ function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
   });
   return base;
 }
+
 function VerifierApplicationReview() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -48,6 +57,7 @@ function VerifierApplicationReview() {
     school_id: { reasons: [], otherText: "" },
     voters_certificate: { reasons: [], otherText: "" },
   });
+
   useEffect(() => {
     api.get(`/verifier/applications/${id}`)
       .then((res) => {
@@ -59,6 +69,7 @@ function VerifierApplicationReview() {
       .catch(() => setError("Failed to load application."))
       .finally(() => setLoading(false));
   }, [id]);
+
   useEffect(() => {
     if (!app?.documents) return;
     let cancelled = false;
@@ -83,6 +94,7 @@ function VerifierApplicationReview() {
       createdUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [app, activeDocumentType]);
+
   if (loading) {
     return (
       <div className="verifier-layout">
@@ -110,6 +122,7 @@ function VerifierApplicationReview() {
       </div>
     );
   }
+
   if (error || !app) {
     return (
       <div className="verifier-layout">
@@ -126,10 +139,12 @@ function VerifierApplicationReview() {
       </div>
     );
   }
+
   const user = app.user;
   const profile = user?.profile;
   const reasonsByDocType = getReasonsByDocType(app.configuration?.school_year);
   const latestAction = app.verifier_actions?.[0];
+
   const formatTimestamp = (dateString) => {
     if (!dateString) return "—";
     try {
@@ -146,20 +161,32 @@ function VerifierApplicationReview() {
       return dateString;
     }
   };
-  const getOverallDocStatus = (docId) => {
+
+  const getOverallDocStatus = (docId, isLatestVersion) => {
     const checks = app.verification_checks?.filter(c => c.document_id === docId) || [];
+    const doc = app.documents?.find(d => d.id === docId);
     if (checks.length === 0) {
-      const isProcessing = ["processing", "pending", "pending_prescreening"].includes(app.status);
-      return isProcessing
-        ? { text: "Processing Checks...", class: "bg-warning text-dark" }
-        : { text: "No Verification Data", class: "bg-secondary" };
+      const isProcessing = isLatestVersion && (
+        doc?.status === "processing" ||
+        doc?.status === "pending" ||
+        (!doc?.status && ["processing", "pending", "pending_prescreening"].includes(app.status))
+      );
+      if (isProcessing) {
+        return { text: "Processing Checks...", class: "bg-warning text-dark" };
+      }
+      if (doc?.needs_auto_reupload) {
+        return { text: "Flagged — Auto Re-upload", class: "bg-secondary" };
+      }
+      return { text: "No Verification Data", class: "bg-secondary" };
     }
     const failed = checks.some(c => !c.passed);
     return failed
       ? { text: "Failed Verification", class: "bg-danger" }
       : { text: "Processed", class: "bg-success" };
   };
+
   const getCheckRuleLabel = (checkName) => {
+    if (CHECK_NAME_LABELS[checkName]) return CHECK_NAME_LABELS[checkName];
     const labels = {
       cert_year_match: "Certificate Year",
       identity_match: "Identity & Legal Name",
@@ -167,6 +194,7 @@ function VerifierApplicationReview() {
     };
     return labels[checkName] || checkName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   };
+
   const getPassedCheckMessage = (checkName) => {
     const messages = {
       cert_year_match: "Exact integer equality",
@@ -175,6 +203,7 @@ function VerifierApplicationReview() {
     };
     return messages[checkName] || "Verification rule matched";
   };
+
   const getFlagReasonLabel = (reason) => {
     const labels = {
       "Image blurry or unreadable.": "Blurry or unreadable document",
@@ -188,12 +217,14 @@ function VerifierApplicationReview() {
     };
     return labels[reason] || reason;
   };
+
   const latestDocsMap = {};
   if (app.documents) {
     app.documents.forEach((doc) => {
       if (!latestDocsMap[doc.document_type] || doc.id > latestDocsMap[doc.document_type].id) latestDocsMap[doc.document_type] = doc;
     });
   }
+
   const sortedDocuments = app.documents ? [...app.documents].sort((a, b) => b.id - a.id) : [];
   const documentTabs = [
     { number: 1, type: "voters_certificate", label: "Voter Certificate" },
@@ -209,7 +240,7 @@ function VerifierApplicationReview() {
   };
   const filteredDocuments = sortedDocuments.filter((doc) => doc.document_type === activeDocumentType);
   const activeLatestDoc = latestDocsMap[activeDocumentType];
-  const activeOverallStatus = activeLatestDoc ? getOverallDocStatus(activeLatestDoc.id) : null;
+  const activeOverallStatus = activeLatestDoc ? getOverallDocStatus(activeLatestDoc.id, true) : null;
   const activeChecks = activeLatestDoc
     ? (app.verification_checks || []).filter((check) => check.document_id === activeLatestDoc.id)
     : [];
@@ -227,7 +258,14 @@ function VerifierApplicationReview() {
   const latestDocIds = Object.values(latestDocsMap).map((d) => d.id);
   const hasLowConfidence = Object.values(latestDocsMap).some((d) => d.ocr_result?.is_low_confidence);
   const hasFailedCheck = (app.verification_checks || []).some((c) => latestDocIds.includes(c.document_id) && !c.passed);
+  const hasAiProvenanceFlag = (app.verification_checks || []).some(
+    (c) => latestDocIds.includes(c.document_id) && c.check_name === "ai_generation_provenance" && !c.passed
+  );
+  const hasSuggestedDisapproval = (app.verification_checks || []).some(
+    (c) => latestDocIds.includes(c.document_id) && c.metadata?.flag === "SUGGESTED_DISAPPROVAL"
+  );
   const showFlagSummary = hasLowConfidence || hasFailedCheck;
+
   function toggleReason(docType, reasonText) {
     setFlaggedDocs((prev) => {
       const current = prev[docType].reasons;
@@ -235,12 +273,14 @@ function VerifierApplicationReview() {
       return { ...prev, [docType]: { ...prev[docType], reasons: updated } };
     });
   }
+
   function setOtherText(docType, text) {
     setFlaggedDocs((prev) => ({
       ...prev,
       [docType]: { ...prev[docType], otherText: text },
     }));
   }
+
   function changeDocument(document, direction) {
     if (!document) return;
     setDocumentDirection(direction);
@@ -249,11 +289,13 @@ function VerifierApplicationReview() {
     setCheckpointFilter("all");
     setOpenFlagDocId(null);
   }
+
   function handleTabClick(tab) {
     const targetIndex = documentTabs.findIndex((item) => item.type === tab.type);
     const direction = targetIndex < activeDocumentIndex ? "backward" : "forward";
     changeDocument(tab, direction);
   }
+
   async function handleRefreshOcr() {
     if (refreshingOcr) return;
     setRefreshingOcr(true);
@@ -269,9 +311,11 @@ function VerifierApplicationReview() {
       setRefreshingOcr(false);
     }
   }
+
   function handleProceed() {
     navigate(`/VerifierVerificationAction/${app.id}`, { state: { flaggedDocs } });
   }
+
   async function handleViewFile(docId) {
     try {
       const res = await api.get(`/applications/${app.id}/documents/${docId}/file`, { responseType: "blob" });
@@ -281,8 +325,9 @@ function VerifierApplicationReview() {
     } catch {
       alert("Failed to load document.");
     }
-  }
-  return (
+  } 
+
+    return (
     <div className="verifier-layout">
       <VerifierNavigation />
       <div className="verifier-main">
@@ -302,6 +347,14 @@ function VerifierApplicationReview() {
                 <h3 className="verifier-dashboard-title">Application Review</h3>
                 <p className="verifier-dashboard-desc">Review the submitted application details along with automated system evaluations.</p>
               </div>
+              {hasSuggestedDisapproval && (
+                <div className="alert alert-dark small mt-3 mb-0">
+                  <strong>⚠ Suggested: Reject — Non-Resident.</strong> The document(s) below indicate a residency
+                  outside Barangay Mamatid. This program is exclusive to Mamatid residents. This is a suggestion
+                  only — please confirm before making a decision, since a data-entry or upload mistake is still
+                  possible.
+                </div>
+              )}
               {app.status === "rejected" && latestAction?.action === "rejected" && (
                 <div className="alert alert-secondary small mt-3 mb-0">
                   <strong>Previously rejected.</strong> Reasons on record: {(latestAction.reason_categories || []).join(" ")}
@@ -318,6 +371,7 @@ function VerifierApplicationReview() {
                   <div className="verifier-review-flag-summary">
                     <span className="verifier-review-flag-label">Flagged for:</span>
                     {hasLowConfidence && <span className="badge bg-warning text-dark verifier-review-flag-badge">Low Image Confidence</span>}
+                    {hasAiProvenanceFlag && <span className="badge bg-dark verifier-review-flag-badge">⚠ AI-Generated/Edited Image Signals Detected</span>}
                     {hasFailedCheck && <span className="badge bg-danger verifier-review-flag-badge">Failed Eligibility Check(s)</span>}
                   </div>
                 )}
@@ -553,6 +607,9 @@ function VerifierApplicationReview() {
                                       <div className="verifier-ocr-check-header-left">
                                         <span className="verifier-ocr-check-name">{getCheckRuleLabel(check.check_name)}</span>
                                         <code className={`verifier-ocr-check-code ${check.passed ? "verifier-ocr-check-code-passed" : "verifier-ocr-check-code-failed"}`}>{check.check_name}</code>
+                                        {check.metadata?.flag === "SUGGESTED_DISAPPROVAL" && (
+                                          <span className="badge bg-dark verifier-ocr-badge">Suggested: Reject</span>
+                                        )}
                                       </div>
                                       <OcrBadge passed={check.passed} />
                                     </div>
@@ -728,4 +785,5 @@ function VerifierApplicationReview() {
     </div>
   );
 }
+
 export default VerifierApplicationReview;

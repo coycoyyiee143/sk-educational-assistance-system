@@ -17,6 +17,13 @@ class ApplicationDocument extends Model
         'mime_type',
         'version',
         'status',
+        'needs_auto_reupload',
+        'auto_reupload_reason',
+        'auto_reupload_category',
+    ];
+
+    protected $casts = [
+        'needs_auto_reupload' => 'boolean',
     ];
 
     public function application()

@@ -33,18 +33,22 @@ const Footer = () => {
             <div className="footer-links-col">
               <h6 className="footer-heading">Connect With Us</h6>
               <div className="footer-socials mb-4">
-                <a href="#" aria-label="Facebook" className="footer-social-icon footer-social-fb">
+                {/* No live social page yet — using buttons so they aren't
+                    presented as navigable links (jsx-a11y/anchor-is-valid).
+                    Swap back to <a href="https://facebook.com/..."> etc.
+                    once the real pages exist. */}
+                <button type="button" aria-label="Facebook" className="footer-social-icon footer-social-fb">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M22 12.06C22 6.5 17.52 2 12 2S2 6.5 2 12.06c0 5 3.66 9.15 8.44 9.94v-7.03H7.9v-2.91h2.54V9.85c0-2.51 1.49-3.9 3.77-3.9 1.09 0 2.24.2 2.24.2v2.46h-1.26c-1.24 0-1.63.77-1.63 1.56v1.89h2.78l-.44 2.91h-2.34V22c4.78-.79 8.44-4.94 8.44-9.94z"/>
                   </svg>
-                </a>
-                <a href="#" aria-label="Instagram" className="footer-social-icon footer-social-ig">
+                </button>
+                <button type="button" aria-label="Instagram" className="footer-social-icon footer-social-ig">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
                     <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path>
                     <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line>
                   </svg>
-                </a>
+                </button>
               </div>
               <p className="footer-address mb-2 footer-contact-line">
                 <span className="footer-contact-icon-wrap">

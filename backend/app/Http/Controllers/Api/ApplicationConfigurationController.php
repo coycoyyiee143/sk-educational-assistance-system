@@ -18,30 +18,32 @@ class ApplicationConfigurationController extends Controller
 
         return response()->json($config);
     }
-
+    
     public function store(Request $request)
     {
         $request->validate([
-            'school_year'  => 'required|string',
-            'open_date'    => 'required|date',
-            'close_date'   => 'required|date|after:open_date',
-            'is_unlimited' => 'boolean',
-            'slot_limit'   => 'required_if:is_unlimited,false|nullable|integer|min:1',
+            'school_year'        => 'required|string',
+            'open_date'          => 'required|date',
+            'close_date'         => 'required|date|after:open_date',
+            'is_unlimited'       => 'boolean',
+            'slot_limit'         => 'required_if:is_unlimited,false|nullable|integer|min:1',
+            'assistance_amount'  => 'required|integer|min:0',
         ]);
 
         ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
-
+        
         $isUnlimited = $request->boolean('is_unlimited');
-
+        
         $config = ApplicationConfiguration::create([
-            'school_year'  => $request->school_year,
-            'open_date'    => $request->open_date,
-            'close_date'   => $request->close_date,
-            'is_unlimited' => $isUnlimited,
-            'slot_limit'   => $isUnlimited ? null : $request->slot_limit,
-            'slots_filled' => 0,
-            'is_active'    => true,
-            'created_by'   => $request->user()->id,
+            'school_year'        => $request->school_year,
+            'open_date'          => $request->open_date,
+            'close_date'         => $request->close_date,
+            'is_unlimited'       => $isUnlimited,
+            'slot_limit'         => $isUnlimited ? null : $request->slot_limit,
+            'slots_filled'       => 0,
+            'assistance_amount'  => $request->assistance_amount,
+            'is_active'          => true,
+            'created_by'         => $request->user()->id,
         ]);
 
         return response()->json([
@@ -60,12 +62,13 @@ class ApplicationConfigurationController extends Controller
         $config = ApplicationConfiguration::findOrFail($id);
     
         $data = $request->validate([
-            'school_year'  => 'required|string',
-            'open_date'    => 'required|date',
-            'close_date'   => 'required|date|after:open_date',
-            'is_unlimited' => 'boolean',
-            'slot_limit'   => 'required_if:is_unlimited,false|nullable|integer|min:1',
-            'is_active'    => 'boolean',
+            'school_year'        => 'required|string',
+            'open_date'          => 'required|date',
+            'close_date'         => 'required|date|after:open_date',
+            'is_unlimited'       => 'boolean',
+            'slot_limit'         => 'required_if:is_unlimited,false|nullable|integer|min:1',
+            'assistance_amount'  => 'required|integer|min:0',
+            'is_active'          => 'boolean',
         ]);
     
         $data['is_unlimited'] = $request->boolean('is_unlimited');
@@ -75,11 +78,12 @@ class ApplicationConfigurationController extends Controller
         }
     
         // Once the application period has started (opening date has passed),
-        // parameters that affect applicant eligibility or slot counting can no
-        // longer be changed — this protects data integrity for anyone who has
-        // already applied under the original terms. close_date and is_active
-        // remain editable at any time (extending a deadline or closing the
-        // period early are both legitimate admin actions mid-period).
+        // parameters that affect applicant eligibility, slot counting, or
+        // the stated assistance amount can no longer be changed — this
+        // protects data integrity for anyone who has already applied under
+        // the original terms. close_date and is_active remain editable at
+        // any time (extending a deadline or closing the period early are
+        // both legitimate admin actions mid-period).
         $hasStarted = now()->gte($config->open_date);
     
         if ($hasStarted) {
@@ -97,10 +101,13 @@ class ApplicationConfigurationController extends Controller
             if (!$data['is_unlimited'] && (int) $data['slot_limit'] !== (int) $config->slot_limit) {
                 $lockedFields[] = 'slot_limit';
             }
+            if ((int) $data['assistance_amount'] !== (int) $config->assistance_amount) {
+                $lockedFields[] = 'assistance_amount';
+            }
     
             if (!empty($lockedFields)) {
                 return response()->json([
-                    'message' => 'This application period has already started. School year, opening date, slot limit, and slot type (unlimited/limited) can no longer be changed once the period is open.',
+                    'message' => 'This application period has already started. School year, opening date, slot limit, slot type (unlimited/limited), and assistance amount can no longer be changed once the period is open.',
                     'locked_fields' => $lockedFields,
                 ], 400);
             }

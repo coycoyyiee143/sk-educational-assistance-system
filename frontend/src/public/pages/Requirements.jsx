@@ -176,7 +176,7 @@ const Requirements = () => {
                         <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </span>
-                    Voter's Certificate or Voter's ID
+                    Voter's Certificate
                   </li>
                 </ul>
               </div>
@@ -197,7 +197,7 @@ const Requirements = () => {
                         <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
                       </svg>
                     </span>
-                    Certificate of Enrollment / Registration Form
+                    Registration Form
                   </li>
                   <li>
                     <span className="req-doc-check">

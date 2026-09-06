@@ -14,6 +14,7 @@ class ClaimingSchedule extends Model
         'afternoon_start',
         'afternoon_end',
         'grace_period_date',
+        'grace_period_end_date',
         'is_published',
         'published_at',
     ];

@@ -40,19 +40,29 @@ class ProcessOcrDocument implements ShouldQueue
 
     public function handle()
     {
+        if ($this->document->status === 'processed') {
+            return;
+        }
+    
         try {
-            // Get full path to stored file
             $storagePath = Storage::disk('local')->path($this->filePath);
-
             if (!file_exists($storagePath)) {
                 throw new \Exception("File not found: {$storagePath}");
             }
+    
+            // Clear any stale results from a prior processing attempt on
+            // this exact document row, so reprocessing (retry, manual
+            // re-trigger during testing, etc.) doesn't leave old and new
+            // checks sitting side by side in the same table.
+            \App\Models\VerificationCheck::where('document_id', $this->document->id)->delete();
+            \App\Models\OcrResult::where('document_id', $this->document->id)->delete();
 
             // Update the timeout to 180 seconds to accommodate heavy PaddleOCR models
             $client = new Client([
-                'timeout'         => 180, 
+                'timeout'         => 180,
                 'connect_timeout' => 10 // Optional: fail fast if the server is completely down
             ]);
+
             $user    = $this->application->user;
             $config  = $this->application->configuration;
             $profile = $user->profile;
@@ -92,7 +102,7 @@ class ProcessOcrDocument implements ShouldQueue
                 // for every cycle, not admin-configurable, since this is a
                 // fixed rule rather than something that varies per period.
                 $multipart[] = ['name' => 'enforce_cert_year', 'contents' => 'true'];
-                $multipart[] = ['name' => 'cert_year',         'contents' => (string) now()->year];
+                $multipart[] = ['name' => 'cert_year', 'contents' => (string) now()->year];
             }
 
             $flaskUrl = env('OCR_SERVICE_URL', 'http://localhost:5000');
@@ -104,15 +114,46 @@ class ProcessOcrDocument implements ShouldQueue
                 return;
             }
 
+            $data = $result['verification'] ?? [];
+
+            // Upload-check short-circuit (wrong document type, too low
+            // quality, or a confidently-wrong cert year). Record the flag
+            // ON THIS DOCUMENT only — do NOT decide the application's
+            // status here. The other two documents may be processing
+            // concurrently in separate jobs and may ALSO have their own
+            // issues; deciding immediately here would only ever surface
+            // one problem at a time instead of all of them together.
+            // updateApplicationStatus() below (which already waits for
+            // all three documents) is the single place that makes the
+            // final call.
+            if (($data['flag_reason'] ?? null) === 'auto_reupload') {
+                $this->document->update([
+                    'status'                  => 'processed',
+                    'needs_auto_reupload'     => true,
+                    'auto_reupload_reason'    => $data['auto_reupload_reason'] ?? 'System detected an issue with this document.',
+                    'auto_reupload_category'  => $data['auto_reupload_category'] ?? null,
+                ]);
+
+                \App\Models\AuditLog::record(
+                    'auto_reupload_flagged',
+                    $this->document,
+                    $data['auto_reupload_reason'] ?? 'System detected an issue with this document.'
+                );
+
+                $this->updateApplicationStatus($this->application);
+                return;
+            }
+
+            $isLowConfidenceFlag = $data['low_confidence'] ?? false;
+
             $ocrResult = OcrResult::create([
                 'document_id'      => $this->document->id,
                 'extracted_fields' => $result['verification'] ?? [],
                 'confidence_score' => $result['avg_confidence'] ?? null,
-                'is_low_confidence'=> ($result['avg_confidence'] ?? 1) < 0.7,
+                'is_low_confidence'=> $isLowConfidenceFlag,
                 'raw_text'         => json_encode($result['ocr_lines'] ?? []),
             ]);
 
-            $data = $result['verification'] ?? [];
             $verification = isset($data['checks']) ? $data['checks'] : $data;
 
             foreach ($verification as $checkName => $checkData) {
@@ -131,12 +172,12 @@ class ProcessOcrDocument implements ShouldQueue
                     'extracted_value'=> $checkData['extracted'] ?? $checkData['raw'] ?? null,
                     'expected_value' => $checkData['expected'] ?? null,
                     'flag_reason'    => $checkData['reason'] ?? null,
+                    'metadata'       => $checkData['metadata'] ?? null,
                 ]);
             }
 
             $this->document->update(['status' => 'processed']);
             $this->updateApplicationStatus($this->application);
-
         } catch (\Exception $e) {
             $this->document->update(['status' => 'failed']);
             \Log::error("OCR Processing Failed for Doc {$this->document->id}: " . $e->getMessage());
@@ -162,36 +203,133 @@ class ProcessOcrDocument implements ShouldQueue
             }
         }
 
-        // 3. Scan for validation failures ONLY within the latest file versions
+        // 3. All three documents are done. Check for auto-reupload flags
+        // FIRST, across all of them together, and aggregate every reason
+        // found — so the applicant sees every problem at once, not one
+        // at a time across repeated resubmissions.
+        $autoReuploadDocs = $latestDocuments->filter(fn($d) => $d->needs_auto_reupload);
+
+        if ($autoReuploadDocs->isNotEmpty()) {
+            // Categories that count toward the 3-attempt cap. 'low_quality'
+            // deliberately excluded — a repeatedly-blurry upload isn't
+            // necessarily something the applicant can fix faster by trying
+            // again, so it stays uncapped rather than forcing an unhelpful
+            // escalation.
+            $cappedCategories = ['wrong_document_type', 'wrong_cert_year'];
+            $escalated = collect();
+
+            foreach ($autoReuploadDocs as $doc) {
+                if (!in_array($doc->auto_reupload_category, $cappedCategories)) {
+                    continue;
+                }
+
+                // Count every prior version of THIS document type on THIS
+                // application that was ever flagged with a capped category —
+                // each reupload creates a new ApplicationDocument row, so this
+                // walks the full version history, not just the latest row.
+                $priorFlaggedCount = ApplicationDocument::where('application_id', $application->id)
+                    ->where('document_type', $doc->document_type)
+                    ->whereIn('auto_reupload_category', $cappedCategories)
+                    ->count();
+
+                if ($priorFlaggedCount > 3) {
+                    $escalated->push($doc);
+                }
+            }
+
+            if ($escalated->isNotEmpty()) {
+                // 4th+ capped-category attempt on at least one document —
+                // escalate to a human instead of looping the applicant again.
+                // Build a full history so the verifier sees every prior
+                // reason, not just the latest one.
+                foreach ($escalated as $doc) {
+                    $history = ApplicationDocument::where('application_id', $application->id)
+                        ->where('document_type', $doc->document_type)
+                        ->whereIn('auto_reupload_category', $cappedCategories)
+                        ->orderBy('version')
+                        ->pluck('auto_reupload_reason')
+                        ->filter()
+                        ->values();
+
+                    $historyText = $history->map(fn($r, $i) => "Attempt " . ($i + 1) . ": {$r}")->implode(' | ');
+
+                    VerificationCheck::create([
+                        'application_id' => $application->id,
+                        'document_id'    => $doc->id,
+                        'ocr_result_id'  => null,
+                        'check_name'     => 'repeated_auto_reupload_escalation',
+                        'passed'         => false,
+                        'extracted_value'=> null,
+                        'expected_value' => null,
+                        'flag_reason'    => "Flagged {$history->count()} times for the same type of issue — escalated for manual review. History: {$historyText}",
+                    ]);
+                }
+
+                $application->update([
+                    'status'               => 'for_review',
+                    'auto_reupload_reason' => null,
+                ]);
+                return;
+            }
+
+            $reasons = $autoReuploadDocs->pluck('auto_reupload_reason')->filter()->unique()->values();
+            $combinedReason = $reasons->count() > 1
+                ? $reasons->map(fn($r, $i) => ($i + 1) . ". {$r}")->implode(' ')
+                : $reasons->first();
+
+            $application->update([
+                'status'               => 'auto_reupload_requested',
+                'auto_reupload_reason' => $combinedReason,
+            ]);
+
+            $application->user->notify(new ApplicationStatusNotification(
+                'Re-upload Needed',
+                $combinedReason
+            ));
+            return;
+        }
+
+        // 4. Scan for validation failures ONLY within the latest file versions
         $hasFailedCheck = VerificationCheck::whereIn('document_id', $latestDocIds)
             ->where('passed', false)
             ->exists();
 
-        // 4. Scan for low confidence flags ONLY within the latest file versions
+        // 5. Scan for low confidence flags ONLY within the latest file versions
         $isLowConfidence = OcrResult::whereIn('document_id', $latestDocIds)
             ->where('is_low_confidence', true)
             ->exists();
 
-        // 5. Route the status dynamically based on current values
+        // 6. Route the status dynamically based on current values
         if ($hasFailedCheck || $isLowConfidence) {
-            $application->update(['status' => 'for_review']);
-        } else {
-            // Updated to call your centralized model method
             $application->update([
-                'status'         => 'approved',
-                'control_number' => \App\Models\Application::generateControlNumber($application->config_id),
+                'status'               => 'for_review',
+                'auto_reupload_reason' => null,
             ]);
-
-                // Slot is consumed here too, since this is the auto-approval path —
-                // an application that passes all OCR/rule-based checks automatically
-                // becomes "approved" without going through VerifierController@approve.
-                $application->configuration()->increment('slots_filled');
-
-            // Trigger Automated System Approval Notification
-            $application->user->notify(new ApplicationStatusNotification(
-                'Approved',
-                'Congratulations! Your application has been approved. Please prepare your physical documents for submission and stay tuned for further instructions.'
-            ));
+            return;
         }
+
+        $outcome = \App\Models\Application::tryApprove($application);
+
+        if ($outcome['result'] === 'no_slots') {
+            // Passed every automated check — genuinely qualified, just
+            // arrived after the cap. Waitlisted rather than dropped or sent
+            // to manual review, since a verifier reviewing this wouldn't
+            // find anything to decide: the checks already passed.
+            \App\Models\Application::moveToWaitlist($application);
+
+            $application->user->notify(new ApplicationStatusNotification(
+                'Waitlisted',
+                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before the grace period ends."
+            ));
+            return;
+        }
+
+        $application->update(['auto_reupload_reason' => null]);
+
+        // Trigger Automated System Approval Notification
+        $application->user->notify(new ApplicationStatusNotification(
+            'Approved',
+            'Congratulations! Your application has been approved. Please prepare your physical documents for submission and stay tuned for further instructions.'
+        ));
     }
 }

@@ -15,9 +15,11 @@ import AdminDashboard from "./admin/pages/AdminDashboard";
 import AdminUsers from "./admin/pages/AdminUsers";
 import AdminSettings from "./admin/pages/AdminSettings";
 import AdminSchedule from "./admin/pages/AdminSchedule";
+import AdminLaneAssignments from "./admin/pages/AdminLaneAssignments.jsx";
 import AdminAnnouncements from "./admin/pages/AdminAnnouncements.jsx";
 import AdminEvents from "./admin/pages/AdminEvents.jsx";
 import AdminReports from "./admin/pages/AdminReports.jsx";
+import AdminBudgetPlanning from "./admin/pages/AdminBudgetPlanning.jsx";
 import AdminMasterActivityLog from "./admin/pages/AdminMasterActivityLog";
 
 import VerifierDashboard from "./verifier/pages/VerifierDashboard.jsx";
@@ -26,7 +28,7 @@ import VerifierApplicationReview from "./verifier/pages/VerifierApplicationRevie
 import VerifierVerificationAction from "./verifier/pages/VerifierVerificationAction.jsx";
 import VerifierClaiming from "./verifier/pages/VerifierClaiming.jsx";
 import VerifierProfile from "./verifier/pages/VerifierProfile.jsx";
-
+import VerifierWaitlist from "./verifier/pages/VerifierWaitlist.jsx";
 
 import ApplicantDashboard from "./applicant/pages/ApplicantDashboard.jsx";
 import ApplicantProfile from "./applicant/pages/ApplicantProfile.jsx";
@@ -70,6 +72,11 @@ function App() {
             <AdminSchedule />
           </ProtectedRoute>
         } />
+        <Route path="/AdminLaneAssignments" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminLaneAssignments />
+          </ProtectedRoute>
+        } />
         <Route path="/AdminAnnouncements" element={
           <ProtectedRoute allowedRoles={["sk_admin"]}>
             <AdminAnnouncements />
@@ -83,6 +90,11 @@ function App() {
         <Route path="/AdminReports" element={
           <ProtectedRoute allowedRoles={["sk_admin"]}>
             <AdminReports />
+          </ProtectedRoute>
+        } />
+        <Route path="/AdminBudgetPlanning" element={
+          <ProtectedRoute allowedRoles={["sk_admin"]}>
+            <AdminBudgetPlanning />
           </ProtectedRoute>
         } />
 
@@ -123,7 +135,12 @@ function App() {
             <VerifierProfile />
           </ProtectedRoute>
         } />
-  
+        <Route path="/VerifierWaitlist" element={
+          <ProtectedRoute allowedRoles={["sk_verifier"]}>
+            <VerifierWaitlist />
+          </ProtectedRoute>
+        } />
+
 
         {/* Applicant */}
         <Route path="/ApplicantDashboard" element={

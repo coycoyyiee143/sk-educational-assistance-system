@@ -26,3 +26,11 @@ class BaseSchoolStrategy:
                 return f"{int(single)-1}-{single}"
 
         return None
+
+    def preprocess_blocks(self, blocks):
+        """
+        Optional hook for school-specific block merging (e.g. joining a name
+        or institution header that OCR splits across multiple lines).
+        Default behavior: no changes, blocks pass through unmodified.
+        """
+        return blocks

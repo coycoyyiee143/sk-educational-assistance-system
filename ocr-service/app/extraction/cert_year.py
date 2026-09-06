@@ -25,11 +25,12 @@ def extract_cert_year(blocks: List[OcrBlock]) -> ExtractionResult:
     # 1. Labeled "Date Issued" field
     result = extract_via_keyword(blocks, "date_issued")
     if result:
-        raw, context, matched_block = result
+        raw, context, value_block, label_block = result
         match = re.search(r'(?<!\d)(20\d{2})\b', raw)
         if match:
+            combined_confidence = min(value_block.confidence, label_block.confidence)
             return ExtractionResult(value=match.group(1), raw=raw, method="keyword",
-                                     confidence=matched_block.confidence, context=f'found {context}')
+                                     confidence=combined_confidence, context=f'found {context}')
 
     # 2. Any line containing "issued" (covers the free-text signing
     #    sentence, and doubles as a fallback if the labeled field above

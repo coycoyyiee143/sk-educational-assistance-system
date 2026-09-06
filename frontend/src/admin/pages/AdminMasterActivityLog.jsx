@@ -253,8 +253,8 @@ function AdminMasterActivityLog() {
                           <td>
                             {log.user
                               ? (log.user.id === currentUser?.id
-                                  ? "You"
-                                  : `${log.user.first_name} ${log.user.last_name}`)
+                                ? "You"
+                                : `${log.user.first_name} ${log.user.last_name}`)
                               : <span className="text-muted fst-italic">Deleted user</span>}
                           </td>
                           <td>{log.user && <RoleBadge role={log.user.role} />}</td>

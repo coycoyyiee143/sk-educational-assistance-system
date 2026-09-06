@@ -4,13 +4,20 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Application;
+use App\Models\ApplicationConfiguration;
 use App\Models\VerifierAction;
 use App\Models\ClaimingAssignment;
+use App\Models\ClaimingSchedule;
+use App\Models\ClaimingLane;
+use App\Traits\GracePeriodEligibility;
+use App\Notifications\ClaimingScheduleNotification;
 use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 
 class VerifierController extends Controller
 {
+    use GracePeriodEligibility;
+
     public function stats()
     {
         return response()->json([
@@ -39,6 +46,7 @@ class VerifierController extends Controller
                     'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
                 ];
             });
+
         return response()->json($applications);
     }
 
@@ -61,43 +69,221 @@ class VerifierController extends Controller
     {
         // Eager-loaded user relationship to make sure notification finds the recipient email
         $app = Application::with(['user', 'configuration'])->findOrFail($id);
+
         if ($app->status === 'approved') {
             return response()->json(['message' => 'Application already approved.'], 400);
         }
-    
-        // Prevent approving past the configured slot limit. Not fully race-condition-safe
-        // for simultaneous approvals, but closes the gap where no check existed at all.
-        $config = $app->configuration;
-        if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
-            return response()->json(['message' => 'No more slots available for this application period.'], 400);
+
+        $outcome = Application::tryApprove($app);
+
+        if ($outcome['result'] === 'no_slots') {
+            Application::moveToWaitlist($app);
+
+            $app->user->notify(new ApplicationStatusNotification(
+                'Waitlisted',
+                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before the grace period ends."
+            ));
+
+            return response()->json(['message' => 'No slots available — applicant added to waitlist instead.']);
         }
-    
-        $app->update([
-            'status'         => 'approved',
-            'control_number' => $app->control_number ?? \App\Models\Application::generateControlNumber($app->config_id),
-        ]);
-         // Slot is consumed here, at approval time, not at submission.
-         // This ensures slots_filled only reflects applicants who actually
-         // passed eligibility verification.
-        $app->configuration()->increment('slots_filled'); 
+
         VerifierAction::create([
             'application_id' => $app->id,
             'verifier_id'    => $request->user()->id,
             'action'         => 'approved',
             'notes'          => $request->notes ?? null,
         ]);
-         // Log this approval for the audit trail
+
+        // Log this approval for the audit trail
         \App\Models\AuditLog::record(
             'application_approved',
             $app,
             "Approved application #{$app->id} ({$app->user->first_name} {$app->user->last_name})"
         );
+
         // Trigger Approval Notification
         $app->user->notify(new ApplicationStatusNotification(
             'Approved',
             'Congratulations! Your application has been approved. Please wait for announcements regarding the physical document submission and distribution schedule.'
         ));
+
         return response()->json(['message' => 'Application approved.']);
+    }
+
+    public function promoteFromWaitlist(Request $request, $configId)
+    {
+        $outcome = Application::promoteNextFromWaitlist($configId);
+    
+        if ($outcome['result'] === 'no_waitlist') {
+            return response()->json(['message' => 'No waitlisted applicants available to promote.'], 400);
+        }
+    
+        if ($outcome['result'] === 'no_slots') {
+            return response()->json(['message' => 'No slots available to promote into.'], 400);
+        }
+    
+        $promoted = $outcome['application'];
+    
+        \App\Models\AuditLog::record(
+            'application_approved',
+            $promoted,
+            "Promoted application #{$promoted->id} from waitlist ({$promoted->user->first_name} {$promoted->user->last_name})"
+        );
+    
+        $schedule = ClaimingSchedule::where('config_id', $configId)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+    
+        if ($schedule && $schedule->grace_period_date) {
+            $lane = ClaimingLane::firstOrCreate(
+                [
+                    'claiming_schedule_id' => $schedule->id,
+                    'lane_name'            => 'Grace Period Claiming',
+                ],
+                [
+                    'batch'         => 'morning',
+                    'claiming_date' => $schedule->grace_period_date,
+                    'capacity'      => null,
+                ]
+            );
+    
+            $assignment = ClaimingAssignment::updateOrCreate(
+                ['application_id' => $promoted->id],
+                [
+                    'claiming_schedule_id' => $schedule->id,
+                    'claiming_lane_id'     => $lane->id,
+                    'claim_status'         => 'pending_claiming',
+                    'source'               => 'waitlist_promotion',
+                ]
+            );
+    
+            $promoted->user->notify(new ClaimingScheduleNotification($promoted, $lane, $schedule, $assignment));
+        } else {
+            $promoted->user->notify(new ApplicationStatusNotification(
+                'Approved',
+                'A slot has opened up and your application has now been approved! Please prepare your physical documents for submission.'
+            ));
+        }
+    
+        return response()->json(['message' => 'Applicant promoted from waitlist.', 'application' => $promoted]);
+    }
+    
+    public function promoteAllFromWaitlist(Request $request, $configId)
+    {
+        $waitlistExists = Application::where('config_id', $configId)
+            ->where('status', 'waitlisted')
+            ->exists();
+    
+        if (!$waitlistExists) {
+            return response()->json(['message' => 'No waitlisted applicants available to promote.'], 400);
+        }
+    
+        $promotedList = Application::promoteAllFromWaitlist($configId);
+    
+        if (empty($promotedList)) {
+            return response()->json(['message' => 'No slots available to promote into.'], 400);
+        }
+    
+        $schedule = ClaimingSchedule::where('config_id', $configId)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+    
+        foreach ($promotedList as $promoted) {
+            \App\Models\AuditLog::record(
+                'application_approved',
+                $promoted,
+                "Promoted application #{$promoted->id} from waitlist ({$promoted->user->first_name} {$promoted->user->last_name})"
+            );
+    
+            if ($schedule && $schedule->grace_period_date) {
+                $lane = ClaimingLane::firstOrCreate(
+                    [
+                        'claiming_schedule_id' => $schedule->id,
+                        'lane_name'            => 'Grace Period Claiming',
+                    ],
+                    [
+                        'batch'         => 'morning',
+                        'claiming_date' => $schedule->grace_period_date,
+                        'capacity'      => null,
+                    ]
+                );
+    
+                $assignment = ClaimingAssignment::updateOrCreate(
+                    ['application_id' => $promoted->id],
+                    [
+                        'claiming_schedule_id' => $schedule->id,
+                        'claiming_lane_id'     => $lane->id,
+                        'claim_status'         => 'pending_claiming',
+                        'source'               => 'waitlist_promotion',
+                    ]
+                );
+    
+                $promoted->user->notify(new ClaimingScheduleNotification($promoted, $lane, $schedule, $assignment));
+            } else {
+                $promoted->user->notify(new ApplicationStatusNotification(
+                    'Approved',
+                    'A slot has opened up and your application has now been approved! Please prepare your physical documents for submission.'
+                ));
+            }
+        }
+    
+        $count = count($promotedList);
+    
+        return response()->json([
+            'message' => "{$count} applicant(s) promoted from waitlist.",
+            'applications' => $promotedList,
+        ]);
+    }
+
+    /**
+     * Lists the active period's waitlist in promotion order, so a verifier
+     * can see who's waiting and how long — promotion itself always pulls
+     * the #1 position (strict FIFO via promoteNextFromWaitlist), so this
+     * view is informational, not a picker.
+     */
+    public function waitlist(Request $request)
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+    
+        if (!$config) {
+            return response()->json(['config_id' => null, 'waitlist' => [], 'not_cleared_count' => 0, 'free_slots' => 0]);
+        }
+    
+        $waitlisted = Application::with('user')
+            ->where('config_id', $config->id)
+            ->where('status', 'waitlisted')
+            ->orderBy('waitlisted_at')
+            ->get()
+            ->values()
+            ->map(function ($app, $index) {
+                return [
+                    'id'            => $app->id,
+                    'name'          => trim($app->user->first_name . ' ' . $app->user->last_name),
+                    'school_name'   => $app->school_name,
+                    'waitlisted_at' => $app->waitlisted_at,
+                    'position'      => $index + 1,
+                ];
+            });
+    
+        // Historical count — how many not_cleared outcomes this period has had
+        // in total, used only as the denominator for context.
+        $notClearedCount = \App\Models\ClaimingAssignment::where('claim_status', 'not_cleared')
+            ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
+            ->count();
+    
+        // Live count — slots_filled correctly reflects every promotion
+        // (increments) and every not_cleared/unclaimed (decrements), so this
+        // is always accurate right now, unlike a static count of past events.
+        $freeSlots = $config->is_unlimited ? null : max(0, $config->slot_limit - $config->slots_filled);
+    
+        return response()->json([
+            'config_id'          => $config->id,
+            'waitlist'           => $waitlisted,
+            'not_cleared_count'  => $notClearedCount,
+            'free_slots'         => $freeSlots,
+        ]);
     }
 
     public function reject(Request $request, $id)
@@ -107,14 +293,14 @@ class VerifierController extends Controller
             'reason_categories'   => 'required|array|min:1',
             'reason_categories.*' => 'string',
         ]);
-    
+
         $app = Application::with('user')->findOrFail($id);
-    
+
         $app->update([
             'status'           => 'rejected',
             'rejection_reason' => $request->reason,
         ]);
-    
+
         VerifierAction::create([
             'application_id'    => $app->id,
             'verifier_id'       => $request->user()->id,
@@ -122,21 +308,21 @@ class VerifierController extends Controller
             'reason_categories' => $request->reason_categories,
             'notes'             => $request->reason,
         ]);
-    
+
         \App\Models\AuditLog::record(
             'application_rejected',
             $app,
             "Rejected application #{$app->id}. Reason: {$request->reason}"
         );
-    
+
         $app->user->notify(new ApplicationStatusNotification(
             'Rejected',
             'We regret to inform you that your educational assistance application was not approved. Reason: ' . $request->reason
         ));
-    
+
         return response()->json(['message' => 'Application rejected.']);
     }
-    
+
     public function requestReupload(Request $request, $id)
     {
         $request->validate([
@@ -147,11 +333,11 @@ class VerifierController extends Controller
             'reupload_details.*.reason_categories.*' => 'string',
             'reupload_details.*.reason'              => 'required|string',
         ]);
-    
+
         $app = Application::with('user')->findOrFail($id);
-    
+
         $app->update(['status' => 'reupload_requested']);
-    
+
         VerifierAction::create([
             'application_id'   => $app->id,
             'verifier_id'      => $request->user()->id,
@@ -159,43 +345,96 @@ class VerifierController extends Controller
             'notes'            => $request->notes,
             'reupload_details' => $request->reupload_details,
         ]);
-    
+
         \App\Models\AuditLog::record(
             'application_reupload_requested',
             $app,
             "Requested document re-upload for application #{$app->id}. Notes: {$request->notes}"
         );
-    
+
         $app->user->notify(new ApplicationStatusNotification(
             'Re-upload Requested',
             'The verifier reviewed your submission and flagged some missing or unreadable documents. Please review these notes: ' . $request->notes
         ));
-    
+
         return response()->json(['message' => 'Re-upload requested.']);
     }
-    
+
     public function updateClaimStatus(Request $request, $id)
     {
         $request->validate([
-            'claim_status'          => 'required|in:claimed,not_cleared,unclaimed',
+            'claim_status'          => 'required|in:claimed,not_cleared',
             'reason_categories'     => 'required_if:claim_status,not_cleared|nullable|array',
             'reason_categories.*'   => 'string',
             'verified_documents'    => 'nullable|array',
             'notes'                 => 'nullable|string',
         ]);
     
-        $assignment = ClaimingAssignment::where('application_id', $id)->firstOrFail();
-        $assignment->update([
+        $assignment = ClaimingAssignment::where('application_id', $id)->with(['application.configuration', 'latestFaceVerification'])->firstOrFail();
+
+        // Grace period claims are unscheduled walk-ins with no lane/time
+        // structure backing them up — face verification is the only real
+        // proof of identity available, so it's required here. Regular
+        // claiming already has a scheduled lane + control number + a verifier
+        // who selected them off that lane's list, so it stays optional there.
+        //
+        // FIXED: this used to only check source IN ('waitlist_promotion',
+        // 'grace_period_retry') — but an applicant already visible in the
+        // Grace Period List because their lane day passed and grace
+        // period is open, while still technically source: 'original'
+        // because the sweep hasn't formally reassigned them yet, was
+        // slipping through this check entirely. That's exactly the same
+        // eligibility question the Grace Period List itself answers, so
+        // this now uses the identical shared condition instead of a
+        // narrower approximation that only covered two of the three
+        // grace-period cases.
+        $today = now()->toDateString();
+        $isGracePeriod = ClaimingAssignment::where('id', $assignment->id)
+            ->where(fn($q) => $this->applyGracePeriodEligibleCondition($q, $today))
+            ->exists();
+
+        if ($isGracePeriod && $request->claim_status === 'claimed') {
+            $lastFace = $assignment->latestFaceVerification;
+            if (!$lastFace || !$lastFace->matched) {
+                return response()->json([
+                    'message' => 'Face verification must pass before this applicant can be marked Claimed during grace period.',
+                ], 400);
+            }
+        }
+
+        $updateData = [
             'claim_status'       => $request->claim_status,
             'reason_categories'  => $request->claim_status === 'not_cleared' ? $request->reason_categories : null,
             'verified_documents' => $request->verified_documents ?? [],
             'verifier_notes'     => $request->notes,
             'verified_by'        => $request->user()->id,
             'verified_at'        => now(),
-        ]);
+        ];
+
+        // Snapshot the assistance amount at the moment of claiming, so this
+        // record stays historically accurate even if the amount is changed
+        // for a later period. Only set on the actual 'claimed' outcome —
+        // not_cleared/unclaimed never disbursed anything, so no amount
+        // applies to those.
+        if ($request->claim_status === 'claimed') {
+            $updateData['amount'] = $assignment->application->configuration->assistance_amount ?? 2000;
+        }
+
+        $assignment->update($updateData);
     
-        $app = Application::with('user')->findOrFail($id);
+        $app = Application::with(['user', 'configuration'])->findOrFail($id);
+        $previousStatus = $app->status;
+    
         $app->update(['status' => $request->claim_status]);
+    
+        // Only not_cleared actually frees a slot for waitlist promotion —
+        // that's the confirmed business rule. unclaimed does NOT decrement
+        // slots_filled: the slot stays reserved for that no-show through
+        // grace period, exactly as intended. If they never show, the slot
+        // simply goes unfilled for the cycle, not handed to the waitlist.
+        if ($request->claim_status === 'not_cleared' && $previousStatus !== 'not_cleared') {
+            $app->configuration()->decrement('slots_filled');
+        }
     
         \App\Models\AuditLog::record(
             'claim_status_updated',
@@ -203,15 +442,17 @@ class VerifierController extends Controller
             "Marked application #{$app->id} as {$request->claim_status}"
         );
     
+        // 'unclaimed' intentionally not a key here — this method's own
+        // validation only ever allows 'claimed'/'not_cleared' as input.
+        // 'unclaimed' is exclusively set by SweepUnclaimedAssignments,
+        // never through this endpoint.
         $messages = [
             'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
             'not_cleared' => 'Your physical documents did not match your application record on claiming day. Please contact the SK office for further assistance.',
-            'unclaimed'   => 'The claiming period has passed and your assistance was not claimed within the grace period. Please coordinate with the SK office.',
         ];
         $labels = [
             'claimed'     => 'Claimed',
             'not_cleared' => 'Rejected — Document Mismatch at Claiming',
-            'unclaimed'   => 'Unclaimed',
         ];
     
         $app->user->notify(new ApplicationStatusNotification(
@@ -226,15 +467,51 @@ class VerifierController extends Controller
     {
         $controlNumber = $request->query('control_number');
         $name          = $request->query('name');
+        $laneId        = $request->query('lane_id');
+        $gracePeriod   = $request->boolean('grace_period');
+        $today         = now()->toDateString();
 
-        $query = Application::with(['user', 'documents', 'claimingAssignment.lane'])
+        // Scoped to the ACTIVE application period only. Without this,
+        // any historical applicant from any past, already-closed cycle
+        // bleeds into whatever's currently being viewed — a genuinely
+        // finalized 'unclaimed' from a period that ended months ago
+        // would otherwise appear mixed into today's active Grace Period
+        // List with no indication it belongs to a different period at
+        // all, misleadingly suggesting it happened during the CURRENT
+        // still-open grace period.
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+        if (!$activeConfig) {
+            return response()->json(['message' => 'No active application period.'], 404);
+        }
+
+        $query = Application::with(['user', 'documents', 'claimingAssignment.lane', 'claimingAssignment.verifier'])
+            ->where('config_id', $activeConfig->id)
             ->whereIn('status', ['approved', 'claimed', 'not_cleared', 'unclaimed'])
             ->whereHas('claimingAssignment');
+
+        if ($gracePeriod) {
+            $query->whereHas('claimingAssignment', fn($q) => $this->applyGracePeriodEligibleCondition($q, $today));
+        } else {
+            // Regular Claiming NEVER shows anyone currently grace-period-
+            // eligible — once someone's overdue into the grace window,
+            // they belong exclusively on that tab from then on. What's
+            // left here is: still-active pending applicants (haven't hit
+            // their day yet, or it's today and grace period hasn't
+            // started), plus resolved outcomes (claimed/not_cleared) kept
+            // visible as a same-day history/reference check.
+            $query->whereDoesntHave('claimingAssignment', fn($q) => $this->applyGracePeriodEligibleCondition($q, $today));
+
+            if ($laneId) {
+                // Regular claiming day — scoped to one specific lane, so a
+                // verifier only ever sees the applicants assigned to the
+                // lane they're actually working.
+                $query->whereHas('claimingAssignment', fn($q) => $q->where('claiming_lane_id', $laneId));
+            }
+        }
 
         if ($controlNumber) {
             $query->where('control_number', 'like', "%{$controlNumber}%");
         }
-
         if ($name) {
             $query->whereHas('user', function ($q) use ($name) {
                 $q->where('first_name', 'like', "%{$name}%")
@@ -243,12 +520,77 @@ class VerifierController extends Controller
         }
 
         $results = $query->get();
-
         if ($results->isEmpty()) {
             return response()->json(['message' => 'No matching approved applicant found.'], 404);
         }
-
         return response()->json($results);
+    }
+
+    /**
+     * Returns the logged-in verifier's currently assigned lane (if any —
+     * whether set by an admin or previously self-picked), plus the full
+     * list of today's lanes so they can self-assign or switch if plans
+     * change. This is what lets VerifierClaiming.jsx default straight to
+     * "my lane's applicants" instead of requiring a broad search every
+     * time.
+     */
+    public function claimingLanes(Request $request)
+    {
+        $config = ApplicationConfiguration::where('is_active', true)->first();
+        if (!$config) {
+            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+        }
+
+        $schedule = \App\Models\ClaimingSchedule::where('config_id', $config->id)
+            ->where('is_published', true)
+            ->latest()
+            ->first();
+
+        if (!$schedule) {
+            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+        }
+
+        $allLanes = $schedule->lanes()
+            ->where('lane_name', '!=', 'Grace Period Claiming')
+            ->orderBy('claiming_date')
+            ->orderBy('lane_name')
+            ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id']);
+
+        $assignedLane = $allLanes->firstWhere('verifier_id', $request->user()->id);
+
+        return response()->json([
+            'assigned_lane'         => $assignedLane,
+            'all_lanes'             => $allLanes,
+            // So the frontend can auto-default to whichever mode actually
+            // matches today, instead of always opening on Regular Claiming
+            // regardless of what day it is.
+            'grace_period_date'     => $schedule->grace_period_date,
+            'grace_period_end_date' => $schedule->grace_period_end_date,
+        ]);
+    }
+
+    /**
+     * Verifier self-assigns to a lane — the default, day-of mechanism.
+     * Clears them from any OTHER lane in the same schedule first, since
+     * a verifier can only physically be at one lane at a time. An admin
+     * assignment (via AdminScheduleController::assignVerifier()) can
+     * always override this later, and vice versa — whichever was set
+     * most recently wins, since it's the same column.
+     */
+    public function selfAssignLane(Request $request, $laneId)
+    {
+        $lane = \App\Models\ClaimingLane::findOrFail($laneId);
+
+        \App\Models\ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
+            ->where('verifier_id', $request->user()->id)
+            ->update(['verifier_id' => null]);
+
+        $lane->update(['verifier_id' => $request->user()->id]);
+
+        return response()->json([
+            'message' => "You're now assigned to {$lane->lane_name}.",
+            'lane'    => $lane,
+        ]);
     }
 
     // Returns the logged-in verifier's own activity history

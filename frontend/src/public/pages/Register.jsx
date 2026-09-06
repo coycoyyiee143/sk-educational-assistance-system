@@ -4,13 +4,7 @@ import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
-
-const CABUYAO_BARANGAYS = [
-  "Baclaran", "Banaybanay", "Banlic", "Bigaa", "Butong", "Casile",
-  "Diezmo", "Gulod", "Mamatid", "Marinig", "Niugan", "Pittland",
-  "Poblacion Uno", "Poblacion Dos", "Poblacion Tres", "Pulo", "Sala", "San Isidro",
-];
-
+import FaceCapture from "../../applicant/components/FaceCapture";
 const Register = () => {
   const [form, setForm] = useState({
     firstName: "",
@@ -19,58 +13,59 @@ const Register = () => {
     mobile: "",
     email: "",
     birthdate: "",
-    barangay: "",
+    barangay: "Mamatid",
     password: "",
     confirmPassword: "",
   });
-  const [showOtherBarangay, setShowOtherBarangay] = useState(false);
-  const [otherBarangay, setOtherBarangay] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [idImage, setIdImage] = useState(null);
+  const [idPreview, setIdPreview] = useState(null);
+  const [step, setStep] = useState("form");
   const { user } = useAuth();
   const navigate = useNavigate();
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
-  const handleBarangaySelect = (e) => {
-    const value = e.target.value;
-    if (value === "Other") {
-      setShowOtherBarangay(true);
-      setForm({ ...form, barangay: otherBarangay });
-    } else {
-      setShowOtherBarangay(false);
-      setForm({ ...form, barangay: value });
-    }
-  };
-  const handleSubmit = async (e) => {
+  function handleIdChange(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setIdImage(file);
+    setIdPreview(URL.createObjectURL(file));
+  }
+  const handleNext = (e) => {
     e.preventDefault();
     setError("");
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
-    if (!form.barangay.trim()) {
-      setError("Please select your barangay.");
+    if (!idImage) {
+      setError("Please upload a valid ID.");
       return;
     }
+    setStep("face");
+  };
+  async function handleRegisterWithFace({ idImage: capturedIdImage, liveBlob }) {
+    setError("");
     setLoading(true);
     try {
-      await api.post("/register", {
-        first_name: form.firstName,
-        middle_name: form.middleName,
-        last_name: form.lastName,
-        mobile_number: form.mobile,
-        email: form.email,
-        birthdate: form.birthdate,
-        barangay: form.barangay,
-        password: form.password,
-        password_confirmation: form.confirmPassword,
-      });
-      navigate("/verify-email-notice", {
-        state: { email: form.email }
-      });
+      const formData = new FormData();
+      formData.append("first_name", form.firstName);
+      formData.append("middle_name", form.middleName);
+      formData.append("last_name", form.lastName);
+      formData.append("mobile_number", form.mobile);
+      formData.append("email", form.email);
+      formData.append("birthdate", form.birthdate);
+      formData.append("barangay", form.barangay);
+      formData.append("password", form.password);
+      formData.append("password_confirmation", form.confirmPassword);
+      formData.append("id_image", capturedIdImage);
+      formData.append("live_photo", liveBlob, "live.jpg");
+      await api.post("/register", formData);
+      navigate("/verify-email-notice", { state: { email: form.email } });
     } catch (err) {
       const errors = err.response?.data?.errors;
       if (errors) {
@@ -81,20 +76,84 @@ const Register = () => {
     } finally {
       setLoading(false);
     }
-  };
-
+  }
   if (user) {
     if (user.role === "sk_admin") return <Navigate to="/AdminDashboard" replace />;
     if (user.role === "sk_verifier") return <Navigate to="/VerifierDashboard" replace />;
     return <Navigate to="/ApplicantDashboard" replace />;
   }
-
+  if (step === "face") {
+    return (
+      <>
+        <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
+          <div className="container">
+            <a className="navbar-brand navbar-brand-custom" href="/">
+              <img src="/icons/logo-in.png" alt="SK Logo" />
+              <div className="brand-text">
+                <h5>SK Barangay Mamatid</h5>
+                <span>Educational Assistance System</span>
+              </div>
+            </a>
+          </div>
+        </nav>
+        <section className="register-split-section">
+          <div className="register-split-wrap">
+            <div className="register-split-form" style={{ margin: "0 auto" }}>
+              <div className="login-card-wrap">
+                <img src="/icons/logo-in.png" alt="logo" className="login-card-logo" />
+                <h5 className="login-card-brand">Educational Assistance System</h5>
+                <p className="login-card-subtext">SK Barangay Mamatid</p>
+                <div className="card card-custom p-4">
+                  <h3 className="text-start text-danger login-title-bold">Verify Your Identity</h3>
+                  <p className="text-start text-muted login-subtext-lg mb-4">
+                    Take a live photo to match against the ID you uploaded. Your account
+                    will only be created once we confirm it's really you.
+                  </p>
+                  <div className="alert alert-info small mb-4">
+                    This photo will also be shown to SK staff as a reference when you come to claim your assistance, so please make sure it clearly shows your face.
+                  </div>
+                  {idPreview && (
+                    <div className="mb-4">
+                      <label className="form-label fw-semibold">Your Uploaded ID</label>
+                      <img
+                        src={idPreview}
+                        alt="Uploaded ID"
+                        className="d-block rounded border"
+                        style={{ maxWidth: "260px", maxHeight: "180px", objectFit: "contain" }}
+                      />
+                    </div>
+                  )}
+                  {error && <div className="alert alert-danger">{error}</div>}
+                  <FaceCapture
+                    mode="registration"
+                    externalIdImage={idImage}
+                    submitLabel={loading ? "Creating account..." : "Verify & Create Account"}
+                    disabled={loading}
+                    onSubmitCapture={handleRegisterWithFace}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-link mt-3 p-0"
+                    onClick={() => setStep("form")}
+                    disabled={loading}
+                  >
+                    Back to account details
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        <Footer />
+      </>
+    );
+  }
   return (
     <>
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
           <a className="navbar-brand navbar-brand-custom" href="/">
-            <img src="/logo.png" alt="SK Logo" />
+            <img src="/icons/logo-in.png" alt="SK Logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>
@@ -115,7 +174,6 @@ const Register = () => {
           </div>
         </div>
       </nav>
-
       <section className="register-split-section">
         <div className="register-split-wrap">
           <div className="register-split-image">
@@ -129,29 +187,26 @@ const Register = () => {
               <div className="card card-custom p-4">
                 <h3 className="text-start text-danger login-title-bold">Create Applicant Account</h3>
                 <p className="text-start text-muted login-subtext-lg mb-4">Register to apply for educational assistance.</p>
-
                 {error && <div className="alert alert-danger">{error}</div>}
-
-                <form onSubmit={handleSubmit} className="register-form-spaced">
+                <form onSubmit={handleNext} className="register-form-spaced">
                   <div className="row">
                     <div className="col-md-4 mb-3">
                       <label className="form-label">First Name <span className="text-danger">*</span></label>
-                      <input name="firstName" className="form-control" placeholder="First Name" onChange={handleChange} required />
+                      <input name="firstName" className="form-control" placeholder="First Name" value={form.firstName} onChange={handleChange} required />
                     </div>
                     <div className="col-md-4 mb-3">
                       <label className="form-label">Middle Name</label>
-                      <input name="middleName" className="form-control" placeholder="Middle Name" onChange={handleChange} />
+                      <input name="middleName" className="form-control" placeholder="Middle Name" value={form.middleName} onChange={handleChange} />
                     </div>
                     <div className="col-md-4 mb-3">
                       <label className="form-label">Last Name <span className="text-danger">*</span></label>
-                      <input name="lastName" className="form-control" placeholder="Last Name" onChange={handleChange} required />
+                      <input name="lastName" className="form-control" placeholder="Last Name" value={form.lastName} onChange={handleChange} required />
                     </div>
                   </div>
-
                   <div className="row">
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Mobile Number</label>
-                      <input name="mobile" className="form-control" placeholder="Mobile Number" onChange={handleChange} />
+                      <input name="mobile" className="form-control" placeholder="Mobile Number" value={form.mobile} onChange={handleChange} />
                     </div>
                     <div className="col-md-6 mb-3">
                       <label className="form-label">Email <span className="text-danger">*</span></label>
@@ -161,6 +216,7 @@ const Register = () => {
                           name="email"
                           className="form-control"
                           placeholder="Email"
+                          value={form.email}
                           onChange={handleChange}
                           required
                           style={{ paddingRight: "32px" }}
@@ -177,7 +233,7 @@ const Register = () => {
                             fontSize: "18px",
                           }}
                         >
-                          ⓘ
+                          i
                         </span>
                       </div>
                     </div>
@@ -189,37 +245,46 @@ const Register = () => {
                         type="date"
                         name="birthdate"
                         className="form-control"
+                        value={form.birthdate}
                         onChange={handleChange}
                         required
                       />
                     </div>
-                    <div className="col-md-6 mb-3">
-                      <label className="form-label">Barangay <span className="text-danger">*</span></label>
-                      <select
-                        className="form-select"
-                        value={showOtherBarangay ? "Other" : form.barangay}
-                        onChange={handleBarangaySelect}
-                        required
-                      >
-                        <option value="" disabled>Select your barangay</option>
-                        {CABUYAO_BARANGAYS.map((b) => (
-                          <option key={b} value={b}>{b}</option>
-                        ))}
-                        <option value="Other">Other (outside Cabuyao)</option>
-                      </select>
-                      {showOtherBarangay && (
-                        <input
-                          className="form-control mt-2"
-                          placeholder="Enter your barangay"
-                          value={otherBarangay}
-                          onChange={(e) => {
-                            setOtherBarangay(e.target.value);
-                            setForm({ ...form, barangay: e.target.value });
-                          }}
-                          required
-                        />
-                      )}
+                      <div className="col-md-6 mb-3">
+                      <label className="form-label">Barangay</label>
+                      <input
+                        className="form-control"
+                        value="Mamatid"
+                        disabled
+                      />
+                      <div className="form-text">
+                        This Educational Assistance Program is only exclusive for residents of Barangay Mamatid.
+                      </div>
                     </div>
+                  </div>
+                  <div className="mb-3">
+                    <label className="form-label">
+                      Valid ID <span className="text-danger">*</span>
+                    </label>
+                    <p className="text-muted small mb-2">
+                      Upload a clear photo of a government-issued or school ID showing your face.
+                      We'll ask you to take a live photo next to confirm it's really you.
+                    </p>
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/jpg"
+                      className="form-control"
+                      onChange={handleIdChange}
+                      required
+                    />
+                    {idPreview && (
+                      <img
+                        src={idPreview}
+                        alt="ID preview"
+                        className="mt-2 rounded border"
+                        style={{ maxWidth: "260px", maxHeight: "180px", objectFit: "contain" }}
+                      />
+                    )}
                   </div>
                   <div className="mb-3">
                     <label className="form-label">Password <span className="text-danger">*</span></label>
@@ -229,6 +294,7 @@ const Register = () => {
                         name="password"
                         className="form-control register-input-eye"
                         placeholder="Password (min. 8 characters)"
+                        value={form.password}
                         onChange={handleChange}
                         required
                       />
@@ -253,7 +319,6 @@ const Register = () => {
                       </button>
                     </div>
                   </div>
-
                   <div className="mb-3">
                     <label className="form-label">Confirm Password <span className="text-danger">*</span></label>
                     <div className="register-input-wrap">
@@ -262,6 +327,7 @@ const Register = () => {
                         name="confirmPassword"
                         className="form-control register-input-eye"
                         placeholder="Confirm Password"
+                        value={form.confirmPassword}
                         onChange={handleChange}
                         required
                       />
@@ -286,9 +352,8 @@ const Register = () => {
                       </button>
                     </div>
                   </div>
-
-                  <button className="btn btn-danger w-100" type="submit" disabled={loading}>
-                    {loading ? "Registering..." : "Register"}
+                  <button className="btn btn-danger w-100" type="submit">
+                    Next: Verify Identity
                   </button>
                   <p className="text-center mt-3">
                     Already have an account? <a href="/login">Login</a>
@@ -299,10 +364,8 @@ const Register = () => {
           </div>
         </div>
       </section>
-
       <Footer />
     </>
   );
 };
-
 export default Register;

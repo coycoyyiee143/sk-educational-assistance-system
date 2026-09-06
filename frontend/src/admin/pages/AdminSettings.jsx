@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import AdminNavigation from "../components/AdminNavigation";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
+
 function formatDateTime(value) {
   if (!value) return "—";
   return new Date(value).toLocaleString("en-PH", {
@@ -12,6 +13,7 @@ function formatDateTime(value) {
     minute: "2-digit",
   });
 }
+
 function generateSchoolYearOptions() {
   const currentYear = new Date().getFullYear();
   const years = [];
@@ -20,23 +22,29 @@ function generateSchoolYearOptions() {
   }
   return years;
 }
+
 const SCHOOL_YEAR_OPTIONS = generateSchoolYearOptions();
+
 const emptyForm = {
   school_year: "",
   open_date: "",
   close_date: "",
   slot_limit: "",
   is_unlimited: false,
+  assistance_amount: "2000",
 };
+
 function AdminSettings() {
   const [config, setConfig] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [closing, setClosing] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showStartNewModal, setShowStartNewModal] = useState(false);
+
   useEffect(() => {
     api.get("/admin/application-configs")
       .then((res) => {
@@ -49,12 +57,14 @@ function AdminSettings() {
             close_date: active.close_date,
             slot_limit: active.slot_limit ?? "",
             is_unlimited: active.is_unlimited,
+            assistance_amount: String(active.assistance_amount ?? 2000),
           });
         }
       })
       .catch(() => setError("Failed to load current settings."))
       .finally(() => setLoading(false));
   }, []);
+
   const hasStarted = config?.open_date
     ? new Date() >= new Date(config.open_date)
     : false;
@@ -68,12 +78,15 @@ function AdminSettings() {
       ...f,
       [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
     }));
+
   function needsConfirmation() {
     return !hasStarted;
   }
+
   function startNewPeriod() {
     setShowStartNewModal(true);
   }
+
   function confirmStartNewPeriod() {
     setShowStartNewModal(false);
     setConfig(null);
@@ -81,6 +94,26 @@ function AdminSettings() {
     setSuccess("");
     setError("");
   }
+
+  async function handleClosePeriod() {
+    if (!config) return;
+    if (!window.confirm(
+      "Close this application period? This will mark every remaining waitlisted applicant as not selected, and cannot be undone."
+    )) return;
+    setClosing(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await api.post(`/admin/application-configs/${config.id}/close`);
+      setSuccess(res.data.message);
+      setConfig((prev) => ({ ...prev, closed_at: res.data.config.closed_at }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to close period.");
+    } finally {
+      setClosing(false);
+    }
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
     setError("");
@@ -99,6 +132,7 @@ function AdminSettings() {
     }
     saveSettings();
   }
+
   async function saveSettings() {
     setShowConfirmModal(false);
     setSaving(true);
@@ -109,6 +143,7 @@ function AdminSettings() {
         open_date: form.open_date ? `${form.open_date.slice(0, 10)} ${form.open_date.slice(11, 16)}:00` : "",
         close_date: form.close_date ? `${form.close_date.slice(0, 10)} 23:59:59` : "",
         slot_limit: form.is_unlimited ? null : form.slot_limit,
+        assistance_amount: form.assistance_amount,
       };
       let response;
       if (config) {
@@ -124,6 +159,7 @@ function AdminSettings() {
         close_date: updated.close_date,
         slot_limit: updated.slot_limit ?? "",
         is_unlimited: updated.is_unlimited,
+        assistance_amount: String(updated.assistance_amount ?? 2000),
       });
       setSuccess("Settings saved successfully.");
     } catch (err) {
@@ -132,6 +168,7 @@ function AdminSettings() {
       setSaving(false);
     }
   }
+
   const currentSettings = config
     ? [
       ["School Year", config.school_year],
@@ -154,8 +191,10 @@ function AdminSettings() {
           ? `Unlimited (${config.slots_filled} applied so far)`
           : `${config.slot_limit - config.slots_filled} remaining of ${config.slot_limit}`,
       ],
+      ["Assistance Amount per Applicant", `₱${Number(config.assistance_amount ?? 2000).toLocaleString()}`],
     ]
     : [];
+
   const settingIcons = {
     "School Year": (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -217,12 +256,14 @@ function AdminSettings() {
     "Slot Availability": "orange",
     "Number of Available Slots": "red",
   };
+
   function statusBadgeClass(value) {
     if (typeof value !== "string") return "settings-value-badge settings-value-badge-gray";
     if (value === "Open" || value === "Unlimited") return "settings-value-badge settings-value-badge-green";
     if (value === "Closed" || value === "Limited") return "settings-value-badge settings-value-badge-red";
     return "settings-value-badge settings-value-badge-gray";
   }
+
   return (
     <div className="admin-layout">
       <AdminNavigation />
@@ -236,14 +277,17 @@ function AdminSettings() {
             <div className="admin-topbar-avatar"></div>
           </div>
         </div>
+
         <section className="page-section">
           <div className="container-fluid">
+
             <div className="page-card">
               <h3 className="section-title mb-2">Application Settings</h3>
               <p className="text-muted mb-0">
                 Configure the application period, school year, applicant slot availability, and other important settings for the educational assistance program.
               </p>
             </div>
+
             <div className="page-card">
               <h4 className="sub-title sub-title-dark">Program Configuration</h4>
               <div className="visibility-notice">
@@ -255,6 +299,7 @@ function AdminSettings() {
                   </p>
                 </div>
               </div>
+
               {hasStarted && !hasClosed && (
                 <div className="alert alert-warning">
                   <strong>This application period has already started.</strong>{" "}
@@ -264,6 +309,7 @@ function AdminSettings() {
                   still be updated.
                 </div>
               )}
+
               {hasClosed && (
                 <div className="settings-warning-box d-flex justify-content-between align-items-center flex-wrap gap-2">
                   <div>
@@ -282,14 +328,17 @@ function AdminSettings() {
                   </button>
                 </div>
               )}
+
               {isAtCapacity && (
                 <div className="alert alert-warning">
                   This period is already at capacity ({config.slots_filled}/{config.slot_limit} slots filled).
                   No new applicants can be accepted unless you increase the slot limit.
                 </div>
               )}
+
               {success && <div className="alert alert-success">{success}</div>}
               {error && <div className="alert alert-danger">{error}</div>}
+
               {loading ? (
                 <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
               ) : (
@@ -454,6 +503,7 @@ function AdminSettings() {
                 </form>
               )}
             </div>
+
             <div className="page-card">
               <h4 className="sub-title sub-title-dark">Current Application Settings</h4>
               <div className="table-responsive">
@@ -506,10 +556,42 @@ function AdminSettings() {
                 </table>
               </div>
             </div>
+
+            {config && !config.closed_at && (
+              <div className="page-card">
+                <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                  <div>
+                    <h4 className="sub-title sub-title-dark mb-1">Close This Period</h4>
+                    <p className="text-muted small mb-0">
+                      Marks this period as fully settled. Any remaining waitlisted applicants will be
+                      finalized as "not selected." Only available once the grace period has ended.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-outline-danger"
+                    onClick={handleClosePeriod}
+                    disabled={closing}
+                  >
+                    {closing ? "Closing..." : "Close Period"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {config?.closed_at && (
+              <div className="page-card">
+                <div className="alert alert-secondary mb-0">
+                  This period was closed on {formatDateTime(config.closed_at)}.
+                </div>
+              </div>
+            )}
+
           </div>
         </section>
         <PanelFooter />
       </div>
+
       {showConfirmModal && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
           <div className="modal-dialog modal-dialog-centered">
@@ -527,6 +609,7 @@ function AdminSettings() {
                   <li>Opening Date</li>
                   <li>Number of Available Slots</li>
                   <li>Slot Type (Limited / Unlimited)</li>
+                  <li>Assistance Amount per Applicant</li>
                 </ul>
                 <p className="mb-0 text-muted small">
                   Closing Date will still be editable after the period opens.
@@ -553,6 +636,7 @@ function AdminSettings() {
           </div>
         </div>
       )}
+
       {showStartNewModal && (
         <div className="feedback-popup-backdrop">
           <div className="feedback-popup feedback-popup-error feedback-popup-wide">
@@ -588,4 +672,5 @@ function AdminSettings() {
     </div>
   );
 }
+
 export default AdminSettings;

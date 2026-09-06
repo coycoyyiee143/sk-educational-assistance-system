@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import AdminNavigation from "../components/AdminNavigation";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
@@ -10,6 +10,7 @@ const emptyForm = {
   afternoon_start: "13:00",
   afternoon_end: "17:00",
   grace_period_date: "",
+  grace_period_end_date: "",
 };
 
 const emptySessionLane = () => ({ lane_name: "", capacity: "" });
@@ -79,10 +80,26 @@ function AdminSchedule() {
   const [success, setSuccess] = useState("");
   const [lanePage, setLanePage] = useState(1);
   const lanePerPage = 10;
+  const [gracePeriodList, setGracePeriodList] = useState(null);
+  const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
 
-  useEffect(() => { loadSchedule(); }, []);
+  const loadPreview = useCallback((scheduleId) => {
+    setPreviewing(true);
+    return api.get(`/admin/claiming-schedule/${scheduleId}/preview`)
+      .then((res) => setPreview(res.data))
+      .catch(() => setPreview(null))
+      .finally(() => setPreviewing(false));
+  }, []);
 
-  function loadSchedule() {
+  const loadGracePeriodClaimingList = useCallback(() => {
+    setLoadingGracePeriodList(true);
+    api.get("/admin/reports/grace-period-claiming-list")
+      .then((res) => setGracePeriodList(res.data))
+      .catch(() => setGracePeriodList(null))
+      .finally(() => setLoadingGracePeriodList(false));
+  }, []);
+
+  const loadSchedule = useCallback(() => {
     setLoading(true);
     api.get("/admin/claiming-schedule")
       .then((res) => {
@@ -98,10 +115,14 @@ function AdminSchedule() {
             afternoon_start: sched.afternoon_start?.slice(0, 5) ?? "13:00",
             afternoon_end: sched.afternoon_end?.slice(0, 5) ?? "17:00",
             grace_period_date: sched.grace_period_date ?? "",
+            grace_period_end_date: sched.grace_period_end_date ?? "",
           });
           setDays(groupLanesIntoDays(sched.lanes));
           if (!sched.is_published) {
             loadPreview(sched.id);
+          }
+          if (sched.grace_period_date) {
+            loadGracePeriodClaimingList();
           }
         }
       })
@@ -113,15 +134,11 @@ function AdminSchedule() {
         }
       })
       .finally(() => setLoading(false));
-  }
+  }, [loadPreview, loadGracePeriodClaimingList]);
 
-  function loadPreview(scheduleId) {
-    setPreviewing(true);
-    api.get(`/admin/claiming-schedule/${scheduleId}/preview`)
-      .then((res) => setPreview(res.data))
-      .catch(() => setPreview(null))
-      .finally(() => setPreviewing(false));
-  }
+  useEffect(() => {
+    loadSchedule();
+  }, [loadSchedule]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -233,50 +250,38 @@ function AdminSchedule() {
   }
 
   async function handlePrint(laneId, laneName) {
+    // Opened synchronously (before the await) so popup blockers don't
+    // treat this as an unsolicited new-tab open — the fetch fills it in.
+    const printWindow = window.open("", "_blank");
     try {
-      const res = await api.get(`/admin/claiming-schedule/lanes/${laneId}/printable`);
-      const { applicants, batch, claiming_date } = res.data;
-      const rows = applicants.map((a, i) => `
-        <tr>
-          <td>${i + 1}</td>
-          <td>${a.control_number}</td>
-          <td>${a.name}</td>
-          <td></td>
-        </tr>
-      `).join("");
-      const html = `
-        <html>
-          <head>
-            <title>${laneName} — Claiming List</title>
-            <style>
-              body { font-family: Arial, sans-serif; color: #222; padding: 24px; }
-              h2 { color: #b71c1c; margin-bottom: 4px; }
-              p { margin-top: 0; color: #555; }
-              table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-              th, td { border: 1px solid #333; padding: 8px; text-align: left; font-size: 14px; }
-              thead { background: #b71c1c; color: white; }
-              td:last-child, th:last-child { width: 220px; }
-            </style>
-          </head>
-          <body>
-            <h2>${laneName} — Claiming List</h2>
-            <p>Batch: ${batch === "morning" ? "Morning" : "Afternoon"} &nbsp;|&nbsp; Date: ${claiming_date}</p>
-            <table>
-              <thead>
-                <tr><th>#</th><th>Control Number</th><th>Applicant Name</th><th>Signature</th></tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </body>
-        </html>
-      `;
-      const printWindow = window.open("", "_blank");
-      printWindow.document.write(html);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
+      const res = await api.get(`/admin/claiming-schedule/lanes/${laneId}/printable/pdf`, {
+        responseType: "blob",
+      });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      if (printWindow) {
+        printWindow.location.href = url;
+      }
+      // Not revoking the object URL here — the new tab's PDF viewer needs
+      // it to stay valid while the user is looking at / printing from it.
     } catch (err) {
+      if (printWindow) printWindow.close();
       setError("Failed to generate printable list.");
+    }
+  }
+
+  async function handleGracePeriodClaimingListExport() {
+    try {
+      const res = await api.get("/admin/reports/grace-period-claiming-list/pdf", { responseType: "blob" });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `grace-period-claiming-list-${new Date().toISOString().slice(0, 10)}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      setError("Failed to generate grace period claiming list.");
     }
   }
 
@@ -289,7 +294,14 @@ function AdminSchedule() {
     { label: "Total Approved Applicants", value: approvedCount },
     { label: "Total Lanes", value: totalLanesCount },
     { label: "Claiming Dates", value: formatDateRange(claimingDates) },
-    { label: "Grace Period Date", value: form.grace_period_date || "Not set" },
+    {
+      label: "Grace Period",
+      value: form.grace_period_date
+        ? (form.grace_period_end_date
+          ? `${form.grace_period_date} to ${form.grace_period_end_date}`
+          : form.grace_period_date)
+        : "Not set",
+    },
   ] : [];
 
   const displayedLanes = isPublished ? (schedule?.lanes ?? []) : (preview?.lanes ?? []);
@@ -426,8 +438,31 @@ function AdminSchedule() {
                           <input type="text" className="form-control" value={form.location} onChange={set("location")} required />
                         </div>
                         <div className="col-md-6">
-                          <label className="form-label">Grace Period Date</label>
-                          <input type="date" className="form-control" value={form.grace_period_date} onChange={set("grace_period_date")} />
+                          <label className="form-label">Grace Period (Date Range)</label>
+                          <div className="row g-2">
+                            <div className="col-6">
+                              <input
+                                type="date"
+                                className="form-control"
+                                value={form.grace_period_date}
+                                onChange={set("grace_period_date")}
+                                placeholder="Start date"
+                              />
+                            </div>
+                            <div className="col-6">
+                              <input
+                                type="date"
+                                className="form-control"
+                                value={form.grace_period_end_date}
+                                onChange={set("grace_period_end_date")}
+                                min={form.grace_period_date || undefined}
+                                placeholder="End date"
+                              />
+                            </div>
+                          </div>
+                          <div className="form-text">
+                            Applicants promoted from the waitlist may claim on any weekday within this range.
+                          </div>
                         </div>
                         <div className="col-md-6">
                           <label className="form-label">Default Morning Session Time</label>
@@ -744,6 +779,59 @@ function AdminSchedule() {
                     )}
                   </>
                 )}
+              </div>
+            )}
+
+            {schedule?.grace_period_date && (
+              <div className="page-card">
+                <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <h4 className="sub-title sub-title-dark mb-0">Grace Period Claiming List</h4>
+                  <div className="d-flex gap-2">
+                    <button
+                      className="btn btn-outline-custom btn-sm"
+                      onClick={loadGracePeriodClaimingList}
+                      disabled={loadingGracePeriodList}
+                    >
+                      {loadingGracePeriodList ? "Loading..." : "Refresh"}
+                    </button>
+                    <button type="button" className="btn btn-custom btn-sm" onClick={handleGracePeriodClaimingListExport}>
+                      Print List
+                    </button>
+                  </div>
+                </div>
+                <p className="text-muted small mb-3">
+                  Everyone expected during grace period — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
+                </p>
+                <div className="table-responsive">
+                  <table className="table table-bordered table-striped align-middle announcement-table">
+                    <thead>
+                      <tr>
+                        <th style={{ width: "40px" }}>#</th>
+                        <th>Control Number</th>
+                        <th>Applicant Name</th>
+                        <th style={{ width: "140px" }}>Type</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gracePeriodList?.entries?.length > 0 ? (
+                        gracePeriodList.entries.map((entry, i) => (
+                          <tr key={`${entry.control_number}-${i}`}>
+                            <td>{i + 1}</td>
+                            <td>{entry.control_number}</td>
+                            <td>{entry.name}</td>
+                            <td>{entry.type}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} className="text-muted">
+                            {loadingGracePeriodList ? "Loading..." : "No applicants expected during grace period for this period."}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 

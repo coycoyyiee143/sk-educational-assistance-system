@@ -7,7 +7,13 @@ _ocr = None
 def get_ocr():
     global _ocr
     if _ocr is None:
-        _ocr = PaddleOCR(lang='en', use_angle_cls=True, show_log=False)
+        _ocr = PaddleOCR(
+            lang='en',
+            use_angle_cls=True,
+            show_log=False,
+            det_limit_side_len=1600,
+            det_limit_type='max',
+        )
     return _ocr
 
 
@@ -21,21 +27,13 @@ def preprocess_image(image_path: str) -> str:
     if img is None:
         return image_path
 
-    # Convert to grayscale
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # Increase contrast using CLAHE (handles uneven lighting and watermarks)
     clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
-
-    # Sharpen
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
     sharpened = cv2.filter2D(enhanced, -1, kernel)
-
-    # Threshold to make text pop against background
     _, binary = cv2.threshold(sharpened, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
 
-    # Save to temp file
     suffix = os.path.splitext(image_path)[1] or '.jpg'
     with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
         cv2.imwrite(tmp.name, binary)
@@ -45,17 +43,14 @@ def preprocess_image(image_path: str) -> str:
 def run_ocr(image_path: str) -> list:
     ocr = get_ocr()
 
-    # Try original first
     results = ocr.ocr(image_path, cls=True)
     extracted = parse_results(results)
 
-    # If low confidence or few results, try preprocessed
     if not extracted or get_average_confidence(extracted) < 0.75:
         preprocessed_path = preprocess_image(image_path)
         try:
             results2 = ocr.ocr(preprocessed_path, cls=True)
             extracted2 = parse_results(results2)
-            # Use whichever got more results with higher confidence
             if get_average_confidence(extracted2) > get_average_confidence(extracted):
                 extracted = extracted2
         finally:
