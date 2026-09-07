@@ -15,13 +15,13 @@ class ClaimingSchedule extends Model
         'afternoon_end',
         'grace_period_date',
         'grace_period_end_date',
-        'is_published',
-        'published_at',
+        'is_active',
+        'activated_at',
     ];
 
     protected $casts = [
-        'is_published' => 'boolean',
-        'published_at' => 'datetime',
+        'is_active'    => 'boolean',
+        'activated_at' => 'datetime',
     ];
 
     public function configuration()

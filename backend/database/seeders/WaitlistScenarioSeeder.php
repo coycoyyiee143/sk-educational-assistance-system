@@ -155,8 +155,8 @@ class WaitlistScenarioSeeder extends Seeder
         $schedule = ClaimingSchedule::create([
             'config_id'             => $config->id,
             'location'              => 'Barangay Mamatid Covered Court',
-            'is_published'          => true,
-            'published_at'          => now()->subDays(2),
+            'is_active'             => true,
+            'activated_at'          => now()->subDays(2),
             'grace_period_date'     => now()->addWeek()->startOfWeek()->addDay()->toDateString(),
             'grace_period_end_date' => now()->addWeek()->startOfWeek()->addDays(5)->toDateString(),
         ]);

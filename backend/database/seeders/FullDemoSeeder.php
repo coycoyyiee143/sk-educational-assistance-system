@@ -235,8 +235,8 @@ class FullDemoSeeder extends Seeder
         $schedule = ClaimingSchedule::create([
             'config_id'             => $config->id,
             'location'              => 'Barangay Mamatid Covered Court',
-            'is_published'          => true,
-            'published_at'          => $config->close_date->copy()->addDays(5),
+            'is_active'             => true,
+            'activated_at'          => $config->close_date->copy()->addDays(5),
             'grace_period_date'     => $laneDate->copy()->addDays(3)->toDateString(),
             'grace_period_end_date' => $laneDate->copy()->addDays(8)->toDateString(),
         ]);
@@ -369,8 +369,8 @@ class FullDemoSeeder extends Seeder
         $schedule = ClaimingSchedule::create([
             'config_id'             => $config->id,
             'location'              => 'Barangay Mamatid Covered Court',
-            'is_published'          => true,
-            'published_at'          => now()->subDays(1),
+            'is_active'             => true,
+            'activated_at'          => now()->subDays(1),
             'grace_period_date'     => now()->toDateString(),
             'grace_period_end_date' => now()->addDays(4)->toDateString(),
         ]);

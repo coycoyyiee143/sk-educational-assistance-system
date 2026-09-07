@@ -47,12 +47,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
         Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
         Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
+        Route::post('/admin/application-configs/{id}/extend', [ApplicationConfigurationController::class, 'extend']);
         Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);
         Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
         Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
         Route::get('/admin/claiming-schedule/lane-assignments', [AdminScheduleController::class, 'laneAssignments']);
-        Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
-        Route::get('/admin/claiming-schedule/{id}/preview', [AdminScheduleController::class, 'preview']);
+        Route::post('/admin/claiming-schedule/{id}/activate', [AdminScheduleController::class, 'activate']);
         Route::post('/admin/claiming-schedule/lanes/{laneId}/assign-verifier', [AdminScheduleController::class, 'assignVerifier']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable/pdf', [AdminScheduleController::class, 'printableLanePdf']);

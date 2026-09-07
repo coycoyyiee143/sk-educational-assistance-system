@@ -9,6 +9,7 @@ use App\Models\VerifierAction;
 use App\Models\ClaimingAssignment;
 use App\Models\ClaimingSchedule;
 use App\Models\ClaimingLane;
+use App\Services\ClaimingAssignmentService;
 use App\Traits\GracePeriodEligibility;
 use App\Notifications\ClaimingScheduleNotification;
 use App\Notifications\ApplicationStatusNotification;
@@ -101,13 +102,29 @@ class VerifierController extends Controller
             "Approved application #{$app->id} ({$app->user->first_name} {$app->user->last_name})"
         );
 
-        // Trigger Approval Notification
-        $app->user->notify(new ApplicationStatusNotification(
-            'Approved',
-            'Congratulations! Your application has been approved. Please wait for announcements regarding the physical document submission and distribution schedule.'
-        ));
+        // Real-time claiming assignment: if the active period already has
+        // an active ClaimingSchedule with room, this applicant is placed
+        // on a lane and notified with their actual claiming date/lane
+        // immediately — no more waiting for a separate bulk "publish"
+        // step. assignToLane() itself sends the ClaimingScheduleNotification
+        // when it succeeds, so we only fall back to the generic approval
+        // notice below when it doesn't (no active schedule yet, or every
+        // lane is currently full — either way they stay 'approved' and
+        // get picked up automatically the next time a schedule activates
+        // or room opens up).
+        $assignment = ClaimingAssignmentService::assignToLane($app);
 
-        return response()->json(['message' => 'Application approved.']);
+        if (!$assignment) {
+            $app->user->notify(new ApplicationStatusNotification(
+                'Approved',
+                'Congratulations! Your application has been approved. Please wait for announcements regarding the physical document submission and distribution schedule.'
+            ));
+        }
+
+        return response()->json([
+            'message'    => 'Application approved.',
+            'assignment' => $assignment,
+        ]);
     }
 
     public function promoteFromWaitlist(Request $request, $configId)
@@ -131,7 +148,7 @@ class VerifierController extends Controller
         );
     
         $schedule = ClaimingSchedule::where('config_id', $configId)
-            ->where('is_published', true)
+            ->where('is_active', true)
             ->latest()
             ->first();
     
@@ -186,7 +203,7 @@ class VerifierController extends Controller
         }
     
         $schedule = ClaimingSchedule::where('config_id', $configId)
-            ->where('is_published', true)
+            ->where('is_active', true)
             ->latest()
             ->first();
     
@@ -542,7 +559,7 @@ class VerifierController extends Controller
         }
 
         $schedule = \App\Models\ClaimingSchedule::where('config_id', $config->id)
-            ->where('is_published', true)
+            ->where('is_active', true)
             ->latest()
             ->first();
 

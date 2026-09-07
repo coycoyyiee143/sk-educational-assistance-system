@@ -255,8 +255,8 @@ class DemoDataSeeder extends Seeder
         $schedule = ClaimingSchedule::create([
             'config_id'    => $config->id,
             'location'     => 'Barangay Mamatid Covered Court',
-            'is_published' => true,
-            'published_at' => $config->close_date->copy()->addDays(5),
+            'is_active'    => true,
+            'activated_at' => $config->close_date->copy()->addDays(5),
         ]);
 
         $lane = ClaimingLane::create([

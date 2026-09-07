@@ -118,8 +118,8 @@ class VerifierClaimingUiTestSeeder extends Seeder
             ['config_id' => $config->id],
             [
                 'location'              => 'Barangay Mamatid Covered Court',
-                'is_published'          => true,
-                'published_at'          => now()->subDays(7),
+                'is_active'          => true,
+                'activated_at'          => now()->subDays(7),
                 'grace_period_date'     => now()->toDateString(),
                 'grace_period_end_date' => now()->addDays(5)->toDateString(),
             ]

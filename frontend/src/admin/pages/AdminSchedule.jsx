@@ -68,26 +68,17 @@ function formatDateRange(dates) {
 function AdminSchedule() {
   const [config, setConfig] = useState(null);
   const [approvedCount, setApprovedCount] = useState(0);
+  const [unassignedApprovedCount, setUnassignedApprovedCount] = useState(0);
   const [schedule, setSchedule] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [days, setDays] = useState([emptyDay()]);
-  const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [previewing, setPreviewing] = useState(false);
-  const [publishing, setPublishing] = useState(false);
+  const [activating, setActivating] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [gracePeriodList, setGracePeriodList] = useState(null);
   const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
-
-  const loadPreview = useCallback((scheduleId) => {
-    setPreviewing(true);
-    return api.get(`/admin/claiming-schedule/${scheduleId}/preview`)
-      .then((res) => setPreview(res.data))
-      .catch(() => setPreview(null))
-      .finally(() => setPreviewing(false));
-  }, []);
 
   const loadGracePeriodClaimingList = useCallback(() => {
     setLoadingGracePeriodList(true);
@@ -97,15 +88,20 @@ function AdminSchedule() {
       .finally(() => setLoadingGracePeriodList(false));
   }, []);
 
-  const loadSchedule = useCallback(() => {
-    setLoading(true);
+  const loadSchedule = useCallback((silent = false) => {
+    if (!silent) setLoading(true);
     api.get("/admin/claiming-schedule")
       .then((res) => {
         setConfig(res.data.config);
         setApprovedCount(res.data.approved_count);
+        setUnassignedApprovedCount(res.data.unassigned_approved_count ?? 0);
         const sched = res.data.schedule;
         setSchedule(sched);
-        if (sched) {
+        if (sched && !silent) {
+          // Only repopulate the editable form/day state on a real page
+          // load — a silent background refresh shouldn't touch it (the
+          // form is disabled once active anyway, but there's no reason
+          // to re-run this on every poll tick).
           setForm({
             location: sched.location,
             morning_start: sched.morning_start?.slice(0, 5) ?? "07:00",
@@ -116,27 +112,45 @@ function AdminSchedule() {
             grace_period_end_date: sched.grace_period_end_date ?? "",
           });
           setDays(groupLanesIntoDays(sched.lanes));
-          if (!sched.is_published) {
-            loadPreview(sched.id);
-          }
           if (sched.grace_period_date) {
             loadGracePeriodClaimingList();
           }
         }
       })
       .catch((err) => {
-        if (err.response?.status !== 404) {
-          setError("Failed to load schedule data.");
-        } else {
-          setConfig(null);
+        if (!silent) {
+          if (err.response?.status !== 404) {
+            setError("Failed to load schedule data.");
+          } else {
+            setConfig(null);
+          }
         }
+        // Silent refreshes fail quietly — a dropped poll tick isn't worth
+        // surfacing an error banner over; the next tick (or the manual
+        // Refresh button) will just try again.
       })
-      .finally(() => setLoading(false));
-  }, [loadPreview, loadGracePeriodClaimingList]);
+      .finally(() => {
+        if (!silent) setLoading(false);
+      });
+  }, [loadGracePeriodClaimingList]);
 
   useEffect(() => {
-    loadSchedule();
+    loadSchedule(false);
   }, [loadSchedule]);
+
+  // Once a schedule is active, applicants get assigned to lanes the
+  // moment they're approved elsewhere in the app (Verifier review) —
+  // there's no action happening on this page while that occurs. Poll
+  // periodically, silently, so the fill counts below stay current
+  // without the admin having to manually refresh, and without the
+  // whole page flashing back to a loading spinner every tick.
+  useEffect(() => {
+    if (!schedule?.is_active) return;
+    const interval = setInterval(() => {
+      loadSchedule(true);
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [schedule?.is_active, loadSchedule]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -215,13 +229,35 @@ function AdminSchedule() {
         }
       }
     }
+    // Claiming can never happen while applications are still being
+    // accepted, or exactly on closing day itself — every claiming date
+    // must fall strictly after the application period's Closing Date.
+    // Mirrors the same check AdminScheduleController::store() enforces
+    // server-side; this just catches the mistake before the round-trip.
+    if (config?.close_date) {
+      const closeDateOnly = config.close_date.slice(0, 10);
+      const tooEarly = days.find((d) => d.date && d.date <= closeDateOnly);
+      if (tooEarly) {
+        setError(`Claiming date ${tooEarly.date} must be after the application period's Closing Date (${closeDateOnly}).`);
+        return;
+      }
+    }
+    // Grace Period only makes sense after every claiming day has already
+    // happened — it can't start before or during the regular claiming
+    // schedule.
+    if (form.grace_period_date) {
+      const latestClaimingDate = days.reduce((latest, d) => (d.date && d.date > latest ? d.date : latest), "");
+      if (latestClaimingDate && form.grace_period_date <= latestClaimingDate) {
+        setError(`Grace Period must start after every claiming date. Latest claiming date is ${latestClaimingDate}.`);
+        return;
+      }
+    }
     const lanes = serializeLanes(days);
     setSaving(true);
     try {
       const res = await api.post("/admin/claiming-schedule", { ...form, lanes });
       setSchedule(res.data.schedule);
-      setSuccess("Schedule saved. Review the previewed lane assignments below before publishing.");
-      await loadPreview(res.data.schedule.id);
+      setSuccess("Schedule saved. Activate it below when you're ready to start assigning approved applicants to lanes.");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save schedule.");
     } finally {
@@ -229,21 +265,23 @@ function AdminSchedule() {
     }
   }
 
-  async function handlePublish() {
+  async function handleActivate() {
     if (!schedule) return;
-    if (!window.confirm("Publish this claiming schedule? Approved applicants will be notified and the schedule can no longer be edited.")) return;
-    setPublishing(true);
+    if (!window.confirm(
+      "Activate this claiming schedule? From this point on, every applicant a verifier approves will be assigned to a lane and notified automatically. Lane setup can no longer be edited after this."
+    )) return;
+    setActivating(true);
     setError("");
     setSuccess("");
     try {
-      const res = await api.post(`/admin/claiming-schedule/${schedule.id}/publish`);
+      const res = await api.post(`/admin/claiming-schedule/${schedule.id}/activate`);
       setSuccess(res.data.message);
       setSchedule(res.data.schedule);
-      setPreview(null);
+      loadSchedule();
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to publish schedule.");
+      setError(err.response?.data?.message || "Failed to activate schedule.");
     } finally {
-      setPublishing(false);
+      setActivating(false);
     }
   }
 
@@ -294,13 +332,39 @@ function AdminSchedule() {
     );
   }
 
-  const isPublished = schedule?.is_published;
+  const isActive = schedule?.is_active;
   const hasApproved = approvedCount > 0;
   const totalLanesCount = days.reduce((sum, d) =>
     sum + (d.morning.enabled ? d.morning.lanes.length : 0) + (d.afternoon.enabled ? d.afternoon.lanes.length : 0), 0);
   const claimingDates = days.map(d => d.date).filter(Boolean);
+  const regularLanes = (schedule?.lanes ?? []).filter((lane) => lane.lane_name !== "Grace Period Claiming");
+  // Earliest a claiming day is allowed to be: the day after the
+  // application period's Closing Date. Used as each day date input's
+  // min= so the browser blocks an invalid pick up front.
+  const earliestClaimingDate = (() => {
+    if (!config?.close_date) return undefined;
+    const d = new Date(config.close_date.slice(0, 10) + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
+  // Earliest a Grace Period is allowed to start: the day after the
+  // latest claiming date entered, or the day after the application
+  // period's Closing Date if no claiming days have been added yet.
+  // Used as the date input's min= so the browser itself blocks an
+  // invalid pick before the form is even submitted.
+  const latestClaimingDateStr = days.reduce((latest, d) => (d.date && d.date > latest ? d.date : latest), "");
+  const earliestGracePeriodStart = (() => {
+    const base = latestClaimingDateStr || config?.close_date?.slice(0, 10);
+    if (!base) return undefined;
+    const d = new Date(base + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  })();
   const summaryItems = schedule ? [
     { label: "Total Approved Applicants", value: approvedCount },
+    { label: "Waiting for a Lane", value: unassignedApprovedCount },
     { label: "Total Lanes", value: totalLanesCount },
     { label: "Claiming Dates", value: formatDateRange(claimingDates) },
     {
@@ -321,7 +385,9 @@ function AdminSchedule() {
           <div className="page-card">
             <h3 className="section-title mb-2">Claiming Schedule Management</h3>
             <p className="text-muted mb-0">
-              Set the claiming dates, batches, lane assignments, and grace period for approved applicants with assigned control numbers.
+              Set the claiming dates, batches, lanes, and grace period. Once activated, approved
+              applicants are assigned to a lane and notified automatically, in real time, as they're
+              approved — there's no separate step to "release" the schedule afterward.
             </p>
           </div>
           {error && <div className="alert alert-danger">{error}</div>}
@@ -333,21 +399,55 @@ function AdminSchedule() {
           ) : (
             <>
               <div className="page-card">
+                <h4 className="sub-title">Application Period</h4>
+                <div className="row g-3">
+                  <div className="col-md-4">
+                    <div className="summary-card">
+                      <h6>School Year</h6>
+                      <p className="mb-0 fs-5">{config.school_year}</p>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="summary-card">
+                      <h6>Opening Date</h6>
+                      <p className="mb-0 fs-5">{new Date(config.open_date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="summary-card">
+                      <h6>Closing Date</h6>
+                      <p className="mb-0 fs-5">{new Date(config.close_date).toLocaleDateString()}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="info-box mt-3">
+                  Applications are only accepted between these two dates. Every claiming date you pick below
+                  must fall <strong>after {new Date(config.close_date).toLocaleDateString()}</strong> — claiming
+                  can't happen while the SK is still accepting new applications, since verifiers need time to
+                  review whatever comes in right up to the deadline first.
+                </div>
+              </div>
+              <div className="page-card">
                 <h4 className="sub-title">Approved Applicant Check</h4>
                 {hasApproved ? (
                   <div className="success-box">
-                    The system found {approvedCount} approved applicant(s) with assigned control numbers for {config.school_year}. You may now configure the claiming schedule.
+                    The system found {approvedCount} approved applicant(s) with assigned control numbers for {config.school_year}.
+                    {isActive && unassignedApprovedCount > 0 && (
+                      <> {unassignedApprovedCount} of them are currently waiting for a lane to open up (every lane is full right now) — they'll be assigned automatically as soon as room frees up.</>
+                    )}
                   </div>
                 ) : (
                   <div className="notice-box">
-                    No approved applicants with assigned control numbers were found yet. You may still prepare the schedule, but it cannot be published until applicants are approved.
+                    No approved applicants with assigned control numbers yet. You can still prepare and
+                    activate the schedule now — the first applicant approved afterward will be assigned automatically.
                   </div>
                 )}
               </div>
-              {isPublished && (
+              {isActive && (
                 <div className="page-card">
                   <div className="success-box mb-0">
-                    This schedule was published on {new Date(schedule.published_at).toLocaleString()}. It can no longer be edited.
+                    This schedule was activated on {new Date(schedule.activated_at).toLocaleString()}. Lane
+                    setup can no longer be edited. Approved applicants are being assigned to lanes automatically.
                   </div>
                 </div>
               )}
@@ -356,11 +456,13 @@ function AdminSchedule() {
                 <div className="info-box">
                   Add a card for each claiming day, toggle which sessions run that day (turn one off if you're
                   only doing mornings or afternoons), and add a lane for each verifier or station handling that
-                  session. Leave a lane's capacity blank to auto-split whatever applicants remain among the
-                  blank-capacity lanes in that session.
+                  session. Every lane needs a capacity. Lanes fill in order — Lane 1 completely before Lane 2
+                  starts, and so on — since applicants are assigned the moment they're approved, not split evenly
+                  after the fact. Every claiming date must be after {new Date(config.close_date).toLocaleDateString()}
+                  {" "}(see Application Period above).
                 </div>
                 <form onSubmit={handleSubmit}>
-                  <fieldset disabled={isPublished}>
+                  <fieldset disabled={isActive}>
                     <div className="row g-3 mb-4">
                       <div className="col-md-6">
                         <label className="form-label">Claiming Location</label>
@@ -368,6 +470,15 @@ function AdminSchedule() {
                       </div>
                       <div className="col-md-6">
                         <label className="form-label">Grace Period (Date Range)</label>
+                        <div className="info-box mb-2 small">
+                          <strong>What Grace Period is:</strong> a second, unscheduled chance to claim, for two
+                          groups only — (1) approved applicants who missed their assigned claiming lane/date, and
+                          (2) applicants promoted from the waitlist after a slot opened up too late to fit them
+                          into the regular schedule. It runs on the shared "Grace Period Claiming" lane instead of
+                          a dated lane, always starts after every regular claiming date above, and requires face
+                          verification before anyone can be marked Claimed. Leave both dates blank if this period
+                          won't have one.
+                        </div>
                         <div className="row g-2">
                           <div className="col-6">
                             <input
@@ -375,6 +486,7 @@ function AdminSchedule() {
                               className="form-control"
                               value={form.grace_period_date}
                               onChange={set("grace_period_date")}
+                              min={earliestGracePeriodStart}
                               placeholder="Start date"
                             />
                           </div>
@@ -384,13 +496,13 @@ function AdminSchedule() {
                               className="form-control"
                               value={form.grace_period_end_date}
                               onChange={set("grace_period_end_date")}
-                              min={form.grace_period_date || undefined}
+                              min={form.grace_period_date || earliestGracePeriodStart}
                               placeholder="End date"
                             />
                           </div>
                         </div>
                         <div className="form-text">
-                          Applicants promoted from the waitlist may claim on any weekday within this range.
+                          Must start after every claiming date above{latestClaimingDateStr ? ` (earliest allowed: ${earliestGracePeriodStart})` : ""}. Applicants eligible for grace period may claim on any weekday within this range.
                         </div>
                       </div>
                       <div className="col-md-6">
@@ -422,7 +534,7 @@ function AdminSchedule() {
                       <div className="sub-card mb-3" key={dayIdx}>
                         <div className="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
                           <h6 className="mb-0" style={{ color: "#b71c1c" }}>Claiming Day {dayIdx + 1}</h6>
-                          {!isPublished && days.length > 1 && (
+                          {!isActive && days.length > 1 && (
                             <button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeDay(dayIdx)}>
                               Remove Day
                             </button>
@@ -436,6 +548,7 @@ function AdminSchedule() {
                               className="form-control"
                               value={day.date}
                               onChange={(e) => setDayDate(dayIdx, e.target.value)}
+                              min={earliestClaimingDate}
                               required
                             />
                           </div>
@@ -463,7 +576,7 @@ function AdminSchedule() {
                                     <tr>
                                       <th>Lane / Station Name</th>
                                       <th style={{ width: "220px" }}>Capacity</th>
-                                      {!isPublished && <th style={{ width: "90px" }}></th>}
+                                      {!isActive && <th style={{ width: "90px" }}></th>}
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -484,12 +597,13 @@ function AdminSchedule() {
                                             type="number"
                                             min="1"
                                             className="form-control form-control-sm"
-                                            placeholder="Auto-split"
+                                            placeholder="e.g. 150"
                                             value={lane.capacity}
                                             onChange={(e) => setLaneField(dayIdx, session, laneIdx, "capacity", e.target.value)}
+                                            required
                                           />
                                         </td>
-                                        {!isPublished && (
+                                        {!isActive && (
                                           <td>
                                             <button
                                               type="button"
@@ -505,7 +619,7 @@ function AdminSchedule() {
                                     ))}
                                   </tbody>
                                 </table>
-                                {!isPublished && (
+                                {!isActive && (
                                   <button
                                     type="button"
                                     className="btn btn-outline-custom btn-sm"
@@ -520,13 +634,13 @@ function AdminSchedule() {
                         ))}
                       </div>
                     ))}
-                    {!isPublished && (
+                    {!isActive && (
                       <button type="button" className="btn btn-outline-custom btn-sm mb-3" onClick={addDay}>
                         + Add Claiming Day
                       </button>
                     )}
                   </fieldset>
-                  {!isPublished && (
+                  {!isActive && (
                     <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
                       <button type="button" className="btn btn-secondary" onClick={handleReset}>
                         Clear
@@ -557,18 +671,17 @@ function AdminSchedule() {
                 <div className="page-card">
                   <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h4 className="sub-title mb-0">
-                      {isPublished ? "Generated Lane Lists" : "Previewed Lane Assignments"}
+                      {isActive ? "Lane Fill Status" : "Lanes (not active yet)"}
                     </h4>
-                    {!isPublished && (
-                      <button className="btn btn-outline-custom btn-sm" onClick={() => loadPreview(schedule.id)} disabled={previewing}>
-                        {previewing ? "Calculating..." : "Refresh Preview"}
+                    {isActive && (
+                      <button className="btn btn-outline-custom btn-sm" onClick={() => loadSchedule(true)}>
+                        Refresh
                       </button>
                     )}
                   </div>
-                  {!isPublished && (
+                  {isActive && (
                     <div className="info-box mt-2">
-                      These counts are computed live from currently approved applicants but are not final until you publish.
-                      Adjust lane capacities above and save again if the split doesn't look right.
+                      Updates automatically every 30 seconds while this page is open, or click Refresh for the latest count right now — neither reloads the page.
                     </div>
                   )}
                   <div className="table-responsive mt-3 table-scroll">
@@ -579,63 +692,66 @@ function AdminSchedule() {
                           <th>Batch</th>
                           <th>Date</th>
                           <th>Capacity</th>
-                          <th>Control Number Range</th>
-                          <th>Assigned Applicants</th>
-                          {isPublished && <th>Printable List</th>}
+                          <th>Filled</th>
+                          <th>Status</th>
+                          {isActive && <th>Printable List</th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {isPublished ? (
-                          schedule.lanes
-                            ?.filter((lane) => lane.lane_name !== "Grace Period Claiming")
-                            .map((lane) => (
+                        {regularLanes.length > 0 ? (
+                          regularLanes.map((lane) => {
+                            const filled = lane.assignments_count ?? 0;
+                            const isFull = lane.capacity != null && filled >= lane.capacity;
+                            return (
                               <tr key={lane.id}>
                                 <td>{lane.lane_name}</td>
                                 <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
                                 <td>{lane.claiming_date}</td>
-                                <td>{lane.capacity ?? "Auto"}</td>
-                                <td>{lane.control_number_range ?? "—"}</td>
-                                <td>{lane.assignments_count ?? 0}</td>
+                                <td>{lane.capacity}</td>
+                                <td>{filled} / {lane.capacity}</td>
                                 <td>
-                                  <button className="btn btn-outline-custom btn-sm" onClick={() => handlePrint(lane.id, lane.lane_name)}>
-                                    Print Lane List
-                                  </button>
+                                  {isFull ? (
+                                    <span className="badge bg-danger">Full</span>
+                                  ) : isActive ? (
+                                    <span className="badge bg-success">Open</span>
+                                  ) : (
+                                    <span className="badge bg-secondary">Not active</span>
+                                  )}
                                 </td>
+                                {isActive && (
+                                  <td>
+                                    <button
+                                      className="btn btn-outline-custom btn-sm"
+                                      onClick={() => handlePrint(lane.id, lane.lane_name)}
+                                      disabled={filled === 0}
+                                    >
+                                      Print Lane List
+                                    </button>
+                                  </td>
+                                )}
                               </tr>
-                            ))
-                        ) : preview ? (
-                          preview.lanes
-                            .filter((lane) => lane.lane_name !== "Grace Period Claiming")
-                            .map((lane) => (
-                              <tr key={lane.id}>
-                                <td>{lane.lane_name}</td>
-                                <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
-                                <td>{lane.claiming_date}</td>
-                                <td>{lane.capacity ?? "Auto"}</td>
-                                <td>{lane.control_number_range ?? "—"}</td>
-                                <td>{lane.assigned_count}</td>
-                              </tr>
-                            ))
+                            );
+                          })
                         ) : (
                           <tr>
-                            <td colSpan={6} className="text-muted">
-                              {previewing ? "Calculating preview..." : "Save the schedule to see a preview of lane assignments."}
+                            <td colSpan={7} className="text-muted">
+                              Save the schedule above to add lanes.
                             </td>
                           </tr>
                         )}
                       </tbody>
                     </table>
                   </div>
-                  {!isPublished && (
+                  {!isActive && (
                     <>
                       <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
-                        <button className="btn btn-custom" onClick={handlePublish} disabled={publishing || !hasApproved}>
-                          {publishing ? "Publishing..." : "Publish Schedule"}
+                        <button className="btn btn-custom" onClick={handleActivate} disabled={activating || regularLanes.length === 0}>
+                          {activating ? "Activating..." : "Activate Schedule"}
                         </button>
                       </div>
-                      {!hasApproved && (
+                      {regularLanes.length === 0 && (
                         <p className="text-muted small mt-2 mb-0 text-end">
-                          Publishing is disabled until there are approved applicants.
+                          Save the schedule with at least one lane before activating.
                         </p>
                       )}
                     </>
