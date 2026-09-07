@@ -35,7 +35,7 @@ function AdminNavigation() {
         </button>
 
         <NavLink className="admin-sidebar-brand" to="/AdminDashboard">
-          <img src="/logo.png" alt="logo" />
+          <img src="/icons/sk-logo.jpg" alt="logo" />
           <div className="admin-sidebar-brand-text">
             <h5>SK Mamatid</h5>
             <span>Admin Panel</span>

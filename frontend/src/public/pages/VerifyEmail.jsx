@@ -104,7 +104,7 @@ export default function VerifyEmail() {
             href="/"
           >
             <img
-              src="/logo.png"
+              src="/icons/sk-logo.jpg"
               alt="SK Logo"
             />
 
@@ -125,7 +125,7 @@ export default function VerifyEmail() {
 
               <div className="verify-email-logo">
                 <img
-                  src="/logo.png"
+                  src="/icons/sk-logo.jpg"
                   alt="SK Mamatid Logo"
                 />
               </div>

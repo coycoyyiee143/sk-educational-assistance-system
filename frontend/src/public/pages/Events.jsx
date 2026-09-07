@@ -70,7 +70,7 @@ const Events = () => {
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
           <a className="navbar-brand navbar-brand-custom" href="/">
-            <img src="/logo.png" alt="SK Logo" />
+            <img src="/icons/sk-logo.jpg" alt="SK Logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>

@@ -6,13 +6,6 @@ import Footer from "../../components/Footer";
 export default function ForgotPassword() {
   const navigate = useNavigate();
 
-  /*
-    step:
-    "email" = request reset code
-    "code" = verify 6-digit code
-    "reset" = enter new password
-    "success" = password successfully changed
-  */
   const [step, setStep] = useState("email");
 
   const [email, setEmail] = useState("");
@@ -33,10 +26,6 @@ export default function ForgotPassword() {
 
   const inputRefs = useRef([]);
 
-  /* ==============================
-     HELPERS
-  ============================== */
-
   function clearMessages() {
     setError("");
     setSuccess("");
@@ -45,10 +34,6 @@ export default function ForgotPassword() {
   function getCode() {
     return digits.join("");
   }
-
-  /* ==============================
-     OTP INPUT
-  ============================== */
 
   function handleDigitChange(index, value) {
     const clean = value.replace(/\D/g, "").slice(-1);
@@ -101,10 +86,6 @@ export default function ForgotPassword() {
     inputRefs.current[focusIndex]?.focus();
   }
 
-  /* ==============================
-     STEP 1 - SEND RESET CODE
-  ============================== */
-
   async function handleSendCode(e) {
     e.preventDefault();
 
@@ -140,10 +121,6 @@ export default function ForgotPassword() {
     }
   }
 
-  /* ==============================
-     RESEND RESET CODE
-  ============================== */
-
   async function handleResendCode() {
     clearMessages();
 
@@ -172,10 +149,6 @@ export default function ForgotPassword() {
       setResending(false);
     }
   }
-
-  /* ==============================
-     STEP 2 - VERIFY CODE
-  ============================== */
 
   async function handleVerifyCode(e) {
     e.preventDefault();
@@ -211,10 +184,6 @@ export default function ForgotPassword() {
       setLoading(false);
     }
   }
-
-  /* ==============================
-     STEP 3 - RESET PASSWORD
-  ============================== */
 
   async function handleResetPassword(e) {
     e.preventDefault();
@@ -270,54 +239,12 @@ export default function ForgotPassword() {
     }
   }
 
-  /* ==============================
-     ICON
-  ============================== */
-
-  function PasswordResetIcon() {
-    return (
-      <div
-        className="d-flex align-items-center justify-content-center mx-auto mb-3"
-        style={{
-          width: "64px",
-          height: "64px",
-          borderRadius: "50%",
-          background: "#fcebec",
-          color: "#b71c1c",
-        }}
-      >
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.9"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{
-            width: "29px",
-            height: "29px",
-          }}
-        >
-          <rect x="5" y="11" width="14" height="10" rx="2" />
-          <path d="M8 11V7a4 4 0 018 0v4" />
-          <path d="M12 15v2" />
-        </svg>
-      </div>
-    );
-  }
-
-  /* ==============================
-     RENDER
-  ============================== */
-
   return (
     <>
-      {/* NAVBAR */}
-
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
           <a className="navbar-brand navbar-brand-custom" href="/">
-            <img src="/logo.png" alt="SK Logo" />
+            <img src="/icons/sk-logo.jpg" alt="SK Logo" />
 
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
@@ -326,8 +253,6 @@ export default function ForgotPassword() {
           </a>
         </div>
       </nav>
-
-      {/* PAGE */}
 
       <main
         className="py-5"
@@ -348,12 +273,9 @@ export default function ForgotPassword() {
                 }}
               >
                 <div className="p-4 p-md-5">
-
-                  {/* LOGO */}
-
                   <div className="text-center mb-3">
                     <img
-                      src="/logo.png"
+                      src="/icons/sk-logo.jpg"
                       alt="SK Barangay Mamatid"
                       style={{
                         width: "68px",
@@ -363,20 +285,13 @@ export default function ForgotPassword() {
                     />
                   </div>
 
-                  {/* ==========================
-                      EMAIL STEP
-                  ========================== */}
-
                   {step === "email" && (
                     <>
-                      <PasswordResetIcon />
-
                       <div className="text-center mb-4">
                         <h3
                           className="mb-2"
                           style={{
-                            fontFamily:
-                              "'Hanken Grotesk', sans-serif",
+                            fontFamily: "'Hanken Grotesk', sans-serif",
                             fontWeight: 700,
                             color: "#222",
                           }}
@@ -391,9 +306,8 @@ export default function ForgotPassword() {
                             lineHeight: 1.6,
                           }}
                         >
-                          No worries. Enter the email address
-                          associated with your account and we'll
-                          send you a verification code.
+                          No worries. Enter the email address associated with
+                          your account and we'll send you a verification code.
                         </p>
                       </div>
 
@@ -452,8 +366,7 @@ export default function ForgotPassword() {
                             color: "#fff",
                             fontSize: "14px",
                             fontWeight: 600,
-                            boxShadow:
-                              "0 4px 12px rgba(183,28,28,0.18)",
+                            boxShadow: "0 4px 12px rgba(183,28,28,0.18)",
                           }}
                         >
                           {loading ? (
@@ -475,20 +388,13 @@ export default function ForgotPassword() {
                     </>
                   )}
 
-                  {/* ==========================
-                      CODE STEP
-                  ========================== */}
-
                   {step === "code" && (
                     <>
-                      <PasswordResetIcon />
-
                       <div className="text-center mb-4">
                         <h3
                           className="mb-2"
                           style={{
-                            fontFamily:
-                              "'Hanken Grotesk', sans-serif",
+                            fontFamily: "'Hanken Grotesk', sans-serif",
                             fontWeight: 700,
                             color: "#222",
                           }}
@@ -498,12 +404,9 @@ export default function ForgotPassword() {
 
                         <p
                           className="text-muted mb-1"
-                          style={{
-                            fontSize: "14px",
-                          }}
+                          style={{ fontSize: "14px" }}
                         >
-                          Enter the 6-digit password reset code
-                          sent to
+                          Enter the 6-digit password reset code sent to
                         </p>
 
                         <strong
@@ -556,18 +459,13 @@ export default function ForgotPassword() {
                               maxLength={1}
                               value={digit}
                               onChange={(e) =>
-                                handleDigitChange(
-                                  index,
-                                  e.target.value
-                                )
+                                handleDigitChange(index, e.target.value)
                               }
                               onKeyDown={(e) =>
                                 handleDigitKeyDown(index, e)
                               }
                               autoComplete={
-                                index === 0
-                                  ? "one-time-code"
-                                  : "off"
+                                index === 0 ? "one-time-code" : "off"
                               }
                               className="form-control text-center"
                               style={{
@@ -634,9 +532,7 @@ export default function ForgotPassword() {
                             fontWeight: 700,
                           }}
                         >
-                          {resending
-                            ? "Sending..."
-                            : "Resend code"}
+                          {resending ? "Sending..." : "Resend code"}
                         </button>
                       </div>
 
@@ -646,14 +542,7 @@ export default function ForgotPassword() {
                           className="btn p-0"
                           onClick={() => {
                             clearMessages();
-                            setDigits([
-                              "",
-                              "",
-                              "",
-                              "",
-                              "",
-                              "",
-                            ]);
+                            setDigits(["", "", "", "", "", ""]);
                             setStep("email");
                           }}
                           style={{
@@ -670,20 +559,13 @@ export default function ForgotPassword() {
                     </>
                   )}
 
-                  {/* ==========================
-                      RESET PASSWORD STEP
-                  ========================== */}
-
                   {step === "reset" && (
                     <>
-                      <PasswordResetIcon />
-
                       <div className="text-center mb-4">
                         <h3
                           className="mb-2"
                           style={{
-                            fontFamily:
-                              "'Hanken Grotesk', sans-serif",
+                            fontFamily: "'Hanken Grotesk', sans-serif",
                             fontWeight: 700,
                             color: "#222",
                           }}
@@ -698,8 +580,7 @@ export default function ForgotPassword() {
                             lineHeight: 1.6,
                           }}
                         >
-                          Choose a new password for your
-                          account.
+                          Choose a new password for your account.
                         </p>
                       </div>
 
@@ -729,11 +610,7 @@ export default function ForgotPassword() {
 
                           <div className="position-relative">
                             <input
-                              type={
-                                showPassword
-                                  ? "text"
-                                  : "password"
-                              }
+                              type={showPassword ? "text" : "password"}
                               className="form-control"
                               value={password}
                               onChange={(e) => {
@@ -752,9 +629,7 @@ export default function ForgotPassword() {
                             <button
                               type="button"
                               onClick={() =>
-                                setShowPassword(
-                                  (current) => !current
-                                )
+                                setShowPassword((current) => !current)
                               }
                               style={{
                                 position: "absolute",
@@ -785,16 +660,12 @@ export default function ForgotPassword() {
                           <div className="position-relative">
                             <input
                               type={
-                                showPasswordConfirmation
-                                  ? "text"
-                                  : "password"
+                                showPasswordConfirmation ? "text" : "password"
                               }
                               className="form-control"
                               value={passwordConfirmation}
                               onChange={(e) => {
-                                setPasswordConfirmation(
-                                  e.target.value
-                                );
+                                setPasswordConfirmation(e.target.value);
                                 setError("");
                               }}
                               placeholder="Confirm new password"
@@ -823,9 +694,7 @@ export default function ForgotPassword() {
                                 color: "#888",
                               }}
                             >
-                              {showPasswordConfirmation
-                                ? "Hide"
-                                : "Show"}
+                              {showPasswordConfirmation ? "Hide" : "Show"}
                             </button>
                           </div>
                         </div>
@@ -859,10 +728,6 @@ export default function ForgotPassword() {
                       </form>
                     </>
                   )}
-
-                  {/* ==========================
-                      SUCCESS
-                  ========================== */}
 
                   {step === "success" && (
                     <div className="text-center">
@@ -909,9 +774,8 @@ export default function ForgotPassword() {
                           lineHeight: 1.6,
                         }}
                       >
-                        Your password has been changed
-                        successfully. You can now log in using
-                        your new password.
+                        Your password has been changed successfully. You can now
+                        log in using your new password.
                       </p>
 
                       <button
@@ -932,8 +796,6 @@ export default function ForgotPassword() {
                       </button>
                     </div>
                   )}
-
-                  {/* BACK TO LOGIN */}
 
                   {step !== "success" && (
                     <div
@@ -958,7 +820,6 @@ export default function ForgotPassword() {
                       </button>
                     </div>
                   )}
-
                 </div>
               </div>
             </div>

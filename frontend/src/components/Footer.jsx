@@ -5,7 +5,7 @@ const Footer = () => {
       <div className="container">
         <div className="footer-top row gy-4">
           <div className="col-lg-3 col-md-6">
-            <img src="/logo.png" alt="SK Logo" className="footer-logo" />
+            <img src="/icons/sk-logo.jpg" alt="SK Logo" className="footer-logo" />
             <p className="footer-desc">
               Sangguniang Kabataan of Barangay Mamatid leads the charge in
               supporting the education of our local youth through the SK

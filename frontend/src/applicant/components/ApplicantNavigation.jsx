@@ -46,7 +46,7 @@ function ApplicantNavigation() {
         </button>
 
         <NavLink className="applicant-sidebar-brand" to="/ApplicantDashboard">
-          <img src="/logo.png" alt="logo" />
+          <img src="/icons/sk-logo.jpg" alt="logo" />
           <div className="applicant-sidebar-brand-text">
             <h5>SK Mamatid</h5>
             <span>Applicant Panel</span>

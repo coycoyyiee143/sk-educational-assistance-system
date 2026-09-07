@@ -185,7 +185,7 @@ export default function VerifyEmailNotice() {
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
           <a className="navbar-brand navbar-brand-custom" href="/">
-            <img src="/logo.png" alt="SK Logo" />
+            <img src="/icons/sk-logo.jpg" alt="SK Logo" />
 
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
@@ -221,9 +221,9 @@ export default function VerifyEmailNotice() {
 
                   {/* LOGO */}
 
-                  <div className="text-center mb-3">
+                  <div className="text-center mb-4">
                     <img
-                      src="/logo.png"
+                    src="/icons/sk-logo.jpg"
                       alt="SK Barangay Mamatid"
                       style={{
                         width: "68px",
@@ -231,42 +231,6 @@ export default function VerifyEmailNotice() {
                         objectFit: "contain",
                       }}
                     />
-                  </div>
-
-                  {/* EMAIL ICON */}
-
-                  <div
-                    className="d-flex align-items-center justify-content-center mx-auto mb-3"
-                    style={{
-                      width: "62px",
-                      height: "62px",
-                      borderRadius: "50%",
-                      background: "#fcebec",
-                      color: "#b71c1c",
-                    }}
-                  >
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      style={{
-                        width: "29px",
-                        height: "29px",
-                      }}
-                    >
-                      <rect
-                        x="3"
-                        y="5"
-                        width="18"
-                        height="14"
-                        rx="2"
-                      />
-
-                      <path d="M3 7l9 6 9-6" />
-                    </svg>
                   </div>
 
                   {/* HEADER */}

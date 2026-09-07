@@ -32,7 +32,7 @@ function VerifierNavigation() {
           </svg>
         </button>
         <NavLink className="verifier-sidebar-brand" to="/VerifierDashboard">
-          <img src="/logo.png" alt="logo" />
+          <img src="/icons/sk-logo.jpg" alt="logo" />
           <div className="verifier-sidebar-brand-text">
             <h5>SK Mamatid</h5>
             <span>Verifier Panel</span>
