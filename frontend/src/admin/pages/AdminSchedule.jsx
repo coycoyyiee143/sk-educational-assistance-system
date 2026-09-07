@@ -4,7 +4,7 @@ import api from "../../services/api";
 
 const emptyForm = {
   location: "Barangay Mamatid Hall",
-  morning_start: "07:00",
+  morning_start: "08:00",
   morning_end: "12:00",
   afternoon_start: "13:00",
   afternoon_end: "17:00",
@@ -12,12 +12,12 @@ const emptyForm = {
   grace_period_end_date: "",
 };
 
-const emptySessionLane = () => ({ lane_name: "", capacity: "" });
+const emptySessionLane = (capacity = "") => ({ lane_name: "", capacity });
 
-const emptyDay = () => ({
+const emptyDay = (capacity = "") => ({
   date: "",
-  morning: { enabled: true, lanes: [emptySessionLane()] },
-  afternoon: { enabled: true, lanes: [emptySessionLane()] },
+  morning: { enabled: true, lanes: [emptySessionLane(capacity)] },
+  afternoon: { enabled: true, lanes: [emptySessionLane(capacity)] },
 });
 
 function groupLanesIntoDays(lanesArr) {
@@ -72,6 +72,7 @@ function AdminSchedule() {
   const [schedule, setSchedule] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [days, setDays] = useState([emptyDay()]);
+  const [defaultCapacity, setDefaultCapacity] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
@@ -104,7 +105,7 @@ function AdminSchedule() {
           // to re-run this on every poll tick).
           setForm({
             location: sched.location,
-            morning_start: sched.morning_start?.slice(0, 5) ?? "07:00",
+            morning_start: sched.morning_start?.slice(0, 5) ?? "08:00",
             morning_end: sched.morning_end?.slice(0, 5) ?? "12:00",
             afternoon_start: sched.afternoon_start?.slice(0, 5) ?? "13:00",
             afternoon_end: sched.afternoon_end?.slice(0, 5) ?? "17:00",
@@ -112,6 +113,16 @@ function AdminSchedule() {
             grace_period_end_date: sched.grace_period_end_date ?? "",
           });
           setDays(groupLanesIntoDays(sched.lanes));
+          // Pre-fill the Default Capacity field from what's already
+          // saved, so it doesn't show as blank/placeholder right after
+          // a reload when the lanes clearly already share one number.
+          // Left blank if lanes have mixed capacities — that mix is
+          // presumably intentional (the "one lane differs" exception
+          // case), so there's no single number to show as "the"
+          // default without misrepresenting it.
+          const regular = (sched.lanes ?? []).filter((l) => l.lane_name !== "Grace Period Claiming");
+          const capacities = [...new Set(regular.map((l) => l.capacity).filter((c) => c != null))];
+          setDefaultCapacity(capacities.length === 1 ? String(capacities[0]) : "");
           if (sched.grace_period_date) {
             loadGracePeriodClaimingList();
           }
@@ -166,7 +177,7 @@ function AdminSchedule() {
   }
 
   function addDay() {
-    setDays((prev) => [...prev, emptyDay()]);
+    setDays((prev) => [...prev, emptyDay(defaultCapacity)]);
   }
 
   function removeDay(dayIndex) {
@@ -176,8 +187,24 @@ function AdminSchedule() {
   function addLane(dayIndex, session) {
     setDays((prev) => prev.map((d, i) => {
       if (i !== dayIndex) return d;
-      return { ...d, [session]: { ...d[session], lanes: [...d[session].lanes, emptySessionLane()] } };
+      return { ...d, [session]: { ...d[session], lanes: [...d[session].lanes, emptySessionLane(defaultCapacity)] } };
     }));
+  }
+
+  // Sets EVERY lane across every day/session to the same capacity in
+  // one shot — the common case is that every lane gets the same number
+  // (e.g. 150 slots ÷ 20 lanes = 150 each... er, 3000 ÷ 20 = 150 each),
+  // and only occasionally does one specific lane need to differ (a
+  // station that historically doesn't fill up). Typing here sets the
+  // baseline for all of them; individual lane capacity inputs below
+  // remain editable afterward for that occasional exception.
+  function handleDefaultCapacityChange(value) {
+    setDefaultCapacity(value);
+    setDays((prev) => prev.map((d) => ({
+      ...d,
+      morning: { ...d.morning, lanes: d.morning.lanes.map((l) => ({ ...l, capacity: value })) },
+      afternoon: { ...d.afternoon, lanes: d.afternoon.lanes.map((l) => ({ ...l, capacity: value })) },
+    })));
   }
 
   function removeLane(dayIndex, session, laneIndex) {
@@ -203,6 +230,7 @@ function AdminSchedule() {
   function handleReset() {
     setForm(emptyForm);
     setDays([emptyDay()]);
+    setDefaultCapacity("");
   }
 
   async function handleSubmit(e) {
@@ -337,6 +365,23 @@ function AdminSchedule() {
   const totalLanesCount = days.reduce((sum, d) =>
     sum + (d.morning.enabled ? d.morning.lanes.length : 0) + (d.afternoon.enabled ? d.afternoon.lanes.length : 0), 0);
   const claimingDates = days.map(d => d.date).filter(Boolean);
+  const suggestedCapacityText = (() => {
+    if (config?.is_unlimited || !config?.slot_limit) {
+      return "Enter a number and it'll fill in every lane below.";
+    }
+    // Assume at least 10 lanes for the suggestion, even if fewer are on
+    // the form right now — dividing 3000 slots by the 1-2 lanes someone
+    // has typed in so far would suggest something absurd like 1500/lane.
+    // 10 is a more realistic floor for how many lanes an SK typically
+    // runs, and the suggestion still adjusts upward once the real lane
+    // count actually exceeds 10.
+    const laneCountForSuggestion = Math.max(totalLanesCount, 10);
+    const suggested = Math.ceil(config.slot_limit / laneCountForSuggestion);
+    const basis = totalLanesCount < 10
+      ? `assuming at least 10 lanes total — you have ${totalLanesCount} so far`
+      : `across ${totalLanesCount} lane${totalLanesCount === 1 ? "" : "s"}`;
+    return `Suggested: ~${suggested} each, based on ${config.slot_limit} total slots (${basis}).`;
+  })();
   const regularLanes = (schedule?.lanes ?? []).filter((lane) => lane.lane_name !== "Grace Period Claiming");
   // Earliest a claiming day is allowed to be: the day after the
   // application period's Closing Date. Used as each day date input's
@@ -456,56 +501,17 @@ function AdminSchedule() {
                 <div className="info-box">
                   Add a card for each claiming day, toggle which sessions run that day (turn one off if you're
                   only doing mornings or afternoons), and add a lane for each verifier or station handling that
-                  session. Every lane needs a capacity. Lanes fill in order — Lane 1 completely before Lane 2
-                  starts, and so on — since applicants are assigned the moment they're approved, not split evenly
-                  after the fact. Every claiming date must be after {new Date(config.close_date).toLocaleDateString()}
-                  {" "}(see Application Period above).
+                  session. Lanes fill in order — Lane 1 completely before Lane 2 starts, and so on — since
+                  applicants are assigned the moment they're approved, not split evenly after the fact.
                 </div>
                 <form onSubmit={handleSubmit}>
                   <fieldset disabled={isActive}>
                     <div className="row g-3 mb-4">
-                      <div className="col-md-6">
+                      <div className="col-md-4">
                         <label className="form-label">Claiming Location</label>
                         <input type="text" className="form-control" value={form.location} onChange={set("location")} required />
                       </div>
-                      <div className="col-md-6">
-                        <label className="form-label">Grace Period (Date Range)</label>
-                        <div className="info-box mb-2 small">
-                          <strong>What Grace Period is:</strong> a second, unscheduled chance to claim, for two
-                          groups only — (1) approved applicants who missed their assigned claiming lane/date, and
-                          (2) applicants promoted from the waitlist after a slot opened up too late to fit them
-                          into the regular schedule. It runs on the shared "Grace Period Claiming" lane instead of
-                          a dated lane, always starts after every regular claiming date above, and requires face
-                          verification before anyone can be marked Claimed. Leave both dates blank if this period
-                          won't have one.
-                        </div>
-                        <div className="row g-2">
-                          <div className="col-6">
-                            <input
-                              type="date"
-                              className="form-control"
-                              value={form.grace_period_date}
-                              onChange={set("grace_period_date")}
-                              min={earliestGracePeriodStart}
-                              placeholder="Start date"
-                            />
-                          </div>
-                          <div className="col-6">
-                            <input
-                              type="date"
-                              className="form-control"
-                              value={form.grace_period_end_date}
-                              onChange={set("grace_period_end_date")}
-                              min={form.grace_period_date || earliestGracePeriodStart}
-                              placeholder="End date"
-                            />
-                          </div>
-                        </div>
-                        <div className="form-text">
-                          Must start after every claiming date above{latestClaimingDateStr ? ` (earliest allowed: ${earliestGracePeriodStart})` : ""}. Applicants eligible for grace period may claim on any weekday within this range.
-                        </div>
-                      </div>
-                      <div className="col-md-6">
+                      <div className="col-md-4">
                         <label className="form-label">Default Morning Session Time</label>
                         <div className="row g-2">
                           <div className="col-6">
@@ -516,7 +522,7 @@ function AdminSchedule() {
                           </div>
                         </div>
                       </div>
-                      <div className="col-md-6">
+                      <div className="col-md-4">
                         <label className="form-label">Default Afternoon Session Time</label>
                         <div className="row g-2">
                           <div className="col-6">
@@ -528,6 +534,38 @@ function AdminSchedule() {
                         </div>
                       </div>
                     </div>
+
+                    <div className="alert alert-secondary d-flex align-items-center gap-2 mb-3">
+                      <span>📅</span>
+                      <span>
+                        Reminder: applications for <strong>{config.school_year}</strong> run{" "}
+                        <strong>{new Date(config.open_date).toLocaleDateString()}</strong> to{" "}
+                        <strong>{new Date(config.close_date).toLocaleDateString()}</strong>. Every date you pick
+                        below must be <strong>after {new Date(config.close_date).toLocaleDateString()}</strong>.
+                      </span>
+                    </div>
+
+                    <div className="row g-3 align-items-end mb-3">
+                      <div className="col-md-5">
+                        <label className="form-label">Default Capacity Per Lane</label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="form-control"
+                          placeholder="e.g. 150"
+                          value={defaultCapacity}
+                          onChange={(e) => handleDefaultCapacityChange(e.target.value)}
+                        />
+                      </div>
+                      <div className="col-md-7">
+                        <div className="form-text mb-0">
+                          {suggestedCapacityText}
+                          {" "}Sets every lane below to this number — change a single lane afterward if it needs
+                          to be different (e.g. a lane that historically doesn't fill up).
+                        </div>
+                      </div>
+                    </div>
+
                     <hr className="my-4" />
                     <h5 className="sub-title mb-3" style={{ fontSize: "18px" }}>Claiming Days</h5>
                     {days.map((day, dayIdx) => (
@@ -551,6 +589,9 @@ function AdminSchedule() {
                               min={earliestClaimingDate}
                               required
                             />
+                            <div className="form-text">
+                              Must be after {new Date(config.close_date).toLocaleDateString()}.
+                            </div>
                           </div>
                         </div>
                         {["morning", "afternoon"].map((session) => (
@@ -586,10 +627,9 @@ function AdminSchedule() {
                                           <input
                                             type="text"
                                             className="form-control form-control-sm"
-                                            placeholder={`Lane ${laneIdx + 1}`}
+                                            placeholder={`Lane ${laneIdx + 1} (auto-named if left blank)`}
                                             value={lane.lane_name}
                                             onChange={(e) => setLaneField(dayIdx, session, laneIdx, "lane_name", e.target.value)}
-                                            required
                                           />
                                         </td>
                                         <td>
@@ -639,6 +679,42 @@ function AdminSchedule() {
                         + Add Claiming Day
                       </button>
                     )}
+
+                    <hr className="my-4" />
+                    <h5 className="sub-title mb-3" style={{ fontSize: "18px" }}>Grace Period (optional)</h5>
+                    <div className="info-box mb-3">
+                      <strong>What Grace Period is:</strong> a second, unscheduled chance to claim, for two
+                      groups only — (1) approved applicants who missed their assigned claiming lane/date above,
+                      and (2) applicants promoted from the waitlist after a slot opened up too late to fit them
+                      into the regular schedule. It runs on a shared "Grace Period Claiming" lane instead of a
+                      dated lane, and requires face verification before anyone can be marked Claimed. Leave both
+                      dates blank if this period won't have one.
+                    </div>
+                    <div className="row g-3">
+                      <div className="col-md-6">
+                        <label className="form-label">Grace Period Start</label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={form.grace_period_date}
+                          onChange={set("grace_period_date")}
+                          min={earliestGracePeriodStart}
+                        />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">Grace Period End</label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={form.grace_period_end_date}
+                          onChange={set("grace_period_end_date")}
+                          min={form.grace_period_date || earliestGracePeriodStart}
+                        />
+                      </div>
+                    </div>
+                    <div className="form-text">
+                      Must start after every claiming date above{latestClaimingDateStr ? ` — earliest allowed is ${earliestGracePeriodStart}` : ""}. Eligible applicants may claim on any weekday within this range.
+                    </div>
                   </fieldset>
                   {!isActive && (
                     <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
@@ -671,7 +747,7 @@ function AdminSchedule() {
                 <div className="page-card">
                   <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h4 className="sub-title mb-0">
-                      {isActive ? "Lane Fill Status" : "Lanes (not active yet)"}
+                      {isActive ? "Lane Fill Status" : "Lanes (Draft — Not Activated Yet)"}
                     </h4>
                     {isActive && (
                       <button className="btn btn-outline-custom btn-sm" onClick={() => loadSchedule(true)}>
@@ -692,8 +768,9 @@ function AdminSchedule() {
                           <th>Batch</th>
                           <th>Date</th>
                           <th>Capacity</th>
-                          <th>Filled</th>
-                          <th>Status</th>
+                          {isActive && <th>Filled</th>}
+                          {isActive && <th>Control Number Range</th>}
+                          {isActive && <th>Status</th>}
                           {isActive && <th>Printable List</th>}
                         </tr>
                       </thead>
@@ -708,16 +785,17 @@ function AdminSchedule() {
                                 <td>{lane.batch === "morning" ? "Morning" : "Afternoon"}</td>
                                 <td>{lane.claiming_date}</td>
                                 <td>{lane.capacity}</td>
-                                <td>{filled} / {lane.capacity}</td>
-                                <td>
-                                  {isFull ? (
-                                    <span className="badge bg-danger">Full</span>
-                                  ) : isActive ? (
-                                    <span className="badge bg-success">Open</span>
-                                  ) : (
-                                    <span className="badge bg-secondary">Not active</span>
-                                  )}
-                                </td>
+                                {isActive && <td>{filled} / {lane.capacity}</td>}
+                                {isActive && <td>{lane.control_number_range ?? "—"}</td>}
+                                {isActive && (
+                                  <td>
+                                    {isFull ? (
+                                      <span className="badge bg-danger">Full</span>
+                                    ) : (
+                                      <span className="badge bg-success">Open</span>
+                                    )}
+                                  </td>
+                                )}
                                 {isActive && (
                                   <td>
                                     <button
@@ -734,7 +812,7 @@ function AdminSchedule() {
                           })
                         ) : (
                           <tr>
-                            <td colSpan={7} className="text-muted">
+                            <td colSpan={isActive ? 8 : 4} className="text-muted">
                               Save the schedule above to add lanes.
                             </td>
                           </tr>
@@ -742,6 +820,13 @@ function AdminSchedule() {
                       </tbody>
                     </table>
                   </div>
+                  {!isActive && regularLanes.length > 0 && (
+                    <div className="info-box mt-3">
+                      This is a draft — these lanes exist only in this schedule, nobody has been assigned to
+                      them yet. Filled counts and Open/Full status will appear here once you click Activate
+                      Schedule below.
+                    </div>
+                  )}
                   {!isActive && (
                     <>
                       <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
