@@ -150,6 +150,56 @@ function VerifierClaiming() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lanesLoaded, gracePeriodMode, assignedLane]);
 
+  // Silent background refresh — applicants get assigned to lanes in
+  // real time as verifiers elsewhere approve applications (see
+  // ClaimingAssignmentService), so the list here can go stale within
+  // seconds of the page being opened. This re-runs the same search
+  // every 10s WITHOUT going through handleSearch(), which would reset
+  // selected/searchError/claimError/claimSuccess and flash the
+  // Search/Refresh button text — none of which should happen from a
+  // background tick the verifier didn't ask for.
+  //
+  // Deliberately skipped entirely whenever an applicant is selected or
+  // a claim action is mid-submit: silently swapping `results` out from
+  // under an open detail view, or racing a real submission, would be
+  // far worse than a few seconds of staleness.
+  useEffect(() => {
+    if (!lanesLoaded) return;
+
+    function silentRefreshResults() {
+      if (selected || submitting) return;
+
+      const params = {};
+      if (gracePeriodMode) {
+        params.grace_period = 1;
+      } else {
+        if (!selectedLaneId && !controlNo.trim() && !applicantName.trim()) return;
+        if (selectedLaneId) params.lane_id = selectedLaneId;
+        if (controlNo.trim()) params.control_number = controlNo.trim();
+        if (applicantName.trim()) params.name = applicantName.trim();
+      }
+
+      api.get("/verifier/claiming/search", { params })
+        .then((res) => {
+          // Guard again after the request resolves — the verifier may
+          // have selected someone or started submitting while this was
+          // in flight.
+          if (!selected && !submitting) setResults(res.data);
+        })
+        .catch(() => {
+          // Silent poll — a dropped tick isn't worth surfacing an error
+          // over. If the list is genuinely empty now (e.g. everyone on
+          // it just got claimed), a 404 here would otherwise wipe
+          // `results` via the same path handleSearch() uses; skip that
+          // for silent ticks and just let the next tick (or a manual
+          // Refresh) sort it out.
+        });
+    }
+
+    const interval = setInterval(silentRefreshResults, 10000);
+    return () => clearInterval(interval);
+  }, [lanesLoaded, selected, submitting, gracePeriodMode, selectedLaneId, controlNo, applicantName]);
+
   // Revoke any lingering photo blob URL if the verifier navigates away
   // from this page entirely, so it doesn't leak.
   useEffect(() => {
