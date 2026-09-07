@@ -371,6 +371,7 @@ function FaceCapture({
             >
               <Webcam
                 ref={webcamRef}
+                mirrored
                 audio={false}
                 screenshotFormat="image/jpeg"
                 style={{ width: "100%", height: "100%", objectFit: "cover" }}
