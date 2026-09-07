@@ -129,6 +129,24 @@ class VerifierController extends Controller
 
     public function promoteFromWaitlist(Request $request, $configId)
     {
+        $config = ApplicationConfiguration::findOrFail($configId);
+
+        // Promoting from the waitlist only makes sense once the
+        // application period has actually closed — while it's still
+        // open, applicants are still submitting fresh, so a "waitlisted"
+        // applicant hasn't really lost their shot yet. Promoting early
+        // also directly causes the control-number gap issue described in
+        // AdminScheduleController::show() (a promoted applicant consumes
+        // the next control number but lands on the Grace Period lane
+        // instead of a regular one, splitting what would otherwise be a
+        // clean sequential range for whichever lane was filling at that
+        // moment).
+        if (now()->lt($config->close_date)) {
+            return response()->json([
+                'message' => 'This application period is still open. Waitlist promotion is only available after the Closing Date (' . $config->close_date . ') has passed.',
+            ], 400);
+        }
+
         $outcome = Application::promoteNextFromWaitlist($configId);
     
         if ($outcome['result'] === 'no_waitlist') {
@@ -188,6 +206,14 @@ class VerifierController extends Controller
     
     public function promoteAllFromWaitlist(Request $request, $configId)
     {
+        $config = ApplicationConfiguration::findOrFail($configId);
+
+        if (now()->lt($config->close_date)) {
+            return response()->json([
+                'message' => 'This application period is still open. Waitlist promotion is only available after the Closing Date (' . $config->close_date . ') has passed.',
+            ], 400);
+        }
+
         $waitlistExists = Application::where('config_id', $configId)
             ->where('status', 'waitlisted')
             ->exists();
