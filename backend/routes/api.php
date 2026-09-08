@@ -129,6 +129,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/verifier/applications/{id}/reject', [VerifierController::class, 'reject']);
         Route::post('/verifier/applications/{id}/reupload', [VerifierController::class, 'requestReupload']);
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
+        Route::post('/verifier/documents/{document}/retry-ocr', [VerifierController::class, 'retryOcr']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
         Route::get('/verifier/claiming/lanes', [VerifierController::class, 'claimingLanes']);
         Route::post('/verifier/claiming/lanes/{laneId}/self-assign', [VerifierController::class, 'selfAssignLane']);

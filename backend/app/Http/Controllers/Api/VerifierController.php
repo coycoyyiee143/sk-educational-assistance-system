@@ -360,6 +360,19 @@ class VerifierController extends Controller
         return response()->json(['message' => 'Re-upload requested.']);
     }
 
+    public function retryOcr(\App\Models\ApplicationDocument $document)
+    {
+        $document->update(['status' => 'pending']);
+
+        \App\Jobs\ProcessOcrDocument::dispatch(
+            $document->application,
+            $document,
+            $document->file_path
+        )->onQueue('ocr');
+
+        return response()->json(['message' => 'OCR retry queued.']);
+    }
+
     public function updateClaimStatus(Request $request, $id)
     {
         $request->validate([

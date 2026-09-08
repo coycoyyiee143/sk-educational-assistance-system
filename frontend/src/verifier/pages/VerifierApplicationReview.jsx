@@ -312,6 +312,21 @@ function VerifierApplicationReview() {
     }
   }
 
+  async function handleRetryOcr(docId) {
+    setRefreshingOcr(true);
+    try {
+      await api.post(`/verifier/documents/${docId}/retry-ocr`);
+      // give the queue worker a moment to pick up and process the job
+      await new Promise((resolve) => setTimeout(resolve, 4000));
+      const res = await api.get(`/verifier/applications/${id}`);
+      setApp(res.data);
+    } catch {
+      alert("Failed to queue OCR retry.");
+    } finally {
+      setRefreshingOcr(false);
+    }
+  }
+
   function handleProceed() {
     navigate(`/VerifierVerificationAction/${app.id}`, { state: { flaggedDocs } });
   }
