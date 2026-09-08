@@ -5,7 +5,7 @@ import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 
 function AdminDashboard() {
-  const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  const [stats, setStats] = useState({ total: 0, incomplete: 0, pending: 0, approved: 0, rejected: 0, no_active_period: false });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -164,6 +164,12 @@ function AdminDashboard() {
                 Overview of application statistics and quick access to system management tools.
               </p>
             </div>
+
+            {!loading && stats.no_active_period && (
+              <div className="alert alert-warning">
+                No active application period is currently configured. Statistics will show once a period is activated.
+              </div>
+            )}
 
             <div className="row g-4">
               {cards.map(({ label, value, accent, icon }) => (

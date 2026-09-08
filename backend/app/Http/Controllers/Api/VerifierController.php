@@ -20,11 +20,24 @@ class VerifierController extends Controller
 
     public function stats()
     {
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+    
+        if (!$activeConfig) {
+            return response()->json([
+                'pending'  => 0,
+                'review'   => 0,
+                'approved' => 0,
+                'rejected' => 0,
+                'no_active_period' => true,
+            ]);
+        }
+    
         return response()->json([
-            'pending'  => Application::whereIn('status', ['pending_prescreening'])->whereHas('documents')->count(),
-            'review'   => Application::where('status', 'for_review')->count(),
-            'approved' => Application::where('status', 'approved')->count(),
-            'rejected' => Application::where('status', 'rejected')->count(),
+            'pending'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening'])->whereHas('documents')->count(),
+            'review'   => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
+            'approved' => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
+            'rejected' => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
+            'no_active_period' => false,
         ]);
     }
 
