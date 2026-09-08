@@ -457,7 +457,7 @@ function VerifierApplicationReview() {
                 <button
                   type="button"
                   className="verifier-ocr-refresh-btn"
-                  onClick={() => handleRetryOcr(doc.id)}
+                  onClick={handleRefreshOcr}
                   disabled={refreshingOcr}
                   title="Refresh OCR verification results"
                   aria-label="Refresh OCR verification results"
