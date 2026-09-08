@@ -1310,7 +1310,7 @@ a:hover {
   }
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 991.98px) {
   .home-about-section,
   .schedule-section,
   .req-section {
@@ -2049,7 +2049,7 @@ a:hover {
   min-width: 0;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 991.98px) {
   .announcements-content-wrapper .row.g-4 {
     grid-template-columns: 1fr;
   }
@@ -2699,7 +2699,7 @@ a:hover {
   overflow: hidden;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 991.98px) {
   .event-landscape-card {
     flex-direction: column;
   }
@@ -3464,7 +3464,7 @@ a:hover {
    MOBILE
    ============================================ */
 
-@media (max-width: 767.98px) {
+@media (max-width: 991.98px) {
   .site-footer {
     padding: 36px 0 18px;
   }
@@ -4044,7 +4044,7 @@ a:hover {
   margin: 0 auto;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 991.98px) {
   .login-split-section {
     padding: 20px;
   }
@@ -7208,15 +7208,22 @@ a:hover {
 .verifier-profile-card .form-control {
   font-size: 15px;
 }
+
+/* ============================================
+   APPLICANT ACTIVITY LOG MODAL
+   ============================================ */
+
 .verifier-activity-modal-dialog {
   max-width: 930px;
 }
+
 .verifier-activity-modal {
   overflow: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
-  font-family: 'Inter', Arial, sans-serif;
+  font-family: "Inter", sans-serif;
 }
+
 .verifier-activity-modal-header-new {
   display: flex;
   align-items: center;
@@ -7226,11 +7233,13 @@ a:hover {
   background: #ffffff;
   border-bottom: 1px solid #e8edf2;
 }
+
 .verifier-activity-modal-heading-new {
   display: flex;
   align-items: center;
   gap: 11px;
 }
+
 .verifier-activity-modal-icon-new {
   width: 34px;
   height: 34px;
@@ -7242,22 +7251,26 @@ a:hover {
   background: #fce4e4;
   color: #b71c1c;
 }
+
 .verifier-activity-modal-icon-new svg {
   width: 17px;
   height: 17px;
 }
+
 .verifier-activity-modal-title-row {
   display: flex;
   align-items: center;
   gap: 8px;
 }
+
 .verifier-activity-modal-title-row h5 {
   margin: 0;
-  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 19px;
   font-weight: 700;
   color: #1a1a1a;
 }
+
 .verifier-activity-modal-badge {
   display: inline-flex;
   align-items: center;
@@ -7266,11 +7279,12 @@ a:hover {
   border-radius: 5px;
   background: #f5f7f9;
   color: #6c7885;
-  font-family: 'Inter', Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 9px;
   font-weight: 600;
   line-height: 1;
 }
+
 .verifier-activity-modal-close-new {
   width: 30px;
   height: 30px;
@@ -7278,39 +7292,50 @@ a:hover {
   border: none;
   background: transparent;
   color: #9aa3ad;
-  font-family: Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 25px;
   font-weight: 300;
   line-height: 1;
   cursor: pointer;
 }
+
 .verifier-activity-modal-close-new:hover {
   color: #555f69;
 }
+
 .verifier-activity-modal-body {
   width: calc(100% - 30px);
   max-width: none;
   margin-left: auto;
   margin-right: auto;
-  font-family: 'Inter', Arial, sans-serif;
+  font-family: "Inter", sans-serif;
 }
+
 .verifier-activity-search-box .form-label {
-  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-family: "Poppins", sans-serif;
   font-size: 16px;
   font-weight: 600;
 }
+
 .verifier-activity-search-box .form-control,
 .verifier-activity-search-box .form-select {
-  font-family: 'Inter', Arial, sans-serif;
+  font-family: "Inter", sans-serif;
   font-size: 16px;
 }
+
 .verifier-activity-badge {
-  font-family: 'Inter', Arial, sans-serif;
-  font-size: 14px;
-  font-weight: 600;
+  display: inline-block;
+  max-width: 100%;
   padding: 6px 12px;
   border-radius: 20px;
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
 }
+
 .verifier-activity-modal-footer-new {
   display: flex;
   align-items: center;
@@ -7319,9 +7344,205 @@ a:hover {
   background: #ffffff;
   border-top: 1px solid #e8edf2;
 }
+
 .verifier-activity-modal .btn-secondary-custom {
-  font-family: 'Inter', Arial, sans-serif;
+  font-family: "Inter", sans-serif;
 }
+
+
+/* ============================================
+   ACTIVITY LOG TABLE
+   ============================================ */
+
+.verifier-activity-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.verifier-activity-table {
+  width: 100%;
+  margin-bottom: 0;
+  table-layout: fixed;
+}
+
+.verifier-activity-col-date {
+  width: 22%;
+}
+
+.verifier-activity-col-action {
+  width: 24%;
+}
+
+.verifier-activity-col-description {
+  width: 36%;
+}
+
+.verifier-activity-col-ip {
+  width: 18%;
+}
+
+.verifier-activity-table th,
+.verifier-activity-table td {
+  vertical-align: middle;
+}
+
+.verifier-activity-table td {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+
+/* ============================================
+   ACTIVITY LOG - MOBILE ONLY
+   ============================================ */
+
+@media (max-width: 991.98px) {
+  .verifier-activity-modal-dialog {
+    width: calc(100% - 24px);
+    max-width: none;
+    margin: 12px auto;
+  }
+
+  .verifier-activity-modal {
+    max-height: calc(100dvh - 24px);
+    border-radius: 14px;
+  }
+
+  .verifier-activity-modal-header-new {
+    padding: 14px 16px;
+  }
+
+  .verifier-activity-modal-heading-new {
+    gap: 9px;
+    min-width: 0;
+  }
+
+  .verifier-activity-modal-title-row {
+    min-width: 0;
+  }
+
+  .verifier-activity-modal-title-row h5 {
+    font-size: 17px;
+    white-space: nowrap;
+  }
+
+  .verifier-activity-modal-badge {
+    font-size: 8px;
+    padding: 3px 6px;
+  }
+
+  .verifier-activity-modal-body {
+    width: calc(100% - 24px);
+  }
+
+  .verifier-activity-search-box {
+    padding: 14px;
+  }
+
+  .verifier-activity-search-box .row {
+    --bs-gutter-y: 12px;
+  }
+
+  .verifier-activity-search-box .form-label {
+    font-size: 13px;
+  }
+
+  .verifier-activity-search-box .form-control,
+  .verifier-activity-search-box .form-select {
+    font-size: 13px;
+  }
+
+  .verifier-activity-table-scroll {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+  }
+
+  .verifier-activity-table {
+    min-width: 640px;
+  }
+
+  .verifier-activity-table th,
+  .verifier-activity-table td {
+    padding: 10px 11px;
+    font-size: 12px;
+  }
+
+  .verifier-activity-table th {
+    white-space: nowrap;
+  }
+
+  .verifier-activity-col-date {
+    width: 145px;
+  }
+
+  .verifier-activity-col-action {
+    width: 155px;
+  }
+
+  .verifier-activity-col-description {
+    width: 235px;
+  }
+
+  .verifier-activity-col-ip {
+    width: 105px;
+  }
+
+  .verifier-activity-badge {
+    padding: 5px 8px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .verifier-activity-modal-footer-new {
+    padding: 12px 16px;
+  }
+
+  .verifier-table-pagination-bar {
+    gap: 12px;
+    margin-top: 14px;
+  }
+}
+
+
+/* ============================================
+   SMALL MOBILE
+   ============================================ */
+
+@media (max-width: 420px) {
+  .verifier-activity-modal-dialog {
+    width: calc(100% - 16px);
+    margin: 8px auto;
+  }
+
+  .verifier-activity-modal {
+    max-height: calc(100dvh - 16px);
+  }
+
+  .verifier-activity-modal-header-new {
+    padding: 12px 14px;
+  }
+
+  .verifier-activity-modal-icon-new {
+    width: 32px;
+    height: 32px;
+  }
+
+  .verifier-activity-modal-title-row h5 {
+    font-size: 16px;
+  }
+
+  .verifier-activity-modal-body {
+    width: calc(100% - 18px);
+  }
+
+  .verifier-activity-search-box {
+    padding: 12px;
+  }
+}
+
+
 .verifier-review-info-card {
   padding: 0;
   overflow: hidden;
@@ -10445,12 +10666,43 @@ body {
 
 @media (max-width: 768px) {
   .submitted-notice {
-    align-items: flex-start;
-    flex-wrap: wrap;
+    position: relative;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr);
+    align-items: start;
+    gap: 12px;
+
+    padding: 14px;
+  }
+
+  .submitted-notice-icon {
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+  }
+
+  .submitted-notice-content {
+    min-width: 0;
+    padding-right: 0;
+  }
+
+  .submitted-notice-title {
+    font-family: "Poppins", sans-serif;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .submitted-notice-meta {
+    margin-top: 5px;
+    font-size: 10.5px;
+    line-height: 1.45;
   }
 
   .submitted-notice-status {
-    margin-left: 58px;
+    grid-column: 2;
+    justify-self: start;
+
+    margin: 2px 0 0;
   }
 
   .submitted-info-grid {
@@ -10468,8 +10720,45 @@ body {
   }
 
   .submitted-info-item:last-child {
-    border-bottom: 0;
     padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .submitted-section-card {
+    padding: 16px;
+  }
+
+  .submitted-section-header {
+    gap: 12px;
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+  }
+
+  .submitted-section-heading-wrap {
+    gap: 9px;
+  }
+
+  .submitted-section-icon {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    border-radius: 9px;
+  }
+
+  .submitted-section-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .submitted-section-title {
+    font-family: "Poppins", sans-serif;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+
+  .submitted-section-desc {
+    font-size: 11px;
+    line-height: 1.45;
   }
 
   .submitted-documents-header {
@@ -10477,10 +10766,15 @@ body {
     flex-direction: column;
   }
 
+  .submitted-files-count {
+    font-size: 10px;
+  }
+
   .submitted-document-preview {
     height: 170px;
   }
 }
+
 .verifier-waitlist-notice {
   display: flex;
   align-items: flex-start;
@@ -11857,7 +12151,7 @@ body {
   display: none;
 }
 
-@media (max-width: 767.98px) {
+@media (max-width: 991.98px){
   /* ------------------------------------------
      MOBILE MENU BUTTON
      ------------------------------------------ */
