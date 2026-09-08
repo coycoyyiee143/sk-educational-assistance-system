@@ -184,6 +184,11 @@ class ProcessOcrDocument implements ShouldQueue
         }
     }
 
+    public function middleware()
+    {
+        return [(new \Illuminate\Queue\Middleware\WithoutOverlapping('ocr-processing'))->releaseAfter(60)];
+    }
+
     private function updateApplicationStatus($application): void
     {
         // 1. Get the primary keys of the LATEST uploads for each document type

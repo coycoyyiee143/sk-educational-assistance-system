@@ -325,9 +325,9 @@ function VerifierApplicationReview() {
     } catch {
       alert("Failed to load document.");
     }
-  } 
+  }
 
-    return (
+  return (
     <div className="verifier-layout">
       <VerifierNavigation />
       <div className="verifier-main">
@@ -642,7 +642,21 @@ function VerifierApplicationReview() {
                             ) : (
                               <div className="verifier-ocr-empty">
                                 {activeChecks.length === 0 ? (
-                                  ["processing", "pending", "pending_prescreening"].includes(app.status) ? (
+                                  doc.status === "failed" ? (
+                                    <div className="verifier-ocr-empty-content">
+                                      <span className="text-danger">
+                                        OCR processing failed for this document. Try refreshing, or ask the applicant to re-upload.
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="verifier-ocr-file-btn mt-2"
+                                        onClick={handleRefreshOcr}
+                                        disabled={refreshingOcr}
+                                      >
+                                        Retry OCR Check
+                                      </button>
+                                    </div>
+                                  ) : ["processing", "pending", "pending_prescreening"].includes(app.status) ? (
                                     <div className="verifier-ocr-empty-content">
                                       <span className="spinner-border spinner-border-sm verifier-ocr-empty-spinner" role="status" />
                                       <span>System is extracting text via OCR and verifying rules. Try refreshing shortly.</span>
