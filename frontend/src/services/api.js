@@ -35,4 +35,10 @@ api.interceptors.response.use(
     }
 );
 
+window.addEventListener("storage", (e) => {
+    if (e.key === "token" && e.newValue === null) {
+        window.location.href = "/login";
+    }
+});
+
 export default api;
