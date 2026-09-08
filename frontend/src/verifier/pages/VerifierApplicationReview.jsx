@@ -231,13 +231,18 @@ function VerifierApplicationReview() {
     { number: 2, type: "school_id", label: "School ID" },
     { number: 3, type: "registration_form", label: "Registration Form" },
   ];
+
   const getDocumentTabStatus = (documentType) => {
     const latestDoc = latestDocsMap[documentType];
     if (!latestDoc) return { text: "Processing", state: "processing" };
     const checks = (app.verification_checks || []).filter((check) => check.document_id === latestDoc.id);
-    if (checks.length > 0) return { text: "For Review", state: "review" };
-    return { text: "Processing", state: "processing" };
+    if (checks.length === 0) return { text: "Processing", state: "processing" };
+    const hasFailed = checks.some((c) => !c.passed);
+    return hasFailed
+      ? { text: "For Review", state: "review" }
+      : { text: "Passed", state: "passed" };
   };
+
   const filteredDocuments = sortedDocuments.filter((doc) => doc.document_type === activeDocumentType);
   const activeLatestDoc = latestDocsMap[activeDocumentType];
   const activeOverallStatus = activeLatestDoc ? getOverallDocStatus(activeLatestDoc.id, true) : null;
@@ -322,6 +327,22 @@ function VerifierApplicationReview() {
       setApp(res.data);
     } catch {
       alert("Failed to queue OCR retry.");
+    } finally {
+      setRefreshingOcr(false);
+    }
+  }
+
+  async function handleRetryAllFailed() {
+    const failedDocs = (app.documents || []).filter((d) => d.status === "failed");
+    if (failedDocs.length === 0) return;
+    setRefreshingOcr(true);
+    try {
+      await Promise.all(failedDocs.map((d) => api.post(`/verifier/documents/${d.id}/retry-ocr`)));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
+      const res = await api.get(`/verifier/applications/${id}`);
+      setApp(res.data);
+    } catch {
+      alert("Failed to queue retries for one or more documents.");
     } finally {
       setRefreshingOcr(false);
     }
@@ -478,6 +499,14 @@ function VerifierApplicationReview() {
                   </svg>
                 </button>
               </div>
+              {(app.documents || []).some((d) => d.status === "failed") && (
+                <div className="alert alert-warning d-flex justify-content-between align-items-center">
+                  <span>Some documents failed OCR processing.</span>
+                  <button type="button" className="btn btn-sm btn-warning" onClick={handleRetryAllFailed} disabled={refreshingOcr}>
+                    Retry All Failed
+                  </button>
+                </div>
+              )}
               <div className="verifier-ocr-document-tabs">
                 {documentTabs.map((tab) => {
                   const tabStatus = getDocumentTabStatus(tab.type);
