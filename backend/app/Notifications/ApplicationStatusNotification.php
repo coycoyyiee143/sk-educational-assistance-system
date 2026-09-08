@@ -35,7 +35,7 @@ class ApplicationStatusNotification extends Notification implements ShouldQueue
             ->line('There is an update regarding your application status.')
             ->line('**Current Status:** ' . $this->status)
             ->line($this->messageText)
-            ->action('View Application Status', rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/ApplicantStatus')
+            ->action('View Claiming Schedule', rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/ApplicantClaimingSchedule')
             ->line('Thank you for using the Sangguniang Kabataan Educational Assistance portal!')
             ->salutation("Regards,  \nSangguniang Kabataan of Barangay Mamatid");
     }
