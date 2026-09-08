@@ -457,7 +457,7 @@ function VerifierApplicationReview() {
                 <button
                   type="button"
                   className="verifier-ocr-refresh-btn"
-                  onClick={handleRefreshOcr}
+                  onClick={() => handleRetryOcr(doc.id)}
                   disabled={refreshingOcr}
                   title="Refresh OCR verification results"
                   aria-label="Refresh OCR verification results"
@@ -665,10 +665,10 @@ function VerifierApplicationReview() {
                                       <button
                                         type="button"
                                         className="verifier-ocr-file-btn mt-2"
-                                        onClick={handleRefreshOcr}
+                                        onClick={() => handleRetryOcr(doc.id)}
                                         disabled={refreshingOcr}
                                       >
-                                        Retry OCR Check
+                                        {refreshingOcr ? "Retrying..." : "Retry OCR Check"}
                                       </button>
                                     </div>
                                   ) : ["processing", "pending", "pending_prescreening"].includes(app.status) ? (
