@@ -161,6 +161,7 @@ const Register = () => {
 
       formData.append("id_image", capturedIdImage);
       formData.append("live_photo", liveBlob, "live.jpg");
+      formData.append("privacy_consent", agreePrivacy ? "1" : "0");
 
       await api.post("/register", formData);
 

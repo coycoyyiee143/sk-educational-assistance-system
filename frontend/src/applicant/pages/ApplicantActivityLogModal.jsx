@@ -6,6 +6,7 @@ const ACTION_CONFIG = {
   logout: { label: "Logged Out", badge: "bg-secondary" },
   login_failed: { label: "Failed Login", badge: "bg-danger" },
   page_visited: { label: "Page Visit", badge: "bg-secondary" },
+  consent: { label: "Privacy Consent", badge: "bg-info text-dark" },
 
   application_submitted: {
     label: "Application Submitted",
@@ -67,7 +68,7 @@ function formatDescription(description) {
   if (!description) return description;
 
   const match = description.match(
-    /^([A-Za-zÀ-ÖØ-öø-ÿ.'-]+(?:\s[A-Za-zÀ-ÖØ-öø-ÿ.'-]+){0,3})\s(logged|submitted|updated|completed|approved|rejected|requested|marked|uploaded|re-uploaded|changed|created|reset)\b/i
+    /^([A-Za-zÀ-ÖØ-öø-ÿ.'-]+(?:\s[A-Za-zÀ-ÖØ-öø-ÿ.'-]+){0,3})\s(logged|submitted|updated|completed|approved|rejected|requested|marked|uploaded|re-uploaded|changed|created|reset|agreed)\b/i
   );
 
   if (match) {
