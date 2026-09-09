@@ -11,6 +11,7 @@ use App\Services\FaceMatchingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -48,7 +49,7 @@ class AuthController extends Controller
             'last_name'     => 'required|string|max:255',
             'email'         => 'required|email|unique:users,email',
             'mobile_number' => 'nullable|string|unique:users,mobile_number',
-            'password'      => 'required|string|min:8|confirmed',
+            'password'      => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->uncompromised()],
             'birthdate'     => 'required|date|before:today',
             'barangay'      => 'required|string|max:255',
             'id_image'      => 'required|file|mimes:jpg,jpeg,png|max:5120',
