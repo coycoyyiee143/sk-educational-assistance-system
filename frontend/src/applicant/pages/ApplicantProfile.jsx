@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import PanelFooter from "../../components/PanelFooter";
 import { useAuth } from "../../context/AuthContext";
@@ -6,7 +7,9 @@ import api from "../../services/api";
 
 function ApplicantProfile() {
   const { login, token } = useAuth();
-
+  const location = useLocation();
+  const navigate = useNavigate();
+  const cameFromSubmission = location.state?.from === "submission";
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -16,34 +19,38 @@ function ApplicantProfile() {
     dob: "",
     gender: "",
     civilStatus: "",
-
     barangay: "Mamatid",
     city: "Cabuyao",
     province: "Laguna",
-
     houseNo: "",
     street: "",
     purokType: "",
     purok: "",
-
     guardianFirstName: "",
     guardianMiddleName: "",
     guardianLastName: "",
     guardianContact: "",
     guardianRelationship: "",
   });
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-
   const [showSavedPopup, setShowSavedPopup] = useState(false);
   const [savedCountdown, setSavedCountdown] = useState(10);
-
   const [error, setError] = useState("");
-
   const [faceStatus, setFaceStatus] = useState(null);
   const [facePhotoUrl, setFacePhotoUrl] = useState(null);
   const [facePhotoLoading, setFacePhotoLoading] = useState(true);
+
+  useEffect(() => {
+    if (error) {
+      const mainEl = document.querySelector(".applicant-main");
+      if (mainEl) {
+        mainEl.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [error]);
 
   useEffect(() => {
     api
@@ -51,27 +58,22 @@ function ApplicantProfile() {
       .then((res) => {
         const u = res.data;
         const p = u.profile;
-
         setForm({
           firstName: u.first_name ?? "",
           lastName: u.last_name ?? "",
           middleName: u.middle_name ?? "",
           email: u.email ?? "",
           contact: u.mobile_number ?? "",
-
           dob: p?.birthdate?.split("T")[0] ?? "",
           gender: p?.gender ?? "",
           civilStatus: p?.civil_status ?? "",
-
           barangay: "Mamatid",
           city: "Cabuyao",
           province: "Laguna",
-
           houseNo: p?.house_no ?? "",
           street: p?.street ?? "",
           purokType: p?.purok_type ?? "",
           purok: p?.purok ?? "",
-
           guardianFirstName: p?.guardian_first_name ?? "",
           guardianMiddleName: p?.guardian_middle_name ?? "",
           guardianLastName: p?.guardian_last_name ?? "",
@@ -89,18 +91,15 @@ function ApplicantProfile() {
 
   useEffect(() => {
     let objectUrl = null;
-
     api
       .get("/face-verification")
       .then((res) => {
         setFaceStatus(res.data.status);
-
         if (res.data.photo_url) {
           return api.get(res.data.photo_url, {
             responseType: "blob",
           });
         }
-
         return null;
       })
       .then((photoRes) => {
@@ -115,7 +114,6 @@ function ApplicantProfile() {
       .finally(() => {
         setFacePhotoLoading(false);
       });
-
     return () => {
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
@@ -125,19 +123,15 @@ function ApplicantProfile() {
 
   useEffect(() => {
     if (!showSavedPopup) return;
-
     setSavedCountdown(10);
-
     const tick = setInterval(() => {
       setSavedCountdown((count) =>
         count <= 1 ? 0 : count - 1
       );
     }, 1000);
-
     const dismiss = setTimeout(() => {
       setShowSavedPopup(false);
     }, 10000);
-
     return () => {
       clearInterval(tick);
       clearTimeout(dismiss);
@@ -153,34 +147,29 @@ function ApplicantProfile() {
 
   async function handleSubmit(e) {
     e.preventDefault();
-
     setError("");
-
     const requiredValues = [
       form.firstName,
       form.lastName,
       form.contact,
       form.dob,
       form.gender,
+      form.civilStatus,
       form.houseNo,
       form.street,
       form.purokType,
       form.purok,
     ];
-
     const hasEmptyRequiredField = requiredValues.some(
       (value) => !String(value ?? "").trim()
     );
-
     if (hasEmptyRequiredField) {
       setError(
         "Please complete all required fields marked with an asterisk (*)."
       );
       return;
     }
-
     setSaving(true);
-
     try {
       const accountRes = await api.put("/user/profile", {
         first_name: form.firstName,
@@ -188,49 +177,39 @@ function ApplicantProfile() {
         middle_name: form.middleName || null,
         mobile_number: form.contact,
       });
-
       login(accountRes.data.user, token);
-
       const profilePayload = {
         birthdate: form.dob,
-
         gender: form.gender.toLowerCase(),
-
         civil_status: form.civilStatus
           ? form.civilStatus.toLowerCase()
           : null,
-
         house_no: form.houseNo,
         street: form.street,
         purok_type: form.purokType,
         purok: form.purok,
-
         barangay: "Mamatid",
         city: "Cabuyao",
         province: "Laguna",
-
         guardian_first_name:
           form.guardianFirstName || null,
-
         guardian_middle_name:
           form.guardianMiddleName || null,
-
         guardian_last_name:
           form.guardianLastName || null,
-
         guardian_relationship:
           form.guardianRelationship || null,
-
         guardian_contact:
           form.guardianContact || null,
       };
-
       await api.put("/profile", profilePayload);
-
-      setShowSavedPopup(true);
+      if (cameFromSubmission) {
+        navigate("/ApplicantSubmission");
+      } else {
+        setShowSavedPopup(true);
+      }
     } catch (err) {
       const errors = err.response?.data?.errors;
-
       if (errors) {
         setError(
           Object.values(errors)
@@ -253,26 +232,21 @@ function ApplicantProfile() {
       text: "Verified",
       className: "badge bg-success",
     },
-
     failed: {
       text: "Verification Failed",
       className: "badge bg-danger",
     },
-
     pending: {
       text: "Pending",
       className: "badge bg-warning text-dark",
     },
-
     not_started: {
       text: "Not Verified",
       className: "badge bg-secondary",
     },
   };
-
   const faceStatusInfo =
     FACE_STATUS_LABEL[faceStatus] || null;
-
   const RequiredMark = () => (
     <span className="required-asterisk">*</span>
   );
@@ -280,28 +254,23 @@ function ApplicantProfile() {
   return (
     <div className="applicant-layout">
       <ApplicantNavigation />
-
       <div className="applicant-main">
         <div className="applicant-topbar">
           <div className="applicant-topbar-user">
             <div className="applicant-topbar-avatar"></div>
           </div>
         </div>
-
         <section className="page-section">
           <div className="container-fluid">
-
             <div className="applicant-dashboard-header">
               <h3 className="applicant-dashboard-title">
                 Applicant Profile
               </h3>
-
               <p className="applicant-dashboard-desc">
                 View and update your personal information for your
                 educational assistance application.
               </p>
             </div>
-
             <div className="page-card">
               {loading ? (
                 <div className="d-flex justify-content-center align-items-center py-5">
@@ -360,7 +329,6 @@ function ApplicantProfile() {
                         }}
                       />
                     )}
-
                     <div>
                       <h5
                         className="mb-1"
@@ -370,7 +338,6 @@ function ApplicantProfile() {
                       >
                         {form.firstName} {form.lastName}
                       </h5>
-
                       {faceStatusInfo && (
                         <span
                           className={
@@ -382,27 +349,22 @@ function ApplicantProfile() {
                       )}
                     </div>
                   </div>
-
                   <p className="text-muted small mb-3">
                     Fields marked with{" "}
                     <RequiredMark /> are required.
                   </p>
-
                   {error && (
                     <div className="error-box">
                       {error}
                     </div>
                   )}
-
                   <form onSubmit={handleSubmit}>
                     <div className="row g-3">
-
                       {/* FIRST NAME */}
                       <div className="col-md-6">
                         <label className="form-label">
                           First Name <RequiredMark />
                         </label>
-
                         <input
                           className="form-control"
                           value={form.firstName}
@@ -410,13 +372,11 @@ function ApplicantProfile() {
                           required
                         />
                       </div>
-
                       {/* LAST NAME */}
                       <div className="col-md-6">
                         <label className="form-label">
                           Last Name <RequiredMark />
                         </label>
-
                         <input
                           className="form-control"
                           value={form.lastName}
@@ -424,49 +384,41 @@ function ApplicantProfile() {
                           required
                         />
                       </div>
-
                       {/* MIDDLE NAME */}
                       <div className="col-md-6">
                         <label className="form-label">
                           Middle Name
                         </label>
-
                         <input
                           className="form-control"
                           placeholder="Middle Name"
                           value={form.middleName}
                           onChange={set("middleName")}
                         />
-
                         <div className="form-text">
                           Optional — leave blank if you do not have a middle name.
                         </div>
                       </div>
-
                       {/* EMAIL */}
                       <div className="col-md-6">
                         <label className="form-label">
                           Email Address
                         </label>
-
                         <input
                           type="email"
                           className="form-control"
                           value={form.email}
                           disabled
                         />
-
                         <div className="form-text">
                           Your account email cannot be changed here.
                         </div>
                       </div>
-
                       {/* CONTACT */}
                       <div className="col-md-6">
                         <label className="form-label">
                           Contact Number <RequiredMark />
                         </label>
-
                         <input
                           className="form-control"
                           value={form.contact}
@@ -474,13 +426,11 @@ function ApplicantProfile() {
                           required
                         />
                       </div>
-
                       {/* DATE OF BIRTH */}
                       <div className="col-md-6">
                         <label className="form-label">
                           Date of Birth <RequiredMark />
                         </label>
-
                         <input
                           type="date"
                           className="form-control"
@@ -489,13 +439,11 @@ function ApplicantProfile() {
                           required
                         />
                       </div>
-
                       {/* GENDER */}
                       <div className="col-md-6">
                         <label className="form-label">
                           Gender <RequiredMark />
                         </label>
-
                         <select
                           className="form-select"
                           value={form.gender}
@@ -505,64 +453,50 @@ function ApplicantProfile() {
                           <option value="" disabled>
                             Select gender
                           </option>
-
                           <option value="male">
                             Male
                           </option>
-
                           <option value="female">
                             Female
                           </option>
-
                           <option value="other">
                             Other
                           </option>
                         </select>
                       </div>
-
                       {/* CIVIL STATUS */}
                       <div className="col-md-6">
                         <label className="form-label">
-                          Civil Status
+                          Civil Status <RequiredMark />
                         </label>
-
                         <select
                           className="form-select"
                           value={form.civilStatus}
                           onChange={set("civilStatus")}
+                          required
                         >
-                          <option value="">
+                          <option value="" disabled>
                             Select civil status
                           </option>
-
                           <option value="single">
                             Single
                           </option>
-
                           <option value="married">
                             Married
                           </option>
-
                           <option value="widowed">
                             Widowed
                           </option>
-
                           <option value="separated">
                             Separated
                           </option>
                         </select>
-
-                        <div className="form-text">
-                          Optional.
-                        </div>
                       </div>
-
                       {/* HOUSE NO */}
                       <div className="col-md-4">
                         <label className="form-label">
                           House No. <RequiredMark />
                         </label>
-
                         <input
                           className="form-control"
                           placeholder="House No."
@@ -571,13 +505,11 @@ function ApplicantProfile() {
                           required
                         />
                       </div>
-
                       {/* STREET */}
                       <div className="col-md-4">
                         <label className="form-label">
                           Street <RequiredMark />
                         </label>
-
                         <input
                           className="form-control"
                           placeholder="Street"
@@ -586,13 +518,11 @@ function ApplicantProfile() {
                           required
                         />
                       </div>
-
                       {/* PUROK / PHASE */}
                       <div className="col-md-2">
                         <label className="form-label">
                           Purok/Phase <RequiredMark />
                         </label>
-
                         <select
                           className="form-select"
                           value={form.purokType}
@@ -602,23 +532,19 @@ function ApplicantProfile() {
                           <option value="" disabled>
                             Select
                           </option>
-
                           <option value="purok">
                             Purok
                           </option>
-
                           <option value="phase">
                             Phase
                           </option>
                         </select>
                       </div>
-
                       {/* NUMBER */}
                       <div className="col-md-2">
                         <label className="form-label">
                           Number <RequiredMark />
                         </label>
-
                         <input
                           className="form-control"
                           placeholder="e.g. 2"
@@ -627,67 +553,56 @@ function ApplicantProfile() {
                           required
                         />
                       </div>
-
                       {/* BARANGAY */}
                       <div className="col-md-4">
                         <label className="form-label">
                           Barangay
                         </label>
-
                         <input
                           className="form-control"
                           value="Mamatid"
                           readOnly
                         />
                       </div>
-
                       {/* CITY */}
                       <div className="col-md-4">
                         <label className="form-label">
                           City
                         </label>
-
                         <input
                           className="form-control"
                           value="Cabuyao"
                           readOnly
                         />
                       </div>
-
                       {/* PROVINCE */}
                       <div className="col-md-4">
                         <label className="form-label">
                           Province
                         </label>
-
                         <input
                           className="form-control"
                           value="Laguna"
                           readOnly
                         />
                       </div>
-
                       {/* PARENT / GUARDIAN */}
                       <div className="col-12 mt-2">
                         <hr />
-
                         <h6 className="text-muted">
                           Parent / Guardian Information
                         </h6>
-
                         <p className="form-text mb-2">
                           Optional — if provided, please enter the parent or
                           guardian information exactly as it appears on their
                           supporting documents.
                         </p>
                       </div>
-
                       {/* GUARDIAN FIRST NAME */}
                       <div className="col-md-4">
                         <label className="form-label">
                           Guardian First Name
                         </label>
-
                         <input
                           className="form-control"
                           placeholder="First Name"
@@ -695,31 +610,26 @@ function ApplicantProfile() {
                           onChange={set("guardianFirstName")}
                         />
                       </div>
-
                       {/* GUARDIAN MIDDLE NAME */}
                       <div className="col-md-4">
                         <label className="form-label">
                           Guardian Middle Name
                         </label>
-
                         <input
                           className="form-control"
                           placeholder="Middle Name"
                           value={form.guardianMiddleName}
                           onChange={set("guardianMiddleName")}
                         />
-
                         <div className="form-text">
                           Leave blank if the parent or guardian has no middle name.
                         </div>
                       </div>
-
                       {/* GUARDIAN LAST NAME */}
                       <div className="col-md-4">
                         <label className="form-label">
                           Guardian Last Name
                         </label>
-
                         <input
                           className="form-control"
                           placeholder="Last Name"
@@ -727,13 +637,11 @@ function ApplicantProfile() {
                           onChange={set("guardianLastName")}
                         />
                       </div>
-
                       {/* GUARDIAN RELATIONSHIP */}
                       <div className="col-md-6">
                         <label className="form-label">
                           Guardian Relationship
                         </label>
-
                         <input
                           className="form-control"
                           placeholder="e.g. Mother"
@@ -741,13 +649,11 @@ function ApplicantProfile() {
                           onChange={set("guardianRelationship")}
                         />
                       </div>
-
                       {/* GUARDIAN CONTACT */}
                       <div className="col-md-6">
                         <label className="form-label">
                           Guardian Contact
                         </label>
-
                         <input
                           className="form-control"
                           placeholder="Guardian contact"
@@ -755,9 +661,7 @@ function ApplicantProfile() {
                           onChange={set("guardianContact")}
                         />
                       </div>
-
                     </div>
-
                     <div className="mt-4 d-flex gap-2 justify-content-end">
                       <button
                         type="submit"
@@ -773,47 +677,37 @@ function ApplicantProfile() {
                 </>
               )}
             </div>
-
           </div>
         </section>
-
         <PanelFooter />
       </div>
-
       {showSavedPopup && (
         <div className="verifier-password-feedback-backdrop">
           <div className="verifier-password-feedback verifier-password-feedback-success">
-
             <div className="verifier-password-feedback-icon-wrap">
               <span className="verifier-password-feedback-icon">
                 ✓
               </span>
             </div>
-
             <h4 className="verifier-password-feedback-title">
               Profile Updated
             </h4>
-
             <p className="verifier-password-feedback-message">
               Your profile information has been saved successfully.
             </p>
-
             <button
               type="button"
               className="verifier-password-feedback-dismiss"
               onClick={() => setShowSavedPopup(false)}
             >
               <span>Dismiss</span>
-
               <span className="verifier-password-feedback-arrow">
                 →
               </span>
-
               <span className="verifier-password-feedback-timer">
                 {savedCountdown}s
               </span>
             </button>
-
           </div>
         </div>
       )}
