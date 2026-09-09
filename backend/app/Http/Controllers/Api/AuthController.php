@@ -11,6 +11,7 @@ use App\Services\FaceMatchingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
@@ -19,6 +20,71 @@ class AuthController extends Controller
     public function __construct(FaceMatchingService $faceService)
     {
         $this->faceService = $faceService;
+    }
+
+    /**
+     * Shared name+birthdate duplicate lookup, used by both the
+     * pre-face-verification check (checkDuplicate) and the final
+     * register() save. Kept in one place so the two never drift out
+     * of sync with each other.
+     */
+    private function findDuplicateApplicant(string $firstName, string $lastName, string $birthdate)
+    {
+        $normalizedFirstName = strtolower(trim($firstName));
+        $normalizedLastName = strtolower(trim($lastName));
+
+        return User::whereHas('profile', function ($q) use ($birthdate) {
+                $q->where('birthdate', $birthdate);
+            })
+            ->get()
+            ->filter(function ($otherUser) use ($normalizedFirstName, $normalizedLastName) {
+                return strtolower(trim($otherUser->first_name)) === $normalizedFirstName
+                    && strtolower(trim($otherUser->last_name)) === $normalizedLastName;
+            });
+    }
+
+    /**
+     * Lightweight pre-check called from the Register form BEFORE the
+     * applicant moves on to face verification. Same email-uniqueness
+     * and name+birthdate duplicate rules as register(), just without
+     * the file uploads / face match — so a doomed registration fails
+     * fast, before the applicant wastes time on face capture.
+     *
+     * This does NOT reserve the email or name+birthdate combo — it's
+     * just an early warning. register() still re-checks both at save
+     * time, since another registration could complete in between.
+     */
+    public function checkDuplicate(Request $request)
+    {
+        $request->validate([
+            'first_name'  => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'last_name'   => 'required|string|max:255',
+            'birthdate'   => 'required|date|before:today',
+            'email'       => 'required|email',
+        ]);
+
+        if (User::where('email', $request->email)->exists()) {
+            return response()->json([
+                'errors' => [
+                    'email' => ['This email is already taken.'],
+                ],
+            ], 422);
+        }
+
+        $duplicates = $this->findDuplicateApplicant(
+            $request->first_name,
+            $request->last_name,
+            $request->birthdate
+        );
+
+        if ($duplicates->isNotEmpty()) {
+            return response()->json([
+                'message' => 'An account matching your name and date of birth already exists under a different account. Please contact the SK office if you believe this is an error.',
+            ], 400);
+        }
+
+        return response()->json(['message' => 'OK']);
     }
 
     /**
@@ -32,7 +98,11 @@ class AuthController extends Controller
      * Also runs a name+birthdate duplicate check BEFORE face verification,
      * since it's the cheaper check and should short-circuit first if it's
      * going to fail anyway — no reason to call the face service for a
-     * registration that's getting blocked regardless.
+     * registration that's getting blocked regardless. (The Register form
+     * also calls checkDuplicate() above earlier in the flow, before the
+     * applicant even reaches face capture — this check here is the
+     * authoritative re-check at save time, in case something changed
+     * between the two calls.)
      *
      * A second duplicate check runs AFTER face verification: this one
      * compares the new live-photo embedding against every other verified
@@ -48,7 +118,7 @@ class AuthController extends Controller
             'last_name'     => 'required|string|max:255',
             'email'         => 'required|email|unique:users,email',
             'mobile_number' => 'nullable|string|unique:users,mobile_number',
-            'password'      => 'required|string|min:8|confirmed',
+            'password'      => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->uncompromised()],
             'birthdate'     => 'required|date|before:today',
             'barangay'      => 'required|string|max:255',
             'id_image'      => 'required|file|mimes:jpg,jpeg,png|max:5120',
@@ -61,16 +131,11 @@ class AuthController extends Controller
         // submission time, since a determined duplicate could still
         // theoretically slip past this one (e.g. a slight name variation
         // the string match doesn't catch).
-        $normalizedFirstName = strtolower(trim($request->first_name));
-        $normalizedLastName = strtolower(trim($request->last_name));
-        $possibleDuplicates = User::whereHas('profile', function ($q) use ($request) {
-                $q->where('birthdate', $request->birthdate);
-            })
-            ->get()
-            ->filter(function ($otherUser) use ($normalizedFirstName, $normalizedLastName) {
-                return strtolower(trim($otherUser->first_name)) === $normalizedFirstName
-                    && strtolower(trim($otherUser->last_name)) === $normalizedLastName;
-            });
+        $possibleDuplicates = $this->findDuplicateApplicant(
+            $request->first_name,
+            $request->last_name,
+            $request->birthdate
+        );
         if ($possibleDuplicates->isNotEmpty()) {
             return response()->json([
                 'message' => 'An account matching your name and date of birth already exists under a different account. Please contact the SK office if you believe this is an error.',
@@ -200,7 +265,7 @@ class AuthController extends Controller
             \App\Models\AuditLog::create([
                 'user_id'     => $user->id ?? null,
                 'action'      => 'login_failed',
-                'description' => "Failed login attempt for: {$request->email}",
+                'description' => "An unsuccessful login attempt was made on your account.",
                 'ip_address'  => $request->ip(),
             ]);
 
@@ -222,7 +287,6 @@ class AuthController extends Controller
                 'email'      => $user->email,
             ], 403);
         }
-        $token = $user->createToken('auth_token')->plainTextToken;
 
         $token = $user->createToken('auth_token')->plainTextToken;
 

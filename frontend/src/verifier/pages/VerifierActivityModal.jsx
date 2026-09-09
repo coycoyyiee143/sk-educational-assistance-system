@@ -1,6 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
 import api from "../../services/api";
-
 const ACTION_CONFIG = {
   login: { label: "Logged In", badge: "bg-primary" },
   logout: { label: "Logged Out", badge: "bg-secondary" },
@@ -11,13 +10,10 @@ const ACTION_CONFIG = {
   application_reupload_requested: { label: "Re-upload Requested", badge: "bg-warning text-dark" },
   claim_status_updated: { label: "Claim Status Updated", badge: "bg-primary" },
 };
-
 function ActionBadge({ action }) {
   const config = ACTION_CONFIG[action] || { label: action, badge: "bg-secondary" };
-  return <span className={`badge ${config.badge}`}>{config.label}</span>;
+  return <span className={`badge verifier-activity-badge ${config.badge}`}>{config.label}</span>;
 }
-// Every log entry in this modal belongs to the current user, so we can
-// simply replace their full name at the start of the description with "You"
 function formatDescription(description) {
   if (!description) return description;
   const match = description.match(/^([A-Za-zÀ-ÖØ-öø-ÿ.'-]+(?:\s[A-Za-zÀ-ÖØ-öø-ÿ.'-]+){1,3})\s(logged|approved|rejected|updated|requested|marked)/);
@@ -26,7 +22,6 @@ function formatDescription(description) {
   }
   return description;
 }
-
 function formatTimestamp(dateString) {
   if (!dateString) return "—";
   try {
@@ -42,29 +37,25 @@ function formatTimestamp(dateString) {
     return dateString;
   }
 }
-
-// Modal version of the Activity Log. Only fetches data when opened (show === true),
-// so it doesn't waste an API call every time the navbar renders.
 function VerifierActivityLogModal({ show, onClose }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
-
+  const [currentPage, setCurrentPage] = useState(1);
+  const perPage = 10;
   useEffect(() => {
     if (!show) return;
-
     setLoading(true);
     setError("");
+    setCurrentPage(1);
     api.get("/verifier/activity-log")
       .then((res) => setLogs(res.data.data || res.data))
       .catch(() => setError("Failed to load activity log."))
       .finally(() => setLoading(false));
   }, [show]);
-
   const actionTypes = useMemo(() => [...new Set(logs.map((l) => l.action))], [logs]);
-
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
       const matchesQuery =
@@ -75,28 +66,54 @@ function VerifierActivityLogModal({ show, onClose }) {
       return matchesQuery && matchesAction;
     });
   }, [logs, query, actionFilter]);
-
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / perPage));
+  const pageStart = (currentPage - 1) * perPage;
+  const pagedLogs = filteredLogs.slice(pageStart, pageStart + perPage);
+  function goToPage(page) {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  }
+  function getPageNumbers() {
+    const pages = [];
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (currentPage > 3) pages.push("...");
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
+  }
   if (!show) return null;
-
   return (
     <>
-      {/* Backdrop */}
       <div className="modal-backdrop show" onClick={onClose}></div>
-
-      {/* Modal */}
       <div className="modal show d-block" tabIndex="-1" role="dialog">
-        <div className="modal-dialog modal-lg modal-dialog-scrollable" role="document">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h5 className="modal-title">My Activity Log</h5>
-              <button type="button" className="btn-close" onClick={onClose}></button>
+        <div className="modal-dialog modal-lg modal-dialog-scrollable verifier-activity-modal-dialog" role="document">
+          <div className="modal-content verifier-activity-modal">
+            <div className="verifier-activity-modal-header-new">
+              <div className="verifier-activity-modal-heading-new">
+                <div className="verifier-activity-modal-icon-new">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="8" />
+                    <path d="M12 8v4l3 2" />
+                  </svg>
+                </div>
+                <div className="verifier-activity-modal-title-row">
+                  <h5>My Activity Log</h5>
+                  <span className="verifier-activity-modal-badge">Audit Trail</span>
+                </div>
+              </div>
+              <button type="button" className="verifier-activity-modal-close-new" onClick={onClose}>×</button>
             </div>
-
-            <div className="modal-body">
+            <div className="modal-body verifier-activity-modal-body">
               {error && <div className="error-box">{error}</div>}
-
-              {/* Filters */}
-              <div className="search-box mb-3">
+              <div className="search-box verifier-activity-search-box mb-3">
                 <div className="row g-3">
                   <div className="col-md-8">
                     <label className="form-label">Search</label>
@@ -105,7 +122,10 @@ function VerifierActivityLogModal({ show, onClose }) {
                       className="form-control"
                       placeholder="Search description or IP address"
                       value={query}
-                      onChange={(e) => setQuery(e.target.value)}
+                      onChange={(e) => {
+                        setQuery(e.target.value);
+                        setCurrentPage(1);
+                      }}
                     />
                   </div>
                   <div className="col-md-4">
@@ -113,7 +133,10 @@ function VerifierActivityLogModal({ show, onClose }) {
                     <select
                       className="form-select"
                       value={actionFilter}
-                      onChange={(e) => setActionFilter(e.target.value)}
+                      onChange={(e) => {
+                        setActionFilter(e.target.value);
+                        setCurrentPage(1);
+                      }}
                     >
                       <option value="all">All Actions</option>
                       {actionTypes.map((a) => (
@@ -125,50 +148,87 @@ function VerifierActivityLogModal({ show, onClose }) {
                   </div>
                 </div>
               </div>
-
-              {/* Log Table */}
-              {loading ? (
-                <div className="d-flex justify-content-center py-4">
-                  <div className="spinner-border text-danger" />
-                </div>
-              ) : (
-                <div className="table-responsive">
-                  <table className="table table-bordered align-middle mb-0">
-                    <thead>
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped align-middle verifier-attention-table">
+                  <colgroup>
+                    <col style={{ width: "25%" }} />
+                    <col style={{ width: "25%" }} />
+                    <col style={{ width: "25%" }} />
+                    <col style={{ width: "25%" }} />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Date &amp; Time</th>
+                      <th>Action</th>
+                      <th>Description</th>
+                      <th>IP Address</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
                       <tr>
-                        <th>Date &amp; Time</th>
-                        <th>Action</th>
-                        <th>Description</th>
-                        <th>IP Address</th>
+                        <td colSpan="4" className="text-center py-4">
+                          <div className="spinner-border text-danger" role="status" />
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {filteredLogs.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="text-center text-muted py-4">
-                            No activity found.
-                          </td>
+                    ) : pagedLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan="4" className="text-center text-muted py-4">No activity found.</td>
+                      </tr>
+                    ) : (
+                      pagedLogs.map((log) => (
+                        <tr key={log.id}>
+                          <td>{formatTimestamp(log.created_at)}</td>
+                          <td><ActionBadge action={log.action} /></td>
+                          <td>{formatDescription(log.description)}</td>
+                          <td><code className="small">{log.ip_address}</code></td>
                         </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {!loading && filteredLogs.length > 0 && (
+                <div className="verifier-table-pagination-bar">
+                  <span className="verifier-table-pagination-info">
+                    Showing {pageStart + 1}–{Math.min(pageStart + perPage, filteredLogs.length)} of {filteredLogs.length} activities
+                  </span>
+                  <div className="verifier-table-pagination-controls">
+                    <button
+                      className="verifier-table-pagination-arrow"
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      aria-label="Previous page"
+                    >
+                      ‹
+                    </button>
+                    {getPageNumbers().map((page, idx) =>
+                      page === "..." ? (
+                        <span key={`ellipsis-${idx}`} className="verifier-table-pagination-ellipsis">…</span>
                       ) : (
-                        filteredLogs.map((log) => (
-                          <tr key={log.id}>
-                            <td>{formatTimestamp(log.created_at)}</td>
-                            <td><ActionBadge action={log.action} /></td>
-                            <td>{formatDescription(log.description)}</td>
-                            <td><code className="small">{log.ip_address}</code></td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        <button
+                          key={page}
+                          className={`verifier-table-pagination-page ${page === currentPage ? "verifier-table-pagination-page-active" : ""}`}
+                          onClick={() => goToPage(page)}
+                        >
+                          {page}
+                        </button>
+                      )
+                    )}
+                    <button
+                      className="verifier-table-pagination-arrow"
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      aria-label="Next page"
+                    >
+                      ›
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
-
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary-custom" onClick={onClose}>
-                Close
-              </button>
+            <div className="verifier-activity-modal-footer-new">
+              <button type="button" className="btn btn-secondary-custom" onClick={onClose}>Close</button>
             </div>
           </div>
         </div>
@@ -176,5 +236,4 @@ function VerifierActivityLogModal({ show, onClose }) {
     </>
   );
 }
-
 export default VerifierActivityLogModal;

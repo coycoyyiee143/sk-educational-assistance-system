@@ -3,11 +3,10 @@ import { Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import api from "../../services/api";
 import { getVerifierStatusLabel, getVerifierBadgeClass } from "../../components/StatusConstants";
-
+import PanelFooter from "../../components/PanelFooter";
 function StatusBadge({ app }) {
   return <span className={`status-badge ${getVerifierBadgeClass(app)}`}>{getVerifierStatusLabel(app)}</span>;
 }
-
 const STATUS_TABS = [
   { key: "all", label: "All" },
   { key: "for_review", label: "For Review" },
@@ -15,33 +14,31 @@ const STATUS_TABS = [
   { key: "approved", label: "Approved" },
   { key: "rejected", label: "Rejected" },
 ];
-
 function VerifierApplicationList() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusTab, setStatusTab] = useState("for_review");
-
+  const [currentPage, setCurrentPage] = useState(1);
+  const perPage = 10;
   const fetchData = () => {
     api.get("/verifier/applications")
       .then((res) => setApplications(res.data))
       .catch(() => { })
       .finally(() => setLoading(false));
   };
-
   useEffect(() => {
     fetchData();
     const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
-
   const counts = {
+    all: applications.length,
     for_review: applications.filter((a) => a.status === "for_review").length,
     pending_prescreening: applications.filter((a) => a.status === "pending_prescreening").length,
     approved: applications.filter((a) => a.status === "approved").length,
     rejected: applications.filter((a) => a.status === "rejected").length,
   };
-
   const filtered = applications
     .filter((app) => statusTab === "all" || app.status === statusTab)
     .filter((app) =>
@@ -49,81 +46,92 @@ function VerifierApplicationList() {
       String(app.id).includes(search) ||
       (app.control_number ?? "").toLowerCase().includes(search.toLowerCase())
     );
-
+  const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
+  const pageStart = (currentPage - 1) * perPage;
+  const pagedApplications = filtered.slice(pageStart, pageStart + perPage);
+  function goToPage(page) {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  }
+  function getPageNumbers() {
+    const pages = [];
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (currentPage > 3) pages.push("...");
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
+  }
+  function handleTabChange(key) {
+    setStatusTab(key);
+    setCurrentPage(1);
+  }
   return (
-    <div>
+    <div className="verifier-layout">
       <VerifierNavigation />
-      <section className="page-section">
-        <div className="container">
-          <h3 className="section-title">Submitted Applications</h3>
-
-          <div className="row g-4">
-            <div className="col-md-3">
-              <div className="summary-card">
-                <h5>For Review</h5>
-                <div className="summary-number">{loading ? "..." : counts.for_review}</div>
-                <p className="text-muted mb-0">Needs verifier action</p>
-              </div>
+      <div className="verifier-main">
+        <div className="verifier-topbar">
+          <div className="verifier-topbar-user">
+            <div className="verifier-topbar-user-text">
+              <span className="verifier-topbar-user-name">Verifier User</span>
+              <span className="verifier-topbar-user-role">Sangguniang Kabataan</span>
             </div>
-            <div className="col-md-3">
-              <div className="summary-card">
-                <h5>Pending</h5>
-                <div className="summary-number">{loading ? "..." : counts.pending_prescreening}</div>
-                <p className="text-muted mb-0">Still processing</p>
-              </div>
-            </div>
-            <div className="col-md-3">
-              <div className="summary-card">
-                <h5>Approved</h5>
-                <div className="summary-number">{loading ? "..." : counts.approved}</div>
-                <p className="text-muted mb-0">Eligible applications</p>
-              </div>
-            </div>
-            <div className="col-md-3">
-              <div className="summary-card">
-                <h5>Rejected</h5>
-                <div className="summary-number">{loading ? "..." : counts.rejected}</div>
-                <p className="text-muted mb-0">Did not meet requirements</p>
-              </div>
-            </div>
+            <div className="verifier-topbar-avatar"></div>
           </div>
-
-          <div className="page-card mt-4">
-            <div className="d-flex flex-wrap gap-2 mb-3">
-              {STATUS_TABS.map((tab) => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  className={`btn btn-sm ${statusTab === tab.key ? "btn-custom" : "btn-outline-custom"}`}
-                  onClick={() => setStatusTab(tab.key)}
-                >
-                  {tab.label}
-                  {tab.key === "for_review" && counts.for_review > 0 && (
-                    <span className="badge bg-danger ms-2">{counts.for_review}</span>
-                  )}
-                </button>
-              ))}
+        </div>
+        <section className="page-section">
+          <div className="container-fluid">
+            <div className="verifier-dashboard-header">
+              <h3 className="verifier-dashboard-title">Submitted Applications</h3>
+              <p className="verifier-dashboard-desc">View and manage submitted applications requiring verification.</p>
             </div>
-
-            <div className="row mb-3">
-              <div className="col-md-4">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Search applicant name or ID"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+            <div className="page-card verifier-attention-card">
+              <h4 className="verifier-application-list-title">Application List</h4>
+              <div className="verifier-application-toolbar">
+                <div className="verifier-application-search">
+                  <input
+                    type="text"
+                    className="form-control verifier-application-search-input"
+                    placeholder="Search applicant name or ID"
+                    value={search}
+                    onChange={(e) => {
+                      setSearch(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+                <div className="verifier-application-filter-tabs">
+                  {STATUS_TABS.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      className={`verifier-application-filter-btn ${statusTab === tab.key ? "verifier-application-filter-btn-active" : ""}`}
+                      onClick={() => handleTabChange(tab.key)}
+                    >
+                      <span>{tab.label}</span>
+                      <span className={`verifier-application-filter-count verifier-application-filter-count-${tab.key}`}>
+                        {counts[tab.key]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-
-            {loading ? (
-              <div className="text-center py-5">
-                <div className="spinner-border text-danger" />
-              </div>
-            ) : (
               <div className="table-responsive">
-                <table className="table table-bordered table-striped align-middle">
+                <table className="table table-bordered table-striped align-middle verifier-attention-table">
+                  <colgroup>
+                    <col style={{ width: "20%" }} />
+                    <col style={{ width: "25%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "20%" }} />
+                    <col style={{ width: "11%" }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Application ID</th>
@@ -134,32 +142,60 @@ function VerifierApplicationList() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.length > 0 ? (
-                      filtered.map((app) => (
+                    {loading ? (
+                      <tr>
+                        <td colSpan="5" className="text-center py-4">
+                          <div className="spinner-border text-danger" role="status" />
+                        </td>
+                      </tr>
+                    ) : pagedApplications.length > 0 ? (
+                      pagedApplications.map((app) => (
                         <tr key={app.id}>
                           <td>{app.control_number ?? `APP-${app.id}`}</td>
                           <td>{app.name}</td>
                           <td>{app.submitted_at?.split("T")[0]}</td>
                           <td><StatusBadge app={app} /></td>
-                          <td>
-                            <Link to={`/VerifierApplicationReview/${app.id}`} className="btn btn-custom btn-sm">
+                          <td className="verifier-attention-action">
+                            <Link to={`/VerifierApplicationReview/${app.id}`} className="verifier-review-btn">
                               {["approved", "rejected"].includes(app.status) ? "View" : "Review"}
                             </Link>
                           </td>
                         </tr>
                       ))
                     ) : (
-                      <tr><td colSpan="5" className="text-center text-muted">No applications found.</td></tr>
+                      <tr>
+                        <td colSpan="5" className="text-center text-muted">No applications found.</td>
+                      </tr>
                     )}
                   </tbody>
                 </table>
               </div>
-            )}
+              {!loading && filtered.length > 0 && (
+                <div className="verifier-table-pagination-bar">
+                  <span className="verifier-table-pagination-info">
+                    Showing {pageStart + 1}–{Math.min(pageStart + perPage, filtered.length)} of {filtered.length} applications
+                  </span>
+                  <div className="verifier-table-pagination-controls">
+                    <button className="verifier-table-pagination-arrow" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} aria-label="Previous page">‹</button>
+                    {getPageNumbers().map((page, idx) =>
+                      page === "..." ? (
+                        <span key={`ellipsis-${idx}`} className="verifier-table-pagination-ellipsis">…</span>
+                      ) : (
+                        <button key={page} className={`verifier-table-pagination-page ${page === currentPage ? "verifier-table-pagination-page-active" : ""}`} onClick={() => goToPage(page)}>
+                          {page}
+                        </button>
+                      )
+                    )}
+                    <button className="verifier-table-pagination-arrow" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} aria-label="Next page">›</button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+        <PanelFooter />
+      </div>
     </div>
   );
 }
-
 export default VerifierApplicationList;

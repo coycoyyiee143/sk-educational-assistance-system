@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-    baseURL: "/api",
+    baseURL: process.env.REACT_APP_API_URL || "http://localhost:8000/api",
     headers: {
         Accept: "application/json",
     },
@@ -34,5 +34,11 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+window.addEventListener("storage", (e) => {
+    if (e.key === "token" && e.newValue === null) {
+        window.location.href = "/login";
+    }
+});
 
 export default api;

@@ -10,6 +10,7 @@ import Login from "./public/pages/Login";
 import Register from "./public/pages/Register";
 import VerifyEmail from "./public/pages/VerifyEmail.jsx";
 import VerifyEmailNotice from "./public/pages/VerifyEmailNotice";
+import ForgotPassword from "./public/pages/ForgotPassword";
 
 import AdminDashboard from "./admin/pages/AdminDashboard";
 import AdminUsers from "./admin/pages/AdminUsers";
@@ -36,6 +37,7 @@ import ApplicantSubmission from "./applicant/pages/ApplicantSubmission.jsx";
 import ApplicantStatus from "./applicant/pages/ApplicantStatus.jsx";
 import ApplicantClaimingSchedule from "./applicant/pages/ApplicantClaimingSchedule.jsx";
 
+
 function App() {
   return (
     <BrowserRouter>
@@ -50,6 +52,7 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/verify-email/:id/:hash" element={<VerifyEmail />} />
         <Route path="/verify-email-notice" element={<VerifyEmailNotice />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
 
         {/* Admin */}
         <Route path="/AdminDashboard" element={

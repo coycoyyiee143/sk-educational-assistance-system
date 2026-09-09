@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class ProfileController extends Controller
 {
@@ -53,10 +54,16 @@ class ProfileController extends Controller
         // Recompute completeness on every update — a profile becomes
         // "complete" once these core fields are filled in, regardless of
         // whether it was set via store() (first-time setup) or here (later edits).
+        //
+        // civil_status is deliberately NOT part of this check — it's
+        // validated as nullable below and the frontend never marks it
+        // required either. It used to be included here, which silently
+        // forced it to be mandatory in practice (profile could never be
+        // "complete" without it) even though nothing else in the system
+        // treats it as required.
         $data['is_profile_complete'] = (bool) (
             ($data['birthdate'] ?? null) &&
             ($data['gender'] ?? null) &&
-            ($data['civil_status'] ?? null) &&
             ($data['house_no'] ?? null) &&
             ($data['street'] ?? null) &&
             ($data['purok_type'] ?? null) &&
@@ -116,7 +123,7 @@ class ProfileController extends Controller
     {
         $request->validate([
             'current_password' => 'required|string',
-            'password'         => 'required|string|min:8|confirmed',
+            'password'         => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->uncompromised()],
         ]);
 
         if (!Hash::check($request->current_password, $request->user()->password)) {

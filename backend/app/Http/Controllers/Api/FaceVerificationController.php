@@ -218,6 +218,30 @@ class FaceVerificationController extends Controller
         );
     }
 
+    public function latestClaimingVerification(Request $request, $applicationId)
+    {
+        $application = Application::findOrFail($applicationId);
+
+        $assignment = \App\Models\ClaimingAssignment::where('application_id', $applicationId)
+            ->with('latestFaceVerification')
+            ->first();
+
+        if (!$assignment || !$assignment->latestFaceVerification) {
+            return response()->json([
+                'status' => 'not_verified',
+            ]);
+        }
+
+        $faceRecord = $assignment->latestFaceVerification;
+
+        return response()->json([
+            'status'    => 'verified',
+            'match'     => $faceRecord->matched,
+            'score'     => $faceRecord->match_score,
+            'photo_url' => route('claiming.face-photo', $faceRecord->id),
+        ]);
+    }
+
     /**
      * CLAIMING DAY STEP
      * Verifier captures a fresh live photo of the applicant standing in
