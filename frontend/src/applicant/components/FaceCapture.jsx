@@ -2,13 +2,10 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import Webcam from "react-webcam";
 import * as faceapi from "face-api.js";
 import api from "../../services/api";
-
 const MODEL_URL = "/models";
-
 const STABLE_FRAMES_REQUIRED = 10;
 const DETECTION_INTERVAL_MS = 200;
 const MAX_ID_SIZE_MB = 5;
-
 let modelsLoadPromise = null;
 
 async function loadModels() {
@@ -28,11 +25,7 @@ async function loadModels() {
 
   return modelsLoadPromise;
 }
-
-/* =========================================================
-   ICONS
-   ========================================================= */
-
+// ---- Small inline icons (no extra dependency) -----------------------------
 const IconCheck = (props) => (
   <svg
     viewBox="0 0 24 24"
@@ -142,10 +135,18 @@ const IconShield = (props) => (
   </svg>
 );
 
-/* =========================================================
-   COMPONENT
-   ========================================================= */
-
+/**
+ * Reusable face-verification capture step, with real-time face detection:
+ * a guide oval with an animated progress ring, live status feedback, and
+ * auto-capture once a face is centered and held steady — instead of just
+ * a plain "Capture Photo" button.
+ *
+ * Falls back gracefully to a manual capture button whenever detection
+ * can't run (models failed to load, browser incompatibility, etc.).
+ *
+ * Props: mode, applicationId, externalIdImage, onSuccess, onError,
+ *        onSubmitCapture, submitLabel, disabled
+ */
 function FaceCapture({
   mode = "registration",
   applicationId = null,
@@ -155,35 +156,28 @@ function FaceCapture({
   onSubmitCapture,
   submitLabel,
   disabled = false,
+  includeLocalPreview = false,
 }) {
   const webcamRef = useRef(null);
   const detectionTimerRef = useRef(null);
   const stableCountRef = useRef(0);
-
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
   const [idError, setIdError] = useState("");
-
   const [livePreview, setLivePreview] = useState(null);
   const [liveBlob, setLiveBlob] = useState(null);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [errorKind, setErrorKind] = useState(null);
-
   const [cameraReady, setCameraReady] = useState(false);
   const [modelsReady, setModelsReady] = useState(false);
   const [modelsFailed, setModelsFailed] = useState(false);
 
   const [scanStatus, setScanStatus] = useState("loading");
   const [progress, setProgress] = useState(0);
-
-  const showIdUpload =
-    mode === "registration" && !externalIdImage;
-
-  const effectiveIdImage =
-    externalIdImage || idImage;
-
+  const showIdUpload = mode === "registration" && !externalIdImage;
+  const effectiveIdImage = externalIdImage || idImage;
   function handleIdChange(e) {
     const file = e.target.files[0];
 
@@ -214,7 +208,6 @@ function FaceCapture({
     setIdImage(file);
     setIdPreview(URL.createObjectURL(file));
   }
-
   function attemptLoadModels() {
     setModelsFailed(false);
     setScanStatus("loading");
@@ -236,12 +229,10 @@ function FaceCapture({
         setErrorKind("models");
       });
   }
-
   useEffect(() => {
     attemptLoadModels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   const doCapture = useCallback(() => {
     if (!webcamRef.current) return;
 
@@ -261,15 +252,12 @@ function FaceCapture({
       .then((res) => res.blob())
       .then((blob) => setLiveBlob(blob));
   }, []);
-
   useEffect(() => {
     if (!modelsReady || !cameraReady || livePreview) return;
-
     detectionTimerRef.current = setInterval(async () => {
       const video = webcamRef.current?.video;
 
       if (!video || video.readyState !== 4) return;
-
       let detection;
 
       try {
@@ -292,38 +280,23 @@ function FaceCapture({
 
         return;
       }
-
       if (!detection) {
         stableCountRef.current = 0;
         setProgress(0);
         setScanStatus("searching");
         return;
       }
-
       const box = detection.box;
 
       const videoW = video.videoWidth;
       const videoH = video.videoHeight;
-
       const faceCenterX = box.x + box.width / 2;
       const faceCenterY = box.y + box.height / 2;
-
-      const xOffset =
-        Math.abs(faceCenterX - videoW / 2) / videoW;
-
-      const yOffset =
-        Math.abs(faceCenterY - videoH / 2) / videoH;
-
-      const isCentered =
-        xOffset < 0.15 && yOffset < 0.18;
-
-      const faceWidthRatio =
-        box.width / videoW;
-
-      const isGoodSize =
-        faceWidthRatio > 0.22 &&
-        faceWidthRatio < 0.62;
-
+      const xOffset = Math.abs(faceCenterX - videoW / 2) / videoW;
+      const yOffset = Math.abs(faceCenterY - videoH / 2) / videoH;
+      const isCentered = xOffset < 0.15 && yOffset < 0.18;
+      const faceWidthRatio = box.width / videoW;
+      const isGoodSize = faceWidthRatio > 0.22 && faceWidthRatio < 0.62;
       if (!(isCentered && isGoodSize)) {
         stableCountRef.current = 0;
         setProgress(0);
@@ -338,7 +311,6 @@ function FaceCapture({
 
         return;
       }
-
       stableCountRef.current += 1;
 
       setProgress(
@@ -358,16 +330,8 @@ function FaceCapture({
         doCapture();
       }
     }, DETECTION_INTERVAL_MS);
-
-    return () =>
-      clearInterval(detectionTimerRef.current);
-  }, [
-    modelsReady,
-    cameraReady,
-    livePreview,
-    doCapture,
-  ]);
-
+    return () => clearInterval(detectionTimerRef.current);
+  }, [modelsReady, cameraReady, livePreview, doCapture]);
   function retake() {
     setLivePreview(null);
     setLiveBlob(null);
@@ -383,7 +347,6 @@ function FaceCapture({
         : "searching"
     );
   }
-
   function handleCameraError(err) {
     let message =
       "Could not access your camera. Please check browser permissions.";
@@ -410,7 +373,6 @@ function FaceCapture({
     setError(message);
     setErrorKind("camera");
   }
-
   async function handleSubmit() {
     setError("");
 
@@ -467,8 +429,7 @@ function FaceCapture({
           formData
         );
       }
-
-      onSuccess?.(res.data);
+      onSuccess?.(includeLocalPreview ? { ...res.data, local_photo_url: livePreview } : res.data);
     } catch (err) {
       const message =
         err.response?.data?.message ||
@@ -484,10 +445,7 @@ function FaceCapture({
       setSubmitting(false);
     }
   }
-
-  const isBusy =
-    submitting || disabled;
-
+  const isBusy = submitting || disabled;
   const STATUS_MAP = {
     loading: {
       text: "Loading face scanner...",
@@ -537,16 +495,10 @@ function FaceCapture({
       dashed: true,
     },
   };
-
-  const status =
-    STATUS_MAP[scanStatus] ||
-    STATUS_MAP.searching;
-
+  const status = STATUS_MAP[scanStatus] || STATUS_MAP.searching;
   const R = 92;
   const CIRC = 2 * Math.PI * R;
-  const dashOffset =
-    CIRC * (1 - progress);
-
+  const dashOffset = CIRC * (1 - progress);
   return (
     <div className="face-capture face-capture-polished">
       {error && (
@@ -572,7 +524,6 @@ function FaceCapture({
           </div>
         </div>
       )}
-
       {showIdUpload && (
         <div className="mb-4">
           <label className="form-label fw-semibold d-flex align-items-center gap-2">
@@ -655,7 +606,6 @@ function FaceCapture({
                   handleCameraError
                 }
               />
-
               <svg
                 viewBox="0 0 320 240"
                 className="face-capture-overlay"
@@ -704,7 +654,6 @@ function FaceCapture({
                       "stroke 0.25s ease",
                   }}
                 />
-
                 {progress > 0 && (
                   <ellipse
                     cx="160"
@@ -727,7 +676,6 @@ function FaceCapture({
                   />
                 )}
               </svg>
-
               {scanStatus === "loading" && (
                 <div className="face-capture-loading">
                   <div
@@ -768,6 +716,23 @@ function FaceCapture({
                   Keep your face centered and hold still until the photo is captured automatically.
                 </div>
               )}
+            {!modelsFailed && scanStatus !== "loading" && scanStatus !== "captured" && (
+              <div className="face-capture-checklist">
+                <span className="face-capture-checklist-title">CAPTURE GUIDELINES</span>
+                <div className="face-capture-check-item">
+                  <span className="face-capture-check-icon"><IconCheck /></span>
+                  <span>Make sure you're in a well-lit area</span>
+                </div>
+                <div className="face-capture-check-item">
+                  <span className="face-capture-check-icon"><IconCheck /></span>
+                  <span>Remove sunglasses, masks, or anything covering your face</span>
+                </div>
+                <div className="face-capture-check-item">
+                  <span className="face-capture-check-icon"><IconCheck /></span>
+                  <span>Hold your device steady within the oval</span>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="face-capture-stage">
@@ -841,5 +806,4 @@ function FaceCapture({
     </div>
   );
 }
-
 export default FaceCapture;

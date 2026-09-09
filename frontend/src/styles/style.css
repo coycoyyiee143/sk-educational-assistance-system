@@ -11,14 +11,15 @@
 /* ============================================
    BASE / GLOBAL
    ============================================ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&family=Hanken+Grotesk:wght@500;600;700;800&display=swap');
 body {
   background-color: #f8f9fa;
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   color: #222;
 }
 
 .admin-main .section-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   color: #000000;
   font-weight: 700;
   font-size: 30px;
@@ -451,7 +452,7 @@ a:hover {
 }
 
 .slot-ring-subtext-title {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 22px;
   font-weight: 700;
   color: #1a1a1a !important;
@@ -473,7 +474,7 @@ a:hover {
 }
 
 .slot-ring-number {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-size: 42px;
   font-weight: 800;
   color: #1a1a1a;
@@ -481,7 +482,7 @@ a:hover {
 }
 
 .slot-ring-label {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.8px;
@@ -491,7 +492,7 @@ a:hover {
 }
 
 .slot-ring-subtext {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 16px;
   color: #666;
   margin-bottom: 22px;
@@ -500,7 +501,7 @@ a:hover {
 
 .slot-status-pill {
   display: inline-block;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -532,7 +533,7 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.3px;
@@ -561,7 +562,7 @@ a:hover {
 .home-about-section,
 .schedule-section,
 .req-section {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 .home-eyebrow,
@@ -571,7 +572,7 @@ a:hover {
 .req-reminder-label {
   display: block;
   color: var(--maroon);
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 11px;
   font-weight: 800;
   letter-spacing: 1.4px;
@@ -586,7 +587,7 @@ a:hover {
 .home-section-heading h2 {
   margin: 7px 0 10px;
   color: #1d1d1f;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 32px;
   font-weight: 700;
   letter-spacing: -0.6px;
@@ -624,7 +625,7 @@ a:hover {
   max-width: 620px;
   margin: 10px 0 20px;
   color: #1c1c1e;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: clamp(30px, 3vw, 43px);
   font-weight: 700;
   line-height: 1.18;
@@ -693,7 +694,7 @@ a:hover {
 .home-no-period h3 {
   margin: 6px 0 0;
   color: #202124;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 20px;
   font-weight: 700;
 }
@@ -740,7 +741,7 @@ a:hover {
 
 .home-slot-number {
   color: #202124;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 48px;
   font-weight: 700;
   line-height: 1;
@@ -914,7 +915,7 @@ a:hover {
 
 .schedule-card-index {
   color: #d7d9dc;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 21px;
   font-weight: 700;
 }
@@ -926,7 +927,7 @@ a:hover {
 .schedule-year-value {
   margin: 9px 0 12px;
   color: #202124;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 31px;
   font-weight: 700;
   letter-spacing: -0.8px;
@@ -964,7 +965,7 @@ a:hover {
 
 .schedule-date-row strong {
   color: #303235;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 15px;
   font-weight: 600;
 }
@@ -994,7 +995,7 @@ a:hover {
 .schedule-slot-number {
   margin-top: 36px;
   color: #202124;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 42px;
   font-weight: 700;
   letter-spacing: -1px;
@@ -1005,7 +1006,7 @@ a:hover {
   display: block;
   margin-top: 4px;
   color: #7c8086;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0;
@@ -1076,7 +1077,7 @@ a:hover {
   background: rgba(255, 255, 255, 0.14);
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 50%;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 17px;
   font-weight: 700;
 }
@@ -1088,7 +1089,7 @@ a:hover {
 .req-reminder h3 {
   margin: 5px 0 7px;
   color: #fff;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 18px;
   font-weight: 700;
 }
@@ -1125,7 +1126,7 @@ a:hover {
 .req-process-card > h3 {
   margin: 5px 0 0;
   color: #202124;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 21px;
   font-weight: 700;
 }
@@ -1263,7 +1264,7 @@ a:hover {
 .req-process-item h4 {
   margin: 0 0 5px;
   color: #303235;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 14px;
   font-weight: 650;
 }
@@ -1382,1008 +1383,6 @@ a:hover {
 }
 
 /* ============================================
-   APPLICATION PROCESS - MOBILE/TABLET ONLY
-   ============================================ */
-
-@media (max-width: 991.98px) {
-  .requirements-page .process-steps-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .requirements-page .process-step {
-    position: relative;
-    display: grid;
-    grid-template-columns: 44px 1fr;
-    align-items: center;
-    gap: 16px;
-    min-height: 82px;
-    padding: 0;
-  }
-
-  .requirements-page .process-step:not(:last-child)::after {
-    content: "";
-    position: absolute;
-    top: 63px;
-    bottom: -19px;
-    left: 21px;
-    width: 2px;
-    background: #efd6d7;
-  }
-
-  .requirements-page .process-step-circle {
-    position: relative;
-    z-index: 1;
-    width: 44px;
-    height: 44px;
-    margin: 0;
-    flex-shrink: 0;
-  }
-
-  .requirements-page .process-step-text {
-    margin: 0;
-    text-align: left;
-    font-family: var(--font-body);
-    font-size: 14px;
-    line-height: 1.5;
-  }
-}
-
-@media (max-width: 575.98px) {
-  .requirements-page .process-step {
-    grid-template-columns: 40px 1fr;
-    gap: 13px;
-    min-height: 78px;
-  }
-
-  .requirements-page .process-step-circle {
-    width: 40px;
-    height: 40px;
-  }
-
-  .requirements-page .process-step:not(:last-child)::after {
-    top: 59px;
-    bottom: -19px;
-    left: 19px;
-  }
-
-  .requirements-page .process-step-text {
-    font-size: 13px;
-  }
-}
-
-/* ============================================
-   REQUIREMENTS PAGE
-   ============================================ */
-
-.requirements-page {
-  font-family: var(--font-body);
-}
-
-.requirements-page h1,
-.requirements-page h2,
-.requirements-page h3,
-.requirements-page h4,
-.requirements-page h5,
-.requirements-page h6 {
-  font-family: var(--font-heading);
-}
-
-
-/* ============================================
-   REQUIREMENTS HERO
-   ============================================ */
-
-.requirements-hero h1 {
-  font-family: var(--font-heading);
-  font-weight: 700;
-}
-
-.requirements-hero p {
-  max-width: 760px;
-  margin: 0 auto;
-  font-family: var(--font-body);
-}
-
-
-/* ============================================
-   STATUS
-   ============================================ */
-
-.requirements-page .status-window-label {
-  font-family: var(--font-body);
-}
-
-.requirements-page .status-window-title {
-  font-family: var(--font-heading);
-}
-
-.requirements-page .status-window-open {
-  color: #bd1f24;
-}
-
-.requirements-page .status-window-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.requirements-page .status-window-pill-dot {
-  display: none;
-  width: 7px;
-  height: 7px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.requirements-page .status-window-date-content {
-  min-width: 0;
-}
-
-.requirements-page .status-window-mobile-divider {
-  display: none;
-}
-
-.requirements-page .status-window-apply-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  text-decoration: none;
-}
-
-.requirements-page .status-window-apply-btn svg {
-  display: none;
-  width: 17px;
-  height: 17px;
-}
-
-
-/* ============================================
-   REQUIRED DOCUMENTS
-   ============================================ */
-
-.requirements-page .req-doc-card-header {
-  display: block;
-}
-
-.requirements-page .req-doc-card-content {
-  min-width: 0;
-}
-
-.requirements-page .req-doc-card-title,
-.requirements-page .req-doc-reminder-title {
-  font-family: var(--font-heading);
-}
-
-.requirements-page .req-doc-list li {
-  font-family: var(--font-body);
-}
-
-
-/* ============================================
-   MOBILE
-   ============================================ */
-
-@media (max-width: 767.98px) {
-
-  /* ------------------------------------------
-     GENERAL
-     ------------------------------------------ */
-
-  .requirements-page .container {
-    padding-left: 20px;
-    padding-right: 20px;
-  }
-
-  .requirements-page
-    .requirements-status-section,
-  .requirements-page
-    .requirements-documents-section,
-  .requirements-page
-    .requirements-process-section {
-    padding-top: 34px !important;
-    padding-bottom: 34px !important;
-  }
-
-
-  /* ------------------------------------------
-     HERO
-     ------------------------------------------ */
-
-  .requirements-page .requirements-hero {
-    padding-top: 36px !important;
-    padding-bottom: 36px !important;
-  }
-
-  .requirements-page .requirements-hero h1 {
-    margin-bottom: 10px;
-    font-size: 24px;
-    line-height: 1.25;
-  }
-
-  .requirements-page .requirements-hero p {
-    font-size: 12.5px;
-    line-height: 1.7;
-  }
-
-
-  /* ------------------------------------------
-     IMPORTANT REMINDERS
-     ------------------------------------------ */
-
-  .requirements-page
-    .featured-announcement-card.featured-split-layout {
-    display: block;
-  }
-
-  .requirements-page .featured-main-col,
-  .requirements-page .featured-side-col {
-    width: 100%;
-  }
-
-  .requirements-page .featured-side-col {
-    margin-top: 18px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
-  }
-
-
-  /* ------------------------------------------
-     APPLICATION STATUS CARD
-     ------------------------------------------ */
-
-  .requirements-page .status-window-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-
-    width: 100%;
-    padding: 25px 22px 22px;
-
-    background: #ffffff;
-    border: 1px solid #ececec;
-    border-radius: 18px;
-
-    box-shadow:
-      0 10px 30px rgba(37, 37, 37, 0.05),
-      0 2px 8px rgba(37, 37, 37, 0.03);
-  }
-
-  .requirements-page .status-window-left,
-  .requirements-page .status-window-right {
-    width: 100%;
-  }
-
-  .requirements-page .status-window-label {
-    display: block;
-
-    margin-bottom: 12px;
-
-    color: #aa161c;
-
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-
-    text-transform: uppercase;
-  }
-
-  .requirements-page .status-window-title {
-    margin: 0 0 15px;
-
-    color: #101828;
-
-    font-size: 24px;
-    font-weight: 700;
-    line-height: 1.22;
-  }
-
-  .requirements-page .status-window-meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 14px;
-
-    margin-bottom: 27px;
-  }
-
-  .requirements-page .status-window-pill {
-    padding: 6px 10px;
-
-    border-radius: 999px;
-
-    font-size: 9px;
-    font-weight: 700;
-  }
-
-  .requirements-page .status-window-pill-dot {
-    display: block;
-  }
-
-  .requirements-page .status-window-pill-open {
-    background: #e8f7ee;
-    color: #138346;
-  }
-
-  .requirements-page .status-window-pill-closed {
-    background: #fdecec;
-    color: #bd1f24;
-  }
-
-  .requirements-page .status-window-schoolyear {
-    color: #747b88;
-
-    font-size: 10px;
-    font-weight: 500;
-  }
-
-
-  /* ------------------------------------------
-     START DATE / DEADLINE
-     ------------------------------------------ */
-
-  .requirements-page .status-window-dates-box {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
-    align-items: stretch;
-    gap: 14px;
-
-    width: 100%;
-  }
-
-  .requirements-page .status-window-date-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-
-    min-width: 0;
-  }
-
-  .requirements-page .status-window-date-divider {
-    display: block;
-
-    width: 1px;
-    height: 46px;
-    align-self: center;
-
-    background: #eeeeee;
-  }
-
-  .requirements-page .status-window-date-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 38px;
-    height: 38px;
-
-    flex-shrink: 0;
-
-    background: #fff3f3;
-    border-radius: 10px;
-  }
-
-  .requirements-page .status-window-date-icon img {
-    width: 17px;
-    height: 17px;
-
-    object-fit: contain;
-  }
-
-  .requirements-page .status-window-date-label {
-    display: block;
-
-    margin-bottom: 3px;
-
-    color: #818896;
-
-    font-size: 8px;
-    font-weight: 700;
-    letter-spacing: 0.7px;
-
-    text-transform: uppercase;
-  }
-
-  .requirements-page .status-window-date-value {
-    margin: 0;
-
-    color: #111827;
-
-    font-size: 10.5px;
-    font-weight: 700;
-    line-height: 1.35;
-
-    white-space: normal;
-  }
-
-
-  /* ------------------------------------------
-     SLOTS
-     ------------------------------------------ */
-
-  .requirements-page .status-window-mobile-divider {
-    display: block;
-
-    width: 100%;
-    height: 1px;
-
-    margin: 25px 0 20px;
-
-    background: #eeeeee;
-  }
-
-  .requirements-page .status-window-slots-row {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 17px;
-
-    width: 100%;
-    margin: 0;
-  }
-
-  .requirements-page .status-window-slots-info {
-    width: 100%;
-  }
-
-  .requirements-page .status-window-slots-label {
-    display: block;
-
-    margin-bottom: 4px;
-
-    color: #818896;
-
-    font-size: 8.5px;
-    font-weight: 700;
-    letter-spacing: 1px;
-
-    text-transform: uppercase;
-  }
-
-  .requirements-page .status-window-slots-value {
-    margin: 0;
-
-    color: #111827;
-
-    font-family: var(--font-heading);
-    font-size: 25px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-
-  .requirements-page .status-window-slots-total {
-    color: #9aa0ac;
-
-    font-family: var(--font-body);
-    font-size: 13px;
-    font-weight: 500;
-  }
-
-
-  /* ------------------------------------------
-     APPLY BUTTON
-     ------------------------------------------ */
-
-  .requirements-page .status-window-apply-btn {
-    width: 100%;
-    min-height: 46px;
-
-    padding: 11px 16px;
-
-    background: #218c4b;
-    border-radius: 9px;
-
-    color: #ffffff;
-
-    font-family: var(--font-body);
-    font-size: 13px;
-    font-weight: 700;
-
-    transition:
-      background 0.2s ease,
-      transform 0.2s ease;
-  }
-
-  .requirements-page .status-window-apply-btn svg {
-    display: block;
-  }
-
-  .requirements-page .status-window-apply-btn:hover {
-    background: #19763e;
-    color: #ffffff;
-  }
-
-
-  /* ------------------------------------------
-     SECTION TITLE
-     ------------------------------------------ */
-
-  .requirements-page .section-title {
-    margin-bottom: 20px;
-
-    color: #101828;
-
-    font-family: var(--font-heading);
-    font-size: 23px;
-    font-weight: 700;
-    line-height: 1.3;
-  }
-
-
-  /* ------------------------------------------
-     DOCUMENT CARDS
-     ------------------------------------------ */
-
-  .requirements-page .req-doc-card,
-  .requirements-page .req-doc-reminder-card {
-    min-height: 0;
-
-    padding: 22px;
-
-    background: #ffffff;
-    border: 1px solid #e9e9e9;
-    border-radius: 17px;
-
-    box-shadow:
-      0 8px 24px rgba(0, 0, 0, 0.035),
-      0 2px 6px rgba(0, 0, 0, 0.02);
-  }
-
-  .requirements-page .req-doc-card-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 17px;
-  }
-
-  .requirements-page .req-doc-icon-wrap,
-  .requirements-page .req-doc-reminder-icon-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 48px;
-    height: 48px;
-
-    flex-shrink: 0;
-
-    margin: 0;
-
-    background: #fff1f2;
-    border-radius: 13px;
-
-    color: #b91c1c;
-  }
-
-  .requirements-page .req-doc-icon-wrap svg,
-  .requirements-page
-    .req-doc-reminder-icon-wrap
-    svg {
-    width: 22px;
-    height: 22px;
-  }
-
-  .requirements-page .req-doc-card-content {
-    flex: 1;
-  }
-
-  .requirements-page .req-doc-card-title,
-  .requirements-page .req-doc-reminder-title {
-    margin: 2px 0 13px;
-
-    color: #111827;
-
-    font-size: 18px;
-    font-weight: 700;
-    line-height: 1.3;
-  }
-
-  .requirements-page .req-doc-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-
-    margin: 0;
-    padding: 0;
-
-    list-style: none;
-  }
-
-  .requirements-page .req-doc-list li {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-
-    margin: 0;
-
-    color: #222b3a;
-
-    font-size: 12.5px;
-    font-weight: 500;
-    line-height: 1.45;
-  }
-
-  .requirements-page .req-doc-check {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 21px;
-    height: 21px;
-
-    flex-shrink: 0;
-
-    padding: 4px;
-
-    border: 1.5px solid #159447;
-    border-radius: 50%;
-
-    color: #159447;
-  }
-
-  .requirements-page .req-doc-check svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .requirements-page .req-doc-reminder-text {
-    margin: 0;
-
-    color: #707887;
-
-    font-size: 12.5px;
-    line-height: 1.65;
-  }
-
-
-  /* ------------------------------------------
-     APPLICATION PROCESS
-     ------------------------------------------ */
-
-  .requirements-page .process-steps-card {
-    padding: 23px 20px;
-
-    background: #ffffff;
-    border: 1px solid #e9e9e9;
-    border-radius: 17px;
-
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.035);
-  }
-
-  .requirements-page .process-steps-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .requirements-page .process-step {
-    position: relative;
-
-    display: grid;
-    grid-template-columns: 36px 1fr;
-    align-items: flex-start;
-    gap: 13px;
-
-    width: 100%;
-
-    padding-bottom: 22px;
-  }
-
-  .requirements-page .process-step:last-child {
-    padding-bottom: 0;
-  }
-
-  .requirements-page
-    .process-step:not(:last-child)::after {
-    content: "";
-
-    position: absolute;
-    z-index: 0;
-
-    top: 34px;
-    bottom: 0;
-    left: 17px;
-
-    width: 2px;
-
-    background: #efd6d7;
-  }
-
-  .requirements-page .process-step-circle {
-    position: relative;
-    z-index: 1;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 36px;
-    height: 36px;
-
-    background: #f8e5e6;
-    border: 1px solid #efcacc;
-    border-radius: 50%;
-
-    color: #ad171c;
-
-    font-family: var(--font-body);
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .requirements-page
-    .process-step-active
-    .process-step-circle {
-    background: #b91c1c;
-    border-color: #b91c1c;
-    color: #ffffff;
-  }
-
-  .requirements-page .process-step-text {
-    margin: 7px 0 0;
-
-    color: #333b48;
-
-    font-family: var(--font-body);
-    font-size: 12.5px;
-    font-weight: 500;
-    line-height: 1.5;
-
-    text-align: left;
-  }
-}
-
-
-/* ============================================
-   SMALL MOBILE
-   ============================================ */
-
-@media (max-width: 420px) {
-  .requirements-page .container {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
-  .requirements-page .status-window-card {
-    padding: 22px 18px 19px;
-  }
-
-  .requirements-page .status-window-title {
-    font-size: 21px;
-  }
-
-  .requirements-page .status-window-meta-row {
-    gap: 8px;
-  }
-
-  .requirements-page .status-window-dates-box {
-    grid-template-columns: 1fr;
-    gap: 13px;
-  }
-
-  .requirements-page .status-window-date-divider {
-    display: none;
-  }
-
-  .requirements-page .status-window-date-item {
-    padding: 2px 0;
-  }
-
-  .requirements-page .status-window-date-icon {
-    width: 36px;
-    height: 36px;
-  }
-
-  .requirements-page .status-window-slots-value {
-    font-size: 23px;
-  }
-
-  .requirements-page .req-doc-card,
-  .requirements-page .req-doc-reminder-card {
-    padding: 19px 17px;
-  }
-
-  .requirements-page .req-doc-icon-wrap,
-  .requirements-page .req-doc-reminder-icon-wrap {
-    width: 44px;
-    height: 44px;
-  }
-
-  .requirements-page .req-doc-card-title,
-  .requirements-page .req-doc-reminder-title {
-    font-size: 16px;
-  }
-
-  .requirements-page .process-steps-card {
-    padding: 20px 17px;
-  }
-}
-
-/* ============================================
-   APPLICATION PROCESS - TABLET + MOBILE ONLY
-   Desktop design stays unchanged
-   ============================================ */
-
-@media (max-width: 991.98px) {
-  .requirements-page .process-steps-card {
-    width: 100%;
-    padding: 24px 22px;
-
-    background: #ffffff;
-    border: 1px solid #e9e9e9;
-    border-radius: 17px;
-
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.035);
-  }
-
-  .requirements-page .process-steps-row {
-    display: flex;
-    flex-direction: column;
-
-    width: 100%;
-    gap: 0;
-  }
-
-  .requirements-page .process-step {
-    position: relative;
-
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr);
-    align-items: center;
-    gap: 16px;
-
-    width: 100%;
-    min-height: 82px;
-
-    padding: 0;
-    margin: 0;
-  }
-
-  /* Vertical connecting line */
-  .requirements-page .process-step:not(:last-child)::after {
-    content: "";
-
-    position: absolute;
-    z-index: 0;
-
-    top: calc(50% + 22px);
-    bottom: calc(-50% + 22px);
-    left: 21px;
-
-    width: 2px;
-
-    background: #efd6d7;
-  }
-
-  .requirements-page .process-step-circle {
-    position: relative;
-    z-index: 1;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 44px;
-    height: 44px;
-
-    margin: 0;
-
-    border: 1px solid #efcacc;
-    border-radius: 50%;
-
-    background: #fbe9ea;
-    color: #b91c1c;
-
-    font-family: var(--font-body);
-    font-size: 13px;
-    font-weight: 700;
-
-    flex-shrink: 0;
-  }
-
-  .requirements-page
-    .process-step-active
-    .process-step-circle {
-    background: #bf2024;
-    border-color: #bf2024;
-    color: #ffffff;
-  }
-
-  .requirements-page .process-step-text {
-    width: 100%;
-
-    margin: 0;
-
-    color: #202634;
-
-    font-family: var(--font-body);
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 1.5;
-
-    text-align: left;
-
-    overflow-wrap: break-word;
-    word-break: normal;
-  }
-}
-
-
-/* ============================================
-   APPLICATION PROCESS - MOBILE
-   ============================================ */
-
-@media (max-width: 575.98px) {
-  .requirements-page .process-steps-card {
-    padding: 20px 18px;
-    border-radius: 15px;
-  }
-
-  .requirements-page .process-step {
-    grid-template-columns: 42px minmax(0, 1fr);
-    gap: 14px;
-
-    min-height: 86px;
-  }
-
-  .requirements-page .process-step-circle {
-    width: 42px;
-    height: 42px;
-
-    font-size: 12px;
-  }
-
-  .requirements-page .process-step:not(:last-child)::after {
-    top: calc(50% + 21px);
-    bottom: calc(-50% + 21px);
-    left: 20px;
-  }
-
-  .requirements-page .process-step-text {
-    font-size: 13px;
-    line-height: 1.5;
-  }
-}
-
-
-/* ============================================
-   APPLICATION PROCESS - SMALL MOBILE
-   ============================================ */
-
-@media (max-width: 420px) {
-  .requirements-page .process-steps-card {
-    padding: 18px 16px;
-  }
-
-  .requirements-page .process-step {
-    grid-template-columns: 38px minmax(0, 1fr);
-    gap: 12px;
-
-    min-height: 82px;
-  }
-
-  .requirements-page .process-step-circle {
-    width: 38px;
-    height: 38px;
-
-    font-size: 11px;
-  }
-
-  .requirements-page .process-step:not(:last-child)::after {
-    top: calc(50% + 19px);
-    bottom: calc(-50% + 19px);
-    left: 18px;
-  }
-
-  .requirements-page .process-step-text {
-    font-size: 12px;
-    line-height: 1.5;
-  }
-}
-
-/* ============================================
    PUBLIC NAVBAR
    ============================================ */
 
@@ -2393,7 +1392,7 @@ a:hover {
   background: #b91c1c;
   border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 .navbar-custom .container {
@@ -2428,7 +1427,7 @@ a:hover {
 .brand-text h5 {
   margin: 0 0 2px;
   color: #fff;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 16px;
   font-weight: 650;
   line-height: 1.25;
@@ -2436,7 +1435,7 @@ a:hover {
 
 .brand-text span {
   color: rgba(255, 255, 255, 0.78);
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 10.5px;
   font-weight: 400;
   line-height: 1.3;
@@ -2457,7 +1456,7 @@ a:hover {
   padding: 9px 13px !important;
   border-radius: 7px;
   color: rgba(255, 255, 255, 0.88) !important;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 13px;
   font-weight: 500;
   transition:
@@ -2615,7 +1614,7 @@ a:hover {
 
     color: rgba(255, 255, 255, 0.9) !important;
 
-    font-family: var(--font-body);
+    font-family: "Inter", sans-serif;
     font-size: 12.5px;
     font-weight: 500;
   }
@@ -2673,7 +1672,7 @@ a:hover {
   padding: 10px 14px 10px 36px;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 14px;
   color: #333;
   background: #fafafa;
@@ -2693,7 +1692,7 @@ a:hover {
 }
 
 .filter-tab-btn {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 14px;
   font-weight: 500;
   padding: 4px 0 10px;
@@ -2795,7 +1794,7 @@ a:hover {
 }
 
 .pagination-page-btn {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 13px;
   font-weight: 600;
   padding: 6px 4px;
@@ -2848,7 +1847,7 @@ a:hover {
   display: inline-block;
   background: #ffd43b;
   color: #6b4e00;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -2865,7 +1864,7 @@ a:hover {
 }
 
 .featured-bulletin-label {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 1px;
@@ -2874,7 +1873,7 @@ a:hover {
 }
 
 .featured-title {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   color: #1a1a1a;
   font-weight: 700;
   font-size: 26px;
@@ -2882,7 +1881,7 @@ a:hover {
 }
 
 .featured-text {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   color: #555;
   font-size: 14.5px;
   line-height: 1.7;
@@ -2932,7 +1931,7 @@ a:hover {
 .legend-text {
   display: flex;
   flex-direction: column;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
 }
 
 .legend-text strong {
@@ -2960,7 +1959,7 @@ a:hover {
 }
 
 .featured-department-label {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 1px;
@@ -2970,7 +1969,7 @@ a:hover {
 }
 
 .featured-department-name {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   color: var(--maroon);
   font-weight: 700;
   font-size: 17px;
@@ -3013,7 +2012,7 @@ a:hover {
 
 .featured-stat-label {
   flex: 1;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 13px;
   font-weight: 600;
   color: #333;
@@ -3021,7 +2020,7 @@ a:hover {
 
 .featured-stat-count {
   flex-shrink: 0;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 18px;
   font-weight: 700;
   color: #1a1a1a;
@@ -3057,7 +2056,7 @@ a:hover {
 }
 
 .announcement-title {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 22px;
   font-weight: 650;
   letter-spacing: -0.3px;
@@ -3066,7 +2065,7 @@ a:hover {
 }
 
 .announcement-date {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0.2px;
@@ -3103,7 +2102,7 @@ a:hover {
 }
 
 .announcement-preview {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   color: #444;
   font-size: 14px;
   font-weight: 400;
@@ -3121,7 +2120,7 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   color: var(--maroon);
   font-weight: 600;
   font-size: 12.5px;
@@ -3212,7 +2211,7 @@ a:hover {
 }
 
 .stay-informed-label {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.8px;
@@ -3221,7 +2220,7 @@ a:hover {
 }
 
 .stay-informed-title {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   color: #1a1a1a;
   font-weight: 800;
   font-size: 30px;
@@ -3229,7 +2228,7 @@ a:hover {
 }
 
 .stay-informed-text {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   color: #5a6b8c;
   font-size: 14.5px;
   line-height: 1.7;
@@ -3280,7 +2279,7 @@ a:hover {
 }
 
 .empty-state-message {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   color: #1a1a1a;
   font-weight: 600;
   font-size: 18px;
@@ -3298,7 +2297,7 @@ a:hover {
 }
 
 .empty-state-dept-label {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 1px;
@@ -3308,7 +2307,7 @@ a:hover {
 }
 
 .empty-state-dept-name {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   color: #1a1a1a;
   font-weight: 700;
   font-size: 17px;
@@ -3320,7 +2319,7 @@ a:hover {
   align-items: flex-start;
   gap: 8px;
   margin-bottom: 14px;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 13px;
   color: #555;
   line-height: 1.5;
@@ -3338,7 +2337,7 @@ a:hover {
   margin-top: auto;
   padding-top: 16px;
   border-top: 1px solid #f0f0f0;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -3420,7 +2419,7 @@ a:hover {
 }
 
 .announcement-modal-title-new {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 22px;
   font-weight: 700;
   letter-spacing: -0.3px;
@@ -3430,7 +2429,7 @@ a:hover {
 }
 
 .announcement-modal-date {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 13px;
   font-weight: 400;
   letter-spacing: 0.2px;
@@ -3441,7 +2440,7 @@ a:hover {
 }
 
 .announcement-modal-text {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 15px;
   font-weight: 400;
   line-height: 2;
@@ -3506,7 +2505,7 @@ a:hover {
 }
 
 .events-reminder-list li {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 14.5px;
   color: #555;
   line-height: 1.9;
@@ -3535,7 +2534,7 @@ a:hover {
 }
 
 .event-card-title {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-size: 24px;
   font-weight: 700;
   color: var(--maroon);
@@ -3554,7 +2553,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 15px;
   font-weight: 500;
   color: #000000 !important;
@@ -3569,7 +2568,7 @@ a:hover {
 }
 
 .event-card-desc {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 15px;
   line-height: 1.6;
   color: #555;
@@ -3592,7 +2591,7 @@ a:hover {
   border: 1.5px solid #1a1a1a;
   background: transparent;
   color: #1a1a1a;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.8px;
@@ -3713,12 +2712,7 @@ a:hover {
   .event-landscape-image-fallback {
     height: 220px;
   }
-  
 }
-
-
-
-
 
 /* ============================================
    REQUIREMENTS PAGE - APPLICATION STATUS WINDOW
@@ -3952,7 +2946,7 @@ a:hover {
 }
 
 .req-doc-card-title {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-size: 26px;
   font-weight: 700;
   color: #1a1a1a;
@@ -3969,7 +2963,7 @@ a:hover {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-size: 17px;
   font-weight: 600;
   line-height: 1.5;
@@ -4028,7 +3022,7 @@ a:hover {
 }
 
 .req-doc-reminder-title {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-size: 26px;
   font-weight: 700;
   color: #ffffff;
@@ -4036,7 +3030,7 @@ a:hover {
 }
 
 .req-doc-reminder-text {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-size: 17px;
   font-weight: 600;
   line-height: 1.8;
@@ -4086,7 +3080,7 @@ a:hover {
   height: 58px;
   border-radius: 50%;
   background: #ffffff;
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-weight: 700;
   font-size: 18px;
   display: flex;
@@ -4103,7 +3097,7 @@ a:hover {
 }
 
 .process-step-text {
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-size: 14px;
   font-weight: 500;
   color: #444;
@@ -4208,7 +3202,7 @@ a:hover {
 }
 
 .org-name {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-weight: 500;
   font-size: 16px;
   margin-bottom: 4px;
@@ -4217,7 +3211,7 @@ a:hover {
 }
 
 .org-title {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-size: 16px;
   color: #1a1a1a;
   margin: 0;
@@ -4232,7 +3226,7 @@ a:hover {
   background: var(--maroon-darker);
   color: #ffffff;
   padding: 50px 0 25px;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 .footer-top {
@@ -4264,7 +3258,7 @@ a:hover {
 
 .footer-heading {
   color: #ffffff;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-weight: 700;
   font-size: 17px;
   letter-spacing: 0.2px;
@@ -5216,7 +4210,7 @@ a:hover {
    LOGIN PAGE - TITLE / TEXT SIZES
    ============================================ */
 .login-title-bold {
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', Arial, sans-serif;
   font-weight: 800;
   font-size: 35px;
   letter-spacing: -0.5px;
@@ -5330,158 +4324,54 @@ a:hover {
   margin-bottom: 50px;
 }
 
-/* ============================================
-   REGISTER PAGE - TABLET / MOBILE ONLY
-   ============================================ */
-
 @media (max-width: 991.98px) {
-  .register-split-section {
-    padding: 20px 14px 28px;
-    align-items: flex-start;
-  }
-
   .register-split-wrap {
     flex-direction: column;
     min-height: 0;
-    border-radius: 16px;
   }
 
   .register-split-image,
   .register-split-form {
     flex: 1 1 auto;
-    width: 100%;
     max-width: 100%;
   }
 
   .register-split-image {
-    height: 190px;
-    padding: 10px 10px 0;
-  }
-
-  .register-split-image img {
-    border-radius: 12px;
+    height: 220px;
+    padding: 12px 12px 0;
   }
 
   .register-split-form {
-    padding: 24px 20px 28px;
-    align-items: stretch;
-  }
-
-  .register-split-form .login-card-wrap {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .register-split-form .login-card-logo {
-    display: block;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .register-split-form .login-card-brand,
-  .register-split-form .login-card-subtext {
-    text-align: center;
-  }
-
-  .register-split-form .login-card-subtext {
-    margin-bottom: 28px;
-  }
-
-  .register-form-spaced .row {
-    margin-left: 0;
-    margin-right: 0;
-  }
-
-  .register-form-spaced .row > [class*="col-"] {
-    padding-left: 0;
-    padding-right: 0;
+    padding: 30px;
   }
 }
 
 /* ============================================
-   REGISTER PAGE - MOBILE ONLY
+   REGISTER PAGE - FORM SPACING
    ============================================ */
+.register-form-spaced .row {
+  margin-bottom: 8px;
+}
 
-@media (max-width: 575.98px) {
-  .register-split-section {
-    padding: 14px 10px 22px;
-  }
+.register-form-spaced .form-label {
+  margin-bottom: 8px;
+  font-size: 15px;
+}
 
-  .register-split-wrap {
-    border-radius: 14px;
-    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.12);
-  }
+.register-form-spaced .form-control {
+  height: 40px;
+  font-size: 13.5px;
+  margin-bottom: 4px;
+}
 
-  .register-split-image {
-    height: 150px;
-    padding: 8px 8px 0;
-  }
+.register-form-spaced .mb-3 {
+  margin-bottom: 1.5rem !important;
+}
 
-  .register-split-form {
-    padding: 22px 16px 24px;
-  }
-
-  .register-split-form .login-card-subtext {
-    margin-bottom: 22px;
-  }
-
-  .register-split-form .login-title-bold {
-    font-size: 21px;
-  }
-
-  .register-split-form .login-subtext-lg {
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .register-form-spaced .form-label {
-    margin-bottom: 6px;
-    font-size: 13.5px;
-  }
-
-  .register-form-spaced .form-control {
-    width: 100%;
-    height: 42px;
-    font-size: 13px;
-  }
-
-  .register-form-spaced .mb-3 {
-    margin-bottom: 18px !important;
-  }
-
-  .register-form-spaced .form-text,
-  .register-form-spaced .small {
-    font-size: 11.5px;
-    line-height: 1.5;
-  }
-
-  .register-form-spaced input[type="file"] {
-    height: auto;
-    padding: 9px 10px;
-  }
-
-  .register-form-spaced img.mt-2 {
-    display: block;
-    width: 100%;
-    max-width: 100% !important;
-    height: auto;
-    max-height: 180px !important;
-    margin-left: auto;
-    margin-right: auto;
-  }
-
-  .register-input-wrap {
-    width: 100%;
-  }
-
-  .register-form-spaced .btn.w-100 {
-    min-height: 43px;
-    font-size: 14px;
-  }
-
-  .register-form-spaced p.text-center {
-    font-size: 12.5px;
-  }
+.register-form-spaced .btn.w-100 {
+  padding: 9px 0;
+  font-size: 16px;
+  margin-top: 8px;
 }
 
 /* ============================================
@@ -5663,14 +4553,14 @@ a:hover {
 }
 
 .admin-sidebar-brand-text h5 {
-  font-family: var(--font-heading);
+  font-family: 'Poppins', Arial, sans-serif;
   color: #1a1a1a;
   font-size: 15px;
   font-weight: 700;
   margin: 0;
 }
 .admin-sidebar-brand-text span {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   color: #888;
   font-size: 11px;
 }
@@ -5690,7 +4580,7 @@ a:hover {
   padding: 8px 12px;
   border-radius: 6px;
   color: #1a1a1a;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14.5px;
   font-weight: 500;
   text-decoration: none;
@@ -5726,7 +4616,7 @@ a:hover {
 }
 
 .admin-sidebar-btn {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 
 .admin-sidebar-logout {
@@ -5740,7 +4630,7 @@ a:hover {
   border-radius: 6px;
   background: #b71c1c;
   color: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   font-weight: 600;
   border: none;
@@ -5789,7 +4679,7 @@ a:hover {
 }
 
 .admin-stat-top h2 {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 40px;
   font-weight: 700;
   color: #1a1a1a;
@@ -5832,7 +4722,7 @@ a:hover {
 }
 
 .admin-stat-label {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -5871,7 +4761,7 @@ a:hover {
   border-radius: 12px;
   padding: 30px 26px 26px;
   color: #1a1a1a;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 16px;
   font-weight: 600;
   text-decoration: none;
@@ -6097,7 +4987,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   gap: 20px;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   flex-wrap: wrap;
 }
 
@@ -6127,32 +5017,32 @@ a:hover {
 }
 
 .admin-main .sub-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 600;
 }
 .admin-main .text-muted {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   margin-left: 10px;
 }
 
 .admin-main .form-label {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
 }
 .admin-main .form-control,
 .admin-main .form-select {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
 }
 .admin-main .table {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .admin-main .btn-custom,
 .admin-main .btn-secondary,
 .admin-main .btn-outline-secondary,
 .admin-main .btn-outline-danger {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .admin-main .info-box {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
 }
 
 .admin-main .sub-title-dark {
@@ -6174,7 +5064,7 @@ a:hover {
   border-radius: 50%;
   background: #b71c1c;
   color: #ffffff;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 700;
   font-size: 15px;
   display: flex;
@@ -6187,13 +5077,13 @@ a:hover {
   gap: 4px;
 }
 .visibility-notice-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   color: #b71c1c;
   font-size: 15px;
   font-weight: 700;
 }
 .visibility-notice-text {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   color: #555;
   font-size: 14px;
   line-height: 1.6;
@@ -6205,7 +5095,7 @@ a:hover {
   color: #ffffff;
   border: none;
   font-weight: 600;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   padding: 9px 18px;
   border-radius: 8px;
@@ -6219,7 +5109,7 @@ a:hover {
   color: #ffffff;
   border: none;
   font-weight: 600;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   padding: 9px 18px;
   border-radius: 8px;
@@ -6287,14 +5177,14 @@ a:hover {
   font-weight: 700;
 }
 .feedback-popup-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 700;
   font-size: 20px;
   color: #1a1a1a;
   margin: 0 0 10px;
 }
 .feedback-popup-message {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14.5px;
   color: #888;
   margin: 0 0 24px;
@@ -6307,7 +5197,7 @@ a:hover {
   border: none;
   padding: 14px 20px;
   border-radius: 12px;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
@@ -6326,7 +5216,7 @@ a:hover {
 .feedback-popup-timer {
   position: absolute;
   right: 16px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.85);
 }
@@ -6376,7 +5266,7 @@ a:hover {
   margin-top: 8px;
 }
 .table-pagination-info {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 13.5px;
   color: #666;
 }
@@ -6387,7 +5277,7 @@ a:hover {
 }
 .table-pagination-arrow,
 .table-pagination-page {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -6443,7 +5333,7 @@ a:hover {
   min-width: 20px;
   text-align: center;
   color: #999;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 14px;
 }
 
@@ -6464,7 +5354,7 @@ a:hover {
   position: relative;
 }
 .table-toolbar-btn {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   padding: 9px 18px;
@@ -6507,7 +5397,7 @@ a:hover {
   padding: 10px 16px;
   border: none;
   background: transparent;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   color: #333;
   cursor: pointer;
@@ -6527,7 +5417,7 @@ a:hover {
   padding: 12px 20px;
   border-radius: 12px;
   border: none;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
@@ -6566,10 +5456,10 @@ a:hover {
 .edit-announcement-modal .form-label,
 .edit-announcement-modal .form-control,
 .edit-announcement-modal .form-select {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
 }
 .edit-announcement-modal .modal-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 700;
 }
 
@@ -6740,7 +5630,7 @@ a:hover {
   border-radius: 10px;
   padding: 16px 20px;
   margin-bottom: 20px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   color: #6b4e00;
   font-size: 14.5px;
   line-height: 1.6;
@@ -6769,7 +5659,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 700;
   font-size: 18px;
   color: #1a1a1a;
@@ -6801,7 +5691,7 @@ a:hover {
   gap: 4px;
 }
 .admin-settings-slot-toggle .btn {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 600;
   font-size: 14px;
   border: none !important;
@@ -6861,7 +5751,7 @@ a:hover {
   flex: 1;
   border: none;
   text-align: center;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 600;
   font-size: 16px;
   color: #1a1a1a;
@@ -6952,7 +5842,7 @@ a:hover {
   gap: 12px;
   border-radius: 12px;
   padding: 16px 20px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   line-height: 1.6;
 }
@@ -6980,7 +5870,7 @@ a:hover {
 .admin-main .schedule-day-card .form-label,
 .admin-main .schedule-day-card .form-check-label,
 .admin-main .schedule-day-card table {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
 }
 .schedule-day-card {
   border-color: #c9c9c9 !important;
@@ -6989,7 +5879,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 700;
   font-size: 15px;
   color: #1a1a1a;
@@ -7008,7 +5898,7 @@ a:hover {
   padding: 18px;
   height: 100%;
   text-align: center;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 .schedule-summary-label {
@@ -7042,7 +5932,7 @@ a:hover {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   overflow: hidden;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   box-shadow: 0 18px 50px rgba(0,0,0,.22);
 }
 .admin-password-modal-header-new {
@@ -7060,7 +5950,7 @@ a:hover {
 }
 .admin-password-modal-heading-new h5 {
   margin: 0;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 19px;
   font-weight: 700;
   color: #1a1a1a;
@@ -7087,7 +5977,7 @@ a:hover {
   border: none;
   background: transparent;
   color: #9aa3ad;
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-size: 25px;
   font-weight: 300;
   line-height: 1;
@@ -7099,7 +5989,7 @@ a:hover {
 .admin-password-modal-body-new {
   padding: 22px 20px;
   background: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .admin-password-field {
   margin-bottom: 18px;
@@ -7107,7 +5997,7 @@ a:hover {
 .admin-password-field label {
   display: block;
   margin-bottom: 7px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .4px;
@@ -7136,7 +6026,7 @@ a:hover {
   outline: none;
   background: #ffffff;
   color: #1a1a1a;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
 }
 .admin-password-input-wrap input::placeholder {
@@ -7148,7 +6038,7 @@ a:hover {
   border-left: 1px solid #e1e5e9;
   background: #ffffff;
   color: #667788;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -7160,7 +6050,7 @@ a:hover {
   display: block;
   margin-top: 6px;
   color: #1e8b57;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   font-weight: 500;
 }
@@ -7175,7 +6065,7 @@ a:hover {
   display: block;
   margin-bottom: 8px;
   color: #6b7785;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .5px;
@@ -7191,14 +6081,14 @@ a:hover {
 }
 .admin-password-requirement-item span {
   color: #1e8b57;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   font-weight: 700;
 }
 .admin-password-requirement-item p {
   margin: 0;
   color: #4d5965;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   font-weight: 400;
 }
@@ -7218,7 +6108,7 @@ a:hover {
   border-radius: 8px;
   background: #2e8b47;
   color: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -7231,12 +6121,12 @@ a:hover {
   cursor: default;
 }
 .admin-main .table .badge {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
 }
 .user-action-btn {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   padding: 6px 12px;
@@ -7288,7 +6178,7 @@ a:hover {
   border-top: none;
 }
 .applicant-details-modal .modal-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 600;
   color: #ffffff;
 }
@@ -7309,21 +6199,21 @@ a:hover {
   justify-content: center;
 }
 .applicant-detail-label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: #7f3030;
   margin-bottom: 8px;
 }
 .applicant-detail-value {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 500;
   color: #111;
 }
 .applicant-detail-status {
   width: fit-content;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 17px;
   font-weight: 500;
   padding: 5px 12px;
@@ -7342,7 +6232,7 @@ a:hover {
   border-top: 1px solid #dee2e6;
 }
 .applicant-details-close-btn {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   padding: 7px 18px;
@@ -7393,14 +6283,14 @@ a:hover {
   padding: 3px;
 }
 .verifier-sidebar-brand-text h5 {
-  font-family: var(--font-heading);
+  font-family: 'Poppins', Arial, sans-serif;
   color: #1a1a1a;
   font-size: 15px;
   font-weight: 700;
   margin: 0;
 }
 .verifier-sidebar-brand-text span {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   color: #888;
   font-size: 11px;
 }
@@ -7418,7 +6308,7 @@ a:hover {
   padding: 8px 12px;
   border-radius: 6px;
   color: #1a1a1a;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14.5px;
   font-weight: 500;
   text-decoration: none;
@@ -7450,7 +6340,7 @@ a:hover {
   margin: 10px 4px;
 }
 .verifier-sidebar-btn {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-sidebar-logout {
   display: flex;
@@ -7463,7 +6353,7 @@ a:hover {
   border-radius: 6px;
   background: #b71c1c;
   color: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   font-weight: 600;
   border: none;
@@ -7582,13 +6472,13 @@ a:hover {
   line-height: 1.3;
 }
 .verifier-topbar-user-name {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   font-weight: 700;
   color: #1a1a1a;
 }
 .verifier-topbar-user-role {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   color: #999;
 }
@@ -7608,7 +6498,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   gap: 20px;
-  font-family: var(--font-body);
+  font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
   flex-wrap: wrap;
 }
 .verifier-panel-footer-brand {
@@ -7655,14 +6545,14 @@ a:hover {
   margin-bottom: 25px;
 }
 .verifier-dashboard-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   color: #ffffff;
   font-weight: 700;
   font-size: 30px;
   margin: 0 0 6px;
 }
 .verifier-dashboard-desc {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   color: #ffffff;
   font-size: 16px;
   font-weight: 500;
@@ -7670,7 +6560,7 @@ a:hover {
 }
 
 .verifier-stat-label {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -7709,7 +6599,7 @@ a:hover {
   justify-content: space-between;
 }
 .verifier-stat-top h2 {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 40px;
   font-weight: 700;
   color: #1a1a1a;
@@ -7745,7 +6635,7 @@ a:hover {
   color: #777777;
 }
 .verifier-stat-label {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 0.5px;
@@ -7770,7 +6660,7 @@ a:hover {
   padding: 25px;
 }
 .verifier-attention-card .sub-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   color: #1a1a1a;
   font-size: 20px;
   font-weight: 600;
@@ -7779,19 +6669,19 @@ a:hover {
 .verifier-attention-table {
   width: 100%;
   table-layout: fixed;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   margin-bottom: 0;
 }
 .verifier-attention-table thead th {
   background: #4a4a4a;
   color: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 700;
   vertical-align: middle;
 }
 .verifier-attention-table tbody td {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 400;
   color: #111111;
@@ -7813,7 +6703,7 @@ a:hover {
   border: none;
   border-radius: 8px;
   padding: 8px 15px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 700;
   text-decoration: none;
@@ -7834,7 +6724,7 @@ a:hover {
   margin-top: 8px;
 }
 .verifier-table-pagination-info {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 13.5px;
   color: #666;
 }
@@ -7845,7 +6735,7 @@ a:hover {
 }
 .verifier-table-pagination-arrow,
 .verifier-table-pagination-page {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -7901,12 +6791,12 @@ a:hover {
   min-width: 20px;
   text-align: center;
   color: #999;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 14px;
 }
 .verifier-application-list-title {
   margin: 0 0 18px;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 20px;
   font-weight: 600;
   color: #1a1a1a;
@@ -7944,7 +6834,7 @@ a:hover {
   border-radius: 8px;
   background: #fafafa;
   color: #444c54;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -7979,7 +6869,7 @@ a:hover {
   justify-content: center;
   background: #e3e6e9;
   color: #626b74;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 10px;
   font-weight: 600;
   line-height: 1;
@@ -8016,7 +6906,7 @@ a:hover {
   }
 }
 .verifier-application-search-input {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 14px;
   height: 38px;
   padding: 8px 12px;
@@ -8025,7 +6915,7 @@ a:hover {
   border: 1px solid #e2e8f0;
   border-radius: 14px;
   overflow: hidden;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
 }
 .verifier-password-modal-header-new {
@@ -8043,7 +6933,7 @@ a:hover {
 }
 .verifier-password-modal-heading-new h5 {
   margin: 0;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 19px;
   font-weight: 700;
   color: #1a1a1a;
@@ -8080,7 +6970,7 @@ a:hover {
 .verifier-password-modal-body-new {
   padding: 22px 20px;
   background: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-password-field {
   margin-bottom: 18px;
@@ -8088,7 +6978,7 @@ a:hover {
 .verifier-password-field label {
   display: block;
   margin-bottom: 7px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .4px;
@@ -8115,7 +7005,7 @@ a:hover {
   border: none;
   outline: none;
   background: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   color: #1a1a1a;
 }
@@ -8128,7 +7018,7 @@ a:hover {
   border-left: 1px solid #e1e5e9;
   background: #ffffff;
   color: #667788;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -8139,7 +7029,7 @@ a:hover {
 .verifier-password-match {
   display: block;
   margin-top: 6px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   font-weight: 500;
   color: #1e8b57;
@@ -8154,7 +7044,7 @@ a:hover {
 .verifier-password-requirements-title {
   display: block;
   margin-bottom: 8px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .5px;
@@ -8171,13 +7061,13 @@ a:hover {
 }
 .verifier-password-requirement-item span {
   color: #1e8b57;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   font-weight: 700;
 }
 .verifier-password-requirement-item p {
   margin: 0;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   font-weight: 400;
   color: #4d5965;
@@ -8199,7 +7089,7 @@ a:hover {
   border-radius: 8px;
   background: #2e8b47;
   color: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -8252,14 +7142,14 @@ a:hover {
   font-weight: 700;
 }
 .verifier-password-feedback-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 700;
   font-size: 20px;
   color: #1a1a1a;
   margin: 0 0 10px;
 }
 .verifier-password-feedback-message {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14.5px;
   color: #888;
   margin: 0 0 24px;
@@ -8272,7 +7162,7 @@ a:hover {
   border: none;
   padding: 14px 20px;
   border-radius: 12px;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
@@ -8291,15 +7181,15 @@ a:hover {
 .verifier-password-feedback-timer {
   position: absolute;
   right: 16px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.85);
 }
 .verifier-profile-card {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-profile-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   color: #b71c1c;
   font-size: 20px;
   font-weight: 600;
@@ -8308,10 +7198,10 @@ a:hover {
 .verifier-profile-card .form-label,
 .verifier-profile-card .form-control,
 .verifier-profile-card .btn-save-green {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-profile-card .form-label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 600;
 }
@@ -8331,7 +7221,7 @@ a:hover {
   overflow: hidden;
   border: 1px solid #e2e8f0;
   border-radius: 14px;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 .verifier-activity-modal-header-new {
@@ -8375,7 +7265,7 @@ a:hover {
 
 .verifier-activity-modal-title-row h5 {
   margin: 0;
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 19px;
   font-weight: 700;
   color: #1a1a1a;
@@ -8389,7 +7279,7 @@ a:hover {
   border-radius: 5px;
   background: #f5f7f9;
   color: #6c7885;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 9px;
   font-weight: 600;
   line-height: 1;
@@ -8402,7 +7292,7 @@ a:hover {
   border: none;
   background: transparent;
   color: #9aa3ad;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 25px;
   font-weight: 300;
   line-height: 1;
@@ -8418,18 +7308,18 @@ a:hover {
   max-width: none;
   margin-left: auto;
   margin-right: auto;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 .verifier-activity-search-box .form-label {
-  font-family: var(--font-heading);
+  font-family: "Poppins", sans-serif;
   font-size: 16px;
   font-weight: 600;
 }
 
 .verifier-activity-search-box .form-control,
 .verifier-activity-search-box .form-select {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 16px;
 }
 
@@ -8438,7 +7328,7 @@ a:hover {
   max-width: 100%;
   padding: 6px 12px;
   border-radius: 20px;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 14px;
   font-weight: 600;
   line-height: 1.25;
@@ -8456,7 +7346,7 @@ a:hover {
 }
 
 .verifier-activity-modal .btn-secondary-custom {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 
@@ -8662,7 +7552,7 @@ a:hover {
   border-bottom: 1px solid #eeeeee;
 }
 .verifier-review-info-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 20px;
   font-weight: 600;
   color: #1a1a1a;
@@ -8670,7 +7560,7 @@ a:hover {
 }
 
 .verifier-review-info-label {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -8690,14 +7580,14 @@ a:hover {
   border-bottom: 1px solid #eeeeee;
 }
 .verifier-review-detail-label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 500;
   color: #666666;
   margin-bottom: 6px;
 }
 .verifier-review-detail-value {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 18px;
   font-weight: 500;
   color: #1a1a1a;
@@ -8709,13 +7599,13 @@ a:hover {
 }
 
 .verifier-review-flag-label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: #666;
 }
 .verifier-review-flag-badge {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   font-weight: 600;
   padding: 6px 10px;
@@ -8739,7 +7629,7 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 600;
   color: #31506f;
@@ -8751,7 +7641,7 @@ a:hover {
   align-items: flex-start;
 }
 .verifier-review-profile-name {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 25px;
   font-weight: 700;
   color: #111;
@@ -8764,7 +7654,7 @@ a:hover {
   gap: 8px;
 }
 .verifier-review-profile-badges .status-badge {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 
 .verifier-review-information-body {
@@ -8783,7 +7673,7 @@ a:hover {
   left: -20px;
 }
 .verifier-review-information-body .verifier-review-info-label {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 16px;
   font-weight: 700;
   letter-spacing: 1px;
@@ -8803,14 +7693,14 @@ a:hover {
   border-bottom: none;
 }
 .verifier-review-information-body .verifier-review-detail-label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 500;
   color: #666666;
   margin-bottom: 5px;
 }
 .verifier-review-information-body .verifier-review-detail-value {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 500;
   color: #1a1a1a;
@@ -8844,38 +7734,38 @@ a:hover {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 5px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-review-flag-label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: #666;
 }
 
 .verifier-ocr-section {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-ocr-section-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 600;
   margin-bottom: 24px;
 }
 .verifier-ocr-document {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   border-color: #c9c9c9 !important;
 }
 .verifier-ocr-document-title {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 700;
 }
 .verifier-ocr-meta {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
 }
 .verifier-ocr-badge {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   font-weight: 600;
   padding: 5px 10px;
@@ -8884,7 +7774,7 @@ a:hover {
 }
 
 .verifier-ocr-code {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
 }
 
@@ -8896,49 +7786,49 @@ a:hover {
   padding:11px 12px !important;
 }
 .verifier-ocr-raw-title {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
 }
 .verifier-ocr-raw-text {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-ocr-flag-section {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-ocr-flag-title {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   font-weight: 600;
 }
 .verifier-ocr-check-label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
 }
 .verifier-ocr-other-input {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
 }
 .verifier-ocr-section {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-ocr-section-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 600;
 }
 .verifier-ocr-document {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-ocr-document-title {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 700;
 }
 .verifier-ocr-meta {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
 }
 .verifier-ocr-badge {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   font-weight: 600;
   padding: 5px 9px;
@@ -8947,7 +7837,7 @@ a:hover {
 .verifier-ocr-table {
   width: 100%;
   table-layout: fixed;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
 }
 .verifier-ocr-table th,
@@ -8975,7 +7865,7 @@ a:hover {
   background: #f8d7da;
 }
 .verifier-ocr-code {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
 }
 .verifier-ocr-empty {
@@ -9015,7 +7905,7 @@ a:hover {
 .verifier-ocr-flag-title,
 .verifier-ocr-check-label,
 .verifier-ocr-other-input {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-ocr-flag-title {
   font-size: 13px;
@@ -9044,7 +7934,7 @@ a:hover {
   border: 1px solid #c9c9c9;
   border-radius: 12px;
   color: #111;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   text-align: left;
   cursor: pointer;
   transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease;
@@ -9085,12 +7975,12 @@ a:hover {
   border-radius: 50%;
   background: #f1f3f5;
   color: #495057;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 700;
 }
 .verifier-ocr-document-tab-label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 15px;
   font-weight: 700;
   color: #111;
@@ -9104,7 +7994,7 @@ a:hover {
   border: 1px solid #c9c9c9;
   border-radius: 10px;
   overflow: hidden;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   margin-top:0;
 }
 .verifier-ocr-review-header {
@@ -9139,7 +8029,7 @@ a:hover {
   height: 17px;
 }
 .verifier-ocr-review-title {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 15px;
   font-weight: 700;
   color: #1a1a1a;
@@ -9156,7 +8046,7 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   font-weight: 600;
 }
@@ -9213,7 +8103,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   color: #777;
 }
@@ -9230,7 +8120,7 @@ a:hover {
   justify-content: space-between;
   gap: 10px;
   padding: 4px 0;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   color: #5f6b76;
   font-weight:600;
@@ -9852,7 +8742,7 @@ a:hover {
   padding: 9px 18px;
   border: none;
   border-radius: 8px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -9911,7 +8801,7 @@ a:hover {
   border-radius: 14px;
   overflow: hidden;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-action-modal-small {
   max-width: 520px;
@@ -9938,7 +8828,7 @@ a:hover {
 }
 .verifier-action-modal-heading h5 {
   margin: 0;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 19px;
   font-weight: 700;
   color: #1a1a1a;
@@ -9951,7 +8841,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   border-radius: 9px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 16px;
   font-weight: 700;
 }
@@ -9974,7 +8864,7 @@ a:hover {
   border: none;
   background: transparent;
   color: #9aa3ad;
-  font-family: var(--font-body);
+  font-family: Arial, sans-serif;
   font-size: 25px;
   font-weight: 300;
   line-height: 1;
@@ -9993,7 +8883,7 @@ a:hover {
   padding: 20px;
   overflow-y: auto;
   background: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-action-modal-footer {
   display: flex;
@@ -10011,7 +8901,7 @@ a:hover {
   border-radius: 8px;
   background: #eeeeee;
   color: #555555;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -10028,7 +8918,7 @@ a:hover {
 }
 .verifier-action-field label {
   margin-bottom: 8px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   font-weight: 600;
   color: #333d47;
@@ -10050,7 +8940,7 @@ a:hover {
   border-radius: 9px;
   background: #ffffff;
   color: #1a1a1a;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   line-height: 1.6;
   resize: none;
@@ -10066,7 +8956,7 @@ a:hover {
 }
 .verifier-action-section-label {
   margin: 0 0 10px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: .5px;
@@ -10095,7 +8985,7 @@ a:hover {
 }
 .verifier-reupload-document-main label {
   margin: 0;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: #222c35;
@@ -10115,14 +9005,14 @@ a:hover {
 }
 .verifier-reupload-reasons .form-check-label,
 .verifier-reject-option label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   font-weight: 400;
   color: #38434d;
 }
 .verifier-action-other-input {
   margin-top: 8px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
 }
 .verifier-reject-group {
@@ -10175,7 +9065,7 @@ a:hover {
 .verifier-quick-notes-label {
   display: block;
   margin-bottom: 8px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .5px;
@@ -10193,7 +9083,7 @@ a:hover {
   border-radius: 6px;
   background: #f3f6f8;
   color: #607080;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 11px;
   font-weight: 500;
   cursor: pointer;
@@ -10247,14 +9137,14 @@ a:hover {
   padding: 3px;
 }
 .applicant-sidebar-brand-text h5 {
-  font-family: var(--font-heading);
+  font-family: 'Poppins', Arial, sans-serif;
   color: #1a1a1a;
   font-size: 15px;
   font-weight: 700;
   margin: 0;
 }
 .applicant-sidebar-brand-text span {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   color: #888;
   font-size: 11px;
 }
@@ -10272,7 +9162,7 @@ a:hover {
   padding: 8px 12px;
   border-radius: 6px;
   color: #1a1a1a;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14.5px;
   font-weight: 500;
   text-decoration: none;
@@ -10304,7 +9194,7 @@ a:hover {
   margin: 10px 4px;
 }
 .applicant-sidebar-btn {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .applicant-sidebar-logout {
   display: flex;
@@ -10317,7 +9207,7 @@ a:hover {
   border-radius: 6px;
   background: #b71c1c;
   color: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   font-weight: 600;
   border: none;
@@ -10399,7 +9289,7 @@ a:hover {
    ============================================ */
 
 .applicant-layout {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   display: flex;
   align-items: stretch;
   background: #f1f3f5;
@@ -10494,7 +9384,7 @@ a:hover {
 }
 
 .applicant-topbar-user-name {
-  font-family: var(--font-body);
+  font-family: "Inter", Arial, sans-serif;
 
   font-size: 13px;
   font-weight: 700;
@@ -10505,7 +9395,7 @@ a:hover {
 }
 
 .applicant-topbar-user-role {
-  font-family: var(--font-body);
+  font-family: "Inter", Arial, sans-serif;
 
   font-size: 11px;
   font-weight: 400;
@@ -10543,7 +9433,7 @@ a:hover {
 
 /* Default content font */
 .applicant-layout {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 /* Force normal content to use Inter */
@@ -10559,7 +9449,7 @@ a:hover {
 .applicant-layout label,
 .applicant-layout a,
 .applicant-layout li {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 /* Main headings / section titles */
@@ -10582,12 +9472,12 @@ a:hover {
 
 /* Tables */
 .applicant-layout table {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 .applicant-layout table th,
 .applicant-layout table td {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 /* First/label column in tables */
@@ -10601,7 +9491,7 @@ a:hover {
 .applicant-layout select,
 .applicant-layout textarea,
 .applicant-layout button {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 
@@ -10628,7 +9518,7 @@ a:hover {
 }
 
 .applicant-dashboard-desc {
-  font-family: var(--font-body);
+  font-family: "Inter", Arial, sans-serif;
   color: #ffffff;
   font-size: 16px;
   font-weight: 500;
@@ -10661,7 +9551,7 @@ a:hover {
   display: inline-block;
   background: rgba(255, 255, 255, 0.15);
   color: #ffffff;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.5px;
@@ -10692,7 +9582,7 @@ a:hover {
 .applicant-layout .form-label,
 .applicant-layout .badge,
 .applicant-layout .btn {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 
@@ -10796,7 +9686,7 @@ body {
 
   border-radius: 999px;
 
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 10px;
   font-weight: 700;
 
@@ -10809,7 +9699,7 @@ body {
 
   margin: 0 0 15px;
 
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 14px;
   font-weight: 400;
 
@@ -10837,7 +9727,7 @@ body {
   border: 1px solid #ebebeb;
   border-radius: 8px;
 
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 12px;
   font-weight: 500;
 
@@ -10858,7 +9748,7 @@ body {
   border: none;
   border-radius: 9px;
 
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 14px;
   font-weight: 600;
 
@@ -11754,7 +10644,7 @@ body {
   border-radius: 8px;
   background: #fdeaea;
   color: #b71c1c;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
@@ -11797,7 +10687,7 @@ body {
   }
 
   .submitted-notice-title {
-    font-family: var(--font-heading);
+    font-family: "Poppins", sans-serif;
     font-size: 13px;
     line-height: 1.45;
   }
@@ -11861,7 +10751,7 @@ body {
   }
 
   .submitted-section-title {
-    font-family: var(--font-heading);
+    font-family: "Poppins", sans-serif;
     font-size: 15px;
     line-height: 1.35;
   }
@@ -11901,7 +10791,7 @@ body {
   border-radius: 50%;
   background: #b71c1c;
   color: #ffffff;
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-weight: 700;
   font-size: 15px;
   display: flex;
@@ -11914,13 +10804,13 @@ body {
   gap: 4px;
 }
 .verifier-waitlist-notice-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   color: #b71c1c;
   font-size: 15px;
   font-weight: 700;
 }
 .verifier-waitlist-notice-text {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   color: #555;
   font-size: 14px;
   line-height: 1.6;
@@ -11931,7 +10821,7 @@ body {
   border: 1px solid #d3d7db;
   border-radius: 7px;
   color: #4b5055;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
   font-weight: 500;
   padding: 8px 14px;
@@ -11961,7 +10851,7 @@ body {
 }
 .verifier-claiming-phase-label {
   display: block;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 500;
   color: #4f5b66;
@@ -11985,7 +10875,7 @@ body {
   border-radius: 8px;
   background: transparent;
   color: #6d9c79;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -12013,7 +10903,7 @@ body {
   padding: 11px 14px;
   margin-bottom: 18px;
   border-radius: 8px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
 }
 .verifier-claiming-context-info {
@@ -12034,7 +10924,7 @@ body {
   background: #fce4e4;
   border: 1px solid #efc4c4;
   color: #7f3030;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-claiming-context-icon {
   width: 26px;
@@ -12072,7 +10962,7 @@ body {
 .verifier-claiming-label {
   display: block;
   margin-bottom: 7px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: #303942;
@@ -12084,7 +10974,7 @@ body {
   border-radius: 7px;
   background-color: #ffffff;
   color: #2f3943;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   padding-left: 12px;
   box-shadow: none;
@@ -12103,32 +10993,32 @@ body {
   background: #edf7f0;
   border: 1px solid #cee8d4;
   color: #366c44;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
 }
 .verifier-claiming-mode-card {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   padding-bottom: 28px;
 }
 .verifier-claiming-mode-title {
-  font-family: var(--font-heading);
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 20px;
   font-weight: 600;
   color: #1a1a1a;
   margin: 0 0 22px;
 }
 .verifier-claiming-search-box {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
 }
 .verifier-claiming-search-box .verifier-claiming-label {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   color: #303942;
 }
 .verifier-claiming-input {
   height: 40px;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   color: #2f3943;
 }
@@ -12137,7 +11027,7 @@ body {
 }
 .verifier-claiming-search-box .text-muted,
 .verifier-attention-card > .text-muted {
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
 }
 .verifier-claiming-search-btn {
@@ -12147,7 +11037,7 @@ body {
   border-radius: 8px;
   background: #2e8b47;
   color: #ffffff;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
@@ -12184,7 +11074,7 @@ body {
   border-radius: 7px;
   background: #f9dcdc;
   color: #8f1b1b;
-  font-family: var(--font-body);
+  font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
 }
 /* ============================================
@@ -12195,7 +11085,7 @@ body {
   min-height: calc(100vh - 80px);
   background: #f5f6f8;
   padding: 55px 0 70px;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 .verify-email-wrapper {
@@ -12632,7 +11522,7 @@ body {
   min-height: calc(100vh - 70px);
   padding: 38px 24px 58px;
   background: var(--reg-bg);
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 .identity-shell {
@@ -12726,7 +11616,7 @@ body {
 .identity-section-title h3,
 .identity-scan-top h2,
 .face-capture-label {
-  font-family: var(--font-heading);
+  font-family: "Poppins", "Inter", sans-serif;
 }
 
 .identity-section-title h3 {
@@ -12867,7 +11757,7 @@ body {
 }
 
 .face-capture-polished {
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
 }
 
 .face-capture-label-row {
@@ -13011,7 +11901,7 @@ body {
   justify-content: center;
   gap: 7px;
   border-radius: 9px;
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 11px;
   font-weight: 700;
   transition: 0.18s ease;
@@ -13144,7 +12034,7 @@ body {
   outline: 0;
   background: transparent !important;
   color: var(--reg-red);
-  font-family: var(--font-body);
+  font-family: "Inter", sans-serif;
   font-size: 11px;
   font-weight: 700;
   cursor: pointer;
@@ -13483,239 +12373,3 @@ body {
   }
 }
 
-
-/* ============================================
-   APPLICATION HISTORY
-   ============================================ */
-
-.application-history-section {
-  margin-top: 28px;
-  padding: 24px;
-  border: 1px solid #f2c9c9;
-  border-radius: 14px;
-  background: #fff;
-}
-
-.application-history-heading {
-  margin-bottom: 22px;
-}
-
-.application-history-heading h4 {
-  margin: 0 0 4px;
-  color: var(--maroon);
-  font-size: 22px;
-  font-weight: 700;
-}
-
-.application-history-heading p {
-  margin: 0;
-  color: #5f6368;
-  font-size: 14px;
-}
-
-.application-history-list {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-}
-
-.application-history-card {
-  padding: 20px;
-  border: 1px solid #dfe3e7;
-  border-radius: 12px;
-  background: #fff;
-}
-
-.application-history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-  margin-bottom: 18px;
-}
-
-.application-history-year {
-  margin: 0 0 4px;
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f1f1f;
-}
-
-.application-history-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  color: #5f6368;
-  font-size: 14px;
-}
-
-.application-history-status {
-  flex-shrink: 0;
-  padding: 6px 11px;
-  border-radius: 7px;
-  background: #747d85;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.application-history-doc-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
-.application-history-doc-card {
-  min-width: 0;
-  padding: 18px;
-  border: 1px solid #dfe3e7;
-  border-radius: 12px;
-  background: #fff;
-}
-
-.application-history-doc-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.application-history-doc-top h6 {
-  margin: 0 0 7px;
-  font-size: 15px;
-  font-weight: 700;
-  color: #1f1f1f;
-}
-
-.application-history-doc-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 8px;
-  border-radius: 999px;
-  background: #f0f2f4;
-  color: #66707a;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.application-history-doc-icon {
-  width: 38px;
-  height: 38px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: #f3f4f5;
-  color: #737b83;
-}
-
-.application-history-doc-icon svg {
-  width: 19px;
-  height: 19px;
-}
-
-.application-history-file-name {
-  width: 100%;
-  margin-bottom: 14px;
-  padding: 11px 12px;
-  border-radius: 8px;
-  background: #f5f6f7;
-  color: #52585e;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.application-history-view-btn {
-  border: 1px solid #9da6ae;
-  border-radius: 6px;
-  background: #fff;
-  color: #606970;
-  padding: 7px 11px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: 0.2s ease;
-}
-
-.application-history-view-btn:hover {
-  border-color: var(--maroon);
-  color: var(--maroon);
-}
-
-
-/* TABLET */
-@media (max-width: 991.98px) {
-  .application-history-doc-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-
-/* MOBILE */
-@media (max-width: 575.98px) {
-  .application-history-section {
-    margin-top: 20px;
-    padding: 18px 16px;
-  }
-
-  .application-history-heading h4 {
-    font-size: 19px;
-  }
-
-  .application-history-heading p {
-    font-size: 12.5px;
-    line-height: 1.5;
-  }
-
-  .application-history-card {
-    padding: 15px;
-  }
-
-  .application-history-header {
-    margin-bottom: 15px;
-  }
-
-  .application-history-year {
-    font-size: 16px;
-  }
-
-  .application-history-meta {
-    display: block;
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  .application-history-dot {
-    display: none;
-  }
-
-  .application-history-meta span {
-    display: block;
-  }
-
-  .application-history-status {
-    padding: 5px 8px;
-    font-size: 10px;
-  }
-
-  .application-history-doc-card {
-    padding: 15px;
-  }
-
-  .application-history-doc-top h6 {
-    font-size: 14px;
-  }
-
-  .application-history-file-name {
-    font-size: 12px;
-  }
-
-  .application-history-view-btn {
-    width: 100%;
-    padding: 8px 10px;
-  }
-}

@@ -138,6 +138,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/verifier/applications/config/{configId}/promote-all-waitlist', [VerifierController::class, 'promoteAllFromWaitlist']);
         Route::get('/verifier/waitlist', [VerifierController::class, 'waitlist']);
         Route::get('/verifier/activity-log', [VerifierController::class, 'activityLog']);
+        Route::get('/verifier/claiming/{applicationId}/face-verification', [FaceVerificationController::class, 'latestClaimingVerification']);
         Route::post('/verifier/claiming/{applicationId}/verify-face', [FaceVerificationController::class, 'verifyClaiming']);
     });
 
