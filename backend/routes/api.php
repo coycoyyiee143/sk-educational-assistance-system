@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\VerifierController;
 use App\Http\Controllers\Api\FaceVerificationController;
+use App\Http\Controllers\Api\PasswordResetController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -21,6 +22,11 @@ Route::post('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
     ->name('verification.verify');
 Route::post('/email/resend', [AuthController::class, 'resendVerification']);
 Route::post('/email/verify-by-code', [AuthController::class, 'verifyEmailByCode']);
+
+// Forgot Password
+Route::post('/password/forgot', [PasswordResetController::class, 'sendResetCode']);
+Route::post('/password/verify-code', [PasswordResetController::class, 'verifyResetCode']);
+Route::post('/password/reset', [PasswordResetController::class, 'resetPassword']);
 
 // Public info routes
 Route::get('/announcements', [AnnouncementController::class, 'index']);
@@ -123,6 +129,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/verifier/applications/{id}/reject', [VerifierController::class, 'reject']);
         Route::post('/verifier/applications/{id}/reupload', [VerifierController::class, 'requestReupload']);
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
+        Route::post('/verifier/documents/{document}/retry-ocr', [VerifierController::class, 'retryOcr']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
         Route::get('/verifier/claiming/lanes', [VerifierController::class, 'claimingLanes']);
         Route::post('/verifier/claiming/lanes/{laneId}/self-assign', [VerifierController::class, 'selfAssignLane']);

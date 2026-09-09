@@ -3,6 +3,8 @@ import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
 
+const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+const STORAGE_URL = `${API_BASE.replace(/\/api\/?$/, "")}/storage/`;
 
 const Events = () => {
   const PAGE_SIZE = 3;
@@ -70,7 +72,7 @@ const Events = () => {
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
           <a className="navbar-brand navbar-brand-custom" href="/">
-            <img src="/logo.png" alt="SK Logo" />
+            <img src="/icons/sk-logo.jpg" alt="SK Logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>
@@ -151,165 +153,165 @@ const Events = () => {
           <h2 className="text-center section-title mb-5">Upcoming SK Activities</h2>
 
           <div className="events-content-wrapper">
-          {loading || isFiltering ? (
-            <div className="text-center py-5">
-              <div className="spinner-border text-danger" role="status" />
-            </div>
-          ) : filteredEvents.length === 0 ? (
-            hasNoEventsAtAll ? (
-              <div className="empty-state-split">
-                <div className="empty-state-main empty-state-main-left">
-                  <div className="stay-informed-badge-row">
-                    <span className="stay-informed-icon-wrap">
-                      <img src="/icons/public-notice.png" alt="Public Notice" className="stay-informed-icon" />
-                    </span>
-                    <span className="stay-informed-label">Public Notice</span>
-                  </div>
-                  <h3 className="stay-informed-title">Stay Informed</h3>
-                  <p className="stay-informed-text">
-                    There are no upcoming events at the moment. Please check back later for updates
-                    from the department. New youth programs and community activities will appear here.
-                  </p>
-                </div>
-                <div className="empty-state-side">
-                  <span className="empty-state-dept-label">Department</span>
-                  <p className="empty-state-dept-name">Office of the SK Chairman</p>
-                  <div className="empty-state-contact-line">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="empty-state-contact-icon">
-                      <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                    <span>Barangay Hall, 2nd Floor, Mamatid</span>
-                  </div>
-                  <div className="empty-state-contact-line">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="empty-state-contact-icon">
-                      <path d="M4 4h16v16H4V4z" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M4 6l8 7 8-7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span>sk.mamatid@cabuyao.gov.ph</span>
-                  </div>
-                  <div className="empty-state-verified">Verified Official Content</div>
-                </div>
+            {loading || isFiltering ? (
+              <div className="text-center py-5">
+                <div className="spinner-border text-danger" role="status" />
               </div>
-            ) : (
-              <div className="empty-state-split">
-                <div className="empty-state-main">
-                  <div className="empty-state-icon-wrap">
-                    <img src="/icons/no-match.png" alt="No match" className="empty-state-icon" />
-                  </div>
-                  <p className="empty-state-message">No events match your search.</p>
-                </div>
-                <div className="empty-state-side">
-                  <span className="empty-state-dept-label">Department</span>
-                  <p className="empty-state-dept-name">Office of the SK Chairman</p>
-                  <div className="empty-state-contact-line">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="empty-state-contact-icon">
-                      <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
-                      <circle cx="12" cy="10" r="3" />
-                    </svg>
-                    <span>Barangay Hall, 2nd Floor, Mamatid</span>
-                  </div>
-                  <div className="empty-state-contact-line">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="empty-state-contact-icon">
-                      <path d="M4 4h16v16H4V4z" strokeLinecap="round" strokeLinejoin="round" />
-                      <path d="M4 6l8 7 8-7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    <span>sk.mamatid@cabuyao.gov.ph</span>
-                  </div>
-                  <div className="empty-state-verified">Verified Official Content</div>
-                </div>
-              </div>
-            )
-          ) : (
-            <>
-              <div className="event-landscape-list">
-                {paginatedEvents.map((ev, index) => (
-                  <div
-                    className="event-landscape-card event-card-fade-in"
-                    key={ev.id}
-                    style={{ animationDelay: `${index * 0.08}s` }}
-                  >
-                    <div className="event-landscape-image-wrap">
-                      {ev.image_path ? (
-                        <img
-                          src={`http://localhost:8000/storage/${ev.image_path}`}
-                          className="event-landscape-image"
-                          alt={ev.title}
-                        />
-                      ) : (
-                        <div className="event-landscape-image-fallback" />
-                      )}
+            ) : filteredEvents.length === 0 ? (
+              hasNoEventsAtAll ? (
+                <div className="empty-state-split">
+                  <div className="empty-state-main empty-state-main-left">
+                    <div className="stay-informed-badge-row">
+                      <span className="stay-informed-icon-wrap">
+                        <img src="/icons/public-notice.png" alt="Public Notice" className="stay-informed-icon" />
+                      </span>
+                      <span className="stay-informed-label">Public Notice</span>
                     </div>
-                    <div className="event-landscape-content">
-                      <h5 className="event-card-title">{ev.title}</h5>
-                      <div className="event-card-meta">
-                        <span className="event-card-meta-item">
-                          <img src="/icons/event-calendar.png" alt="Date" />
-                          {formatDate(ev.event_date)}
-                        </span>
-                        {ev.event_time && (
-                          <span className="event-card-meta-item">
-                            <img src="/icons/event-clock.png" alt="Time" />
-                            {formatTime(ev.event_time)}
-                          </span>
-                        )}
-                        {ev.venue && (
-                          <span className="event-card-meta-item">
-                            <img src="/icons/event-location.png" alt="Venue" />
-                            {ev.venue}
-                          </span>
+                    <h3 className="stay-informed-title">Stay Informed</h3>
+                    <p className="stay-informed-text">
+                      There are no upcoming events at the moment. Please check back later for updates
+                      from the department. New youth programs and community activities will appear here.
+                    </p>
+                  </div>
+                  <div className="empty-state-side">
+                    <span className="empty-state-dept-label">Department</span>
+                    <p className="empty-state-dept-name">Office of the SK Chairman</p>
+                    <div className="empty-state-contact-line">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="empty-state-contact-icon">
+                        <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                      <span>Barangay Hall, 2nd Floor, Mamatid</span>
+                    </div>
+                    <div className="empty-state-contact-line">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="empty-state-contact-icon">
+                        <path d="M4 4h16v16H4V4z" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M4 6l8 7 8-7" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>sk.mamatid@cabuyao.gov.ph</span>
+                    </div>
+                    <div className="empty-state-verified">Verified Official Content</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="empty-state-split">
+                  <div className="empty-state-main">
+                    <div className="empty-state-icon-wrap">
+                      <img src="/icons/no-match.png" alt="No match" className="empty-state-icon" />
+                    </div>
+                    <p className="empty-state-message">No events match your search.</p>
+                  </div>
+                  <div className="empty-state-side">
+                    <span className="empty-state-dept-label">Department</span>
+                    <p className="empty-state-dept-name">Office of the SK Chairman</p>
+                    <div className="empty-state-contact-line">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="empty-state-contact-icon">
+                        <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
+                        <circle cx="12" cy="10" r="3" />
+                      </svg>
+                      <span>Barangay Hall, 2nd Floor, Mamatid</span>
+                    </div>
+                    <div className="empty-state-contact-line">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="empty-state-contact-icon">
+                        <path d="M4 4h16v16H4V4z" strokeLinecap="round" strokeLinejoin="round" />
+                        <path d="M4 6l8 7 8-7" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <span>sk.mamatid@cabuyao.gov.ph</span>
+                    </div>
+                    <div className="empty-state-verified">Verified Official Content</div>
+                  </div>
+                </div>
+              )
+            ) : (
+              <>
+                <div className="event-landscape-list">
+                  {paginatedEvents.map((ev, index) => (
+                    <div
+                      className="event-landscape-card event-card-fade-in"
+                      key={ev.id}
+                      style={{ animationDelay: `${index * 0.08}s` }}
+                    >
+                      <div className="event-landscape-image-wrap">
+                        {ev.image_path ? (
+                          <img
+                            src={`${STORAGE_URL}${ev.image_path}`}
+                            className="event-landscape-image"
+                            alt={ev.title}
+                          />
+                        ) : (
+                          <div className="event-landscape-image-fallback" />
                         )}
                       </div>
-                      {ev.description && (
-                        <p className="event-card-desc">{ev.description}</p>
-                      )}
-                      <span
-                        className="read-more-btn event-view-more-btn"
-                        onClick={() => setSelected(ev)}
-                      >
-                        View More
-                        <svg className="read-more-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                          <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </span>
+                      <div className="event-landscape-content">
+                        <h5 className="event-card-title">{ev.title}</h5>
+                        <div className="event-card-meta">
+                          <span className="event-card-meta-item">
+                            <img src="/icons/event-calendar.png" alt="Date" />
+                            {formatDate(ev.event_date)}
+                          </span>
+                          {ev.event_time && (
+                            <span className="event-card-meta-item">
+                              <img src="/icons/event-clock.png" alt="Time" />
+                              {formatTime(ev.event_time)}
+                            </span>
+                          )}
+                          {ev.venue && (
+                            <span className="event-card-meta-item">
+                              <img src="/icons/event-location.png" alt="Venue" />
+                              {ev.venue}
+                            </span>
+                          )}
+                        </div>
+                        {ev.description && (
+                          <p className="event-card-desc">{ev.description}</p>
+                        )}
+                        <span
+                          className="read-more-btn event-view-more-btn"
+                          onClick={() => setSelected(ev)}
+                        >
+                          View More
+                          <svg className="read-more-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                            <path d="M5 12h14M13 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
 
-              {/* Pagination controls */}
-              <div className="announcements-pagination">
-                <button
-                  type="button"
-                  className="pagination-arrow-btn"
-                  onClick={() => goToPage(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  aria-label="Previous page"
-                >
-                  &#8249;
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                {/* Pagination controls */}
+                <div className="announcements-pagination">
                   <button
-                    key={page}
                     type="button"
-                    className={`pagination-page-btn ${currentPage === page ? "pagination-page-active" : ""}`}
-                    onClick={() => goToPage(page)}
+                    className="pagination-arrow-btn"
+                    onClick={() => goToPage(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    aria-label="Previous page"
                   >
-                    {String(page).padStart(2, "0")}
+                    &#8249;
                   </button>
-                ))}
-                <button
-                  type="button"
-                  className="pagination-arrow-btn"
-                  onClick={() => goToPage(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  aria-label="Next page"
-                >
-                  &#8250;
-                </button>
-              </div>
-            </>
-          )}
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      type="button"
+                      className={`pagination-page-btn ${currentPage === page ? "pagination-page-active" : ""}`}
+                      onClick={() => goToPage(page)}
+                    >
+                      {String(page).padStart(2, "0")}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    className="pagination-arrow-btn"
+                    onClick={() => goToPage(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    aria-label="Next page"
+                  >
+                    &#8250;
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       </section>
@@ -338,7 +340,7 @@ const Events = () => {
                 </div>
                 {selected.image_path && (
                   <img
-                    src={`http://localhost:8000/storage/${selected.image_path}`}
+                    src={`${STORAGE_URL}${selected.image_path}`}
                     alt={selected.title}
                     className="event-modal-image"
                   />

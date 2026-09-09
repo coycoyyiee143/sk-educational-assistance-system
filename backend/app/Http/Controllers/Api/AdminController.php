@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Application;
+use App\Models\ApplicationConfiguration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 
@@ -12,11 +13,26 @@ class AdminController extends Controller
 {
     public function stats()
     {
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+    
+        if (!$activeConfig) {
+            return response()->json([
+                'total'      => 0,
+                'incomplete' => 0,
+                'pending'    => 0,
+                'approved'   => 0,
+                'rejected'   => 0,
+                'no_active_period' => true,
+            ]);
+        }
+    
         return response()->json([
-            'total'    => Application::count(),
-            'pending'  => Application::whereIn('status', ['pending_prescreening', 'for_review'])->count(),
-            'approved' => Application::where('status', 'approved')->count(),
-            'rejected' => Application::where('status', 'rejected')->count(),
+            'total'      => Application::where('config_id', $activeConfig->id)->whereHas('documents')->count(),
+            'incomplete' => Application::where('config_id', $activeConfig->id)->whereDoesntHave('documents')->count(),
+            'pending'    => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening', 'for_review'])->count(),
+            'approved'   => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
+            'rejected'   => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
+            'no_active_period' => false,
         ]);
     }
 

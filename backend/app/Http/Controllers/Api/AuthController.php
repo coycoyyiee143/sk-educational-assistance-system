@@ -200,7 +200,7 @@ class AuthController extends Controller
             \App\Models\AuditLog::create([
                 'user_id'     => $user->id ?? null,
                 'action'      => 'login_failed',
-                'description' => "Failed login attempt for: {$request->email}",
+                'description' => "An unsuccessful login attempt was made on your account.",
                 'ip_address'  => $request->ip(),
             ]);
 
@@ -222,7 +222,6 @@ class AuthController extends Controller
                 'email'      => $user->email,
             ], 403);
         }
-        $token = $user->createToken('auth_token')->plainTextToken;
 
         $token = $user->createToken('auth_token')->plainTextToken;
 

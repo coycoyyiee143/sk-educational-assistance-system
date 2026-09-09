@@ -28,73 +28,83 @@ const DRAFT_STORAGE_KEY = "applicant_submission_draft";
 
 function ApplicantSubmission() {
   const [form, setForm] = useState(emptyForm);
-
   const [files, setFiles] = useState({
     enrollment: null,
     schoolId: null,
     voters: null,
   });
-
   const [fileErrors, setFileErrors] = useState({
     enrollment: "",
     schoolId: "",
     voters: "",
   });
-
   const [reuploadFiles, setReuploadFiles] = useState({
     enrollment: null,
     schoolId: null,
     voters: null,
   });
-
   const [reuploadFileErrors, setReuploadFileErrors] = useState({
     enrollment: "",
     schoolId: "",
     voters: "",
   });
-
   const [applicationId, setApplicationId] = useState(null);
   const [existingApp, setExistingApp] = useState(null);
   const [applicationHistory, setApplicationHistory] = useState([]);
   const [existingDocs, setExistingDocs] = useState([]);
-
   const [step, setStep] = useState("form");
   const [checkingApp, setCheckingApp] = useState(true);
   const [loading, setLoading] = useState(false);
-
   const [uploadProgress, setUploadProgress] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
   const [draftSaved, setDraftSaved] = useState(false);
   const [attestationChecked, setAttestationChecked] = useState(false);
-
   const [activeConfig, setActiveConfig] = useState(null);
   const [docUrls, setDocUrls] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
   const [profile, setProfile] = useState(null);
-
   const periodStatus = getApplicationPeriodStatus(activeConfig);
 
   const setFile = (key) => async (e) => {
     const file = e.target.files[0] ?? null;
-
     if (!file) {
       setFiles((prev) => ({
         ...prev,
         [key]: null,
       }));
-
       setFileErrors((prev) => ({
         ...prev,
         [key]: "",
       }));
-
       return;
     }
-
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setFileErrors((prev) => ({
+        ...prev,
+        [key]:
+          "This file type is not supported. Please upload a JPG or PNG photo — PDF and other formats are not accepted.",
+      }));
+      setFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFileErrors((prev) => ({
+        ...prev,
+        [key]: `File size exceeds 5MB (this file is ${(file.size / (1024 * 1024)).toFixed(1)}MB). Please upload a smaller photo.`,
+      }));
+      setFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      e.target.value = "";
+      return;
+    }
     const result = await checkImageResolution(file);
-
     if (!result.valid) {
       setFileErrors((prev) => ({
         ...prev,
@@ -102,39 +112,31 @@ function ApplicantSubmission() {
           ? "Could not read this file. Please try a different image."
           : `Image resolution too low (${result.width}×${result.height}px). Please retake or rescan at a higher quality.`,
       }));
-
       setFiles((prev) => ({
         ...prev,
         [key]: null,
       }));
-
       e.target.value = "";
       return;
     }
-
     const sharpResult = await checkImageSharpness(file);
-
     if (!sharpResult.valid) {
       setFileErrors((prev) => ({
         ...prev,
         [key]:
           "Image appears blurry or unclear. Please retake or rescan with better focus and lighting.",
       }));
-
       setFiles((prev) => ({
         ...prev,
         [key]: null,
       }));
-
       e.target.value = "";
       return;
     }
-
     setFileErrors((prev) => ({
       ...prev,
       [key]: "",
     }));
-
     setFiles((prev) => ({
       ...prev,
       [key]: file,
@@ -143,23 +145,43 @@ function ApplicantSubmission() {
 
   const setReupload = (key) => async (e) => {
     const file = e.target.files[0] ?? null;
-
     if (!file) {
       setReuploadFiles((prev) => ({
         ...prev,
         [key]: null,
       }));
-
       setReuploadFileErrors((prev) => ({
         ...prev,
         [key]: "",
       }));
-
       return;
     }
-
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setReuploadFileErrors((prev) => ({
+        ...prev,
+        [key]:
+          "This file type is not supported. Please upload a JPG or PNG photo — PDF and other formats are not accepted.",
+      }));
+      setReuploadFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setReuploadFileErrors((prev) => ({
+        ...prev,
+        [key]: `File size exceeds 5MB (this file is ${(file.size / (1024 * 1024)).toFixed(1)}MB). Please upload a smaller photo.`,
+      }));
+      setReuploadFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      e.target.value = "";
+      return;
+    }
     const result = await checkImageResolution(file);
-
     if (!result.valid) {
       setReuploadFileErrors((prev) => ({
         ...prev,
@@ -167,39 +189,31 @@ function ApplicantSubmission() {
           ? "Could not read this file. Please try a different image."
           : `Image resolution too low (${result.width}×${result.height}px). Please retake or rescan at a higher quality.`,
       }));
-
       setReuploadFiles((prev) => ({
         ...prev,
         [key]: null,
       }));
-
       e.target.value = "";
       return;
     }
-
     const sharpResult = await checkImageSharpness(file);
-
     if (!sharpResult.valid) {
       setReuploadFileErrors((prev) => ({
         ...prev,
         [key]:
           "Image appears blurry or unclear. Please retake or rescan with better focus and lighting.",
       }));
-
       setReuploadFiles((prev) => ({
         ...prev,
         [key]: null,
       }));
-
       e.target.value = "";
       return;
     }
-
     setReuploadFileErrors((prev) => ({
       ...prev,
       [key]: "",
     }));
-
     setReuploadFiles((prev) => ({
       ...prev,
       [key]: file,
@@ -208,7 +222,6 @@ function ApplicantSubmission() {
 
   useEffect(() => {
     let createdUrls = [];
-
     async function loadDocUrls() {
       const entries = await Promise.all(
         existingDocs.map(async (doc) => {
@@ -219,11 +232,8 @@ function ApplicantSubmission() {
                 responseType: "blob",
               }
             );
-
             const url = URL.createObjectURL(res.data);
-
             createdUrls.push(url);
-
             return [
               doc.id,
               {
@@ -236,21 +246,18 @@ function ApplicantSubmission() {
           }
         })
       );
-
       setDocUrls(
         Object.fromEntries(
           entries.filter(Boolean)
         )
       );
     }
-
     if (
       applicationId &&
       existingDocs.length > 0
     ) {
       loadDocUrls();
     }
-
     return () => {
       createdUrls.forEach((url) =>
         URL.revokeObjectURL(url)
@@ -269,11 +276,8 @@ function ApplicantSubmission() {
           responseType: "blob",
         }
       );
-
       const url = URL.createObjectURL(res.data);
-
       window.open(url, "_blank");
-
       setTimeout(() => {
         URL.revokeObjectURL(url);
       }, 60000);
@@ -298,19 +302,15 @@ function ApplicantSubmission() {
         async ([applicationsRes, configRes]) => {
           const applications =
             applicationsRes.data;
-
           const currentConfig =
             configRes.data;
-
           setActiveConfig(currentConfig);
-
           const currentApp =
             applications.find(
               (app) =>
                 app.config_id ===
                 currentConfig.id
             );
-
           setApplicationHistory(
             applications.filter(
               (app) =>
@@ -318,13 +318,10 @@ function ApplicantSubmission() {
                 currentConfig.id
             )
           );
-
           if (currentApp) {
             const app = currentApp;
-
             setExistingApp(app);
             setApplicationId(app.id);
-
             setForm({
               schoolName:
                 app.school_name ?? "",
@@ -333,13 +330,10 @@ function ApplicantSubmission() {
               yearLevel:
                 app.year_level ?? "",
             });
-
             const docsRes = await api.get(
               `/applications/${app.id}/documents`
             );
-
             setExistingDocs(docsRes.data);
-
             if (
               STATUS_CONFIG[app.status]
                 ?.showReupload
@@ -357,7 +351,6 @@ function ApplicantSubmission() {
               localStorage.getItem(
                 DRAFT_STORAGE_KEY
               );
-
             if (draft) {
               try {
                 setForm(
@@ -387,18 +380,14 @@ function ApplicantSubmission() {
 
   const isMinor =
     profile?.is_minor ?? false;
-
   const DOC_FIELDS =
     getDocFields(isMinor);
-
   const isProfileComplete =
     profile?.is_profile_complete ??
     false;
-
   const isAutoReupload =
     existingApp?.status ===
     "auto_reupload_requested";
-
   const reuploadDetails =
     existingApp
       ?.latest_verifier_action
@@ -410,11 +399,9 @@ function ApplicantSubmission() {
         item.document_type ===
         field.type
     );
-
     if (isAutoReupload) {
       return !!doc?.needs_auto_reupload;
     }
-
     return reuploadDetails.some(
       (item) =>
         item.document_type ===
@@ -428,7 +415,6 @@ function ApplicantSubmission() {
         item.document_type ===
         field.type
     );
-
     if (isAutoReupload) {
       return doc?.needs_auto_reupload
         ? {
@@ -437,7 +423,6 @@ function ApplicantSubmission() {
           }
         : null;
     }
-
     return reuploadDetails.find(
       (item) =>
         item.document_type ===
@@ -449,13 +434,11 @@ function ApplicantSubmission() {
     DOC_FIELDS.filter((field) => {
       const hasNewFile =
         !!reuploadFiles[field.key];
-
       return (
         isFieldFlagged(field) &&
         !hasNewFile
       );
     });
-
   const isReuploadDisabled =
     missingReuploadFields.length > 0;
 
@@ -464,9 +447,7 @@ function ApplicantSubmission() {
       DRAFT_STORAGE_KEY,
       JSON.stringify(form)
     );
-
     setDraftSaved(true);
-
     setTimeout(() => {
       setDraftSaved(false);
     }, 2500);
@@ -474,10 +455,8 @@ function ApplicantSubmission() {
 
   async function handleSubmitForm(e) {
     e.preventDefault();
-
     setError("");
     setLoading(true);
-
     try {
       const payload = {
         school_name:
@@ -487,7 +466,6 @@ function ApplicantSubmission() {
         year_level:
           form.yearLevel,
       };
-
       if (applicationId) {
         await api.put(
           `/applications/${applicationId}`,
@@ -498,12 +476,10 @@ function ApplicantSubmission() {
           "/applications",
           payload
         );
-
         setApplicationId(
           res.data.application.id
         );
       }
-
       setStep(
         STATUS_CONFIG[
           existingApp?.status
@@ -511,14 +487,12 @@ function ApplicantSubmission() {
           ? "reupload"
           : "documents"
       );
-
       localStorage.removeItem(
         DRAFT_STORAGE_KEY
       );
     } catch (err) {
       const errors =
         err.response?.data?.errors;
-
       setError(
         errors
           ? Object.values(errors)
@@ -535,16 +509,13 @@ function ApplicantSubmission() {
 
   async function handleUploadDocuments(e) {
     e.preventDefault();
-
     setError("");
-
     if (!attestationChecked) {
       setError(
         "You must certify that your documents are true, accurate, and unaltered before submitting."
       );
       return;
     }
-
     if (
       !files.enrollment ||
       !files.schoolId ||
@@ -555,9 +526,7 @@ function ApplicantSubmission() {
       );
       return;
     }
-
     setLoading(true);
-
     const uploadDoc = async (
       file,
       documentType,
@@ -566,42 +535,34 @@ function ApplicantSubmission() {
       setUploadProgress(
         `Uploading ${label}...`
       );
-
       const formData =
         new FormData();
-
       formData.append("file", file);
-
       formData.append(
         "document_type",
         documentType
       );
-
       await api.post(
         `/applications/${applicationId}/documents`,
         formData
       );
     };
-
     try {
       await uploadDoc(
         files.enrollment,
         "registration_form",
         "Registration Form"
       );
-
       await uploadDoc(
         files.schoolId,
         "school_id",
         "School ID"
       );
-
       await uploadDoc(
         files.voters,
         "voters_certificate",
         "Voter's Certificate"
       );
-
       await api.put(
         `/applications/${applicationId}`,
         {
@@ -614,25 +575,19 @@ function ApplicantSubmission() {
           attestation_accepted: true,
         }
       );
-
       const docsRes = await api.get(
         `/applications/${applicationId}/documents`
       );
-
       setExistingDocs(docsRes.data);
       setUploadProgress("");
-
       setSuccess(
         "Application and documents submitted successfully! Your documents are being processed."
       );
-
       setStep("done");
     } catch (err) {
       setUploadProgress("");
-
       const errors =
         err.response?.data?.errors;
-
       setError(
         errors
           ? "Upload failed: " +
@@ -652,90 +607,69 @@ function ApplicantSubmission() {
 
   async function handleReupload(e) {
     e.preventDefault();
-
     setError("");
-
     if (isReuploadDisabled) {
       const missingLabels =
         missingReuploadFields
           .map((field) => field.label)
           .join(", ");
-
       setError(
         `You must upload all documents flagged for corrections. Missing: ${missingLabels}`
       );
-
       return;
     }
-
     setLoading(true);
-
     const reuploadDoc = async (
       file,
       docType,
       label
     ) => {
       if (!file) return;
-
       const existingDoc =
         existingDocs.find(
           (doc) =>
             doc.document_type ===
             docType
         );
-
       if (!existingDoc) return;
-
       setUploadProgress(
         `Re-uploading ${label}...`
       );
-
       const formData =
         new FormData();
-
       formData.append("file", file);
-
       await api.post(
         `/applications/${applicationId}/documents/${existingDoc.id}/reupload`,
         formData
       );
     };
-
     try {
       await reuploadDoc(
         reuploadFiles.enrollment,
         "registration_form",
         "Registration Form"
       );
-
       await reuploadDoc(
         reuploadFiles.schoolId,
         "school_id",
         "School ID"
       );
-
       await reuploadDoc(
         reuploadFiles.voters,
         "voters_certificate",
         "Voter's Certificate"
       );
-
       const docsRes = await api.get(
         `/applications/${applicationId}/documents`
       );
-
       setExistingDocs(docsRes.data);
-
       setUploadProgress("");
-
       setSuccess(
         "Documents re-uploaded successfully! Your application is being re-processed."
       );
-
       setStep("done");
     } catch (err) {
       setUploadProgress("");
-
       setError(
         `Re-upload failed: ${
           err.response?.data
@@ -751,25 +685,20 @@ function ApplicantSubmission() {
   return (
     <div className="applicant-layout">
       <ApplicantNavigation />
-
       <div className="applicant-main">
         <div className="applicant-topbar">
           <ApplicantTopbarUser />
         </div>
-
         <section className="page-section">
           <div className="container-fluid">
-
             <div className="applicant-dashboard-header">
               <h3 className="applicant-dashboard-title">
                 Application Submission
               </h3>
-
               <p className="applicant-dashboard-desc">
                 Complete the educational information and upload the required supporting documents for verification.
               </p>
             </div>
-
             <div className="page-card">
               {checkingApp ? (
                 <div className="d-flex justify-content-center align-items-center py-5">
@@ -785,13 +714,11 @@ function ApplicantSubmission() {
                       {error}
                     </div>
                   )}
-
                   {success && (
                     <div className="alert alert-success">
                       {success}
                     </div>
                   )}
-
                   {step === "done" && (
                     <DoneStepSummary
                       success={success}
@@ -803,7 +730,6 @@ function ApplicantSubmission() {
                       setPreviewFile={setPreviewFile}
                     />
                   )}
-
                   {step === "reupload" && (
                     <ReuploadStep
                       existingApp={existingApp}
@@ -827,7 +753,6 @@ function ApplicantSubmission() {
                       setStep={setStep}
                     />
                   )}
-
                   {periodStatus ===
                     "scheduled" &&
                     activeConfig && (
@@ -861,7 +786,6 @@ function ApplicantSubmission() {
                         opens.
                       </div>
                     )}
-
                   {periodStatus ===
                     "closed" &&
                     activeConfig && (
@@ -874,7 +798,6 @@ function ApplicantSubmission() {
                         longer being accepted.
                       </div>
                     )}
-
                   {step === "form" && (
                     <FormStep
                       form={form}
@@ -905,7 +828,6 @@ function ApplicantSubmission() {
                       }
                     />
                   )}
-
                   {step === "documents" &&
                     (!isProfileComplete ? (
                       <div className="profile-completion-card">
@@ -928,18 +850,15 @@ function ApplicantSubmission() {
                             <path d="M16 11h6" />
                           </svg>
                         </div>
-
                         <div className="profile-completion-content">
                           <div className="profile-completion-heading">
                             <h4>
                               Complete Your Profile
                             </h4>
-
                             <span className="profile-completion-badge">
                               Required
                             </span>
                           </div>
-
                           <p>
                             Before uploading your
                             documents, please
@@ -949,26 +868,21 @@ function ApplicantSubmission() {
                             application can be
                             processed correctly.
                           </p>
-
                           <div className="profile-completion-details">
                             <span>
                               ✓ Address
                             </span>
-
                             <span>
                               ✓ Gender
                             </span>
-
                             <span>
                               ✓ Civil Status
                             </span>
-
                             <span>
                               ✓ Required Personal
                               Information
                             </span>
                           </div>
-
                           <Link
                             to="/ApplicantProfile"
                             className="btn profile-completion-btn"
@@ -1013,7 +927,6 @@ function ApplicantSubmission() {
                         }
                       />
                     ))}
-
                   <ApplicationHistoryList
                     applicationHistory={
                       applicationHistory
@@ -1025,13 +938,10 @@ function ApplicantSubmission() {
                 </>
               )}
             </div>
-
           </div>
         </section>
-
         <PanelFooter />
       </div>
-
       <FilePreviewModal
         previewFile={previewFile}
         onClose={() =>

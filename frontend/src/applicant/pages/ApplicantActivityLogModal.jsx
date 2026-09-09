@@ -6,14 +6,46 @@ const ACTION_CONFIG = {
   logout: { label: "Logged Out", badge: "bg-secondary" },
   login_failed: { label: "Failed Login", badge: "bg-danger" },
   page_visited: { label: "Page Visit", badge: "bg-secondary" },
-  application_submitted: { label: "Application Submitted", badge: "bg-success" },
-  application_updated: { label: "Application Updated", badge: "bg-primary" },
-  document_uploaded: { label: "Document Uploaded", badge: "bg-success" },
-  document_reuploaded: { label: "Document Re-uploaded", badge: "bg-warning text-dark" },
-  profile_completed: { label: "Profile Completed", badge: "bg-success" },
-  profile_updated: { label: "Profile Updated", badge: "bg-primary" },
-  account_updated: { label: "Account Updated", badge: "bg-primary" },
-  password_changed: { label: "Password Changed", badge: "bg-warning text-dark" },
+
+  application_submitted: {
+    label: "Application Submitted",
+    badge: "bg-success",
+  },
+
+  application_updated: {
+    label: "Application Updated",
+    badge: "bg-primary",
+  },
+
+  document_uploaded: {
+    label: "Document Uploaded",
+    badge: "bg-success",
+  },
+
+  document_reuploaded: {
+    label: "Document Re-uploaded",
+    badge: "bg-warning text-dark",
+  },
+
+  profile_completed: {
+    label: "Profile Completed",
+    badge: "bg-success",
+  },
+
+  profile_updated: {
+    label: "Profile Updated",
+    badge: "bg-primary",
+  },
+
+  account_updated: {
+    label: "Account Updated",
+    badge: "bg-primary",
+  },
+
+  password_changed: {
+    label: "Password Changed",
+    badge: "bg-warning text-dark",
+  },
 };
 
 function ActionBadge({ action }) {
@@ -82,15 +114,20 @@ function ApplicantActivityLogModal({ show, onClose }) {
 
     api
       .get("/applications/activity-log")
-      .then((res) => setLogs(res.data.data || res.data))
-      .catch(() => setError("Failed to load activity log."))
-      .finally(() => setLoading(false));
+      .then((res) => {
+        setLogs(res.data.data || res.data);
+      })
+      .catch(() => {
+        setError("Failed to load activity log.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, [show]);
 
-  const actionTypes = useMemo(
-    () => [...new Set(logs.map((log) => log.action))],
-    [logs]
-  );
+  const actionTypes = useMemo(() => {
+    return [...new Set(logs.map((log) => log.action))];
+  }, [logs]);
 
   const filteredLogs = useMemo(() => {
     return logs.filter((log) => {
@@ -123,6 +160,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
 
   function goToPage(page) {
     if (page < 1 || page > totalPages) return;
+
     setCurrentPage(page);
   }
 
@@ -170,7 +208,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
       <div
         className="modal-backdrop show"
         onClick={onClose}
-      ></div>
+      />
 
       <div
         className="modal show d-block"
@@ -183,6 +221,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
         >
           <div className="modal-content verifier-activity-modal">
 
+            {/* HEADER */}
             <div className="verifier-activity-modal-header-new">
               <div className="verifier-activity-modal-heading-new">
 
@@ -211,11 +250,13 @@ function ApplicantActivityLogModal({ show, onClose }) {
                 type="button"
                 className="verifier-activity-modal-close-new"
                 onClick={onClose}
+                aria-label="Close"
               >
                 ×
               </button>
             </div>
 
+            {/* BODY */}
             <div className="modal-body verifier-activity-modal-body">
 
               {error && (
@@ -224,6 +265,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                 </div>
               )}
 
+              {/* SEARCH / FILTER */}
               <div className="search-box verifier-activity-search-box mb-3">
                 <div className="row g-3">
 
@@ -281,14 +323,15 @@ function ApplicantActivityLogModal({ show, onClose }) {
                 </div>
               </div>
 
-              <div className="table-responsive">
-                <table className="table table-bordered table-striped align-middle verifier-attention-table">
+              {/* ACTIVITY TABLE */}
+              <div className="verifier-activity-table-scroll">
+                <table className="table table-bordered table-striped align-middle verifier-attention-table verifier-activity-table">
 
                   <colgroup>
-                    <col style={{ width: "25%" }} />
-                    <col style={{ width: "25%" }} />
-                    <col style={{ width: "25%" }} />
-                    <col style={{ width: "25%" }} />
+                    <col className="verifier-activity-col-date" />
+                    <col className="verifier-activity-col-action" />
+                    <col className="verifier-activity-col-description" />
+                    <col className="verifier-activity-col-ip" />
                   </colgroup>
 
                   <thead>
@@ -325,7 +368,6 @@ function ApplicantActivityLogModal({ show, onClose }) {
                     ) : (
                       pagedLogs.map((log) => (
                         <tr key={log.id}>
-
                           <td>
                             {formatTimestamp(
                               log.created_at
@@ -346,17 +388,18 @@ function ApplicantActivityLogModal({ show, onClose }) {
 
                           <td>
                             <code className="small">
-                              {log.ip_address}
+                              {log.ip_address || "—"}
                             </code>
                           </td>
-
                         </tr>
                       ))
                     )}
                   </tbody>
+
                 </table>
               </div>
 
+              {/* PAGINATION */}
               {!loading &&
                 filteredLogs.length > 0 && (
                   <div className="verifier-table-pagination-bar">
@@ -373,6 +416,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                     <div className="verifier-table-pagination-controls">
 
                       <button
+                        type="button"
                         className="verifier-table-pagination-arrow"
                         onClick={() =>
                           goToPage(currentPage - 1)
@@ -394,6 +438,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                             </span>
                           ) : (
                             <button
+                              type="button"
                               key={page}
                               className={`verifier-table-pagination-page ${
                                 page === currentPage
@@ -410,6 +455,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                       )}
 
                       <button
+                        type="button"
                         className="verifier-table-pagination-arrow"
                         onClick={() =>
                           goToPage(currentPage + 1)
@@ -427,6 +473,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                 )}
             </div>
 
+            {/* FOOTER */}
             <div className="verifier-activity-modal-footer-new">
               <button
                 type="button"

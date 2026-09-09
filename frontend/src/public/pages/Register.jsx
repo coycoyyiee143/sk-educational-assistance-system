@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
 import FaceCapture from "../../applicant/components/FaceCapture";
+
 const Register = () => {
   const [form, setForm] = useState({
     firstName: "",
@@ -17,42 +18,79 @@ const Register = () => {
     password: "",
     confirmPassword: "",
   });
+
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
+
   const [step, setStep] = useState("form");
+
+  // Shows the success popup before redirecting to email verification
+  const [faceVerified, setFaceVerified] = useState(false);
+
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  /* ========================================
+     FORM
+  ======================================== */
+
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    setForm({
+      ...form,
+      [e.target.name]: e.target.value,
+    });
+
+    setError("");
   };
+
   function handleIdChange(e) {
     const file = e.target.files[0];
+
     if (!file) return;
+
     setIdImage(file);
     setIdPreview(URL.createObjectURL(file));
+    setError("");
   }
+
   const handleNext = (e) => {
     e.preventDefault();
+
     setError("");
+
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
       return;
     }
+
     if (!idImage) {
       setError("Please upload a valid ID.");
       return;
     }
+
     setStep("face");
   };
-  async function handleRegisterWithFace({ idImage: capturedIdImage, liveBlob }) {
+
+  /* ========================================
+     REGISTER + FACE VERIFICATION
+  ======================================== */
+
+  async function handleRegisterWithFace({
+    idImage: capturedIdImage,
+    liveBlob,
+  }) {
     setError("");
     setLoading(true);
+
     try {
       const formData = new FormData();
+
       formData.append("first_name", form.firstName);
       formData.append("middle_name", form.middleName);
       formData.append("last_name", form.lastName);
@@ -61,156 +99,681 @@ const Register = () => {
       formData.append("birthdate", form.birthdate);
       formData.append("barangay", form.barangay);
       formData.append("password", form.password);
-      formData.append("password_confirmation", form.confirmPassword);
+      formData.append(
+        "password_confirmation",
+        form.confirmPassword
+      );
+
       formData.append("id_image", capturedIdImage);
       formData.append("live_photo", liveBlob, "live.jpg");
+
       await api.post("/register", formData);
-      navigate("/verify-email-notice", { state: { email: form.email } });
+
+      // Show confirmation popup
+      setFaceVerified(true);
+
+      // Redirect after 3 seconds
+      setTimeout(() => {
+        navigate("/verify-email-notice", {
+          state: {
+            email: form.email,
+          },
+        });
+      }, 3000);
     } catch (err) {
       const errors = err.response?.data?.errors;
+
       if (errors) {
-        setError(Object.values(errors).flat().join(" "));
+        setError(
+          Object.values(errors)
+            .flat()
+            .join(" ")
+        );
       } else {
-        setError(err.response?.data?.message || "Registration failed.");
+        setError(
+          err.response?.data?.message ||
+            "Registration failed."
+        );
       }
     } finally {
       setLoading(false);
     }
   }
+
+  /* ========================================
+     ALREADY LOGGED IN
+  ======================================== */
+
   if (user) {
-    if (user.role === "sk_admin") return <Navigate to="/AdminDashboard" replace />;
-    if (user.role === "sk_verifier") return <Navigate to="/VerifierDashboard" replace />;
-    return <Navigate to="/ApplicantDashboard" replace />;
+    if (user.role === "sk_admin") {
+      return (
+        <Navigate
+          to="/AdminDashboard"
+          replace
+        />
+      );
+    }
+
+    if (user.role === "sk_verifier") {
+      return (
+        <Navigate
+          to="/VerifierDashboard"
+          replace
+        />
+      );
+    }
+
+    return (
+      <Navigate
+        to="/ApplicantDashboard"
+        replace
+      />
+    );
   }
+
+  /* ========================================
+     FACE VERIFICATION PAGE
+  ======================================== */
+
   if (step === "face") {
     return (
       <>
         <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
           <div className="container">
-            <a className="navbar-brand navbar-brand-custom" href="/">
-              <img src="/icons/logo-in.png" alt="SK Logo" />
+            <a
+              className="navbar-brand navbar-brand-custom"
+              href="/"
+            >
+              <img
+                src="/icons/sk-logo.jpg"
+                alt="SK Logo"
+              />
+
               <div className="brand-text">
                 <h5>SK Barangay Mamatid</h5>
-                <span>Educational Assistance System</span>
+                <span>
+                  Educational Assistance System
+                </span>
               </div>
             </a>
           </div>
         </nav>
-        <section className="register-split-section">
-          <div className="register-split-wrap">
-            <div className="register-split-form" style={{ margin: "0 auto" }}>
-              <div className="login-card-wrap">
-                <img src="/icons/logo-in.png" alt="logo" className="login-card-logo" />
-                <h5 className="login-card-brand">Educational Assistance System</h5>
-                <p className="login-card-subtext">SK Barangay Mamatid</p>
-                <div className="card card-custom p-4">
-                  <h3 className="text-start text-danger login-title-bold">Verify Your Identity</h3>
-                  <p className="text-start text-muted login-subtext-lg mb-4">
-                    Take a live photo to match against the ID you uploaded. Your account
-                    will only be created once we confirm it's really you.
-                  </p>
-                  <div className="alert alert-info small mb-4">
-                    This photo will also be shown to SK staff as a reference when you come to claim your assistance, so please make sure it clearly shows your face.
+
+        <section className="identity-page">
+          <div className="identity-shell">
+
+            {/* NOTICE */}
+
+            <div className="identity-notice">
+              <div className="identity-notice-icon">
+                i
+              </div>
+
+              <div>
+                <strong>
+                  Identity Verification
+                </strong>
+
+                <p>
+                  Before creating your account, we need
+                  to confirm that the person registering
+                  matches the ID you uploaded. Your
+                  captured photo will also be used as
+                  your profile photo in the system and
+                  may be used by SK staff as a reference
+                  during claiming.
+                </p>
+              </div>
+            </div>
+
+            <div className="identity-landscape">
+
+              {/* LEFT — ID */}
+
+              <div className="identity-reference">
+                <div className="identity-section-title">
+                  <div className="identity-number">
+                    1
                   </div>
-                  {idPreview && (
-                    <div className="mb-4">
-                      <label className="form-label fw-semibold">Your Uploaded ID</label>
-                      <img
-                        src={idPreview}
-                        alt="Uploaded ID"
-                        className="d-block rounded border"
-                        style={{ maxWidth: "260px", maxHeight: "180px", objectFit: "contain" }}
-                      />
-                    </div>
+
+                  <div>
+                    <h3>Reference ID</h3>
+
+                    <p>
+                      Your uploaded identification
+                    </p>
+                  </div>
+                </div>
+
+                <div className="identity-id-preview">
+                  {idPreview ? (
+                    <img
+                      src={idPreview}
+                      alt="Uploaded ID"
+                    />
+                  ) : (
+                    <span>
+                      No ID preview available
+                    </span>
                   )}
-                  {error && <div className="alert alert-danger">{error}</div>}
+                </div>
+
+                <div className="identity-id-ready">
+                  <div className="identity-ready-check">
+                    ✓
+                  </div>
+
+                  <div>
+                    <strong>
+                      ID ready for comparison
+                    </strong>
+
+                    <span>
+                      This image will be matched
+                      against your live photo.
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* RIGHT — FACE */}
+
+              <div className="identity-scan-card">
+                <div className="identity-scan-top">
+                  <div>
+                    <span className="identity-live-label">
+                      STEP 2 OF 2
+                    </span>
+
+                    <h2>
+                      Live Face Verification
+                    </h2>
+
+                    <p>
+                      Position your face inside the
+                      guide and hold still.
+                    </p>
+                  </div>
+
+                  <span className="identity-scan-secure">
+                    ✓ Secure verification
+                  </span>
+                </div>
+
+                {error && (
+                  <div className="alert alert-danger">
+                    {error}
+                  </div>
+                )}
+
+                <div className="identity-capture-center">
                   <FaceCapture
                     mode="registration"
                     externalIdImage={idImage}
-                    submitLabel={loading ? "Creating account..." : "Verify & Create Account"}
-                    disabled={loading}
-                    onSubmitCapture={handleRegisterWithFace}
+                    submitLabel={
+                      loading
+                        ? "Creating account..."
+                        : "Verify & Create Account"
+                    }
+                    disabled={
+                      loading || faceVerified
+                    }
+                    onSubmitCapture={
+                      handleRegisterWithFace
+                    }
                   />
+                </div>
+
+                {/* GUIDES */}
+
+                <div className="identity-guides">
+                  <div className="identity-guide">
+                    <div className="identity-guide-icon">
+                      ☀
+                    </div>
+
+                    <div>
+                      <strong>
+                        Good lighting
+                      </strong>
+
+                      <p>
+                        Make sure your face is clearly
+                        visible.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="identity-guide">
+                    <div className="identity-guide-icon">
+                      ◉
+                    </div>
+
+                    <div>
+                      <strong>
+                        Nothing covering your face
+                      </strong>
+
+                      <p>
+                        Remove masks and sunglasses.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="identity-guide">
+                    <div className="identity-guide-icon">
+                      ◎
+                    </div>
+
+                    <div>
+                      <strong>
+                        Stay steady
+                      </strong>
+
+                      <p>
+                        Keep your face centered during
+                        capture.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* FOOTER */}
+
+                <div className="identity-footer">
                   <button
                     type="button"
-                    className="btn btn-link mt-3 p-0"
-                    onClick={() => setStep("form")}
-                    disabled={loading}
+                    className="identity-back-btn"
+                    onClick={() =>
+                      setStep("form")
+                    }
+                    disabled={
+                      loading || faceVerified
+                    }
                   >
+                    <span>←</span>
                     Back to account details
                   </button>
+
+                  <div className="identity-footer-note">
+                    <span>
+                      Your photo is used only for
+                      identity verification and your
+                      applicant profile.
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
+
+        {/* ========================================
+            FACE VERIFIED POPUP
+        ======================================== */}
+
+        {faceVerified && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 9999,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "20px",
+              background: "rgba(17, 24, 39, 0.48)",
+              backdropFilter: "blur(3px)",
+              WebkitBackdropFilter: "blur(3px)",
+            }}
+          >
+            <div
+              className="text-center"
+              style={{
+                width: "100%",
+                maxWidth: "420px",
+                padding: "34px 30px",
+                borderRadius: "18px",
+                background: "#fff",
+                border: "1px solid #e5e7eb",
+                boxShadow:
+                  "0 24px 60px rgba(0, 0, 0, 0.22)",
+                fontFamily:
+                  "'Inter', sans-serif",
+              }}
+            >
+              {/* SUCCESS CHECK */}
+
+              <div
+                className="d-flex align-items-center justify-content-center mx-auto mb-3"
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  borderRadius: "50%",
+                  background: "#eaf7ee",
+                  color: "#218c46",
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    width: "30px",
+                    height: "30px",
+                  }}
+                >
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+              </div>
+
+              <h3
+                className="mb-2"
+                style={{
+                  fontFamily:
+                    "'Poppins', 'Inter', sans-serif",
+                  fontSize: "23px",
+                  fontWeight: 700,
+                  color: "#222",
+                }}
+              >
+                Face Verified!
+              </h3>
+
+              <p
+                className="mb-2"
+                style={{
+                  color: "#6b7280",
+                  fontSize: "13px",
+                  lineHeight: 1.6,
+                }}
+              >
+                Your identity has been successfully
+                verified and your account has been
+                created.
+              </p>
+
+              <p
+                className="mb-4"
+                style={{
+                  color: "#6b7280",
+                  fontSize: "13px",
+                  lineHeight: 1.6,
+                }}
+              >
+                One more step — verify your email
+                address to activate your account.
+              </p>
+
+              <div
+                className="d-inline-flex align-items-center gap-2"
+                style={{
+                  padding: "8px 13px",
+                  borderRadius: "9px",
+                  background: "#fff4f4",
+                  color: "#b71c1c",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                }}
+              >
+                <span
+                  className="spinner-border spinner-border-sm"
+                  role="status"
+                  aria-hidden="true"
+                  style={{
+                    width: "13px",
+                    height: "13px",
+                  }}
+                />
+
+                Redirecting to email verification...
+              </div>
+            </div>
+          </div>
+        )}
+
         <Footer />
       </>
     );
   }
+
+  /* ========================================
+     REGISTRATION FORM
+  ======================================== */
+
   return (
     <>
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
-          <a className="navbar-brand navbar-brand-custom" href="/">
-            <img src="/icons/logo-in.png" alt="SK Logo" />
+          <a
+            className="navbar-brand navbar-brand-custom"
+            href="/"
+          >
+            <img
+              src="/icons/sk-logo.jpg"
+              alt="SK Logo"
+            />
+
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
-              <span>Educational Assistance System</span>
+
+              <span>
+                Educational Assistance System
+              </span>
             </div>
           </a>
-          <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
-            <span className="navbar-toggler-icon"></span>
+
+          <button
+            className="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#mainNavbar"
+          >
+            <span className="navbar-toggler-icon" />
           </button>
-          <div className="collapse navbar-collapse justify-content-end" id="mainNavbar">
+
+          <div
+            className="collapse navbar-collapse justify-content-end"
+            id="mainNavbar"
+          >
             <ul className="navbar-nav">
-              <li className="nav-item"><a className="nav-link" href="/">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="/requirements">Requirements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/announcements">Announcements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/events">Events</a></li>
-              <li className="nav-item"><a className="nav-link" href="/login">Login</a></li>
-              <li className="nav-item"><a className="nav-link active" href="/register">Register</a></li>
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/"
+                >
+                  Home
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/requirements"
+                >
+                  Requirements
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/announcements"
+                >
+                  Announcements
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/events"
+                >
+                  Events
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/login"
+                >
+                  Login
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link active"
+                  href="/register"
+                >
+                  Register
+                </a>
+              </li>
             </ul>
           </div>
         </div>
       </nav>
+
       <section className="register-split-section">
         <div className="register-split-wrap">
+
+          {/* LEFT IMAGE */}
+
           <div className="register-split-image">
-            <img src="/icons/register-bg.png" alt="SK Educational Assistance" />
+            <img
+              src="/icons/register-bg.png"
+              alt="SK Educational Assistance"
+            />
           </div>
+
+          {/* RIGHT FORM */}
+
           <div className="register-split-form">
             <div className="login-card-wrap">
-              <img src="/icons/logo-in.png" alt="logo" className="login-card-logo" />
-              <h5 className="login-card-brand">Educational Assistance System</h5>
-              <p className="login-card-subtext">SK Barangay Mamatid</p>
+
+              <img
+                src="/icons/sk-logo.jpg"
+                alt="SK Logo"
+                className="login-card-logo"
+              />
+
+              <h5 className="login-card-brand">
+                Educational Assistance System
+              </h5>
+
+              <p className="login-card-subtext">
+                SK Barangay Mamatid
+              </p>
+
               <div className="card card-custom p-4">
-                <h3 className="text-start text-danger login-title-bold">Create Applicant Account</h3>
-                <p className="text-start text-muted login-subtext-lg mb-4">Register to apply for educational assistance.</p>
-                {error && <div className="alert alert-danger">{error}</div>}
-                <form onSubmit={handleNext} className="register-form-spaced">
+                <h3 className="text-start text-danger login-title-bold">
+                  Create Applicant Account
+                </h3>
+
+                <p className="text-start text-muted login-subtext-lg mb-4">
+                  Register to apply for educational
+                  assistance.
+                </p>
+
+                {error && (
+                  <div className="alert alert-danger">
+                    {error}
+                  </div>
+                )}
+
+                <form
+                  onSubmit={handleNext}
+                  className="register-form-spaced"
+                >
+
+                  {/* NAME */}
+
                   <div className="row">
                     <div className="col-md-4 mb-3">
-                      <label className="form-label">First Name <span className="text-danger">*</span></label>
-                      <input name="firstName" className="form-control" placeholder="First Name" value={form.firstName} onChange={handleChange} required />
+                      <label className="form-label">
+                        First Name{" "}
+                        <span className="text-danger">
+                          *
+                        </span>
+                      </label>
+
+                      <input
+                        name="firstName"
+                        className="form-control"
+                        placeholder="First Name"
+                        value={form.firstName}
+                        onChange={handleChange}
+                        required
+                      />
                     </div>
+
                     <div className="col-md-4 mb-3">
-                      <label className="form-label">Middle Name</label>
-                      <input name="middleName" className="form-control" placeholder="Middle Name" value={form.middleName} onChange={handleChange} />
+                      <label className="form-label">
+                        Middle Name
+                      </label>
+
+                      <input
+                        name="middleName"
+                        className="form-control"
+                        placeholder="Middle Name"
+                        value={form.middleName}
+                        onChange={handleChange}
+                      />
                     </div>
+
                     <div className="col-md-4 mb-3">
-                      <label className="form-label">Last Name <span className="text-danger">*</span></label>
-                      <input name="lastName" className="form-control" placeholder="Last Name" value={form.lastName} onChange={handleChange} required />
+                      <label className="form-label">
+                        Last Name{" "}
+                        <span className="text-danger">
+                          *
+                        </span>
+                      </label>
+
+                      <input
+                        name="lastName"
+                        className="form-control"
+                        placeholder="Last Name"
+                        value={form.lastName}
+                        onChange={handleChange}
+                        required
+                      />
                     </div>
                   </div>
+
+                  {/* CONTACT */}
+
                   <div className="row">
                     <div className="col-md-6 mb-3">
-                      <label className="form-label">Mobile Number</label>
-                      <input name="mobile" className="form-control" placeholder="Mobile Number" value={form.mobile} onChange={handleChange} />
+                      <label className="form-label">
+                        Mobile Number
+                      </label>
+
+                      <input
+                        name="mobile"
+                        className="form-control"
+                        placeholder="Mobile Number"
+                        value={form.mobile}
+                        onChange={handleChange}
+                      />
                     </div>
+
                     <div className="col-md-6 mb-3">
-                      <label className="form-label">Email <span className="text-danger">*</span></label>
-                      <div style={{ position: "relative" }}>
+                      <label className="form-label">
+                        Email{" "}
+                        <span className="text-danger">
+                          *
+                        </span>
+                      </label>
+
+                      <div
+                        style={{
+                          position: "relative",
+                        }}
+                      >
                         <input
                           type="email"
                           name="email"
@@ -219,15 +782,19 @@ const Register = () => {
                           value={form.email}
                           onChange={handleChange}
                           required
-                          style={{ paddingRight: "32px" }}
+                          style={{
+                            paddingRight: "32px",
+                          }}
                         />
+
                         <span
                           title="Please use an active email address. We'll send verification and important notifications to this email."
                           style={{
                             position: "absolute",
                             right: "10px",
                             top: "50%",
-                            transform: "translateY(-50%)",
+                            transform:
+                              "translateY(-50%)",
                             cursor: "help",
                             color: "#5100ff",
                             fontSize: "18px",
@@ -238,9 +805,18 @@ const Register = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* BIRTHDATE / BARANGAY */}
+
                   <div className="row">
                     <div className="col-md-6 mb-3">
-                      <label className="form-label">Date of Birth <span className="text-danger">*</span></label>
+                      <label className="form-label">
+                        Date of Birth{" "}
+                        <span className="text-danger">
+                          *
+                        </span>
+                      </label>
+
                       <input
                         type="date"
                         name="birthdate"
@@ -250,26 +826,44 @@ const Register = () => {
                         required
                       />
                     </div>
-                      <div className="col-md-6 mb-3">
-                      <label className="form-label">Barangay</label>
+
+                    <div className="col-md-6 mb-3">
+                      <label className="form-label">
+                        Barangay
+                      </label>
+
                       <input
                         className="form-control"
                         value="Mamatid"
                         disabled
                       />
+
                       <div className="form-text">
-                        This Educational Assistance Program is only exclusive for residents of Barangay Mamatid.
+                        This Educational Assistance
+                        Program is only exclusive for
+                        residents of Barangay Mamatid.
                       </div>
                     </div>
                   </div>
+
+                  {/* VALID ID */}
+
                   <div className="mb-3">
                     <label className="form-label">
-                      Valid ID <span className="text-danger">*</span>
+                      Valid ID{" "}
+                      <span className="text-danger">
+                        *
+                      </span>
                     </label>
+
                     <p className="text-muted small mb-2">
-                      Upload a clear photo of a government-issued or school ID showing your face.
-                      We'll ask you to take a live photo next to confirm it's really you.
+                      Upload a clear photo of a
+                      government-issued or school ID
+                      showing your face. We'll ask you
+                      to take a live photo next to
+                      confirm it's really you.
                     </p>
+
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/jpg"
@@ -277,20 +871,38 @@ const Register = () => {
                       onChange={handleIdChange}
                       required
                     />
+
                     {idPreview && (
                       <img
                         src={idPreview}
                         alt="ID preview"
                         className="mt-2 rounded border"
-                        style={{ maxWidth: "260px", maxHeight: "180px", objectFit: "contain" }}
+                        style={{
+                          maxWidth: "260px",
+                          maxHeight: "180px",
+                          objectFit: "contain",
+                        }}
                       />
                     )}
                   </div>
+
+                  {/* PASSWORD */}
+
                   <div className="mb-3">
-                    <label className="form-label">Password <span className="text-danger">*</span></label>
+                    <label className="form-label">
+                      Password{" "}
+                      <span className="text-danger">
+                        *
+                      </span>
+                    </label>
+
                     <div className="register-input-wrap">
                       <input
-                        type={showPass ? "text" : "password"}
+                        type={
+                          showPass
+                            ? "text"
+                            : "password"
+                        }
                         name="password"
                         className="form-control register-input-eye"
                         placeholder="Password (min. 8 characters)"
@@ -298,32 +910,83 @@ const Register = () => {
                         onChange={handleChange}
                         required
                       />
+
                       <button
                         type="button"
                         className="register-eye-btn-inline"
-                        onClick={() => setShowPass(!showPass)}
+                        onClick={() =>
+                          setShowPass(!showPass)
+                        }
                         tabIndex={-1}
-                        aria-label={showPass ? "Hide password" : "Show password"}
+                        aria-label={
+                          showPass
+                            ? "Hide password"
+                            : "Show password"
+                        }
                       >
                         {showPass ? (
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" />
-                            <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" />
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path
+                              d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+
+                            <line
+                              x1="1"
+                              y1="1"
+                              x2="23"
+                              y2="23"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
                           </svg>
                         ) : (
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
-                            <circle cx="12" cy="12" r="3" />
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path
+                              d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="3"
+                            />
                           </svg>
                         )}
                       </button>
                     </div>
                   </div>
+
+                  {/* CONFIRM PASSWORD */}
+
                   <div className="mb-3">
-                    <label className="form-label">Confirm Password <span className="text-danger">*</span></label>
+                    <label className="form-label">
+                      Confirm Password{" "}
+                      <span className="text-danger">
+                        *
+                      </span>
+                    </label>
+
                     <div className="register-input-wrap">
                       <input
-                        type={showConfirm ? "text" : "password"}
+                        type={
+                          showConfirm
+                            ? "text"
+                            : "password"
+                        }
                         name="confirmPassword"
                         className="form-control register-input-eye"
                         placeholder="Confirm Password"
@@ -331,32 +994,80 @@ const Register = () => {
                         onChange={handleChange}
                         required
                       />
+
                       <button
                         type="button"
                         className="register-eye-btn-inline"
-                        onClick={() => setShowConfirm(!showConfirm)}
+                        onClick={() =>
+                          setShowConfirm(!showConfirm)
+                        }
                         tabIndex={-1}
-                        aria-label={showConfirm ? "Hide password" : "Show password"}
+                        aria-label={
+                          showConfirm
+                            ? "Hide password"
+                            : "Show password"
+                        }
                       >
                         {showConfirm ? (
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" strokeLinecap="round" strokeLinejoin="round" />
-                            <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" />
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path
+                              d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+
+                            <line
+                              x1="1"
+                              y1="1"
+                              x2="23"
+                              y2="23"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
                           </svg>
                         ) : (
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" strokeLinecap="round" strokeLinejoin="round" />
-                            <circle cx="12" cy="12" r="3" />
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <path
+                              d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+
+                            <circle
+                              cx="12"
+                              cy="12"
+                              r="3"
+                            />
                           </svg>
                         )}
                       </button>
                     </div>
                   </div>
-                  <button className="btn btn-danger w-100" type="submit">
+
+                  {/* NEXT */}
+
+                  <button
+                    className="btn btn-danger w-100"
+                    type="submit"
+                  >
                     Next: Verify Identity
                   </button>
+
                   <p className="text-center mt-3">
-                    Already have an account? <a href="/login">Login</a>
+                    Already have an account?{" "}
+                    <a href="/login">
+                      Login
+                    </a>
                   </p>
                 </form>
               </div>
@@ -364,8 +1075,10 @@ const Register = () => {
           </div>
         </div>
       </section>
+
       <Footer />
     </>
   );
 };
+
 export default Register;

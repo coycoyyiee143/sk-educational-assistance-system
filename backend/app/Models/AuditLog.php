@@ -23,20 +23,37 @@ class AuditLog extends Model
     }
 
     /**
-     * Convenience helper for recording an audit log entry.
+     * Record an audit log entry.
      *
-     * Usage:
-     *   AuditLog::record('application_approved', $app, "Approved application #{$app->id}");
-     *   AuditLog::record('visited_dashboard'); // no subject needed for page visits
+     * For authenticated actions, the current authenticated user
+     * is automatically used.
      *
-     * @param string $action A short machine-readable label
-     * @param \Illuminate\Database\Eloquent\Model|null $subject The model this action relates to
-     * @param string|null $description Human-readable summary
+     * For public actions such as Forgot Password, an explicit
+     * user can be provided through the fourth parameter.
+     *
+     * Examples:
+     *
+     * AuditLog::record(
+     *     'application_approved',
+     *     $application,
+     *     'Application approved'
+     * );
+     *
+     * AuditLog::record(
+     *     'password_reset',
+     *     $user,
+     *     'Password was reset using Forgot Password',
+     *     $user
+     * );
      */
-    public static function record(string $action, $subject = null, ?string $description = null): self
-    {
+    public static function record(
+        string $action,
+        $subject = null,
+        ?string $description = null,
+        ?User $actor = null
+    ): self {
         return self::create([
-            'user_id'        => Auth::id(),
+            'user_id'        => $actor?->id ?? Auth::id(),
             'action'         => $action,
             'auditable_type' => $subject ? get_class($subject) : null,
             'auditable_id'   => $subject?->id,

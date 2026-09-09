@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import api from "../../services/api";
 import ApplicantTopbarUser from "../components/ApplicantTopbarUser";
+import PanelFooter from "../../components/PanelFooter";
 
 const reminders = [
   "Please arrive on time based on your assigned claiming schedule.",
@@ -211,15 +212,7 @@ function ApplicantClaimingSchedule() {
 
           </div>
         </section>
-
-        <footer>
-          <div className="container">
-            <p className="mb-0">
-              © 2026 Sangguniang Kabataan of Barangay Mamatid |
-              Educational Assistance Application System
-            </p>
-          </div>
-        </footer>
+        <PanelFooter />
       </div>
     </div>
   );
