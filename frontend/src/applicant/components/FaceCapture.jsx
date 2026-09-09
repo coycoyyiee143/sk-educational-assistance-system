@@ -716,23 +716,6 @@ function FaceCapture({
                   Keep your face centered and hold still until the photo is captured automatically.
                 </div>
               )}
-            {!modelsFailed && scanStatus !== "loading" && scanStatus !== "captured" && (
-              <div className="face-capture-checklist">
-                <span className="face-capture-checklist-title">CAPTURE GUIDELINES</span>
-                <div className="face-capture-check-item">
-                  <span className="face-capture-check-icon"><IconCheck /></span>
-                  <span>Make sure you're in a well-lit area</span>
-                </div>
-                <div className="face-capture-check-item">
-                  <span className="face-capture-check-icon"><IconCheck /></span>
-                  <span>Remove sunglasses, masks, or anything covering your face</span>
-                </div>
-                <div className="face-capture-check-item">
-                  <span className="face-capture-check-icon"><IconCheck /></span>
-                  <span>Hold your device steady within the oval</span>
-                </div>
-              </div>
-            )}
           </div>
         ) : (
           <div className="face-capture-stage">

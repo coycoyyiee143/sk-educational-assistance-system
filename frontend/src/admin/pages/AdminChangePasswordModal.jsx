@@ -41,6 +41,11 @@ function AdminChangePasswordModal({ show, onClose }) {
     e.preventDefault();
     setError("");
     setSuccess("");
+    const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRule.test(newPassword)) {
+      setError("New password must be at least 8 characters, with uppercase, lowercase, and a number.");
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError("New password and confirmation do not match.");
       return;
@@ -70,6 +75,9 @@ function AdminChangePasswordModal({ show, onClose }) {
     }
   }
   if (!show && !error && !success) return null;
+  const hasLength = newPassword.length >= 8;
+  const hasMixedCase = /[A-Z]/.test(newPassword) && /[a-z]/.test(newPassword);
+  const hasNumber = /\d/.test(newPassword);
   return (
     <>
       {show && (
@@ -150,23 +158,27 @@ function AdminChangePasswordModal({ show, onClose }) {
                           {showConfirm ? "Hide" : "Show"}
                         </button>
                       </div>
-                      {confirmPassword && newPassword === confirmPassword && (
-                        <span className="admin-password-match">✓ Passwords match</span>
+                      {confirmPassword && (
+                        newPassword === confirmPassword ? (
+                          <span className="admin-password-match">✓ Passwords match</span>
+                        ) : (
+                          <span className="admin-password-match" style={{ color: "#dc3545" }}>✕ Passwords do not match</span>
+                        )
                       )}
                     </div>
                     <div className="admin-password-requirements">
                       <span className="admin-password-requirements-title">PASSWORD REQUIREMENTS</span>
                       <div className="admin-password-requirement-item">
-                        <span>✓</span>
+                        <span>{hasLength ? "✓" : "○"}</span>
                         <p>At least 8 characters</p>
                       </div>
                       <div className="admin-password-requirement-item">
-                        <span>✓</span>
-                        <p>Use a secure combination of characters</p>
+                        <span>{hasMixedCase ? "✓" : "○"}</span>
+                        <p>Uppercase and lowercase letters</p>
                       </div>
                       <div className="admin-password-requirement-item">
-                        <span>✓</span>
-                        <p>Confirm your new password correctly</p>
+                        <span>{hasNumber ? "✓" : "○"}</span>
+                        <p>At least one number</p>
                       </div>
                     </div>
                   </div>

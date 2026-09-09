@@ -8,6 +8,7 @@ use App\Models\Application;
 use App\Models\ApplicationConfiguration;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class AdminController extends Controller
 {
@@ -59,7 +60,7 @@ class AdminController extends Controller
             'last_name'  => 'required|string',
             'email'      => 'required|email|unique:users,email',
             'role'       => 'required|in:sk_verifier,sk_admin',
-            'password'   => 'required|string|min:8|confirmed',
+            'password'   => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->uncompromised()],
             'is_active'  => 'boolean',
         ]);
 
@@ -87,7 +88,7 @@ class AdminController extends Controller
             'email'      => 'sometimes|email|unique:users,email,' . $id,
             'role'       => 'sometimes|in:sk_verifier,sk_admin',
             'is_active'  => 'sometimes|boolean',
-            'password'   => 'sometimes|string|min:8|confirmed',
+            'password'   => ['sometimes', 'confirmed', Password::min(8)->mixedCase()->numbers()->uncompromised()],
         ]);
 
         if (isset($data['password'])) {

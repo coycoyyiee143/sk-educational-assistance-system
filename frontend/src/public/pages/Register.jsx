@@ -64,6 +64,12 @@ const Register = () => {
 
     setError("");
 
+    const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRule.test(form.password)) {
+      setError("Password must be at least 8 characters, with uppercase, lowercase, and a number.");
+      return;
+    }
+
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
       return;
@@ -132,7 +138,7 @@ const Register = () => {
       } else {
         setError(
           err.response?.data?.message ||
-            "Registration failed."
+          "Registration failed."
         );
       }
     } finally {
@@ -891,21 +897,15 @@ const Register = () => {
                   <div className="mb-3">
                     <label className="form-label">
                       Password{" "}
-                      <span className="text-danger">
-                        *
-                      </span>
+                      <span className="text-danger">*</span>
                     </label>
 
                     <div className="register-input-wrap">
                       <input
-                        type={
-                          showPass
-                            ? "text"
-                            : "password"
-                        }
+                        type={showPass ? "text" : "password"}
                         name="password"
                         className="form-control register-input-eye"
-                        placeholder="Password (min. 8 characters)"
+                        placeholder="Min 8 characters, uppercase, lowercase, and a number"
                         value={form.password}
                         onChange={handleChange}
                         required
@@ -914,59 +914,48 @@ const Register = () => {
                       <button
                         type="button"
                         className="register-eye-btn-inline"
-                        onClick={() =>
-                          setShowPass(!showPass)
-                        }
+                        onClick={() => setShowPass(!showPass)}
                         tabIndex={-1}
-                        aria-label={
-                          showPass
-                            ? "Hide password"
-                            : "Show password"
-                        }
+                        aria-label={showPass ? "Hide password" : "Show password"}
                       >
                         {showPass ? (
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path
                               d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             />
-
-                            <line
-                              x1="1"
-                              y1="1"
-                              x2="23"
-                              y2="23"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
+                            <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         ) : (
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path
                               d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             />
-
-                            <circle
-                              cx="12"
-                              cy="12"
-                              r="3"
-                            />
+                            <circle cx="12" cy="12" r="3" />
                           </svg>
                         )}
                       </button>
+                    </div>
+
+                    <div className="register-password-requirements">
+                      <span className="register-password-requirements-title">PASSWORD REQUIREMENTS</span>
+                      <div className="register-password-requirement-item">
+                        <span>{form.password.length >= 8 ? "✓" : "○"}</span>
+                        <p>At least 8 characters</p>
+                      </div>
+                      <div className="register-password-requirement-item">
+                        <span>
+                          {/[A-Z]/.test(form.password) && /[a-z]/.test(form.password) ? "✓" : "○"}
+                        </span>
+                        <p>Uppercase and lowercase letters</p>
+                      </div>
+                      <div className="register-password-requirement-item">
+                        <span>{/\d/.test(form.password) ? "✓" : "○"}</span>
+                        <p>At least one number</p>
+                      </div>
                     </div>
                   </div>
 
@@ -975,18 +964,12 @@ const Register = () => {
                   <div className="mb-3">
                     <label className="form-label">
                       Confirm Password{" "}
-                      <span className="text-danger">
-                        *
-                      </span>
+                      <span className="text-danger">*</span>
                     </label>
 
                     <div className="register-input-wrap">
                       <input
-                        type={
-                          showConfirm
-                            ? "text"
-                            : "password"
-                        }
+                        type={showConfirm ? "text" : "password"}
                         name="confirmPassword"
                         className="form-control register-input-eye"
                         placeholder="Confirm Password"
@@ -998,60 +981,40 @@ const Register = () => {
                       <button
                         type="button"
                         className="register-eye-btn-inline"
-                        onClick={() =>
-                          setShowConfirm(!showConfirm)
-                        }
+                        onClick={() => setShowConfirm(!showConfirm)}
                         tabIndex={-1}
-                        aria-label={
-                          showConfirm
-                            ? "Hide password"
-                            : "Show password"
-                        }
+                        aria-label={showConfirm ? "Hide password" : "Show password"}
                       >
                         {showConfirm ? (
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path
                               d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             />
-
-                            <line
-                              x1="1"
-                              y1="1"
-                              x2="23"
-                              y2="23"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
+                            <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         ) : (
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path
                               d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             />
-
-                            <circle
-                              cx="12"
-                              cy="12"
-                              r="3"
-                            />
+                            <circle cx="12" cy="12" r="3" />
                           </svg>
                         )}
                       </button>
                     </div>
+
+                    {form.confirmPassword &&
+                      (form.password === form.confirmPassword ? (
+                        <span className="register-password-match">✓ Passwords match</span>
+                      ) : (
+                        <span className="register-password-match" style={{ color: "#dc3545" }}>
+                          ✕ Passwords do not match
+                        </span>
+                      ))}
                   </div>
 
                   {/* NEXT */}
