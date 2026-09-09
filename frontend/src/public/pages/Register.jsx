@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -36,6 +36,10 @@ const Register = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  // synchronous lock, hindi state — para hindi maabutan ng
+  // rapid double-click bago mag-re-render ang loading state
+  const submittingRef = useRef(false);
+
   /* ========================================
      FORM
   ======================================== */
@@ -59,8 +63,10 @@ const Register = () => {
     setError("");
   }
 
-  const handleNext = (e) => {
+  const handleNext = async (e) => {
     e.preventDefault();
+
+    if (submittingRef.current) return; // block double click/double submit
 
     setError("");
 
@@ -80,7 +86,41 @@ const Register = () => {
       return;
     }
 
-    setStep("face");
+    submittingRef.current = true;
+    setLoading(true);
+
+    try {
+      // Check duplicate name+birthdate and existing email BEFORE
+      // face verification, so applicant doesn't waste time on
+      // face capture only to fail after.
+      await api.post("/register/check", {
+        first_name: form.firstName,
+        middle_name: form.middleName,
+        last_name: form.lastName,
+        birthdate: form.birthdate,
+        email: form.email,
+      });
+
+      setStep("face");
+    } catch (err) {
+      const errors = err.response?.data?.errors;
+
+      if (errors) {
+        setError(
+          Object.values(errors)
+            .flat()
+            .join(" ")
+        );
+      } else {
+        setError(
+          err.response?.data?.message ||
+          "An account matching your name and date of birth already exists under a different account. Please contact the SK office if you believe this is an error."
+        );
+      }
+    } finally {
+      submittingRef.current = false;
+      setLoading(false);
+    }
   };
 
   /* ========================================
@@ -1022,8 +1062,9 @@ const Register = () => {
                   <button
                     className="btn btn-danger w-100"
                     type="submit"
+                    disabled={loading}
                   >
-                    Next: Verify Identity
+                    {loading ? "Checking..." : "Next: Verify Identity"}
                   </button>
 
                   <p className="text-center mt-3">
