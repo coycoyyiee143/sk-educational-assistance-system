@@ -54,10 +54,16 @@ class ProfileController extends Controller
         // Recompute completeness on every update — a profile becomes
         // "complete" once these core fields are filled in, regardless of
         // whether it was set via store() (first-time setup) or here (later edits).
+        //
+        // civil_status is deliberately NOT part of this check — it's
+        // validated as nullable below and the frontend never marks it
+        // required either. It used to be included here, which silently
+        // forced it to be mandatory in practice (profile could never be
+        // "complete" without it) even though nothing else in the system
+        // treats it as required.
         $data['is_profile_complete'] = (bool) (
             ($data['birthdate'] ?? null) &&
             ($data['gender'] ?? null) &&
-            ($data['civil_status'] ?? null) &&
             ($data['house_no'] ?? null) &&
             ($data['street'] ?? null) &&
             ($data['purok_type'] ?? null) &&
