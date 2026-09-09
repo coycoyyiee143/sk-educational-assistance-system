@@ -26,6 +26,56 @@ function getPageNumbers(currentPage, totalPages) {
   pages.push(totalPages);
   return pages;
 }
+function formatDateTime(dateString) {
+  if (!dateString) return "—";
+  try {
+    return new Date(dateString).toLocaleString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return dateString;
+  }
+}
+function ConsentBadge({ consentedAt }) {
+  if (!consentedAt) {
+    return (
+      <span className="applicant-detail-status applicant-detail-status-inactive">
+        <span className="applicant-detail-status-dot"></span>
+        Not on record
+      </span>
+    );
+  }
+  return (
+    <span className="applicant-detail-status applicant-detail-status-active">
+      <span className="applicant-detail-status-dot"></span>
+      Agreed — {formatDateTime(consentedAt)}
+    </span>
+  );
+}
+function FaceVerificationBadge({ faceVerification }) {
+  if (!faceVerification) {
+    return (
+      <span className="applicant-detail-status applicant-detail-status-inactive">
+        <span className="applicant-detail-status-dot"></span>
+        No verification on record
+      </span>
+    );
+  }
+  const isVerified = faceVerification.status === "verified";
+  const score = faceVerification.registration_match_score;
+  return (
+    <span className={`applicant-detail-status ${isVerified ? "applicant-detail-status-active" : "applicant-detail-status-inactive"}`}>
+      <span className="applicant-detail-status-dot"></span>
+      {isVerified ? "Verified" : (faceVerification.status ?? "Unverified")}
+      {typeof score === "number" ? ` — ${Math.round(score * 100)}% match` : ""}
+      {faceVerification.verified_at ? ` — ${formatDateTime(faceVerification.verified_at)}` : ""}
+    </span>
+  );
+}
 function ViewApplicantModal({ applicant, onClose }) {
   if (!applicant) return null;
   const initials = `${applicant.first_name?.charAt(0) ?? ""}${applicant.last_name?.charAt(0) ?? ""}`.toUpperCase();
@@ -103,6 +153,19 @@ function ViewApplicantModal({ applicant, onClose }) {
                 <div className="applicant-details-field">
                   <span>Registered Date</span>
                   <strong>{registeredDate}</strong>
+                </div>
+              </div>
+            </div>
+            <div className="applicant-details-section applicant-details-section-verification">
+              <div className="applicant-details-section-title">VERIFICATION &amp; CONSENT</div>
+              <div className="applicant-details-grid">
+                <div className="applicant-details-field">
+                  <span>Data Privacy Notice</span>
+                  <ConsentBadge consentedAt={applicant.privacy_consent_at} />
+                </div>
+                <div className="applicant-details-field">
+                  <span>Face ID Verification</span>
+                  <FaceVerificationBadge faceVerification={applicant.face_verification} />
                 </div>
               </div>
             </div>

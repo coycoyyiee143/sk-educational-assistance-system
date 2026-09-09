@@ -34,8 +34,8 @@ class AuthController extends Controller
         $normalizedLastName = strtolower(trim($lastName));
 
         return User::whereHas('profile', function ($q) use ($birthdate) {
-            $q->where('birthdate', $birthdate);
-        })
+                $q->where('birthdate', $birthdate);
+            })
             ->get()
             ->filter(function ($otherUser) use ($normalizedFirstName, $normalizedLastName) {
                 return strtolower(trim($otherUser->first_name)) === $normalizedFirstName
@@ -57,11 +57,11 @@ class AuthController extends Controller
     public function checkDuplicate(Request $request)
     {
         $request->validate([
-            'first_name' => 'required|string|max:255',
+            'first_name'  => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'birthdate' => 'required|date|before:today',
-            'email' => 'required|email',
+            'last_name'   => 'required|string|max:255',
+            'birthdate'   => 'required|date|before:today',
+            'email'       => 'required|email',
         ]);
 
         if (User::where('email', $request->email)->exists()) {
@@ -113,18 +113,17 @@ class AuthController extends Controller
     public function register(Request $request)
     {
         $request->validate([
-            'first_name' => 'required|string|max:255',
-            'middle_name' => 'nullable|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
+            'first_name'    => 'required|string|max:255',
+            'middle_name'   => 'nullable|string|max:255',
+            'last_name'     => 'required|string|max:255',
+            'email'         => 'required|email|unique:users,email',
             'mobile_number' => 'nullable|string|unique:users,mobile_number',
-            'password' => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->uncompromised()],
-            'birthdate' => 'required|date|before:today',
-            'barangay' => 'required|string|max:255',
-            'id_image' => 'required|file|mimes:jpg,jpeg,png|max:5120',
-            'live_photo' => 'required|file|mimes:jpg,jpeg,png|max:5120',
-            'privacy_consent' => 'required|accepted', // <-- bago; server-side gate, di lang frontend
-
+            'password'      => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->uncompromised()],
+            'birthdate'     => 'required|date|before:today',
+            'barangay'      => 'required|string|max:255',
+            'id_image'      => 'required|file|mimes:jpg,jpeg,png|max:5120',
+            'live_photo'    => 'required|file|mimes:jpg,jpeg,png|max:5120',
+            'privacy_consent' => 'required|accepted',
         ]);
 
         // Duplicate-applicant check (registration-time): block a new account
@@ -169,7 +168,7 @@ class AuthController extends Controller
         if (!$result['match']) {
             return response()->json([
                 'message' => 'The live photo does not match the uploaded ID. Please retake the photo with better lighting and try again.',
-                'score' => $result['score'],
+                'score'   => $result['score'],
             ], 422);
         }
 
@@ -185,10 +184,10 @@ class AuthController extends Controller
             $distance = $this->faceService->embeddingDistance($result['embedding'], $existingEmbedding);
             if ($distance <= $duplicateTolerance) {
                 \App\Models\AuditLog::create([
-                    'user_id' => null,
-                    'action' => 'face_duplicate_blocked',
+                    'user_id'     => null,
+                    'action'      => 'face_duplicate_blocked',
                     'description' => "Registration blocked for {$request->first_name} {$request->last_name}: face matched an existing verified account (distance {$distance}).",
-                    'ip_address' => $request->ip(),
+                    'ip_address'  => $request->ip(),
                 ]);
 
                 return response()->json([
@@ -200,13 +199,14 @@ class AuthController extends Controller
         // Both duplicate checks passed, face matched — now it's safe to
         // actually create the account.
         $user = User::create([
-            'first_name' => $request->first_name,
-            'middle_name' => $request->middle_name,
-            'last_name' => $request->last_name,
-            'email' => $request->email,
-            'mobile_number' => $request->mobile_number,
-            'password' => Hash::make($request->password),
-            'role' => 'applicant',
+            'first_name'         => $request->first_name,
+            'middle_name'        => $request->middle_name,
+            'last_name'          => $request->last_name,
+            'email'              => $request->email,
+            'mobile_number'      => $request->mobile_number,
+            'password'           => Hash::make($request->password),
+            'role'               => 'applicant',
+            'privacy_consent_at' => now(),
         ]);
 
         // Audit trail ng Data Privacy consent — proof kung sino, kailan, at saang IP nag-agree
@@ -221,9 +221,9 @@ class AuthController extends Controller
         // is_profile_complete stays false until the applicant fills in the
         // rest via the Profile page.
         StudentProfile::create([
-            'user_id' => $user->id,
+            'user_id'   => $user->id,
             'birthdate' => $request->birthdate,
-            'barangay' => $request->barangay,
+            'barangay'  => $request->barangay,
         ]);
 
         // Now persist the ID + live photo to permanent storage under this
@@ -240,13 +240,13 @@ class AuthController extends Controller
         );
 
         FaceVerification::create([
-            'user_id' => $user->id,
-            'id_image_path' => $idImagePath,
-            'live_photo_path' => $livePhotoPath,
-            'face_embedding' => $result['embedding'],
+            'user_id'                  => $user->id,
+            'id_image_path'            => $idImagePath,
+            'live_photo_path'          => $livePhotoPath,
+            'face_embedding'           => $result['embedding'],
             'registration_match_score' => $result['score'],
-            'status' => 'verified',
-            'verified_at' => now(),
+            'status'                   => 'verified',
+            'verified_at'              => now(),
         ]);
 
         // TRIGGER: Automatically dispatches Laravel's email verification link via your Log/Mail system
@@ -256,15 +256,15 @@ class AuthController extends Controller
 
         return response()->json([
             'message' => 'Registration successful. Please check your email to verify your account.',
-            'token' => $token,
-            'user' => $user,
+            'token'   => $token,
+            'user'    => $user,
         ], 201);
     }
 
     public function login(Request $request)
     {
         $request->validate([
-            'email' => 'required|email',
+            'email'    => 'required|email',
             'password' => 'required|string',
         ]);
 
@@ -273,10 +273,10 @@ class AuthController extends Controller
         if (!$user || !Hash::check($request->password, $user->password)) {
             // Log the failed attempt (useful for spotting brute-force attempts)
             \App\Models\AuditLog::create([
-                'user_id' => $user->id ?? null,
-                'action' => 'login_failed',
+                'user_id'     => $user->id ?? null,
+                'action'      => 'login_failed',
                 'description' => "An unsuccessful login attempt was made on your account.",
-                'ip_address' => $request->ip(),
+                'ip_address'  => $request->ip(),
             ]);
 
             throw ValidationException::withMessages([
@@ -284,7 +284,7 @@ class AuthController extends Controller
             ]);
         }
 
-        if (!$user->is_active) {
+                if (!$user->is_active) {
             return response()->json(['message' => 'Account is deactivated.'], 403);
         }
         // Block login until the applicant has verified their email/OTP —
@@ -292,9 +292,9 @@ class AuthController extends Controller
         // log in and use the system.
         if (!$user->email_verified_at) {
             return response()->json([
-                'message' => 'Please verify your email before logging in. Check your inbox for the verification code, or request a new one.',
+                'message'    => 'Please verify your email before logging in. Check your inbox for the verification code, or request a new one.',
                 'unverified' => true,
-                'email' => $user->email,
+                'email'      => $user->email,
             ], 403);
         }
 
@@ -302,16 +302,16 @@ class AuthController extends Controller
 
         // Log this login for the audit trail
         \App\Models\AuditLog::create([
-            'user_id' => $user->id,
-            'action' => 'login',
+            'user_id'     => $user->id,
+            'action'      => 'login',
             'description' => "{$user->first_name} {$user->last_name} logged in",
-            'ip_address' => $request->ip(),
+            'ip_address'  => $request->ip(),
         ]);
 
         return response()->json([
             'message' => 'Login successful.',
-            'token' => $token,
-            'user' => $user,
+            'token'   => $token,
+            'user'    => $user,
         ]);
     }
 
@@ -321,10 +321,10 @@ class AuthController extends Controller
 
         // Log this logout for the audit trail
         \App\Models\AuditLog::create([
-            'user_id' => $user->id,
-            'action' => 'logout',
+            'user_id'     => $user->id,
+            'action'      => 'logout',
             'description' => "{$user->first_name} {$user->last_name} logged out",
-            'ip_address' => $request->ip(),
+            'ip_address'  => $request->ip(),
         ]);
 
         $request->user()->currentAccessToken()->delete();
@@ -354,10 +354,10 @@ class AuthController extends Controller
         }
 
         $user->forceFill([
-            'email_verified_at' => now(),
-            'verification_code' => null,
-            'verification_code_expires_at' => null,
-            'verification_token' => null,
+            'email_verified_at'             => now(),
+            'verification_code'             => null,
+            'verification_code_expires_at'  => null,
+            'verification_token'            => null,
             'verification_token_expires_at' => null,
         ])->save();
 
@@ -391,7 +391,7 @@ class AuthController extends Controller
     {
         $request->validate([
             'email' => 'required|email',
-            'code' => 'required|string|size:6',
+            'code'  => 'required|string|size:6',
         ]);
 
         $user = User::where('email', $request->email)->first();
@@ -413,10 +413,10 @@ class AuthController extends Controller
         }
 
         $user->forceFill([
-            'email_verified_at' => now(),
-            'verification_code' => null,
-            'verification_code_expires_at' => null,
-            'verification_token' => null,
+            'email_verified_at'             => now(),
+            'verification_code'             => null,
+            'verification_code_expires_at'  => null,
+            'verification_token'            => null,
             'verification_token_expires_at' => null,
         ])->save();
 

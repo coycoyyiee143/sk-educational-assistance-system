@@ -22,6 +22,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'is_active',
+        'privacy_consent_at',
     ];
 
     protected $hidden = [
@@ -30,8 +31,9 @@ class User extends Authenticatable implements MustVerifyEmail
     ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime',
-        'is_active' => 'boolean',
+        'email_verified_at'  => 'datetime',
+        'is_active'          => 'boolean',
+        'privacy_consent_at' => 'datetime',
     ];
 
     /**
@@ -73,5 +75,10 @@ class User extends Authenticatable implements MustVerifyEmail
     public function applications()
     {
         return $this->hasMany(Application::class);
+    }
+
+    public function faceVerification()
+    {
+        return $this->hasOne(FaceVerification::class);
     }
 }
