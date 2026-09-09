@@ -94,9 +94,15 @@ function AddPersonnelModal({ onClose, onSave }) {
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "", password: "", password_confirmation: "", is_active: true });
   const [error, setError] = useState("");
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRule.test(form.password)) {
+      setError("Password must be at least 8 characters, with uppercase, lowercase, and a number.");
+      return;
+    }
     try {
       await onSave(form);
       onClose();
@@ -143,6 +149,30 @@ function AddPersonnelModal({ onClose, onSave }) {
                 <div className="col-md-6">
                   <label className="form-label">Confirm Password</label>
                   <input type="password" className="form-control" value={form.password_confirmation} onChange={set("password_confirmation")} required />
+                  {form.password_confirmation && (
+                    form.password === form.password_confirmation ? (
+                      <span className="admin-password-match">✓ Passwords match</span>
+                    ) : (
+                      <span className="admin-password-match" style={{ color: "#dc3545" }}>✕ Passwords do not match</span>
+                    )
+                  )}
+                </div>
+                <div className="col-12">
+                  <div className="admin-password-requirements">
+                    <span className="admin-password-requirements-title">PASSWORD REQUIREMENTS</span>
+                    <div className="admin-password-requirement-item">
+                      <span>{form.password.length >= 8 ? "✓" : "○"}</span>
+                      <p>At least 8 characters</p>
+                    </div>
+                    <div className="admin-password-requirement-item">
+                      <span>{/[A-Z]/.test(form.password) && /[a-z]/.test(form.password) ? "✓" : "○"}</span>
+                      <p>Uppercase and lowercase letters</p>
+                    </div>
+                    <div className="admin-password-requirement-item">
+                      <span>{/\d/.test(form.password) ? "✓" : "○"}</span>
+                      <p>At least one number</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

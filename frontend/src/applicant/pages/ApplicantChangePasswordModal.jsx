@@ -59,6 +59,12 @@ function ApplicantChangePasswordModal({ show, onClose }) {
     setError("");
     setSuccess("");
 
+    const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRule.test(newPassword)) {
+      setError("New password must be at least 8 characters, with uppercase, lowercase, and a number.");
+      return;
+    }
+
     if (newPassword !== confirmPassword) {
       setError("New password and confirmation do not match.");
       return;
@@ -105,6 +111,10 @@ function ApplicantChangePasswordModal({ show, onClose }) {
   }
 
   if (!show && !error && !success) return null;
+
+  const hasLength = newPassword.length >= 8;
+  const hasMixedCase = /[A-Z]/.test(newPassword) && /[a-z]/.test(newPassword);
+  const hasNumber = /\d/.test(newPassword);
 
   return (
     <>
@@ -278,12 +288,13 @@ function ApplicantChangePasswordModal({ show, onClose }) {
                         </button>
                       </div>
 
-                      {confirmPassword &&
-                        newPassword === confirmPassword && (
-                          <span className="verifier-password-match">
-                            ✓ Passwords match
-                          </span>
-                        )}
+                      {confirmPassword && (
+                        newPassword === confirmPassword ? (
+                          <span className="verifier-password-match">✓ Passwords match</span>
+                        ) : (
+                          <span className="verifier-password-match" style={{ color: "#dc3545" }}>✕ Passwords do not match</span>
+                        )
+                      )}
                     </div>
 
                     <div className="verifier-password-requirements">
@@ -292,23 +303,23 @@ function ApplicantChangePasswordModal({ show, onClose }) {
                       </span>
 
                       <div className="verifier-password-requirement-item">
-                        <span>✓</span>
+                        <span>{hasLength ? "✓" : "○"}</span>
                         <p>
                           At least 8 characters
                         </p>
                       </div>
 
                       <div className="verifier-password-requirement-item">
-                        <span>✓</span>
+                        <span>{hasMixedCase ? "✓" : "○"}</span>
                         <p>
-                          Use a secure combination of characters
+                          Uppercase and lowercase letters
                         </p>
                       </div>
 
                       <div className="verifier-password-requirement-item">
-                        <span>✓</span>
+                        <span>{hasNumber ? "✓" : "○"}</span>
                         <p>
-                          Confirm your new password correctly
+                          At least one number
                         </p>
                       </div>
                     </div>
@@ -344,11 +355,10 @@ function ApplicantChangePasswordModal({ show, onClose }) {
         <div className="verifier-password-feedback-backdrop">
 
           <div
-            className={`verifier-password-feedback ${
-              error
-                ? "verifier-password-feedback-error"
-                : "verifier-password-feedback-success"
-            }`}
+            className={`verifier-password-feedback ${error
+              ? "verifier-password-feedback-error"
+              : "verifier-password-feedback-success"
+              }`}
           >
             <div className="verifier-password-feedback-icon-wrap">
               <span className="verifier-password-feedback-icon">
