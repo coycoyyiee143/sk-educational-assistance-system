@@ -2,13 +2,10 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import Webcam from "react-webcam";
 import * as faceapi from "face-api.js";
 import api from "../../services/api";
-
 const MODEL_URL = "/models";
-
 const STABLE_FRAMES_REQUIRED = 10;
 const DETECTION_INTERVAL_MS = 200;
 const MAX_ID_SIZE_MB = 5;
-
 let modelsLoadPromise = null;
 async function loadModels() {
   if (!modelsLoadPromise) {
@@ -25,7 +22,6 @@ async function loadModels() {
   }
   return modelsLoadPromise;
 }
-
 // ---- Small inline icons (no extra dependency) -----------------------------
 const IconCheck = (props) => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3" {...props}>
@@ -53,14 +49,12 @@ const IconRefresh = (props) => (
     <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
-
 /**
  * Reusable face-verification capture step, with real-time face detection:
  * a guide oval with an animated progress ring, live status feedback, and
  * auto-capture once a face is centered and held steady — instead of just
  * a plain "Capture Photo" button.
  *
-
  * Falls back gracefully to a manual capture button whenever detection
  * can't run (models failed to load, browser incompatibility, etc.).
  *
@@ -76,31 +70,27 @@ function FaceCapture({
   onSubmitCapture,
   submitLabel,
   disabled = false,
+  includeLocalPreview = false,
 }) {
   const webcamRef = useRef(null);
   const detectionTimerRef = useRef(null);
   const stableCountRef = useRef(0);
-
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
   const [idError, setIdError] = useState("");
-
   const [livePreview, setLivePreview] = useState(null);
   const [liveBlob, setLiveBlob] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [errorKind, setErrorKind] = useState(null);
-
   const [cameraReady, setCameraReady] = useState(false);
   const [modelsReady, setModelsReady] = useState(false);
   const [modelsFailed, setModelsFailed] = useState(false);
   const [scanStatus, setScanStatus] = useState("loading");
   // loading | searching | positioning | tooClose | tooFar | holding | captured | manual
   const [progress, setProgress] = useState(0);
-
   const showIdUpload = mode === "registration" && !externalIdImage;
   const effectiveIdImage = externalIdImage || idImage;
-
   function handleIdChange(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -119,7 +109,6 @@ function FaceCapture({
     setIdImage(file);
     setIdPreview(URL.createObjectURL(file));
   }
-
   function attemptLoadModels() {
     setModelsFailed(false);
     setScanStatus("loading");
@@ -136,12 +125,10 @@ function FaceCapture({
         setErrorKind("models");
       });
   }
-
   useEffect(() => {
     attemptLoadModels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   const doCapture = useCallback(() => {
     if (!webcamRef.current) return;
     const screenshot = webcamRef.current.getScreenshot();
@@ -157,14 +144,11 @@ function FaceCapture({
       .then((res) => res.blob())
       .then((blob) => setLiveBlob(blob));
   }, []);
-
   useEffect(() => {
     if (!modelsReady || !cameraReady || livePreview) return;
-
     detectionTimerRef.current = setInterval(async () => {
       const video = webcamRef.current?.video;
       if (!video || video.readyState !== 4) return;
-
       let detection;
       try {
         detection = await faceapi.detectSingleFace(
@@ -182,34 +166,28 @@ function FaceCapture({
         }
         return;
       }
-
       if (!detection) {
         stableCountRef.current = 0;
         setProgress(0);
         setScanStatus("searching");
         return;
       }
-
       const box = detection.box;
       const videoW = video.videoWidth;
       const videoH = video.videoHeight;
-
       const faceCenterX = box.x + box.width / 2;
       const faceCenterY = box.y + box.height / 2;
       const xOffset = Math.abs(faceCenterX - videoW / 2) / videoW;
       const yOffset = Math.abs(faceCenterY - videoH / 2) / videoH;
       const isCentered = xOffset < 0.15 && yOffset < 0.18;
-
       const faceWidthRatio = box.width / videoW;
       const isGoodSize = faceWidthRatio > 0.22 && faceWidthRatio < 0.62;
-
       if (!(isCentered && isGoodSize)) {
         stableCountRef.current = 0;
         setProgress(0);
         setScanStatus(faceWidthRatio >= 0.62 ? "tooClose" : faceWidthRatio <= 0.22 ? "tooFar" : "positioning");
         return;
       }
-
       stableCountRef.current += 1;
       setProgress(Math.min(stableCountRef.current / STABLE_FRAMES_REQUIRED, 1));
       setScanStatus("holding");
@@ -218,10 +196,8 @@ function FaceCapture({
         doCapture();
       }
     }, DETECTION_INTERVAL_MS);
-
     return () => clearInterval(detectionTimerRef.current);
   }, [modelsReady, cameraReady, livePreview, doCapture]);
-
   function retake() {
     setLivePreview(null);
     setLiveBlob(null);
@@ -230,7 +206,6 @@ function FaceCapture({
     setError("");
     setScanStatus(modelsFailed ? "manual" : "searching");
   }
-
   function handleCameraError(err) {
     let message = "Could not access your camera. Please check browser permissions.";
     if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
@@ -243,7 +218,6 @@ function FaceCapture({
     setError(message);
     setErrorKind("camera");
   }
-
   async function handleSubmit() {
     setError("");
     if (mode === "registration" && !effectiveIdImage) {
@@ -271,7 +245,7 @@ function FaceCapture({
       } else {
         res = await api.post(`/verifier/claiming/${applicationId}/verify-face`, formData);
       }
-      onSuccess?.(res.data);
+      onSuccess?.(includeLocalPreview ? { ...res.data, local_photo_url: livePreview } : res.data);
     } catch (err) {
       const message =
         err.response?.data?.message ||
@@ -285,9 +259,7 @@ function FaceCapture({
       setSubmitting(false);
     }
   }
-
   const isBusy = submitting || disabled;
-
   const STATUS_MAP = {
     loading: { text: "Loading face scanner...", color: "#94a3b8", dashed: true },
     searching: { text: "Position your face within the frame", color: "#dc3545", dashed: true },
@@ -299,11 +271,9 @@ function FaceCapture({
     manual: { text: "Position your face, then tap Capture", color: "#94a3b8", dashed: true },
   };
   const status = STATUS_MAP[scanStatus] || STATUS_MAP.searching;
-
   const R = 92;
   const CIRC = 2 * Math.PI * R;
   const dashOffset = CIRC * (1 - progress);
-
   return (
     <div className="face-capture">
       {error && (
@@ -323,7 +293,6 @@ function FaceCapture({
           </div>
         </div>
       )}
-
       {showIdUpload && (
         <div className="mb-4">
           <label className="form-label fw-semibold d-flex align-items-center gap-2">
@@ -355,18 +324,16 @@ function FaceCapture({
           )}
         </div>
       )}
-
-      <div className="mb-3">
-        <label className="form-label fw-semibold d-flex align-items-center gap-2">
+      <div className="mb-3 face-capture-section">
+        <label className="form-label fw-semibold d-flex align-items-center justify-content-center gap-2 face-capture-title">
           <IconCamera />
           {mode === "registration" ? "Live Photo" : "Capture Applicant's Face"}{" "}
           <span className="text-danger">*</span>
         </label>
-
         {!livePreview ? (
-          <div className="d-flex flex-column align-items-center align-items-sm-start">
+          <div className="d-flex flex-column align-items-center">
             <div
-              className="rounded-4 border overflow-hidden mb-2 position-relative mx-auto mx-sm-0"
+              className="rounded-4 border overflow-hidden mb-2 position-relative mx-auto"
               style={{ width: "100%", maxWidth: "360px", aspectRatio: "4 / 3", background: "#111" }}
             >
               <Webcam
@@ -377,7 +344,6 @@ function FaceCapture({
                 onUserMedia={() => setCameraReady(true)}
                 onUserMediaError={handleCameraError}
               />
-
               <svg
                 viewBox="0 0 320 240"
                 style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
@@ -389,7 +355,6 @@ function FaceCapture({
                   </mask>
                 </defs>
                 <rect width="320" height="240" fill="rgba(0,0,0,0.35)" mask="url(#ovalMask)" />
-
                 <ellipse
                   cx="160"
                   cy="118"
@@ -401,7 +366,6 @@ function FaceCapture({
                   strokeDasharray={status.dashed ? "8 6" : "0"}
                   style={{ transition: "stroke 0.25s" }}
                 />
-
                 {progress > 0 && (
                   <ellipse
                     cx="160"
@@ -421,7 +385,6 @@ function FaceCapture({
                   />
                 )}
               </svg>
-
               {scanStatus === "loading" && (
                 <div className="d-flex align-items-center justify-content-center" style={{ position: "absolute", inset: 0 }}>
                   <div className="spinner-border text-light" role="status" style={{ width: "2rem", height: "2rem" }}>
@@ -429,7 +392,6 @@ function FaceCapture({
                   </div>
                 </div>
               )}
-
               {scanStatus === "captured" && (
                 <div
                   className="d-flex align-items-center justify-content-center"
@@ -443,7 +405,6 @@ function FaceCapture({
                   </div>
                 </div>
               )}
-
               <div
                 className="text-center text-white small py-2 fw-medium d-flex align-items-center justify-content-center gap-1"
                 style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.55)" }}
@@ -451,7 +412,6 @@ function FaceCapture({
                 {status.text}
               </div>
             </div>
-
             {(scanStatus === "manual" || modelsFailed) && (
               <button
                 type="button"
@@ -462,18 +422,27 @@ function FaceCapture({
                 <IconCamera /> Capture Photo
               </button>
             )}
-
             {!modelsFailed && scanStatus !== "loading" && scanStatus !== "captured" && (
-              <ul className="text-muted small mt-2 mb-0 ps-3">
-                <li>Make sure you're in a well-lit area</li>
-                <li>Remove sunglasses, masks, or anything covering your face</li>
-                <li>Hold your device steady within the oval</li>
-              </ul>
+              <div className="face-capture-checklist">
+                <span className="face-capture-checklist-title">CAPTURE GUIDELINES</span>
+                <div className="face-capture-check-item">
+                  <span className="face-capture-check-icon"><IconCheck /></span>
+                  <span>Make sure you're in a well-lit area</span>
+                </div>
+                <div className="face-capture-check-item">
+                  <span className="face-capture-check-icon"><IconCheck /></span>
+                  <span>Remove sunglasses, masks, or anything covering your face</span>
+                </div>
+                <div className="face-capture-check-item">
+                  <span className="face-capture-check-icon"><IconCheck /></span>
+                  <span>Hold your device steady within the oval</span>
+                </div>
+              </div>
             )}
           </div>
         ) : (
-          <div className="d-flex flex-column align-items-center align-items-sm-start">
-            <div className="position-relative mb-2 mx-auto mx-sm-0" style={{ width: "100%", maxWidth: "360px" }}>
+          <div className="d-flex flex-column align-items-center">
+            <div className="position-relative mb-2 mx-auto" style={{ width: "100%", maxWidth: "360px" }}>
               <img
                 src={livePreview}
                 alt="Captured face"
@@ -486,7 +455,7 @@ function FaceCapture({
             </div>
             <button
               type="button"
-              className="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
+              className="btn face-capture-retake-btn d-inline-flex align-items-center gap-2"
               onClick={retake}
               disabled={isBusy}
             >
@@ -495,18 +464,19 @@ function FaceCapture({
           </div>
         )}
       </div>
-
-      <button
-        type="button"
-        className="btn btn-submit d-inline-flex align-items-center gap-2"
-        onClick={handleSubmit}
-        disabled={isBusy || !liveBlob || (mode === "registration" && !effectiveIdImage)}
-      >
-        {submitting && <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>}
-        {submitLabel || (submitting ? "Verifying..." : "Verify Face")}
-      </button>
+      <div className="face-capture-submit-box">
+        <button
+          type="button"
+          className="btn btn-submit face-capture-submit-btn d-inline-flex align-items-center justify-content-center gap-2"
+          onClick={handleSubmit}
+          disabled={isBusy || !liveBlob || (mode === "registration" && !effectiveIdImage)}
+        >
+          {submitting && <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>}
+          <IconCamera />
+          {submitLabel || (submitting ? "Verifying..." : "Verify Face")}
+        </button>
+      </div>
     </div>
   );
 }
-
 export default FaceCapture;

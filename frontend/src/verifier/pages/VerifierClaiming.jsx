@@ -5,6 +5,16 @@ import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
 import { DOC_TYPES, NOT_CLEARED_REASONS, OTHER } from "../constants/verificationReasons";
 import { STATUS_CONFIG } from "../../components/StatusConstants";
+const CLAIMED_QUICK_NOTES = [
+  "Claiming completed.",
+  "Documents verified.",
+  "Requirements completed.",
+];
+const NOT_CLEARED_QUICK_NOTES = [
+  "Document issue found.",
+  "Documents did not match.",
+  "Requirements incomplete.",
+];
 function ClaimStatusBadge({ status }) {
   const config = STATUS_CONFIG[status];
   if (!config) return <span className="status-badge status-pending">Pending</span>;
@@ -19,10 +29,13 @@ function daysBetween(a, b) {
 }
 function formatDateDisplay(dateStr) {
   if (!dateStr) return "";
-  return new Date(dateStr + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 function VerifierClaiming() {
-  const [navHeight, setNavHeight] = useState(0);
   const [controlNo, setControlNo] = useState("");
   const [applicantName, setApplicantName] = useState("");
   const [results, setResults] = useState([]);
@@ -38,54 +51,53 @@ function VerifierClaiming() {
   const [searchError, setSearchError] = useState("");
   const [claimError, setClaimError] = useState("");
   const [claimSuccess, setClaimSuccess] = useState("");
-  const detailsRef = useRef(null);
+  const [claimingFeedback, setClaimingFeedback] = useState(null);
+  const [feedbackCountdown, setFeedbackCountdown] = useState(5);
+  const [filePreview, setFilePreview] = useState(null);
   const claimingActionRef = useRef(null);
   const [registrationPhotoUrl, setRegistrationPhotoUrl] = useState(null);
   const [registrationPhotoStatus, setRegistrationPhotoStatus] = useState("idle");
   const [assignedLane, setAssignedLane] = useState(null);
   const [allLanes, setAllLanes] = useState([]);
   const [gracePeriodDates, setGracePeriodDates] = useState({ start: null, end: null });
-  const todaysLanes = allLanes.filter((l) => l.claiming_date === todayStr());
   const [selectedLaneId, setSelectedLaneId] = useState("");
   const [gracePeriodMode, setGracePeriodMode] = useState(false);
   const [assigningLane, setAssigningLane] = useState(false);
   const [lanesLoaded, setLanesLoaded] = useState(false);
   const modeManuallySetRef = useRef(false);
   const perPage = 10;
+  const todaysLanes = allLanes.filter((lane) => lane.claiming_date === todayStr());
   function fetchLanes() {
-    api.get("/verifier/claiming/lanes")
-      .then((res) => {
-        setAssignedLane(res.data.assigned_lane ?? null);
-        setAllLanes(res.data.all_lanes ?? []);
-        if (res.data.assigned_lane) setSelectedLaneId(String(res.data.assigned_lane.id));
-        setGracePeriodDates({ start: res.data.grace_period_date ?? null, end: res.data.grace_period_end_date ?? null });
-        if (!modeManuallySetRef.current) {
-          const today = todayStr();
-          const gpStart = res.data.grace_period_date;
-          const gpEnd = res.data.grace_period_end_date;
-          const isGracePeriodNow = gpStart && gpEnd && today >= gpStart && today <= gpEnd;
-          setGracePeriodMode(isGracePeriodNow);
-        }
-        setLanesLoaded(true);
-      })
-      .catch(() => setLanesLoaded(true));
+    api.get("/verifier/claiming/lanes").then((res) => {
+      setAssignedLane(res.data.assigned_lane ?? null);
+      setAllLanes(res.data.all_lanes ?? []);
+      if (res.data.assigned_lane) {
+        setSelectedLaneId(String(res.data.assigned_lane.id));
+      }
+      setGracePeriodDates({
+        start: res.data.grace_period_date ?? null,
+        end: res.data.grace_period_end_date ?? null,
+      });
+      if (!modeManuallySetRef.current) {
+        const today = todayStr();
+        const gpStart = res.data.grace_period_date;
+        const gpEnd = res.data.grace_period_end_date;
+        const isGracePeriodNow = gpStart && gpEnd && today >= gpStart && today <= gpEnd;
+        setGracePeriodMode(isGracePeriodNow);
+      }
+      setLanesLoaded(true);
+    }).catch(() => setLanesLoaded(true));
   }
   useEffect(() => {
     fetchLanes();
   }, []);
   useEffect(() => {
-    function measureNav() {
-      const nav = document.querySelector("nav");
-      setNavHeight(nav ? nav.getBoundingClientRect().height : 0);
-    }
-    measureNav();
-    window.addEventListener("resize", measureNav);
-    return () => window.removeEventListener("resize", measureNav);
-  }, []);
-  useEffect(() => {
     if (!lanesLoaded) return;
-    if (gracePeriodMode) handleSearch({ preventDefault: () => {} });
-    else if (assignedLane) handleSearch({ preventDefault: () => {} });
+    if (gracePeriodMode) {
+      handleSearch({ preventDefault: () => {} });
+    } else if (assignedLane) {
+      handleSearch({ preventDefault: () => {} });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lanesLoaded, gracePeriodMode, assignedLane]);
   useEffect(() => {
@@ -94,11 +106,29 @@ function VerifierClaiming() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  useEffect(() => {
+    if (!claimingFeedback) return;
+    setFeedbackCountdown(5);
+    const countdown = setInterval(() => {
+      setFeedbackCountdown((prev) => Math.max(prev - 1, 0));
+    }, 1000);
+    const autoClose = setTimeout(() => {
+      setClaimingFeedback(null);
+    }, 5000);
+    return () => {
+      clearInterval(countdown);
+      clearTimeout(autoClose);
+    };
+  }, [claimingFeedback]);
   function setDocStatus(key, status) {
     setDocStatusState((prev) => ({ ...prev, [key]: status }));
   }
   function toggleNotClearedReason(reason) {
-    setNotClearedReasons((prev) => prev.includes(reason) ? prev.filter((r) => r !== reason) : [...prev, reason]);
+    setNotClearedReasons((prev) =>
+      prev.includes(reason)
+        ? prev.filter((r) => r !== reason)
+        : [...prev, reason]
+    );
   }
   function switchToRegularMode() {
     modeManuallySetRef.current = true;
@@ -109,7 +139,9 @@ function VerifierClaiming() {
     setSearchError("");
     setClaimError("");
     setClaimSuccess("");
-    if (assignedLane) setSelectedLaneId(String(assignedLane.id));
+    if (assignedLane) {
+      setSelectedLaneId(String(assignedLane.id));
+    }
   }
   function switchToGracePeriodMode() {
     modeManuallySetRef.current = true;
@@ -148,8 +180,9 @@ function VerifierClaiming() {
     setSearching(true);
     try {
       const params = {};
-      if (gracePeriodMode) params.grace_period = 1;
-      else {
+      if (gracePeriodMode) {
+        params.grace_period = 1;
+      } else {
         if (selectedLaneId) params.lane_id = selectedLaneId;
         if (controlNo.trim()) params.control_number = controlNo.trim();
         if (applicantName.trim()) params.name = applicantName.trim();
@@ -157,7 +190,6 @@ function VerifierClaiming() {
       const res = await api.get("/verifier/claiming/search", { params });
       setResults(res.data);
       setCurrentPage(1);
-      if (res.data.length === 1) selectApplicant(res.data[0]);
     } catch (err) {
       setResults([]);
       setCurrentPage(1);
@@ -186,9 +218,6 @@ function VerifierClaiming() {
         setRegistrationPhotoStatus("ready");
       })
       .catch(() => setRegistrationPhotoStatus("none"));
-    setTimeout(() => {
-      detailsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 0);
   }
   function chooseAction(action) {
     setSelectedAction(action);
@@ -199,6 +228,11 @@ function VerifierClaiming() {
       setNotClearedReasons([]);
       setNotClearedOtherText("");
     }
+  }
+  function closeClaimingActionModal() {
+    if (submitting) return;
+    setSelectedAction(null);
+    setClaimError("");
   }
   async function handleConfirm() {
     if (!selected || !selectedAction) return;
@@ -227,7 +261,14 @@ function VerifierClaiming() {
         verified_documents: matchedDocs,
         notes: notes || (selectedAction === "not_cleared" ? reasonCategories.join(" ") : undefined),
       });
+      const completedAction = selectedAction;
       setClaimSuccess(res.data.message);
+      setSelectedAction(null);
+      setClaimingFeedback({
+        type: completedAction,
+        title: completedAction === "claimed" ? "Applicant Marked as Claimed" : "Applicant Marked as Not Cleared",
+        message: res.data.message || (completedAction === "claimed" ? "The applicant has been successfully marked as Claimed." : "The applicant has been successfully marked as Not Cleared."),
+      });
       setSelected(null);
       setControlNo("");
       setApplicantName("");
@@ -235,24 +276,33 @@ function VerifierClaiming() {
     } catch (err) {
       setClaimError(err.response?.data?.message || "Failed to update claiming status.");
       setTimeout(() => {
-        claimingActionRef.current?.scrollIntoView({ behavior: "smooth", center: "center" });
+        claimingActionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
       }, 0);
     } finally {
       setSubmitting(false);
     }
   }
-  async function handleViewFile(docId) {
+  async function handleViewFile(docId, fileName) {
     try {
       const res = await api.get(`/applications/${selected.id}/documents/${docId}/file`, { responseType: "blob" });
       const url = URL.createObjectURL(res.data);
-      window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setFilePreview({
+        url,
+        type: res.data.type || "",
+        label: fileName || "Document Preview",
+      });
     } catch {
       alert("Failed to load document.");
     }
   }
-  function jumpTo(ref) {
-    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  function closeFilePreview() {
+    setFilePreview((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
   }
   function goToPage(page) {
     if (page < 1 || page > totalPages) return;
@@ -288,6 +338,7 @@ function VerifierClaiming() {
   const totalPages = Math.max(1, Math.ceil(sortedResults.length / perPage));
   const pageStart = (currentPage - 1) * perPage;
   const pagedResults = sortedResults.slice(pageStart, pageStart + perPage);
+  const showResultsCard = gracePeriodMode || searching || results.length > 0 || searchError;
   return (
     <div className="verifier-layout">
       <VerifierNavigation />
@@ -304,402 +355,560 @@ function VerifierClaiming() {
         <section className="page-section">
           <div className="container-fluid">
             <div className="verifier-dashboard-header">
-              <h3 className="verifier-dashboard-title">Claiming Approved Application</h3>
-              <p className="verifier-dashboard-desc">Search approved applicants, verify their physical documents, and update their final claiming status.</p>
-            </div>
-            <div className="page-card verifier-claiming-mode-card">
-              <h4 className="verifier-claiming-mode-title">Claiming Mode</h4>
-              <div className="verifier-claiming-phase">
-                <span className="verifier-claiming-phase-label">Claiming Phase Selection</span>
-                <div className="verifier-claiming-mode-tabs">
-                  <button type="button" className={`verifier-claiming-mode-btn ${!gracePeriodMode ? "verifier-claiming-mode-btn-active" : ""}`} onClick={switchToRegularMode}>Regular Claiming</button>
-                  <button type="button" className={`verifier-claiming-mode-btn ${gracePeriodMode ? "verifier-claiming-mode-btn-active" : ""}`} onClick={switchToGracePeriodMode}>Grace Period List</button>
+              <div className="verifier-claiming-header-row">
+                <div className="verifier-claiming-header-text">
+                  <h3 className="verifier-dashboard-title">Claiming Approved Application</h3>
+                  <p className="verifier-dashboard-desc">Search approved applicants, verify their physical documents, and update their final claiming status.</p>
                 </div>
-              </div>
-              {gracePeriodMode ? (
-                gracePeriodDates.start && gracePeriodDates.end ? (
-                  <div className="verifier-claiming-context verifier-claiming-context-warning">
-                    <span className="verifier-claiming-context-icon"><i className="bi bi-calendar3"></i></span>
-                    <div className="verifier-claiming-context-content">
-                      <strong>Grace Period</strong>
-                      <span>— Day {Math.max(1, daysBetween(gracePeriodDates.start, todayStr()) + 1)}/{daysBetween(gracePeriodDates.start, gracePeriodDates.end) + 1} ({formatDateDisplay(gracePeriodDates.start)} – {formatDateDisplay(gracePeriodDates.end)})</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="verifier-claiming-context verifier-claiming-context-neutral">
-                    <span className="verifier-claiming-notice-icon"><i className="bi bi-exclamation-lg"></i></span>
-                    <div className="verifier-claiming-context-content">
-                      <span>No grace period configured for the active schedule.</span>
-                    </div>
-                  </div>
-                )
-              ) : (
-                <div className="verifier-claiming-context verifier-claiming-context-info">
-                  <span className="verifier-claiming-context-icon"><i className="bi bi-calendar3"></i></span>
-                  <div className="verifier-claiming-context-content">
-                    <strong>Today — {formatDateDisplay(todayStr())}</strong>
-                    {todaysLanes.length > 0 ? (
-                      <span>— Lanes claiming today: {todaysLanes.map((l) => `${l.lane_name} (${l.batch === "morning" ? "Morning" : "Afternoon"})`).join(", ")}</span>
-                    ) : (
-                      <span>— No lanes scheduled to claim today.</span>
-                    )}
-                    {assignedLane && (
-                      <span className="verifier-claiming-current-lane">
-                        Currently viewing: <strong>{assignedLane.lane_name}</strong> ({formatDateDisplay(assignedLane.claiming_date)})
-                        {assignedLane.claiming_date < todayStr() && <span className="text-danger ms-1">— this lane's date has already passed</span>}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-              {!gracePeriodMode && (
-                <div className="verifier-claiming-lane-section">
-                  <label className="verifier-claiming-label">Lane / Schedule</label>
-                  {assignedLane && (
-                    <div className="verifier-claiming-assigned-lane">
-                      You're currently assigned to <strong>{assignedLane.lane_name}</strong> ({assignedLane.batch === "morning" ? "Morning" : "Afternoon"}, {assignedLane.claiming_date}).
-                    </div>
-                  )}
-                  <select className="form-select verifier-claiming-select" value={selectedLaneId} onChange={(e) => setSelectedLaneId(e.target.value)}>
-                    <option value="">All lanes</option>
-                    {allLanes.map((lane) => (
-                      <option key={lane.id} value={lane.id}>
-                        {lane.claiming_date} — {lane.batch === "morning" ? "Morning" : "Afternoon"} — {lane.lane_name}
-                        {lane.verifier_id && lane.id !== assignedLane?.id ? " (assigned to another verifier)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedLaneId && (!assignedLane || String(assignedLane.id) !== selectedLaneId) && (
-                    <button type="button" className="verifier-waitlist-action-btn mt-2" onClick={() => handleSelfAssign(selectedLaneId)} disabled={assigningLane}>
-                      {assigningLane ? "Assigning..." : "Make this my lane"}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="page-card verifier-attention-card">
-              <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
-                <h4 className="verifier-application-list-title mb-0">{gracePeriodMode ? "Grace Period Applicants" : "Search Applicant"}</h4>
-                {gracePeriodMode && (
-                  <button
-                    type="button"
-                    className="verifier-ocr-refresh-btn"
-                    onClick={() => handleSearch({ preventDefault: () => {} })}
-                    disabled={searching}
-                    title="Refresh list"
-                    aria-label="Refresh list"
-                  >
-                    <svg
-                      className={`verifier-ocr-refresh-icon ${searching ? "verifier-ocr-refresh-icon-spinning" : ""}`}
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <polyline points="23 4 23 10 17 10" />
-                      <polyline points="1 20 1 14 7 14" />
-                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
-                      <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
-                    </svg>
-                  </button>
+                {selected && (
+                  <button type="button" className="verifier-claiming-header-back-btn" onClick={() => setSelected(null)}>Back to Claiming List</button>
                 )}
               </div>
-              {!gracePeriodMode && (
-                <div className="verifier-claiming-search-box">
-                  <form onSubmit={handleSearch}>
-                    <div className="row g-3 align-items-end">
-                      <div className="col-md-5">
-                        <label className="verifier-claiming-label">Control Number</label>
-                        <input type="text" className="form-control verifier-claiming-input" placeholder="e.g. SK-2026-0001" value={controlNo} onChange={(e) => setControlNo(e.target.value)} />
-                      </div>
-                      <div className="col-md-5">
-                        <label className="verifier-claiming-label">Applicant Name</label>
-                        <input type="text" className="form-control verifier-claiming-input" placeholder="Enter first or last name" value={applicantName} onChange={(e) => setApplicantName(e.target.value)} />
-                      </div>
-                      <div className="col-md-2 d-grid">
-                        <button className="verifier-claiming-search-btn" type="submit" disabled={searching}>
-                          {searching ? "Searching..." : "Search"}
-                        </button>
-                      </div>
-                    </div>
-                  </form>
-                </div>
-              )}
-              {gracePeriodMode && searching && <p className="text-muted small mt-2 mb-0">Loading grace period list...</p>}
-              {searchError && (
-                <div className="verifier-claiming-error-notice mt-3">
-                  <span className="verifier-claiming-notice-icon"><i className="bi bi-exclamation-lg"></i></span>
-                  <span>{searchError}</span>
-                </div>
-              )}
-              {results.length > 0 && (
-                <>
-                  <div className="table-responsive mt-3">
-                    <table className="table table-bordered table-striped align-middle verifier-attention-table">
-                      <colgroup>
-                        <col style={{ width: gracePeriodMode ? "18%" : "21%" }} />
-                        <col style={{ width: gracePeriodMode ? "24%" : "27%" }} />
-                        <col style={{ width: gracePeriodMode ? "22%" : "25%" }} />
-                        <col style={{ width: "16%" }} />
-                        {gracePeriodMode && <col style={{ width: "12%" }} />}
-                        <col style={{ width: gracePeriodMode ? "8%" : "11%" }} />
-                      </colgroup>
-                      <thead>
-                        <tr>
-                          <th>Control Number</th>
-                          <th>Applicant Name</th>
-                          <th>School</th>
-                          <th>Status</th>
-                          {gracePeriodMode && <th>Type</th>}
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pagedResults.map((app) => (
-                          <tr key={app.id} className={selected?.id === app.id ? "table-active" : ""} style={{ cursor: "pointer" }} onClick={() => selectApplicant(app)}>
-                            <td>{app.control_number}</td>
-                            <td>{app.user?.first_name} {app.user?.last_name}</td>
-                            <td>{app.school_name}</td>
-                            <td><ClaimStatusBadge status={app.claiming_assignment?.claim_status} /></td>
-                            {gracePeriodMode && (
-                              <td>
-                                {app.claiming_assignment?.source === "waitlist_promotion" && <span className="badge bg-warning text-dark">Promoted</span>}
-                                {(app.claiming_assignment?.source === "grace_period_retry" || app.claiming_assignment?.source === "original") && <span className="badge bg-info text-dark">Retrying</span>}
-                              </td>
-                            )}
-                            <td className="verifier-attention-action">
-                              <button className="verifier-review-btn" onClick={(e) => { e.stopPropagation(); selectApplicant(app); }}>
-                                {selected?.id === app.id ? "Selected" : "Select"}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="verifier-table-pagination-bar">
-                    <span className="verifier-table-pagination-info">
-                      Showing {pageStart + 1}–{Math.min(pageStart + perPage, sortedResults.length)} of {sortedResults.length} applicants
-                    </span>
-                    <div className="verifier-table-pagination-controls">
-                      <button
-                        className="verifier-table-pagination-arrow"
-                        onClick={() => goToPage(currentPage - 1)}
-                        disabled={currentPage === 1}
-                        aria-label="Previous page"
-                      >
-                        ‹
-                      </button>
-                      {getPageNumbers().map((page, idx) =>
-                        page === "..." ? (
-                          <span key={`ellipsis-${idx}`} className="verifier-table-pagination-ellipsis">…</span>
-                        ) : (
-                          <button
-                            key={page}
-                            className={`verifier-table-pagination-page ${page === currentPage ? "verifier-table-pagination-page-active" : ""}`}
-                            onClick={() => goToPage(page)}
-                          >
-                            {page}
-                          </button>
-                        )
-                      )}
-                      <button
-                        className="verifier-table-pagination-arrow"
-                        onClick={() => goToPage(currentPage + 1)}
-                        disabled={currentPage === totalPages}
-                        aria-label="Next page"
-                      >
-                        ›
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-              {results.length === 0 && !searching && !searchError && (
-                <p className="text-muted small mt-3 mb-0">
-                  {gracePeriodMode ? "No applicants currently in the grace period list." : "No results yet — search above."}
-                </p>
-              )}
             </div>
-            {selected && (
+            {selected ? (
               <>
-                <div className="page-card verifier-claiming-selected-bar" style={{ position: "sticky", top: `${navHeight + 8}px`, zIndex: 9 }}>
-                  <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                    <div className="d-flex align-items-center gap-2">
-                      {registrationPhotoStatus === "ready" && <img src={registrationPhotoUrl} alt="Registered photo on file" className="verifier-claiming-summary-photo" />}
-                      {registrationPhotoStatus === "loading" && (
-                        <div className="verifier-claiming-summary-photo verifier-claiming-summary-photo-placeholder">
-                          <div className="spinner-border spinner-border-sm text-secondary" role="status" />
+                <div className="page-card verifier-review-info-card">
+                  <div className="verifier-review-info-header">
+                    <div className="verifier-review-info-header-top">
+                      <h4 className="verifier-review-info-title">Applicant Details</h4>
+                    </div>
+                  </div>
+                  <div className="verifier-review-profile-area">
+                    <div className="verifier-review-profile-main">
+                      {registrationPhotoStatus === "ready" ? (
+                        <img src={registrationPhotoUrl} alt="Applicant registered profile" className="verifier-claiming-profile-photo" />
+                      ) : registrationPhotoStatus === "loading" ? (
+                        <div className="verifier-review-profile-avatar">
+                          <div className="spinner-border spinner-border-sm" role="status"></div>
+                        </div>
+                      ) : (
+                        <div className="verifier-review-profile-avatar">
+                          {selected.user?.first_name?.charAt(0)}
+                          {selected.user?.last_name?.charAt(0)}
                         </div>
                       )}
-                      {registrationPhotoStatus === "none" && <div className="verifier-claiming-summary-photo verifier-claiming-summary-photo-placeholder">N/A</div>}
-                      <div>
-                        <strong>{selected.user?.first_name} {selected.user?.last_name}</strong>
-                        <span className="text-muted mx-2">·</span>
-                        <span className="text-muted">{selected.control_number}</span>
-                        <span className="ms-2"><ClaimStatusBadge status={selected.claiming_assignment?.claim_status} /></span>
-                        {gracePeriodMode && <span className="badge bg-warning text-dark ms-2">Grace Period</span>}
+                      <div className="verifier-review-profile-content">
+                        <h5 className="verifier-review-profile-name">{selected.user?.first_name} {selected.user?.last_name}</h5>
                       </div>
                     </div>
-                    <div className="d-flex flex-wrap gap-2">
-                      <button type="button" className="verifier-waitlist-action-btn" onClick={() => jumpTo(detailsRef)}>Details</button>
-                      <button type="button" className="verifier-waitlist-action-btn" onClick={() => jumpTo(claimingActionRef)}>Claiming Action</button>
-                      <button type="button" className="verifier-waitlist-action-btn" onClick={() => setSelected(null)}>Close</button>
-                    </div>
                   </div>
-                </div>
-                <div className="page-card verifier-attention-card" ref={detailsRef}>
-                  <h4 className="verifier-application-list-title">Applicant Details</h4>
-                  <div className="table-responsive">
-                    <table className="table table-bordered align-middle verifier-claiming-details-table">
-                      <tbody>
-                        <tr><th>Application ID</th><td>APP-{selected.id}</td></tr>
-                        <tr><th>Control Number</th><td>{selected.control_number}</td></tr>
-                        <tr><th>Applicant Name</th><td>{selected.user?.first_name} {selected.user?.last_name}</td></tr>
-                        <tr><th>School Name</th><td>{selected.school_name}</td></tr>
-                        <tr><th>Course / Strand</th><td>{selected.course}</td></tr>
-                        <tr><th>Year Level</th><td>{selected.year_level}</td></tr>
-                        <tr><th>Student ID Number</th><td>{selected.student_id_number}</td></tr>
-                        {selected.claiming_assignment?.lane && (
-                          <>
-                            <tr><th>Claiming Date</th><td>{selected.claiming_assignment.lane.claiming_date}</td></tr>
-                            <tr><th>Batch</th><td>{selected.claiming_assignment.lane.batch === "morning" ? "Morning" : "Afternoon"}</td></tr>
-                            <tr><th>Lane</th><td><span className="lane-badge">{selected.claiming_assignment.lane.lane_name}</span></td></tr>
-                          </>
-                        )}
-                        <tr><th>Current Claim Status</th><td><ClaimStatusBadge status={selected.claiming_assignment?.claim_status} /></td></tr>
+                  <div className="verifier-review-information-body">
+                    <div className="verifier-review-information-column">
+                      <p className="verifier-review-info-label">APPLICATION DETAILS</p>
+                      <div className="verifier-review-details-grid verifier-review-details-grid-single">
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Application ID</span>
+                          <span className="verifier-review-detail-value">APP-{selected.id}</span>
+                        </div>
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Control Number</span>
+                          <span className="verifier-review-detail-value">{selected.control_number}</span>
+                        </div>
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Applicant Name</span>
+                          <span className="verifier-review-detail-value">{selected.user?.first_name} {selected.user?.last_name}</span>
+                        </div>
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">School Name</span>
+                          <span className="verifier-review-detail-value">{selected.school_name ?? "—"}</span>
+                        </div>
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Course / Strand</span>
+                          <span className="verifier-review-detail-value">{selected.course ?? "—"}</span>
+                        </div>
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Year Level</span>
+                          <span className="verifier-review-detail-value">{selected.year_level ?? "—"}</span>
+                        </div>
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Student ID Number</span>
+                          <span className="verifier-review-detail-value">{selected.student_id_number ?? "—"}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="verifier-review-information-divider"></div>
+                    <div className="verifier-review-information-column">
+                      <p className="verifier-review-info-label">CLAIMING DETAILS</p>
+                      <div className="verifier-review-details-grid verifier-review-details-grid-single">
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Claiming Date</span>
+                          <span className="verifier-review-detail-value">{selected.claiming_assignment?.lane?.claiming_date ? formatDateDisplay(selected.claiming_assignment.lane.claiming_date) : "—"}</span>
+                        </div>
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Batch</span>
+                          <span className="verifier-review-detail-value">{selected.claiming_assignment?.lane?.batch ? selected.claiming_assignment.lane.batch === "morning" ? "Morning" : "Afternoon" : "—"}</span>
+                        </div>
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Assigned Lane</span>
+                          <span className="verifier-review-detail-value">{selected.claiming_assignment?.lane?.lane_name ? <span className="lane-badge">{selected.claiming_assignment.lane.lane_name}</span> : "—"}</span>
+                        </div>
+                        <div className="verifier-review-detail-item">
+                          <span className="verifier-review-detail-label">Current Claim Status</span>
+                          <span className="verifier-review-detail-value"><ClaimStatusBadge status={selected.claiming_assignment?.claim_status} /></span>
+                        </div>
                         {gracePeriodMode && (
-                          <tr>
-                            <th>Assignment Type</th>
-                            <td>
-                              {selected.claiming_assignment?.source === "waitlist_promotion"
-                                ? <span className="badge bg-warning text-dark">Promoted from Waitlist</span>
-                                : <span className="badge bg-info text-dark">Retrying (Grace Period)</span>}
-                            </td>
-                          </tr>
+                          <div className="verifier-review-detail-item">
+                            <span className="verifier-review-detail-label">Assignment Type</span>
+                            <span className="verifier-review-detail-value">
+                              {selected.claiming_assignment?.source === "waitlist_promotion" ? (
+                                <span className="verifier-claiming-type-badge verifier-claiming-type-promoted">Promoted</span>
+                              ) : (
+                                <span className="verifier-claiming-type-badge verifier-claiming-type-retrying">Retrying</span>
+                              )}
+                            </span>
+                          </div>
                         )}
                         {selected.claiming_assignment?.verifier && (
-                          <tr><th>Disbursed By</th><td>{selected.claiming_assignment.verifier.first_name} {selected.claiming_assignment.verifier.last_name}</td></tr>
+                          <div className="verifier-review-detail-item">
+                            <span className="verifier-review-detail-label">Disbursed By</span>
+                            <span className="verifier-review-detail-value">{selected.claiming_assignment.verifier.first_name} {selected.claiming_assignment.verifier.last_name}</span>
+                          </div>
                         )}
                         {selected.claiming_assignment?.verified_at && (
-                          <tr>
-                            <th>Disbursed At</th>
-                            <td>{new Date(selected.claiming_assignment.verified_at).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
-                          </tr>
+                          <div className="verifier-review-detail-item">
+                            <span className="verifier-review-detail-label">Disbursed At</span>
+                            <span className="verifier-review-detail-value">
+                              {new Date(selected.claiming_assignment.verified_at).toLocaleString("en-US", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          </div>
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                <div className="page-card verifier-attention-card">
-                  <h4 className="verifier-application-list-title">Face Verification</h4>
-                  <p className="text-muted small mb-3">Confirm this is really the applicant before proceeding to document checks.</p>
-                  <div className="mb-3 d-flex align-items-center gap-3">
-                    {registrationPhotoStatus === "ready" && <img src={registrationPhotoUrl} alt="Registered photo on file" className="verifier-claiming-reference-photo" />}
-                    {registrationPhotoStatus === "loading" && (
-                      <div className="verifier-claiming-reference-photo verifier-claiming-reference-placeholder">
-                        <div className="spinner-border spinner-border-sm text-secondary" role="status" />
                       </div>
-                    )}
-                    {registrationPhotoStatus === "none" && <div className="verifier-claiming-reference-photo verifier-claiming-reference-placeholder">No photo on file</div>}
-                    <div className="text-muted small">Registered reference photo.<br />Compare against the person presenting for claiming.</div>
-                  </div>
-                  <ClaimingFaceVerify applicationId={selected.id} required={gracePeriodMode} />
-                </div>
-                <div className="page-card verifier-attention-card">
-                  <h4 className="verifier-application-list-title">Document Verification</h4>
-                  <p className="text-muted small mb-3">View each uploaded document, then confirm whether it matches what the applicant physically presented.</p>
-                  <div className="row g-3">
-                    {DOC_TYPES.map((doc) => {
-                      const uploadedDoc = filteredDocs.find((d) => d.document_type === doc.key);
-                      const status = docStatus[doc.key];
-                      const borderClass = status === "matched" ? "border-success" : status === "issue" ? "border-danger" : "";
-                      return (
-                        <div className="col-md-4" key={doc.key}>
-                          <div className={`doc-check h-100 ${borderClass}`}>
-                            <div className="d-flex justify-content-between align-items-start mb-1">
-                              <h6 className="mb-0">{doc.label}</h6>
-                              {status === "matched" && <span className="badge bg-success">Matched</span>}
-                              {status === "issue" && <span className="badge bg-danger">Issue Found</span>}
-                              {status === "unreviewed" && <span className="badge bg-secondary">Not Reviewed</span>}
-                            </div>
-                            {uploadedDoc ? (
-                              <>
-                                <p className="text-muted small mb-2">{uploadedDoc.file_name}</p>
-                                <button type="button" className="verifier-waitlist-action-btn mb-2" onClick={() => handleViewFile(uploadedDoc.id)}>View File</button>
-                              </>
-                            ) : (
-                              <p className="text-muted small mb-2 fst-italic">No uploaded copy available.</p>
-                            )}
-                            <div className="btn-group btn-group-sm w-100 mt-2" role="group">
-                              <button type="button" className={`btn ${status === "matched" ? "btn-success" : "btn-outline-success"}`} onClick={() => setDocStatus(doc.key, "matched")}>Matched</button>
-                              <button type="button" className={`btn ${status === "issue" ? "btn-danger" : "btn-outline-danger"}`} onClick={() => setDocStatus(doc.key, "issue")}>Issue Found</button>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="note-box mt-4">The verifier only checks if the physical documents match the approved application record before updating the final claiming status.</div>
-                </div>
-                <div className="page-card verifier-attention-card" ref={claimingActionRef}>
-                  <h4 className="verifier-application-list-title">Claiming Action</h4>
-                  {claimError && <div className="alert alert-danger">{claimError}</div>}
-                  {claimSuccess && <div className="alert alert-success">{claimSuccess}</div>}
-                  {isResolved ? (
-                    <div className="alert alert-secondary mb-0">
-                      This application has already been marked as <ClaimStatusBadge status={selected.claiming_assignment?.claim_status} />. No further action is available here.
                     </div>
-                  ) : (
-                    <>
-                      {selectedAction === "claimed" && claimedBlocked && (
-                        <div className="alert alert-danger small">
-                          <strong>Cannot mark as Claimed yet.</strong>{" "}
-                          {unreviewedCount > 0 && `${unreviewedCount} document(s) have not been reviewed. `}
-                          {issueDocs.length > 0 && `${issueDocs.map((d) => d.label).join(", ")} ${issueDocs.length === 1 ? "was" : "were"} flagged with an issue.`}
-                          {" "}All documents must be marked Matched, or this applicant should be marked Not Cleared instead.
-                        </div>
-                      )}
-                      <div className="d-flex flex-wrap gap-2 mb-3">
-                        <button type="button" className={`btn ${selectedAction === "claimed" ? "btn-success" : "btn-outline-success"}`} onClick={() => chooseAction("claimed")}>Mark as Claimed</button>
-                        <button type="button" className={`btn ${selectedAction === "not_cleared" ? "btn-danger" : "btn-outline-danger"}`} onClick={() => chooseAction("not_cleared")}>Mark as Not Cleared</button>
+                  </div>
+                </div>
+                <div className="page-card verifier-claiming-combined-card">
+                  <h4 className="verifier-application-list-title">Verification Process</h4>
+                  <div className="verifier-claiming-split-card">
+                    <div className="verifier-claiming-split-col verifier-claiming-verification-col">
+                      <div className="verifier-claiming-step-heading">
+                        <h4 className="verifier-claiming-search-title">Document Verification</h4>
+                        <span className="verifier-claiming-step-badge">Step 1</span>
                       </div>
-                      {selectedAction === "not_cleared" && (
-                        <div className="mb-3 border rounded p-3 bg-light">
-                          <label className="form-label fw-semibold">Not Cleared Reason(s) *</label>
-                          {NOT_CLEARED_REASONS.map((r) => (
-                            <div className="form-check" key={r}>
-                              <input className="form-check-input" type="checkbox" id={`nc-${r}`} checked={notClearedReasons.includes(r)} onChange={() => toggleNotClearedReason(r)} />
-                              <label className="form-check-label small" htmlFor={`nc-${r}`}>{r}</label>
-                            </div>
-                          ))}
-                          {notClearedReasons.includes(OTHER) && (
-                            <input className="form-control form-control-sm mt-2" placeholder="Specify the reason..." value={notClearedOtherText} onChange={(e) => setNotClearedOtherText(e.target.value)} />
-                          )}
+                      <div className="verifier-waitlist-notice">
+                        <span className="verifier-waitlist-notice-icon">!</span>
+                        <div className="verifier-waitlist-notice-body">
+                          <p className="verifier-waitlist-notice-text">Confirm the physical documents match the approved record before identity verification.</p>
                         </div>
-                      )}
-                      {selectedAction && (
-                        <>
-                          <div className="mb-3">
-                            <label className="form-label">Additional Notes (optional)</label>
-                            <textarea className="form-control" rows="2" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add any notes about this claiming transaction..." />
+                      </div>
+                      <div className="verifier-claiming-doc-list">
+                        {DOC_TYPES.map((doc) => {
+                          const uploadedDoc = filteredDocs.find((d) => d.document_type === doc.key);
+                          const status = docStatus[doc.key];
+                          return (
+                            <div className="verifier-claiming-doc-card" key={doc.key}>
+                              <div className="verifier-claiming-doc-top">
+                                <div className="verifier-claiming-doc-heading">
+                                  <span className="verifier-claiming-doc-icon"><i className={doc.key === "registration_form" ? "bi bi-file-earmark-text" : doc.key === "school_id" ? "bi bi-mortarboard" : "bi bi-patch-check"}></i></span>
+                                  <div className="verifier-claiming-doc-copy">
+                                    <h6>{doc.label}</h6>
+                                    {uploadedDoc ? <button type="button" className="verifier-claiming-doc-file" onClick={() => handleViewFile(uploadedDoc.id, uploadedDoc.file_name)}>{uploadedDoc.file_name}</button> : <p>No uploaded copy available.</p>}
+                                  </div>
+                                </div>
+                                <span className={`verifier-claiming-doc-status ${status === "matched" ? "verifier-claiming-doc-status-matched" : status === "issue" ? "verifier-claiming-doc-status-issue" : "verifier-claiming-doc-status-unreviewed"}`}>{status === "matched" ? "Matched" : status === "issue" ? "Issue Found" : "Not Reviewed"}</span>
+                              </div>
+                              <div className="verifier-claiming-doc-actions">
+                                <button type="button" className={`verifier-claiming-doc-action verifier-claiming-doc-action-match ${status === "matched" ? "verifier-claiming-doc-action-active-match" : ""}`} onClick={() => setDocStatus(doc.key, "matched")}><i className="bi bi-check-lg"></i><span>Matched</span></button>
+                                <button type="button" className={`verifier-claiming-doc-action verifier-claiming-doc-action-issue ${status === "issue" ? "verifier-claiming-doc-action-active-issue" : ""}`} onClick={() => setDocStatus(doc.key, "issue")}><i className="bi bi-exclamation-circle"></i><span>Issue Found</span></button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="verifier-claiming-step-note">Physical copies required for auditing</p>
+                    </div>
+                    <div className="verifier-claiming-split-col verifier-claiming-split-col-border verifier-claiming-verification-col">
+                      <div className="verifier-claiming-step-heading">
+                        <h4 className="verifier-claiming-mode-title">Face Verification</h4>
+                        <span className="verifier-claiming-step-badge">Step 2</span>
+                      </div>
+                      <div className="verifier-waitlist-notice">
+                        <span className="verifier-waitlist-notice-icon">!</span>
+                        <div className="verifier-waitlist-notice-body">
+                          <p className="verifier-waitlist-notice-text">Verify the applicant’s identity using the registered photo before updating the final claiming status.</p>
+                        </div>
+                      </div>
+                      <div className="verifier-claiming-face-panel">
+                        <ClaimingFaceVerify applicationId={selected.id} required={gracePeriodMode} registrationPhotoUrl={registrationPhotoUrl} registrationPhotoStatus={registrationPhotoStatus} />
+                      </div>
+                      <p className="verifier-claiming-step-note">Final identity confirmation before claiming</p>
+                    </div>
+                  </div>
+                  <div ref={claimingActionRef}>
+                    {isResolved ? (
+                      <div className="alert alert-secondary mb-0">
+                        This application has already been marked as{" "}
+                        <ClaimStatusBadge status={selected.claiming_assignment?.claim_status} />. No further action is available here.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="d-flex flex-wrap justify-content-end gap-2 mt-3 mb-3">
+                          <button type="button" className="btn btn-success verifier-claiming-status-action-btn" onClick={() => chooseAction("claimed")}>Mark as Claimed</button>
+                          <button type="button" className="btn btn-danger verifier-claiming-status-action-btn" onClick={() => chooseAction("not_cleared")}>Mark as Not Cleared</button>
+                        </div>
+                        {selectedAction === "claimed" && claimedBlocked && (
+                          <div className="verifier-waitlist-notice verifier-claiming-validation-notice">
+                            <span className="verifier-waitlist-notice-icon">!</span>
+                            <div className="verifier-waitlist-notice-body">
+                              <p className="verifier-waitlist-notice-text">
+                                <strong>Cannot mark as Claimed yet.</strong>{" "}
+                                {unreviewedCount > 0 && `${unreviewedCount} document(s) have not been reviewed. `}
+                                {issueDocs.length > 0 &&
+                                  `${issueDocs.map((d) => d.label).join(", ")} ${issueDocs.length === 1 ? "was" : "were"} flagged with an issue. `}
+                                Please complete document verification first.
+                              </p>
+                            </div>
                           </div>
-                          <div className="text-end">
-                            <button className={`btn ${selectedAction === "claimed" ? "btn-success" : "btn-danger"}`} onClick={handleConfirm} disabled={submitting || (selectedAction === "claimed" && claimedBlocked)}>
-                              {submitting ? "Submitting..." : `Confirm — Mark as ${selectedAction === "claimed" ? "Claimed" : "Not Cleared"}`}
-                            </button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="page-card verifier-claiming-combined-card">
+                  <h4 className="verifier-application-list-title">Claiming Application</h4>
+                  <div className="verifier-claiming-split-card">
+                    <div className="verifier-claiming-split-col">
+                      <h4 className="verifier-claiming-mode-title">Claiming Mode</h4>
+                      <div className="verifier-claiming-phase">
+                        <span className="verifier-claiming-phase-label">Claiming Phase Selection</span>
+                        <div className="verifier-claiming-mode-tabs">
+                          <button type="button" className={`verifier-claiming-mode-btn ${!gracePeriodMode ? "verifier-claiming-mode-btn-active" : ""}`} onClick={switchToRegularMode}>Regular Claiming</button>
+                          <button type="button" className={`verifier-claiming-mode-btn ${gracePeriodMode ? "verifier-claiming-mode-btn-active" : ""}`} onClick={switchToGracePeriodMode}>Grace Period List</button>
+                        </div>
+                      </div>
+                      {gracePeriodMode ? (
+                        gracePeriodDates.start && gracePeriodDates.end ? (
+                          <div className="verifier-claiming-context verifier-claiming-context-warning">
+                            <span className="verifier-claiming-context-icon"><i className="bi bi-calendar3"></i></span>
+                            <div className="verifier-claiming-context-content">
+                              <strong>Grace Period</strong>
+                              <span>— Day {Math.max(1, daysBetween(gracePeriodDates.start, todayStr()) + 1)}/{daysBetween(gracePeriodDates.start, gracePeriodDates.end) + 1}{" "}({formatDateDisplay(gracePeriodDates.start)} – {formatDateDisplay(gracePeriodDates.end)})</span>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="verifier-claiming-context verifier-claiming-context-neutral">
+                            <span className="verifier-claiming-notice-icon"><i className="bi bi-exclamation-lg"></i></span>
+                            <div className="verifier-claiming-context-content">
+                              <span>No grace period configured for the active schedule.</span>
+                            </div>
+                          </div>
+                        )
+                      ) : (
+                        <>
+                          <div className="verifier-claiming-context verifier-claiming-context-info">
+                            <span className="verifier-claiming-context-icon"><i className="bi bi-calendar3"></i></span>
+                            <div className="verifier-claiming-context-content">
+                              <strong>Today — {formatDateDisplay(todayStr())}</strong>
+                              {todaysLanes.length > 0 ? (
+                                <span>— Lanes claiming today:{" "}{todaysLanes.map((lane) => `${lane.lane_name} (${lane.batch === "morning" ? "Morning" : "Afternoon"})`).join(", ")}</span>
+                              ) : (
+                                <span>— No lanes scheduled to claim today.</span>
+                              )}
+                              {assignedLane && (
+                                <span className="verifier-claiming-current-lane">
+                                  Currently viewing: <strong>{assignedLane.lane_name}</strong>{" "}({formatDateDisplay(assignedLane.claiming_date)})
+                                  {assignedLane.claiming_date < todayStr() && <span className="text-danger ms-1">— this lane&apos;s date has already passed</span>}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="verifier-claiming-lane-section">
+                            <label className="verifier-claiming-label">Lane / Schedule</label>
+                            {assignedLane && (
+                              <div className="verifier-claiming-assigned-lane">
+                                You&apos;re currently assigned to <strong>{assignedLane.lane_name}</strong>{" "}({assignedLane.batch === "morning" ? "Morning" : "Afternoon"}, {assignedLane.claiming_date}).
+                              </div>
+                            )}
+                            <select className="form-select verifier-claiming-select" value={selectedLaneId} onChange={(e) => setSelectedLaneId(e.target.value)}>
+                              <option value="">All lanes</option>
+                              {allLanes.map((lane) => (
+                                <option key={lane.id} value={lane.id}>
+                                  {lane.claiming_date} — {lane.batch === "morning" ? "Morning" : "Afternoon"} — {lane.lane_name}
+                                  {lane.verifier_id && lane.id !== assignedLane?.id ? " (assigned to another verifier)" : ""}
+                                </option>
+                              ))}
+                            </select>
+                            {selectedLaneId && (!assignedLane || String(assignedLane.id) !== selectedLaneId) && (
+                              <button type="button" className="verifier-waitlist-action-btn mt-2" onClick={() => handleSelfAssign(selectedLaneId)} disabled={assigningLane}>
+                                {assigningLane ? "Assigning..." : "Make this my lane"}
+                              </button>
+                            )}
                           </div>
                         </>
                       )}
-                    </>
-                  )}
+                    </div>
+                    <div className="verifier-claiming-split-col verifier-claiming-split-col-border">
+                      <h4 className="verifier-claiming-search-title">Search Applicant</h4>
+                      <div className={`verifier-claiming-search-box ${gracePeriodMode ? "verifier-claiming-search-disabled" : ""}`}>
+                        <form onSubmit={handleSearch}>
+                          <fieldset disabled={gracePeriodMode} className="verifier-claiming-search-fieldset">
+                            <div className="mb-3">
+                              <label className="verifier-claiming-label">Control Number</label>
+                              <input type="text" className="form-control verifier-claiming-input" placeholder="e.g. SK-2026-0001" value={controlNo} onChange={(e) => setControlNo(e.target.value)} />
+                            </div>
+                            <div className="mb-3">
+                              <label className="verifier-claiming-label">Applicant Name</label>
+                              <input type="text" className="form-control verifier-claiming-input" placeholder="Enter first or last name" value={applicantName} onChange={(e) => setApplicantName(e.target.value)} />
+                            </div>
+                            <button type="submit" className="verifier-claiming-search-btn" disabled={searching || gracePeriodMode}>
+                              {searching && !gracePeriodMode ? "Searching..." : "Search"}
+                            </button>
+                          </fieldset>
+                        </form>
+                        {gracePeriodMode ? (
+                          <p className="verifier-claiming-search-disabled-text">Search is unavailable while viewing the Grace Period List.</p>
+                        ) : results.length === 0 && !searching && !searchError ? (
+                          <p className="text-muted small mt-3 mb-0">No results yet — search above.</p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
                 </div>
+                {showResultsCard && (
+                  <div className="page-card verifier-attention-card verifier-claiming-results-card">
+                    <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                      <h4 className="verifier-claiming-results-title mb-0">{gracePeriodMode ? "Grace Period Applicants" : "Search Results"}</h4>
+                      {gracePeriodMode && (
+                        <button type="button" className="verifier-ocr-refresh-btn" onClick={() => handleSearch({ preventDefault: () => {} })} disabled={searching} title="Refresh list" aria-label="Refresh list">
+                          <svg className={`verifier-ocr-refresh-icon ${searching ? "verifier-ocr-refresh-icon-spinning" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="23 4 23 10 17 10" />
+                            <polyline points="1 20 1 14 7 14" />
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10" />
+                            <path d="M20.49 15a9 9 0 0 1-14.85 3.36L1 14" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                    {searchError && (
+                      <div className="verifier-claiming-error-notice mt-3">
+                        <span className="verifier-claiming-notice-icon"><i className="bi bi-exclamation-lg"></i></span>
+                        <span>{searchError}</span>
+                      </div>
+                    )}
+                    {(searching || results.length > 0) && (
+                      <>
+                        <div className="table-responsive mt-3 verifier-claiming-table-wrap">
+                          <table className="table table-bordered table-striped align-middle verifier-attention-table verifier-claiming-results-table">
+                            {gracePeriodMode ? (
+                              <colgroup>
+                                <col style={{ width: "15%" }} />
+                                <col style={{ width: "15%" }} />
+                                <col style={{ width: "25%" }} />
+                                <col style={{ width: "15%" }} />
+                                <col style={{ width: "10%" }} />
+                                <col style={{ width: "10%" }} />
+                              </colgroup>
+                            ) : (
+                              <colgroup>
+                                <col style={{ width: "15%" }} />
+                                <col style={{ width: "15%" }} />
+                                <col style={{ width: "25%" }} />
+                                <col style={{ width: "15%" }} />
+                                <col style={{ width: "10%" }} />
+                              </colgroup>
+                            )}
+                            <thead>
+                              <tr>
+                                <th>Control Number</th>
+                                <th>Applicant Name</th>
+                                <th>School</th>
+                                <th>Status</th>
+                                {gracePeriodMode && <th>Type</th>}
+                                <th>Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {searching ? (
+                                <tr>
+                                  <td colSpan={gracePeriodMode ? 6 : 5} className="text-center py-4">
+                                    <div className="spinner-border text-danger" role="status">
+                                      <span className="visually-hidden">Loading...</span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ) : (
+                                pagedResults.map((app) => (
+                                  <tr key={app.id}>
+                                    <td>{app.control_number}</td>
+                                    <td>{app.user?.first_name} {app.user?.last_name}</td>
+                                    <td>{app.school_name}</td>
+                                    <td className="verifier-claiming-status-cell">
+                                      <ClaimStatusBadge status={app.claiming_assignment?.claim_status} />
+                                    </td>
+                                    {gracePeriodMode && (
+                                      <td className="verifier-claiming-type-cell">
+                                        {app.claiming_assignment?.source === "waitlist_promotion" && (
+                                          <span className="verifier-claiming-type-badge verifier-claiming-type-promoted">Promoted</span>
+                                        )}
+                                        {(app.claiming_assignment?.source === "grace_period_retry" || app.claiming_assignment?.source === "original") && (
+                                          <span className="verifier-claiming-type-badge verifier-claiming-type-retrying">Retrying</span>
+                                        )}
+                                      </td>
+                                    )}
+                                    <td className="verifier-attention-action">
+                                      <button type="button" className="btn-save-green" onClick={() => selectApplicant(app)}>Select</button>
+                                    </td>
+                                  </tr>
+                                ))
+                              )}
+                            </tbody>
+                          </table>
+                        </div>
+                        {!searching && (
+                          <div className="verifier-table-pagination-bar">
+                            <span className="verifier-table-pagination-info">
+                              Showing {pageStart + 1}–{Math.min(pageStart + perPage, sortedResults.length)} of{" "}{sortedResults.length} applicants
+                            </span>
+                            <div className="verifier-table-pagination-controls">
+                              <button type="button" className="verifier-table-pagination-arrow" onClick={() => goToPage(currentPage - 1)} disabled={currentPage === 1} aria-label="Previous page">‹</button>
+                              {getPageNumbers().map((page, idx) =>
+                                page === "..." ? (
+                                  <span key={`ellipsis-${idx}`} className="verifier-table-pagination-ellipsis">…</span>
+                                ) : (
+                                  <button type="button" key={page} className={`verifier-table-pagination-page ${page === currentPage ? "verifier-table-pagination-page-active" : ""}`} onClick={() => goToPage(page)}>{page}</button>
+                                )
+                              )}
+                              <button type="button" className="verifier-table-pagination-arrow" onClick={() => goToPage(currentPage + 1)} disabled={currentPage === totalPages} aria-label="Next page">›</button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {results.length === 0 && !searching && !searchError && (
+                      <p className="text-muted small mt-3 mb-0">
+                        {gracePeriodMode ? "No applicants currently in the grace period list." : "No matching applicants found."}
+                      </p>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
         </section>
+        {selectedAction === "claimed" && !claimedBlocked && selected && (
+          <div className="verifier-claiming-action-modal-backdrop" onClick={closeClaimingActionModal}>
+            <div className="verifier-claiming-action-modal verifier-claiming-action-modal-small" onClick={(e) => e.stopPropagation()}>
+              <div className="verifier-claiming-action-modal-header">
+                <div className="verifier-claiming-action-modal-heading">
+                  <span className="verifier-claiming-action-modal-icon verifier-claiming-action-modal-icon-claimed">✓</span>
+                  <div>
+                    <h5>Mark as Claimed</h5>
+                    <span>Confirm final claiming status</span>
+                  </div>
+                </div>
+                <button type="button" className="verifier-claiming-action-modal-close" onClick={closeClaimingActionModal} disabled={submitting} aria-label="Close claiming confirmation">×</button>
+              </div>
+              <div className="verifier-claiming-action-modal-body">
+                {claimError && <div className="verifier-claiming-action-modal-error">{claimError}</div>}
+                <div className="verifier-claiming-quick-notes">
+                  <span className="verifier-claiming-quick-notes-label">Quick Notes</span>
+                  <div className="verifier-claiming-quick-notes-list">
+                    {CLAIMED_QUICK_NOTES.map((note) => (
+                      <button type="button" key={note} className="verifier-claiming-quick-note-btn" onClick={() => setNotes(note)}>{note}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="verifier-claiming-action-field">
+                  <label>Additional Notes (optional)</label>
+                  <textarea className="form-control" rows="4" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add any notes about this claiming transaction..." />
+                </div>
+              </div>
+              <div className="verifier-claiming-action-modal-footer">
+                <button type="button" className="verifier-claiming-action-modal-cancel" onClick={closeClaimingActionModal} disabled={submitting}>Cancel</button>
+                <button type="button" className="verifier-claiming-action-modal-confirm verifier-claiming-action-modal-confirm-claimed" onClick={handleConfirm} disabled={submitting}>
+                  {submitting ? "Submitting..." : "Confirm — Mark as Claimed"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {selectedAction === "not_cleared" && selected && (
+          <div className="verifier-claiming-action-modal-backdrop" onClick={closeClaimingActionModal}>
+            <div className="verifier-claiming-action-modal verifier-claiming-action-modal-medium" onClick={(e) => e.stopPropagation()}>
+              <div className="verifier-claiming-action-modal-header">
+                <div className="verifier-claiming-action-modal-heading">
+                  <span className="verifier-claiming-action-modal-icon verifier-claiming-action-modal-icon-not-cleared">!</span>
+                  <div>
+                    <h5>Mark as Not Cleared</h5>
+                    <span>Select the reason before confirming</span>
+                  </div>
+                </div>
+                <button type="button" className="verifier-claiming-action-modal-close" onClick={closeClaimingActionModal} disabled={submitting} aria-label="Close not cleared confirmation">×</button>
+              </div>
+              <div className="verifier-claiming-action-modal-body">
+                {claimError && <div className="verifier-claiming-action-modal-error">{claimError}</div>}
+                <div className="verifier-claiming-action-reasons">
+                  <label className="verifier-claiming-action-reasons-title">Not Cleared Reason(s) *</label>
+                  {NOT_CLEARED_REASONS.map((reason) => (
+                    <div className="verifier-claiming-action-reason-option" key={reason}>
+                      <input className="form-check-input" type="checkbox" id={`nc-${reason}`} checked={notClearedReasons.includes(reason)} onChange={() => toggleNotClearedReason(reason)} />
+                      <label className="form-check-label" htmlFor={`nc-${reason}`}>{reason}</label>
+                    </div>
+                  ))}
+                  {notClearedReasons.includes(OTHER) && (
+                    <input className="form-control form-control-sm verifier-claiming-action-other-input" placeholder="Specify the reason..." value={notClearedOtherText} onChange={(e) => setNotClearedOtherText(e.target.value)} />
+                  )}
+                </div>
+                <div className="verifier-claiming-quick-notes">
+                  <span className="verifier-claiming-quick-notes-label">Quick Notes</span>
+                  <div className="verifier-claiming-quick-notes-list">
+                    {NOT_CLEARED_QUICK_NOTES.map((note) => (
+                      <button type="button" key={note} className="verifier-claiming-quick-note-btn" onClick={() => setNotes(note)}>{note}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="verifier-claiming-action-field">
+                  <label>Additional Notes (optional)</label>
+                  <textarea className="form-control" rows="4" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Add any notes about this claiming transaction..." />
+                </div>
+              </div>
+              <div className="verifier-claiming-action-modal-footer">
+                <button type="button" className="verifier-claiming-action-modal-cancel" onClick={closeClaimingActionModal} disabled={submitting}>Cancel</button>
+                <button type="button" className="verifier-claiming-action-modal-confirm verifier-claiming-action-modal-confirm-not-cleared" onClick={handleConfirm} disabled={submitting}>
+                  {submitting ? "Submitting..." : "Confirm — Mark as Not Cleared"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {claimingFeedback && (
+          <div className="verifier-claiming-feedback-backdrop" onClick={() => setClaimingFeedback(null)}>
+            <div className="verifier-claiming-feedback-popup" onClick={(e) => e.stopPropagation()}>
+              <div className={`verifier-claiming-feedback-icon ${claimingFeedback.type === "claimed" ? "verifier-claiming-feedback-icon-claimed" : "verifier-claiming-feedback-icon-not-cleared"}`}>
+                {claimingFeedback.type === "claimed" ? "✓" : "!"}
+              </div>
+              <h4 className="verifier-claiming-feedback-title">{claimingFeedback.title}</h4>
+              <p className="verifier-claiming-feedback-message">{claimingFeedback.message}</p>
+              <button type="button" className={`verifier-claiming-feedback-dismiss ${claimingFeedback.type === "claimed" ? "verifier-claiming-feedback-dismiss-claimed" : "verifier-claiming-feedback-dismiss-not-cleared"}`} onClick={() => setClaimingFeedback(null)}>
+                <span>Done</span>
+                <span className="verifier-claiming-feedback-button-right">
+                  <span className="verifier-claiming-feedback-arrow">→</span>
+                  <span className="verifier-claiming-feedback-timer">{feedbackCountdown}s</span>
+                </span>
+              </button>
+            </div>
+          </div>
+        )}
+        {filePreview && (
+          <div className="verifier-preview-modal" onClick={closeFilePreview}>
+            <div className="verifier-preview-modal-content" onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="verifier-preview-modal-close" onClick={closeFilePreview} aria-label="Close preview">×</button>
+              {filePreview.type.startsWith("image/") ? (
+                <img src={filePreview.url} alt={`${filePreview.label} enlarged preview`} className="verifier-preview-modal-image" />
+              ) : (
+                <iframe src={filePreview.url} title={`${filePreview.label} enlarged preview`} className="verifier-preview-modal-pdf" />
+              )}
+            </div>
+          </div>
+        )}
         <PanelFooter />
       </div>
     </div>
