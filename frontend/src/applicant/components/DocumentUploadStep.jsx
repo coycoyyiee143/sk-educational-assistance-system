@@ -76,11 +76,11 @@ function DocumentUploadStep({
                         <strong>Image Quality Guidelines</strong>
 
                         <p className="mb-0 mt-1">
-                            Upload clear, readable photos or scans. Ensure good lighting,
+                            Upload clear, readable photos. Ensure good lighting,
                             avoid blur, and keep the full document in frame. Images below{" "}
                             <strong>{MIN_SHORT_SIDE_PX}px</strong> on the shortest side will
-                            be rejected automatically. Supported formats: JPG, PNG, PDF.
-                            Maximum file size: 5MB.
+                            be rejected automatically. Supported formats: JPG, PNG only —
+                            PDF files are not accepted. Maximum file size: 5MB.
                         </p>
                     </div>
                 </div>
@@ -129,7 +129,7 @@ function DocumentUploadStep({
                                     <label className="document-upload-picker">
                                         <input
                                             type="file"
-                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            accept=".jpg,.jpeg,.png"
                                             onChange={setFile(field.key)}
                                             hidden
                                         />

@@ -1,5 +1,3 @@
-// frontend/src/applicant/components/ReuploadStep.jsx
-
 import HelpContactLink from "../../components/HelpContactLink";
 
 function ReuploadStep({
@@ -27,19 +25,16 @@ function ReuploadStep({
         <form onSubmit={handleReupload}>
             <div className="reupload-main-notice">
                 <div className="reupload-main-notice-icon">!</div>
-
                 <div className="reupload-main-notice-body">
                     <strong className="reupload-main-notice-title">
                         {isAutoReupload ? "Re-upload Needed" : "Re-upload Required"}
                     </strong>
-
                     <p className="reupload-main-notice-text">
                         {isAutoReupload
                             ? existingApp.auto_reupload_reason ||
                               "Our system detected an issue with one of your uploaded documents."
                             : "The SK Verifier has requested you to replace one or more uploaded documents."}
                     </p>
-
                     <div className="mt-2">
                         <HelpContactLink
                             applicationId={applicationId}
@@ -52,7 +47,6 @@ function ReuploadStep({
                     </div>
                 </div>
             </div>
-
             <div className="d-flex justify-content-end mt-3 mb-3">
                 <button
                     type="button"
@@ -62,7 +56,6 @@ function ReuploadStep({
                     ← Edit Application Info
                 </button>
             </div>
-
             {existingApp?.latest_verifier_action?.notes && (
                 <div className="reupload-verifier-note mb-3">
                     <strong>Verifier Note</strong>
@@ -71,7 +64,6 @@ function ReuploadStep({
                     </p>
                 </div>
             )}
-
             <div className="sub-card mb-4">
                 <div className="reupload-section-heading">
                     <h5 className="mb-1">Current Documents</h5>
@@ -79,16 +71,13 @@ function ReuploadStep({
                         Review the documents currently on file. Documents requiring replacement are highlighted below.
                     </p>
                 </div>
-
                 <div className="row g-3 mt-1">
                     {DOC_FIELDS.map((field) => {
                         const doc = existingDocs.find(
                             (d) => d.document_type === field.type
                         );
-
                         const docReason = flaggedReasonFor(field);
                         const flagged = !!docReason;
-
                         return (
                             <div className="col-md-4" key={field.key}>
                                 <div
@@ -101,7 +90,6 @@ function ReuploadStep({
                                             <h6 className="reupload-current-card-title">
                                                 {field.label}
                                             </h6>
-
                                             <span
                                                 className={`reupload-current-status ${
                                                     flagged
@@ -114,7 +102,6 @@ function ReuploadStep({
                                                     : "Current File"}
                                             </span>
                                         </div>
-
                                         <div
                                             className={`reupload-current-icon ${
                                                 flagged ? "is-flagged" : ""
@@ -133,14 +120,12 @@ function ReuploadStep({
                                             </svg>
                                         </div>
                                     </div>
-
                                     <div
                                         className="reupload-current-filename"
                                         title={doc?.file_name || "No file"}
                                     >
                                         {doc?.file_name || "No file available"}
                                     </div>
-
                                     {flagged && (
                                         <div className="reupload-current-reason">
                                             <strong>
@@ -148,13 +133,11 @@ function ReuploadStep({
                                                     ? "System Reason"
                                                     : "Verifier Reason"}
                                             </strong>
-
                                             <p className="mb-0 mt-1">
                                                 {docReason.reason}
                                             </p>
                                         </div>
                                     )}
-
                                     <div className="reupload-current-actions">
                                         {doc && (
                                             <button
@@ -174,25 +157,20 @@ function ReuploadStep({
                     })}
                 </div>
             </div>
-
             <div className="sub-card">
                 <div className="reupload-section-heading">
                     <h5 className="mb-1">Upload Replacement Documents</h5>
-
                     <p className="text-muted mb-0">
                         {isAutoReupload
                             ? "Upload a replacement for each flagged document. Leave unflagged documents unchanged."
                             : "Upload replacements for all documents requested by the verifier."}
                     </p>
                 </div>
-
                 {activeConfig && (
                     <div className="reupload-requirement-notice mt-3 mb-4">
                         <div className="reupload-requirement-icon">!</div>
-
                         <div>
                             <strong>Document Requirement</strong>
-
                             <p className="mb-0 mt-1">
                                 Your Registration Form must be for{" "}
                                 <strong>
@@ -201,7 +179,6 @@ function ReuploadStep({
                                 — the most recent enrollment period.
                                 Registration forms from a different school year
                                 will not be accepted.
-
                                 {isMinor && (
                                     <>
                                         {" "}
@@ -212,17 +189,16 @@ function ReuploadStep({
                                         Voter's Certificate — not your own.
                                     </>
                                 )}
+                                {" "}Only JPG or PNG photos are accepted — PDF files will not be accepted.
                             </p>
                         </div>
                     </div>
                 )}
-
                 <div className="row g-3">
                     {DOC_FIELDS.map((field) => {
                         const isRequested = isFieldFlagged(field);
                         const selectedFile = reuploadFiles[field.key];
                         const hasError = !!reuploadFileErrors[field.key];
-
                         return (
                             <div className="col-md-4" key={field.key}>
                                 <div
@@ -245,7 +221,6 @@ function ReuploadStep({
                                             <h6 className="reupload-upload-title">
                                                 {field.label}
                                             </h6>
-
                                             <span
                                                 className={`reupload-request-badge ${
                                                     isRequested
@@ -258,7 +233,6 @@ function ReuploadStep({
                                                     : "Keep Existing"}
                                             </span>
                                         </div>
-
                                         <div className="reupload-upload-icon">
                                             <svg
                                                 viewBox="0 0 24 24"
@@ -274,23 +248,19 @@ function ReuploadStep({
                                             </svg>
                                         </div>
                                     </div>
-
                                     <p className="reupload-upload-hint">
                                         {field.hint}
                                     </p>
-
                                     <label className="reupload-file-picker">
                                         <input
                                             type="file"
-                                            accept=".jpg,.jpeg,.png,.pdf"
+                                            accept=".jpg,.jpeg,.png"
                                             onChange={setReupload(field.key)}
                                             hidden
                                         />
-
                                         <span className="reupload-file-button">
                                             Choose File
                                         </span>
-
                                         <span
                                             className={`reupload-file-name ${
                                                 selectedFile ? "has-file" : ""
@@ -304,7 +274,6 @@ function ReuploadStep({
                                                 "No file selected"}
                                         </span>
                                     </label>
-
                                     {hasError && (
                                         <div className="reupload-file-error">
                                             <span>!</span>
@@ -317,18 +286,15 @@ function ReuploadStep({
                                             </p>
                                         </div>
                                     )}
-
                                     {selectedFile && !hasError && (
                                         <div className="reupload-file-success">
                                             <span className="reupload-file-success-icon">
                                                 ✓
                                             </span>
-
                                             <div className="reupload-file-success-text">
                                                 <strong>
                                                     Replacement selected
                                                 </strong>
-
                                                 <span
                                                     title={selectedFile.name}
                                                 >
@@ -343,7 +309,6 @@ function ReuploadStep({
                     })}
                 </div>
             </div>
-
             {uploadProgress && (
                 <div className="alert alert-info mt-3 mb-0">
                     <div
@@ -353,14 +318,11 @@ function ReuploadStep({
                     {uploadProgress}
                 </div>
             )}
-
             {isReuploadDisabled && (
                 <div className="reupload-submit-warning mt-3">
                     <div className="reupload-submit-warning-icon">!</div>
-
                     <div>
                         <strong>Cannot Submit Yet</strong>
-
                         <p className="mb-0 mt-1">
                             Attach replacement files for:{" "}
                             <strong>
@@ -373,7 +335,6 @@ function ReuploadStep({
                     </div>
                 </div>
             )}
-
             <div className="d-flex justify-content-end gap-2 mt-4">
                 <button
                     type="submit"
