@@ -33,6 +33,10 @@ const Register = () => {
   // Shows the success popup before redirecting to email verification
   const [faceVerified, setFaceVerified] = useState(false);
 
+  // Data Privacy consent
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -83,6 +87,11 @@ const Register = () => {
 
     if (!idImage) {
       setError("Please upload a valid ID.");
+      return;
+    }
+
+    if (!agreePrivacy) {
+      setError("Please read and agree to the Data Privacy Notice before proceeding.");
       return;
     }
 
@@ -1057,12 +1066,45 @@ const Register = () => {
                       ))}
                   </div>
 
+                  {/* DATA PRIVACY CONSENT */}
+
+                  <div className="mb-3 form-check">
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      id="agreePrivacy"
+                      checked={agreePrivacy}
+                      onChange={(e) => {
+                        setAgreePrivacy(e.target.checked);
+                        setError("");
+                      }}
+                      required
+                    />
+                    <label className="form-check-label" htmlFor="agreePrivacy">
+                      I have read and agree to the{" "}
+                      <button
+                        type="button"
+                        className="btn btn-link p-0 align-baseline"
+                        onClick={() => setShowPrivacyModal(true)}
+                      >
+                        Data Privacy Notice
+                      </button>
+                      .{" "}
+                      <span className="text-danger">*</span>
+                    </label>
+                  </div>
+
                   {/* NEXT */}
 
                   <button
                     className="btn btn-danger w-100"
                     type="submit"
-                    disabled={loading}
+                    disabled={loading || !agreePrivacy}
+                    title={
+                      !agreePrivacy
+                        ? "Please agree to the Data Privacy Notice first"
+                        : undefined
+                    }
                   >
                     {loading ? "Checking..." : "Next: Verify Identity"}
                   </button>
@@ -1079,6 +1121,84 @@ const Register = () => {
           </div>
         </div>
       </section>
+
+      {/* ========================================
+          DATA PRIVACY MODAL
+      ======================================== */}
+
+      {showPrivacyModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            background: "rgba(17, 24, 39, 0.48)",
+            backdropFilter: "blur(3px)",
+            WebkitBackdropFilter: "blur(3px)",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "560px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "28px 26px",
+              borderRadius: "16px",
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.22)",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <h4 className="text-danger mb-3" style={{ fontWeight: 700 }}>
+              Data Privacy Notice
+            </h4>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              In accordance with the Data Privacy Act of 2012 (RA 10173),
+              SK Barangay Mamatid collects your personal information
+              (name, birthdate, contact details, valid ID, and photo)
+              solely for the purpose of processing your application for
+              the Educational Assistance Program. Your uploaded ID and
+              live photo will be used strictly for identity verification
+              and may be referenced by SK staff during claiming.
+            </p>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              Your data will not be shared with third parties without
+              your consent, except when required by law. You may
+              request access, correction, or deletion of your data by
+              contacting the SK office.
+            </p>
+
+            <div className="d-flex justify-content-end gap-2 mt-3">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setShowPrivacyModal(false)}
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => {
+                  setAgreePrivacy(true);
+                  setShowPrivacyModal(false);
+                }}
+              >
+                I Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </>
