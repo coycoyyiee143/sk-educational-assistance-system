@@ -52,7 +52,7 @@ class ClaimingScheduleNotification extends Notification implements ShouldQueue
                 ->line('**Control Number:** ' . $this->application->control_number)
                 ->line('**Claiming Window:** ' . $windowText . ', during regular office hours.')
                 ->line('**Venue:** ' . $this->schedule->location)
-                ->action('View Claiming Schedule', url('http://localhost:3000/ApplicantClaimingSchedule'))
+                ->action('View Claiming Schedule', rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/ApplicantClaimingSchedule')
                 ->line('Please bring valid identification and the original copies of your submitted documents.')
                 ->salutation("Regards,  \nSangguniang Kabataan of Barangay Mamatid");
         }
@@ -70,7 +70,7 @@ class ClaimingScheduleNotification extends Notification implements ShouldQueue
             ->line('**Batch Time:** ' . ucfirst($this->lane->batch) . ' (' . $batchTime . ')')
             ->line('**Lane:** ' . $this->lane->lane_name)
             ->line('**Venue:** ' . $this->schedule->location)
-            ->action('View Claiming Schedule', url('http://localhost:3000/ApplicantClaimingSchedule'))
+            ->action('View Claiming Schedule', rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') . '/ApplicantClaimingSchedule')
             ->line('Please bring valid identification and the original copies of your submitted documents.')
             ->salutation("Regards,  \nSangguniang Kabataan of Barangay Mamatid");
     }

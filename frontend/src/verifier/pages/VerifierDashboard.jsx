@@ -8,7 +8,7 @@ function StatusBadge({ app }) {
   return <span className={`status-badge ${getVerifierBadgeClass(app)}`}>{getVerifierStatusLabel(app)}</span>;
 }
 function VerifierDashboard() {
-  const [stats, setStats] = useState({ pending: 0, review: 0, approved: 0, rejected: 0 });
+  const [stats, setStats] = useState({ pending: 0, review: 0, approved: 0, rejected: 0, no_active_period: false });
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
@@ -120,6 +120,11 @@ function VerifierDashboard() {
               <h3 className="verifier-dashboard-title">Verifier Dashboard</h3>
               <p className="verifier-dashboard-desc">Overview of application statistics and applications requiring verification.</p>
             </div>
+            {!loading && stats.no_active_period && (
+              <div className="alert alert-warning">
+                No active application period is currently configured. Statistics will show once a period is activated.
+              </div>
+            )}
             <div className="row g-4">
               {cards.map(({ label, value, accent, icon }) => (
                 <div className="col-md-3" key={label}>
