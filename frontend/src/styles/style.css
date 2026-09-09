@@ -1383,1008 +1383,6 @@ a:hover {
 }
 
 /* ============================================
-   APPLICATION PROCESS - MOBILE/TABLET ONLY
-   ============================================ */
-
-@media (max-width: 991.98px) {
-  .requirements-page .process-steps-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .requirements-page .process-step {
-    position: relative;
-    display: grid;
-    grid-template-columns: 44px 1fr;
-    align-items: center;
-    gap: 16px;
-    min-height: 82px;
-    padding: 0;
-  }
-
-  .requirements-page .process-step:not(:last-child)::after {
-    content: "";
-    position: absolute;
-    top: 63px;
-    bottom: -19px;
-    left: 21px;
-    width: 2px;
-    background: #efd6d7;
-  }
-
-  .requirements-page .process-step-circle {
-    position: relative;
-    z-index: 1;
-    width: 44px;
-    height: 44px;
-    margin: 0;
-    flex-shrink: 0;
-  }
-
-  .requirements-page .process-step-text {
-    margin: 0;
-    text-align: left;
-    font-family: "Inter", sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-  }
-}
-
-@media (max-width: 575.98px) {
-  .requirements-page .process-step {
-    grid-template-columns: 40px 1fr;
-    gap: 13px;
-    min-height: 78px;
-  }
-
-  .requirements-page .process-step-circle {
-    width: 40px;
-    height: 40px;
-  }
-
-  .requirements-page .process-step:not(:last-child)::after {
-    top: 59px;
-    bottom: -19px;
-    left: 19px;
-  }
-
-  .requirements-page .process-step-text {
-    font-size: 13px;
-  }
-}
-
-/* ============================================
-   REQUIREMENTS PAGE
-   ============================================ */
-
-.requirements-page {
-  font-family: "Inter", sans-serif;
-}
-
-.requirements-page h1,
-.requirements-page h2,
-.requirements-page h3,
-.requirements-page h4,
-.requirements-page h5,
-.requirements-page h6 {
-  font-family: "Poppins", sans-serif;
-}
-
-
-/* ============================================
-   REQUIREMENTS HERO
-   ============================================ */
-
-.requirements-hero h1 {
-  font-family: "Poppins", sans-serif;
-  font-weight: 700;
-}
-
-.requirements-hero p {
-  max-width: 760px;
-  margin: 0 auto;
-  font-family: "Inter", sans-serif;
-}
-
-
-/* ============================================
-   STATUS
-   ============================================ */
-
-.requirements-page .status-window-label {
-  font-family: "Inter", sans-serif;
-}
-
-.requirements-page .status-window-title {
-  font-family: "Poppins", sans-serif;
-}
-
-.requirements-page .status-window-open {
-  color: #bd1f24;
-}
-
-.requirements-page .status-window-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.requirements-page .status-window-pill-dot {
-  display: none;
-  width: 7px;
-  height: 7px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.requirements-page .status-window-date-content {
-  min-width: 0;
-}
-
-.requirements-page .status-window-mobile-divider {
-  display: none;
-}
-
-.requirements-page .status-window-apply-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  text-decoration: none;
-}
-
-.requirements-page .status-window-apply-btn svg {
-  display: none;
-  width: 17px;
-  height: 17px;
-}
-
-
-/* ============================================
-   REQUIRED DOCUMENTS
-   ============================================ */
-
-.requirements-page .req-doc-card-header {
-  display: block;
-}
-
-.requirements-page .req-doc-card-content {
-  min-width: 0;
-}
-
-.requirements-page .req-doc-card-title,
-.requirements-page .req-doc-reminder-title {
-  font-family: "Poppins", sans-serif;
-}
-
-.requirements-page .req-doc-list li {
-  font-family: "Inter", sans-serif;
-}
-
-
-/* ============================================
-   MOBILE
-   ============================================ */
-
-@media (max-width: 767.98px) {
-
-  /* ------------------------------------------
-     GENERAL
-     ------------------------------------------ */
-
-  .requirements-page .container {
-    padding-left: 20px;
-    padding-right: 20px;
-  }
-
-  .requirements-page
-    .requirements-status-section,
-  .requirements-page
-    .requirements-documents-section,
-  .requirements-page
-    .requirements-process-section {
-    padding-top: 34px !important;
-    padding-bottom: 34px !important;
-  }
-
-
-  /* ------------------------------------------
-     HERO
-     ------------------------------------------ */
-
-  .requirements-page .requirements-hero {
-    padding-top: 36px !important;
-    padding-bottom: 36px !important;
-  }
-
-  .requirements-page .requirements-hero h1 {
-    margin-bottom: 10px;
-    font-size: 24px;
-    line-height: 1.25;
-  }
-
-  .requirements-page .requirements-hero p {
-    font-size: 12.5px;
-    line-height: 1.7;
-  }
-
-
-  /* ------------------------------------------
-     IMPORTANT REMINDERS
-     ------------------------------------------ */
-
-  .requirements-page
-    .featured-announcement-card.featured-split-layout {
-    display: block;
-  }
-
-  .requirements-page .featured-main-col,
-  .requirements-page .featured-side-col {
-    width: 100%;
-  }
-
-  .requirements-page .featured-side-col {
-    margin-top: 18px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(0, 0, 0, 0.08);
-  }
-
-
-  /* ------------------------------------------
-     APPLICATION STATUS CARD
-     ------------------------------------------ */
-
-  .requirements-page .status-window-card {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-
-    width: 100%;
-    padding: 25px 22px 22px;
-
-    background: #ffffff;
-    border: 1px solid #ececec;
-    border-radius: 18px;
-
-    box-shadow:
-      0 10px 30px rgba(37, 37, 37, 0.05),
-      0 2px 8px rgba(37, 37, 37, 0.03);
-  }
-
-  .requirements-page .status-window-left,
-  .requirements-page .status-window-right {
-    width: 100%;
-  }
-
-  .requirements-page .status-window-label {
-    display: block;
-
-    margin-bottom: 12px;
-
-    color: #aa161c;
-
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
-
-    text-transform: uppercase;
-  }
-
-  .requirements-page .status-window-title {
-    margin: 0 0 15px;
-
-    color: #101828;
-
-    font-size: 24px;
-    font-weight: 700;
-    line-height: 1.22;
-  }
-
-  .requirements-page .status-window-meta-row {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px 14px;
-
-    margin-bottom: 27px;
-  }
-
-  .requirements-page .status-window-pill {
-    padding: 6px 10px;
-
-    border-radius: 999px;
-
-    font-size: 9px;
-    font-weight: 700;
-  }
-
-  .requirements-page .status-window-pill-dot {
-    display: block;
-  }
-
-  .requirements-page .status-window-pill-open {
-    background: #e8f7ee;
-    color: #138346;
-  }
-
-  .requirements-page .status-window-pill-closed {
-    background: #fdecec;
-    color: #bd1f24;
-  }
-
-  .requirements-page .status-window-schoolyear {
-    color: #747b88;
-
-    font-size: 10px;
-    font-weight: 500;
-  }
-
-
-  /* ------------------------------------------
-     START DATE / DEADLINE
-     ------------------------------------------ */
-
-  .requirements-page .status-window-dates-box {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 1px minmax(0, 1fr);
-    align-items: stretch;
-    gap: 14px;
-
-    width: 100%;
-  }
-
-  .requirements-page .status-window-date-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-
-    min-width: 0;
-  }
-
-  .requirements-page .status-window-date-divider {
-    display: block;
-
-    width: 1px;
-    height: 46px;
-    align-self: center;
-
-    background: #eeeeee;
-  }
-
-  .requirements-page .status-window-date-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 38px;
-    height: 38px;
-
-    flex-shrink: 0;
-
-    background: #fff3f3;
-    border-radius: 10px;
-  }
-
-  .requirements-page .status-window-date-icon img {
-    width: 17px;
-    height: 17px;
-
-    object-fit: contain;
-  }
-
-  .requirements-page .status-window-date-label {
-    display: block;
-
-    margin-bottom: 3px;
-
-    color: #818896;
-
-    font-size: 8px;
-    font-weight: 700;
-    letter-spacing: 0.7px;
-
-    text-transform: uppercase;
-  }
-
-  .requirements-page .status-window-date-value {
-    margin: 0;
-
-    color: #111827;
-
-    font-size: 10.5px;
-    font-weight: 700;
-    line-height: 1.35;
-
-    white-space: normal;
-  }
-
-
-  /* ------------------------------------------
-     SLOTS
-     ------------------------------------------ */
-
-  .requirements-page .status-window-mobile-divider {
-    display: block;
-
-    width: 100%;
-    height: 1px;
-
-    margin: 25px 0 20px;
-
-    background: #eeeeee;
-  }
-
-  .requirements-page .status-window-slots-row {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 17px;
-
-    width: 100%;
-    margin: 0;
-  }
-
-  .requirements-page .status-window-slots-info {
-    width: 100%;
-  }
-
-  .requirements-page .status-window-slots-label {
-    display: block;
-
-    margin-bottom: 4px;
-
-    color: #818896;
-
-    font-size: 8.5px;
-    font-weight: 700;
-    letter-spacing: 1px;
-
-    text-transform: uppercase;
-  }
-
-  .requirements-page .status-window-slots-value {
-    margin: 0;
-
-    color: #111827;
-
-    font-family: "Poppins", sans-serif;
-    font-size: 25px;
-    font-weight: 700;
-    line-height: 1.2;
-  }
-
-  .requirements-page .status-window-slots-total {
-    color: #9aa0ac;
-
-    font-family: "Inter", sans-serif;
-    font-size: 13px;
-    font-weight: 500;
-  }
-
-
-  /* ------------------------------------------
-     APPLY BUTTON
-     ------------------------------------------ */
-
-  .requirements-page .status-window-apply-btn {
-    width: 100%;
-    min-height: 46px;
-
-    padding: 11px 16px;
-
-    background: #218c4b;
-    border-radius: 9px;
-
-    color: #ffffff;
-
-    font-family: "Inter", sans-serif;
-    font-size: 13px;
-    font-weight: 700;
-
-    transition:
-      background 0.2s ease,
-      transform 0.2s ease;
-  }
-
-  .requirements-page .status-window-apply-btn svg {
-    display: block;
-  }
-
-  .requirements-page .status-window-apply-btn:hover {
-    background: #19763e;
-    color: #ffffff;
-  }
-
-
-  /* ------------------------------------------
-     SECTION TITLE
-     ------------------------------------------ */
-
-  .requirements-page .section-title {
-    margin-bottom: 20px;
-
-    color: #101828;
-
-    font-family: "Poppins", sans-serif;
-    font-size: 23px;
-    font-weight: 700;
-    line-height: 1.3;
-  }
-
-
-  /* ------------------------------------------
-     DOCUMENT CARDS
-     ------------------------------------------ */
-
-  .requirements-page .req-doc-card,
-  .requirements-page .req-doc-reminder-card {
-    min-height: 0;
-
-    padding: 22px;
-
-    background: #ffffff;
-    border: 1px solid #e9e9e9;
-    border-radius: 17px;
-
-    box-shadow:
-      0 8px 24px rgba(0, 0, 0, 0.035),
-      0 2px 6px rgba(0, 0, 0, 0.02);
-  }
-
-  .requirements-page .req-doc-card-header {
-    display: flex;
-    align-items: flex-start;
-    gap: 17px;
-  }
-
-  .requirements-page .req-doc-icon-wrap,
-  .requirements-page .req-doc-reminder-icon-wrap {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 48px;
-    height: 48px;
-
-    flex-shrink: 0;
-
-    margin: 0;
-
-    background: #fff1f2;
-    border-radius: 13px;
-
-    color: #b91c1c;
-  }
-
-  .requirements-page .req-doc-icon-wrap svg,
-  .requirements-page
-    .req-doc-reminder-icon-wrap
-    svg {
-    width: 22px;
-    height: 22px;
-  }
-
-  .requirements-page .req-doc-card-content {
-    flex: 1;
-  }
-
-  .requirements-page .req-doc-card-title,
-  .requirements-page .req-doc-reminder-title {
-    margin: 2px 0 13px;
-
-    color: #111827;
-
-    font-size: 18px;
-    font-weight: 700;
-    line-height: 1.3;
-  }
-
-  .requirements-page .req-doc-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-
-    margin: 0;
-    padding: 0;
-
-    list-style: none;
-  }
-
-  .requirements-page .req-doc-list li {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-
-    margin: 0;
-
-    color: #222b3a;
-
-    font-size: 12.5px;
-    font-weight: 500;
-    line-height: 1.45;
-  }
-
-  .requirements-page .req-doc-check {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 21px;
-    height: 21px;
-
-    flex-shrink: 0;
-
-    padding: 4px;
-
-    border: 1.5px solid #159447;
-    border-radius: 50%;
-
-    color: #159447;
-  }
-
-  .requirements-page .req-doc-check svg {
-    width: 100%;
-    height: 100%;
-  }
-
-  .requirements-page .req-doc-reminder-text {
-    margin: 0;
-
-    color: #707887;
-
-    font-size: 12.5px;
-    line-height: 1.65;
-  }
-
-
-  /* ------------------------------------------
-     APPLICATION PROCESS
-     ------------------------------------------ */
-
-  .requirements-page .process-steps-card {
-    padding: 23px 20px;
-
-    background: #ffffff;
-    border: 1px solid #e9e9e9;
-    border-radius: 17px;
-
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.035);
-  }
-
-  .requirements-page .process-steps-row {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-  }
-
-  .requirements-page .process-step {
-    position: relative;
-
-    display: grid;
-    grid-template-columns: 36px 1fr;
-    align-items: flex-start;
-    gap: 13px;
-
-    width: 100%;
-
-    padding-bottom: 22px;
-  }
-
-  .requirements-page .process-step:last-child {
-    padding-bottom: 0;
-  }
-
-  .requirements-page
-    .process-step:not(:last-child)::after {
-    content: "";
-
-    position: absolute;
-    z-index: 0;
-
-    top: 34px;
-    bottom: 0;
-    left: 17px;
-
-    width: 2px;
-
-    background: #efd6d7;
-  }
-
-  .requirements-page .process-step-circle {
-    position: relative;
-    z-index: 1;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 36px;
-    height: 36px;
-
-    background: #f8e5e6;
-    border: 1px solid #efcacc;
-    border-radius: 50%;
-
-    color: #ad171c;
-
-    font-family: "Inter", sans-serif;
-    font-size: 12px;
-    font-weight: 700;
-  }
-
-  .requirements-page
-    .process-step-active
-    .process-step-circle {
-    background: #b91c1c;
-    border-color: #b91c1c;
-    color: #ffffff;
-  }
-
-  .requirements-page .process-step-text {
-    margin: 7px 0 0;
-
-    color: #333b48;
-
-    font-family: "Inter", sans-serif;
-    font-size: 12.5px;
-    font-weight: 500;
-    line-height: 1.5;
-
-    text-align: left;
-  }
-}
-
-
-/* ============================================
-   SMALL MOBILE
-   ============================================ */
-
-@media (max-width: 420px) {
-  .requirements-page .container {
-    padding-left: 16px;
-    padding-right: 16px;
-  }
-
-  .requirements-page .status-window-card {
-    padding: 22px 18px 19px;
-  }
-
-  .requirements-page .status-window-title {
-    font-size: 21px;
-  }
-
-  .requirements-page .status-window-meta-row {
-    gap: 8px;
-  }
-
-  .requirements-page .status-window-dates-box {
-    grid-template-columns: 1fr;
-    gap: 13px;
-  }
-
-  .requirements-page .status-window-date-divider {
-    display: none;
-  }
-
-  .requirements-page .status-window-date-item {
-    padding: 2px 0;
-  }
-
-  .requirements-page .status-window-date-icon {
-    width: 36px;
-    height: 36px;
-  }
-
-  .requirements-page .status-window-slots-value {
-    font-size: 23px;
-  }
-
-  .requirements-page .req-doc-card,
-  .requirements-page .req-doc-reminder-card {
-    padding: 19px 17px;
-  }
-
-  .requirements-page .req-doc-icon-wrap,
-  .requirements-page .req-doc-reminder-icon-wrap {
-    width: 44px;
-    height: 44px;
-  }
-
-  .requirements-page .req-doc-card-title,
-  .requirements-page .req-doc-reminder-title {
-    font-size: 16px;
-  }
-
-  .requirements-page .process-steps-card {
-    padding: 20px 17px;
-  }
-}
-
-/* ============================================
-   APPLICATION PROCESS - TABLET + MOBILE ONLY
-   Desktop design stays unchanged
-   ============================================ */
-
-@media (max-width: 991.98px) {
-  .requirements-page .process-steps-card {
-    width: 100%;
-    padding: 24px 22px;
-
-    background: #ffffff;
-    border: 1px solid #e9e9e9;
-    border-radius: 17px;
-
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.035);
-  }
-
-  .requirements-page .process-steps-row {
-    display: flex;
-    flex-direction: column;
-
-    width: 100%;
-    gap: 0;
-  }
-
-  .requirements-page .process-step {
-    position: relative;
-
-    display: grid;
-    grid-template-columns: 44px minmax(0, 1fr);
-    align-items: center;
-    gap: 16px;
-
-    width: 100%;
-    min-height: 82px;
-
-    padding: 0;
-    margin: 0;
-  }
-
-  /* Vertical connecting line */
-  .requirements-page .process-step:not(:last-child)::after {
-    content: "";
-
-    position: absolute;
-    z-index: 0;
-
-    top: calc(50% + 22px);
-    bottom: calc(-50% + 22px);
-    left: 21px;
-
-    width: 2px;
-
-    background: #efd6d7;
-  }
-
-  .requirements-page .process-step-circle {
-    position: relative;
-    z-index: 1;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    width: 44px;
-    height: 44px;
-
-    margin: 0;
-
-    border: 1px solid #efcacc;
-    border-radius: 50%;
-
-    background: #fbe9ea;
-    color: #b91c1c;
-
-    font-family: "Inter", sans-serif;
-    font-size: 13px;
-    font-weight: 700;
-
-    flex-shrink: 0;
-  }
-
-  .requirements-page
-    .process-step-active
-    .process-step-circle {
-    background: #bf2024;
-    border-color: #bf2024;
-    color: #ffffff;
-  }
-
-  .requirements-page .process-step-text {
-    width: 100%;
-
-    margin: 0;
-
-    color: #202634;
-
-    font-family: "Inter", sans-serif;
-    font-size: 14px;
-    font-weight: 500;
-    line-height: 1.5;
-
-    text-align: left;
-
-    overflow-wrap: break-word;
-    word-break: normal;
-  }
-}
-
-
-/* ============================================
-   APPLICATION PROCESS - MOBILE
-   ============================================ */
-
-@media (max-width: 575.98px) {
-  .requirements-page .process-steps-card {
-    padding: 20px 18px;
-    border-radius: 15px;
-  }
-
-  .requirements-page .process-step {
-    grid-template-columns: 42px minmax(0, 1fr);
-    gap: 14px;
-
-    min-height: 86px;
-  }
-
-  .requirements-page .process-step-circle {
-    width: 42px;
-    height: 42px;
-
-    font-size: 12px;
-  }
-
-  .requirements-page .process-step:not(:last-child)::after {
-    top: calc(50% + 21px);
-    bottom: calc(-50% + 21px);
-    left: 20px;
-  }
-
-  .requirements-page .process-step-text {
-    font-size: 13px;
-    line-height: 1.5;
-  }
-}
-
-
-/* ============================================
-   APPLICATION PROCESS - SMALL MOBILE
-   ============================================ */
-
-@media (max-width: 420px) {
-  .requirements-page .process-steps-card {
-    padding: 18px 16px;
-  }
-
-  .requirements-page .process-step {
-    grid-template-columns: 38px minmax(0, 1fr);
-    gap: 12px;
-
-    min-height: 82px;
-  }
-
-  .requirements-page .process-step-circle {
-    width: 38px;
-    height: 38px;
-
-    font-size: 11px;
-  }
-
-  .requirements-page .process-step:not(:last-child)::after {
-    top: calc(50% + 19px);
-    bottom: calc(-50% + 19px);
-    left: 18px;
-  }
-
-  .requirements-page .process-step-text {
-    font-size: 12px;
-    line-height: 1.5;
-  }
-}
-
-/* ============================================
    PUBLIC NAVBAR
    ============================================ */
 
@@ -3714,12 +2712,7 @@ a:hover {
   .event-landscape-image-fallback {
     height: 220px;
   }
-  
 }
-
-
-
-
 
 /* ============================================
    REQUIREMENTS PAGE - APPLICATION STATUS WINDOW
@@ -6155,16 +5148,6 @@ a:hover {
   text-align: center;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
 }
-.feedback-popup {
-  background: #ffffff;
-  border-radius: 20px;
-  padding: 36px 30px 26px;
-  width: 100%;
-  max-width: 360px;
-  position: relative;
-  text-align: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-}
 .feedback-popup-icon-wrap {
   width: 48px;
   height: 48px;
@@ -7639,28 +6622,6 @@ a:hover {
 }
 .verifier-stat-icon-gray {
   background: #eeeeee;
-  color: #777777;
-}
-.verifier-stat-label {
-  font-family: 'Hanken Grotesk', Arial, sans-serif;
-  font-size: 18px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  margin: 10px 0 0;
-  margin-top: auto;
-  padding-top: 20px;
-}
-.verifier-stat-label-orange {
-  color: #b95c00;
-}
-.verifier-stat-label-red {
-  color: #b71c1c;
-}
-.verifier-stat-label-green {
-  color: #1e7e42;
-}
-.verifier-stat-label-gray {
   color: #777777;
 }
 .verifier-attention-card {
@@ -13380,3 +12341,1443 @@ body {
   }
 }
 
+/* =========================================================
+   REQUIREMENTS PAGE
+   COMPLETE CONSOLIDATED STYLES
+   ========================================================= */
+
+
+/* =========================================================
+   IMPORTANT REMINDER
+   ========================================================= */
+
+.events-reminder-list {
+  margin: 8px 0 0;
+  padding-left: 20px;
+}
+
+.events-reminder-list li {
+  margin-bottom: 4px;
+  color: #555;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.events-reminder-list li:last-child {
+  margin-bottom: 0;
+}
+
+
+/* =========================================================
+   APPLICATION STATUS
+   ========================================================= */
+
+.requirements-status-section {
+  padding: 32px 0;
+}
+
+.requirements-status-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  gap: 48px;
+  width: 100%;
+  padding: 34px 38px;
+  background: #ffffff;
+  border: 1px solid #eeeeee;
+  border-radius: 18px;
+  box-sizing: border-box;
+}
+
+.requirements-status-left,
+.requirements-status-right {
+  min-width: 0;
+}
+
+.requirements-status-label {
+  display: block;
+  margin-bottom: 14px;
+  color: #c51d1d;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 2px;
+}
+
+.requirements-status-title {
+  margin: 0 0 18px;
+  color: #111827;
+  font-size: 34px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.requirements-status-open {
+  color: #c51d1d;
+}
+
+.requirements-status-closed {
+  color: #6b7280;
+}
+
+.requirements-status-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.requirements-status-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.requirements-status-pill-open {
+  background: #dff5e7;
+  color: #16863e;
+}
+
+.requirements-status-pill-closed {
+  background: #f1f1f1;
+  color: #666666;
+}
+
+.requirements-status-schoolyear {
+  color: #7a7f87;
+  font-size: 14px;
+}
+
+.requirements-status-right {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 26px;
+}
+
+.requirements-status-dates {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+}
+
+.requirements-status-date-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 4px 24px;
+}
+
+.requirements-status-date-item:first-child {
+  padding-left: 0;
+  border-right: 1px solid #e5e7eb;
+}
+
+.requirements-status-date-item:last-child {
+  padding-right: 0;
+}
+
+.requirements-status-date-item > div:last-child {
+  min-width: 0;
+}
+
+.requirements-status-date-icon {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: #fafafa;
+  color: #111111;
+}
+
+.requirements-status-date-icon svg {
+  width: 20px !important;
+  height: 20px !important;
+  display: block;
+}
+
+.requirements-status-date-label,
+.requirements-status-slots-label {
+  display: block;
+  margin-bottom: 3px;
+  color: #9aa0a6;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.requirements-status-date-value {
+  display: block;
+  color: #111111;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.requirements-status-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.requirements-status-slots {
+  min-width: 0;
+}
+
+.requirements-status-slots-value {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.requirements-status-slots-value strong {
+  color: #111111;
+  font-size: 22px;
+}
+
+.requirements-status-slots-value span {
+  color: #a5a5a5;
+  font-size: 14px;
+}
+
+.requirements-status-apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 140px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 10px;
+  background: #2f934c;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+}
+
+.requirements-status-apply:hover {
+  background: #278443;
+  color: #ffffff;
+}
+
+.requirements-status-apply svg {
+  width: 18px !important;
+  height: 18px !important;
+  flex: 0 0 18px;
+}
+
+
+/* =========================================================
+   REQUIRED DOCUMENTS
+   ========================================================= */
+
+.req-doc-card,
+.req-doc-reminder-card {
+  height: 100%;
+  padding: 28px;
+  background: #ffffff;
+  border: 1px solid #e2e5e8;
+  border-radius: 16px;
+}
+
+.req-doc-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.req-doc-icon,
+.req-doc-reminder-icon {
+  width: 52px;
+  height: 52px;
+  flex: 0 0 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  border-radius: 12px;
+}
+
+.req-doc-icon {
+  background: #f7f7f7;
+  color: #222222;
+}
+
+.req-doc-icon svg {
+  width: 25px !important;
+  height: 25px !important;
+  display: block;
+}
+
+.req-doc-reminder-card {
+  background: #fff9f9;
+  border-color: #f2cccc;
+}
+
+.req-doc-reminder-icon {
+  background: #fdeaea;
+  color: #c51d1d;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.req-doc-card h5,
+.req-doc-reminder-card h5 {
+  margin: 0 0 10px;
+  color: #1c1c1c;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.req-doc-reminder-card h5 {
+  color: #b71c1c;
+}
+
+.req-doc-card p,
+.req-doc-reminder-card p {
+  margin: 0;
+  color: #5d6268;
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+
+/* =========================================================
+   APPLICATION PROCESS
+   ========================================================= */
+
+.process-steps-card {
+  width: 100%;
+  padding: 34px 38px;
+  background: #ffffff;
+  border: 1px solid #eeeeee;
+  border-radius: 18px;
+}
+
+.process-steps-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.process-step {
+  position: relative;
+  min-width: 0;
+  text-align: center;
+}
+
+.process-step-circle {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+  border: 2px solid #e5c4c4;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #b71c1c;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.process-step-active .process-step-circle {
+  border-color: #c51d1d;
+  background: #c51d1d;
+  color: #ffffff;
+}
+
+.process-step-text {
+  max-width: 190px;
+  margin: 0 auto;
+  color: #4e5358;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 991.98px) {
+  .requirements-status-card {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 28px;
+  }
+
+  .requirements-status-right {
+    width: 100%;
+  }
+
+  .req-doc-card,
+  .req-doc-reminder-card {
+    padding: 24px;
+  }
+
+  .process-steps-card {
+    padding: 28px 24px;
+  }
+
+  .process-steps-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .process-step {
+    position: relative;
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    min-height: 82px;
+    padding: 0;
+    text-align: left;
+  }
+
+  .process-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 63px;
+    bottom: -19px;
+    left: 21px;
+    width: 2px;
+    background: #efd6d7;
+  }
+
+  .process-step-circle {
+    position: relative;
+    z-index: 1;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+  }
+
+  .process-step-text {
+    max-width: none;
+    margin: 0;
+    text-align: left;
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 575.98px) {
+  .requirements-status-section {
+    padding: 18px 0;
+  }
+
+  .requirements-status-section .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .requirements-status-card {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 24px;
+    width: 100%;
+    padding: 22px 18px;
+    border-radius: 15px;
+  }
+
+  .requirements-status-left,
+  .requirements-status-right {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .requirements-status-label {
+    margin-bottom: 11px;
+    font-size: 11px;
+    letter-spacing: 1.8px;
+  }
+
+  .requirements-status-title {
+    margin-bottom: 14px;
+    font-size: 28px;
+    line-height: 1.18;
+  }
+
+  .requirements-status-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+  }
+
+  .requirements-status-pill {
+    padding: 7px 12px;
+    font-size: 12px;
+  }
+
+  .requirements-status-schoolyear {
+    width: 100%;
+    font-size: 12.5px;
+  }
+
+  .requirements-status-dates {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .requirements-status-date-item {
+    width: 100%;
+    padding: 0;
+  }
+
+  .requirements-status-date-item:first-child {
+    padding-bottom: 14px;
+    border-right: 0;
+    border-bottom: 1px solid #e5e7eb;
+  }
+
+  .requirements-status-date-icon {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .requirements-status-date-icon svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .requirements-status-date-label,
+  .requirements-status-slots-label {
+    font-size: 10.5px;
+  }
+
+  .requirements-status-date-value {
+    font-size: 14px;
+  }
+
+  .requirements-status-bottom {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .requirements-status-slots {
+    width: 100%;
+  }
+
+  .requirements-status-slots-value strong {
+    font-size: 20px;
+  }
+
+  .requirements-status-apply {
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    padding: 0 16px;
+  }
+
+  .requirements-status-apply svg {
+    width: 17px !important;
+    height: 17px !important;
+    flex-basis: 17px;
+  }
+
+
+  /* REQUIRED DOCUMENTS */
+
+  .req-doc-card,
+  .req-doc-reminder-card {
+    padding: 20px 18px;
+    border-radius: 14px;
+  }
+
+  .req-doc-icon,
+  .req-doc-reminder-icon {
+    width: 46px !important;
+    height: 46px !important;
+    flex-basis: 46px;
+    margin-bottom: 14px;
+    border-radius: 11px;
+  }
+
+  .req-doc-icon svg {
+    width: 23px !important;
+    height: 23px !important;
+  }
+
+  .req-doc-reminder-icon {
+    font-size: 18px;
+  }
+
+  .req-doc-card h5,
+  .req-doc-reminder-card h5 {
+    margin-bottom: 7px;
+    font-size: 16px;
+  }
+
+  .req-doc-card p,
+  .req-doc-reminder-card p {
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+
+  /* APPLICATION PROCESS */
+
+  .process-steps-card {
+    padding: 20px 18px;
+    border-radius: 15px;
+  }
+
+  .process-step {
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 13px;
+    min-height: 76px;
+  }
+
+  .process-step-circle {
+    width: 40px;
+    height: 40px;
+    font-size: 14px;
+  }
+
+  .process-step:not(:last-child)::after {
+    top: 57px;
+    bottom: -19px;
+    left: 19px;
+  }
+
+  .process-step-text {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+}
+
+
+/* =========================================================
+   VERY SMALL MOBILE
+   ========================================================= */
+
+@media (max-width: 380px) {
+  .requirements-status-card {
+    padding: 20px 16px;
+  }
+
+  .requirements-status-title {
+    font-size: 25px;
+  }
+
+  .requirements-status-date-item {
+    gap: 11px;
+  }
+
+  .req-doc-card,
+  .req-doc-reminder-card {
+    padding: 18px 16px;
+  }
+
+  .process-steps-card {
+    padding: 18px 16px;
+  }
+}
+
+
+/* =========================================================
+   REQUIREMENTS PAGE
+   OG DESKTOP UI + RESPONSIVE MOBILE
+   ========================================================= */
+
+
+/* =========================================================
+   REMINDERS
+   ========================================================= */
+
+.requirements-page .requirements-reminder-list {
+  margin-top: 8px;
+  padding-left: 20px;
+}
+
+.requirements-page .requirements-reminder-list li {
+  margin-bottom: 5px;
+  color: #555555;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.requirements-page .requirements-reminder-list li:last-child {
+  margin-bottom: 0;
+}
+
+
+/* =========================================================
+   SECTION SPACING
+   ========================================================= */
+
+.requirements-page .requirements-status-section {
+  padding: 28px 0 56px;
+}
+
+.requirements-page .requirements-documents-section {
+  padding: 48px 0;
+}
+
+.requirements-page .requirements-process-section {
+  padding: 48px 0 64px;
+}
+
+.requirements-page .requirements-section-title {
+  margin: 0 0 26px;
+  color: #171717;
+  font-size: 30px;
+  font-weight: 500;
+  text-align: left;
+}
+
+
+/* =========================================================
+   APPLICATION STATUS - OG DESKTOP
+   ========================================================= */
+
+.requirements-page .status-window-card {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.05fr)
+    minmax(0, 1.35fr);
+  align-items: start;
+  gap: 48px;
+  width: 100%;
+  min-height: 170px;
+  padding: 30px 36px;
+  background: #f7f8fa;
+  border: 0;
+  border-radius: 0;
+  box-sizing: border-box;
+}
+
+.requirements-page .status-window-left,
+.requirements-page .status-window-right {
+  min-width: 0;
+}
+
+.requirements-page .status-window-label {
+  display: block;
+  margin-bottom: 16px;
+  color: #bd1d22;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 2px;
+}
+
+.requirements-page .status-window-title {
+  margin: 0 0 20px;
+  color: #16191d;
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.requirements-page .status-window-open {
+  color: #c51c22;
+}
+
+.requirements-page .status-window-closed {
+  color: #767d85;
+}
+
+.requirements-page .status-window-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.requirements-page .status-window-pill {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.requirements-page .status-window-pill-open {
+  background: #daf2e2;
+  color: #268348;
+}
+
+.requirements-page .status-window-pill-closed {
+  background: #eceeef;
+  color: #687078;
+}
+
+.requirements-page .status-window-schoolyear {
+  color: #878c92;
+  font-size: 13px;
+}
+
+.requirements-page .status-window-right {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.requirements-page .status-window-dates-box {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr);
+  width: 100%;
+}
+
+.requirements-page .status-window-date-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 0 22px;
+}
+
+.requirements-page .status-window-date-item:first-child {
+  padding-left: 0;
+}
+
+.requirements-page .status-window-date-item:last-child {
+  padding-right: 0;
+}
+
+.requirements-page .status-window-date-content {
+  min-width: 0;
+}
+
+.requirements-page .status-window-date-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #171717;
+}
+
+.requirements-page .status-window-date-icon svg {
+  width: 18px !important;
+  height: 18px !important;
+  display: block;
+}
+
+.requirements-page .status-window-date-label,
+.requirements-page .status-window-slots-label {
+  display: block;
+  margin-bottom: 4px;
+  color: #969ca2;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.requirements-page .status-window-date-value {
+  display: block;
+  color: #111111;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.requirements-page .status-window-slots-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 56px;
+  width: 100%;
+}
+
+.requirements-page .status-window-slots {
+  text-align: center;
+}
+
+.requirements-page .status-window-slots-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+}
+
+.requirements-page .status-window-slots-value strong {
+  color: #111111;
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.requirements-page .status-window-slots-value span {
+  color: #a0a4a8;
+  font-size: 13px;
+}
+
+.requirements-page .status-window-apply-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 124px;
+  height: 46px;
+  padding: 0 20px;
+  border-radius: 9px;
+  background: #31944e;
+  color: #ffffff;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.requirements-page .status-window-apply-btn:hover {
+  background: #287f43;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.requirements-page .status-window-apply-btn svg {
+  width: 16px !important;
+  height: 16px !important;
+  flex: 0 0 16px;
+}
+
+
+/* =========================================================
+   REQUIRED DOCUMENTS - OG DESKTOP
+   ========================================================= */
+
+.requirements-page .req-doc-card,
+.requirements-page .req-doc-reminder-card {
+  width: 100%;
+  min-height: 246px;
+  height: 100%;
+  padding: 28px 26px;
+  border-radius: 14px;
+  box-sizing: border-box;
+}
+
+.requirements-page .req-doc-card {
+  background: #ffffff;
+  border: 1px solid #dedede;
+}
+
+.requirements-page .req-doc-reminder-card {
+  background:
+    linear-gradient(
+      145deg,
+      #920000 0%,
+      #c61b21 100%
+    );
+  border: 1px solid #a9090e;
+  color: #ffffff;
+}
+
+.requirements-page .req-doc-icon,
+.requirements-page .req-doc-reminder-icon {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18px;
+  border-radius: 9px;
+}
+
+.requirements-page .req-doc-icon {
+  background: #f7f7f8;
+  color: #c82028;
+}
+
+.requirements-page .req-doc-reminder-icon {
+  background: rgba(255, 255, 255, 0.13);
+  color: #ffffff;
+}
+
+.requirements-page .req-doc-icon svg,
+.requirements-page .req-doc-reminder-icon svg {
+  width: 19px !important;
+  height: 19px !important;
+  display: block;
+}
+
+.requirements-page .req-doc-title {
+  margin: 0 0 26px;
+  color: #181818;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.requirements-page .req-doc-reminder-card .req-doc-title {
+  color: #ffffff;
+}
+
+.requirements-page .req-doc-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  color: #242424;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.requirements-page .req-doc-check {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #3ea566;
+  border-radius: 50%;
+  color: #319658;
+}
+
+.requirements-page .req-doc-check svg {
+  width: 12px !important;
+  height: 12px !important;
+  display: block;
+}
+
+.requirements-page .req-doc-reminder-text {
+  max-width: 260px;
+  margin: 32px 0 0;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.8;
+}
+
+
+/* =========================================================
+   APPLICATION PROCESS - OG DESKTOP
+   ========================================================= */
+
+.requirements-page .process-steps-card {
+  width: 100%;
+  padding: 36px 34px;
+  background: #f7f7f7;
+  border: 0;
+  border-radius: 16px;
+  box-sizing: border-box;
+}
+
+.requirements-page .process-steps-row {
+  display: grid;
+  grid-template-columns:
+    repeat(4, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.requirements-page .process-step {
+  position: relative;
+  min-width: 0;
+  text-align: center;
+}
+
+.requirements-page .process-step-circle {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 18px;
+  border: 0;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #202020;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.requirements-page
+  .process-step-active
+  .process-step-circle {
+  background: #c82026;
+  color: #ffffff;
+}
+
+.requirements-page .process-step-text {
+  max-width: 210px;
+  margin: 0 auto;
+  color: #50545a;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+
+/* =========================================================
+   TABLET
+   ========================================================= */
+
+@media (max-width: 991.98px) {
+  .requirements-page .requirements-status-section {
+    padding-bottom: 42px;
+  }
+
+  .requirements-page .status-window-card {
+    grid-template-columns: 1fr;
+    gap: 30px;
+    min-height: 0;
+    padding: 28px;
+  }
+
+  .requirements-page .status-window-right {
+    width: 100%;
+  }
+
+  .requirements-page .status-window-slots-row {
+    justify-content: space-between;
+    gap: 20px;
+  }
+
+  .requirements-page .requirements-documents-section,
+  .requirements-page .requirements-process-section {
+    padding: 40px 0;
+  }
+
+  .requirements-page .process-steps-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .requirements-page .process-step {
+    position: relative;
+    display: grid;
+    grid-template-columns:
+      44px
+      minmax(0, 1fr);
+    align-items: center;
+    gap: 16px;
+    min-height: 82px;
+    padding: 0;
+    text-align: left;
+  }
+
+  .requirements-page .process-step-circle {
+    position: relative;
+    z-index: 2;
+    width: 44px;
+    height: 44px;
+    margin: 0;
+    font-size: 14px;
+  }
+
+  .requirements-page .process-step-text {
+    max-width: none;
+    margin: 0;
+    text-align: left;
+  }
+
+  .requirements-page
+    .process-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 62px;
+    bottom: -20px;
+    left: 21px;
+    width: 2px;
+    background: #e8dddd;
+  }
+}
+
+
+/* =========================================================
+   MOBILE
+   ========================================================= */
+
+@media (max-width: 575.98px) {
+  .requirements-page {
+    overflow-x: hidden;
+  }
+
+  .requirements-page .requirements-status-section {
+    padding: 20px 0 34px;
+  }
+
+  .requirements-page
+    .requirements-status-section
+    .container,
+  .requirements-page
+    .requirements-documents-section
+    .container,
+  .requirements-page
+    .requirements-process-section
+    .container {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+
+  /* STATUS */
+
+  .requirements-page .status-window-card {
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    width: 100%;
+    padding: 22px 18px;
+  }
+
+  .requirements-page .status-window-left,
+  .requirements-page .status-window-right {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .requirements-page .status-window-label {
+    margin-bottom: 12px;
+    font-size: 11px;
+    letter-spacing: 1.8px;
+  }
+
+  .requirements-page .status-window-title {
+    margin-bottom: 15px;
+    font-size: 28px;
+    line-height: 1.18;
+  }
+
+  .requirements-page .status-window-meta-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 9px;
+  }
+
+  .requirements-page .status-window-pill {
+    padding: 7px 12px;
+    font-size: 11.5px;
+  }
+
+  .requirements-page .status-window-schoolyear {
+    font-size: 12px;
+  }
+
+  .requirements-page .status-window-right {
+    gap: 22px;
+  }
+
+  .requirements-page .status-window-dates-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .requirements-page .status-window-date-item {
+    width: 100%;
+    padding: 15px 0;
+  }
+
+  .requirements-page
+    .status-window-date-item:first-child {
+    padding-top: 0;
+    border-bottom: 1px solid #e3e5e7;
+  }
+
+  .requirements-page
+    .status-window-date-item:last-child {
+    padding-bottom: 0;
+  }
+
+  .requirements-page .status-window-date-icon {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+  }
+
+  .requirements-page
+    .status-window-date-icon
+    svg {
+    width: 17px !important;
+    height: 17px !important;
+  }
+
+  .requirements-page .status-window-date-value {
+    font-size: 14px;
+    white-space: normal;
+  }
+
+  .requirements-page .status-window-slots-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .requirements-page .status-window-slots {
+    width: 100%;
+    text-align: left;
+  }
+
+  .requirements-page
+    .status-window-slots-value {
+    justify-content: flex-start;
+  }
+
+  .requirements-page
+    .status-window-slots-value
+    strong {
+    font-size: 20px;
+  }
+
+  .requirements-page .status-window-apply-btn {
+    width: 100%;
+    min-width: 0;
+    height: 44px;
+    padding: 0 16px;
+  }
+
+  .requirements-page
+    .status-window-apply-btn
+    svg {
+    width: 16px !important;
+    height: 16px !important;
+    flex-basis: 16px;
+  }
+
+
+  /* REQUIRED DOCUMENTS */
+
+  .requirements-page .requirements-documents-section {
+    padding: 32px 0;
+  }
+
+  .requirements-page .requirements-section-title {
+    margin-bottom: 20px;
+    font-size: 24px;
+  }
+
+  .requirements-page .req-doc-card,
+  .requirements-page .req-doc-reminder-card {
+    min-height: 0;
+    height: auto;
+    padding: 18px 16px;
+    border-radius: 11px;
+  }
+
+  .requirements-page .req-doc-icon,
+  .requirements-page .req-doc-reminder-icon {
+    width: 28px !important;
+    height: 28px !important;
+    margin-bottom: 12px;
+    border-radius: 6px;
+  }
+
+  .requirements-page .req-doc-icon svg,
+  .requirements-page
+    .req-doc-reminder-icon
+    svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .requirements-page .req-doc-title {
+    margin-bottom: 14px;
+    font-size: 16px;
+  }
+
+  .requirements-page .req-doc-item {
+    gap: 7px;
+    margin-top: 9px;
+    font-size: 11.5px;
+  }
+
+  .requirements-page .req-doc-check {
+    width: 17px;
+    height: 17px;
+    flex-basis: 17px;
+    border-width: 1.5px;
+  }
+
+  .requirements-page .req-doc-check svg {
+    width: 9px !important;
+    height: 9px !important;
+  }
+
+  .requirements-page .req-doc-reminder-text {
+    max-width: none;
+    margin-top: 18px;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+
+  /* APPLICATION PROCESS */
+
+  .requirements-page .requirements-process-section {
+    padding: 32px 0 46px;
+  }
+
+  .requirements-page .process-steps-card {
+    padding: 26px 22px;
+    border-radius: 14px;
+  }
+
+  .requirements-page .process-step {
+    grid-template-columns:
+      42px
+      minmax(0, 1fr);
+    gap: 15px;
+    min-height: 88px;
+  }
+
+  .requirements-page .process-step-circle {
+    width: 42px;
+    height: 42px;
+    font-size: 14px;
+  }
+
+  .requirements-page .process-step-text {
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+
+  .requirements-page
+    .process-step:not(:last-child)::after {
+    top: 62px;
+    bottom: -26px;
+    left: 20px;
+  }
+}
+
+
+/* =========================================================
+   VERY SMALL MOBILE
+   ========================================================= */
+
+@media (max-width: 380px) {
+  .requirements-page .status-window-title {
+    font-size: 25px;
+  }
+
+  .requirements-page .status-window-card {
+    padding: 20px 16px;
+  }
+
+  .requirements-page .req-doc-card,
+  .requirements-page .req-doc-reminder-card {
+    padding: 16px;
+  }
+
+  .requirements-page .process-steps-card {
+    padding: 22px 18px;
+  }
+}

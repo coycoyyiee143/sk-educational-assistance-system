@@ -2,225 +2,574 @@ import React, { useEffect, useState } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
-import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 
 const Requirements = () => {
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get("/application-config/active")
-      .then((res) => setConfig(res.data))
-      .catch(() => { })
-      .finally(() => setLoading(false));
+    api
+      .get("/application-config/active")
+      .then((res) => {
+        setConfig(res.data);
+      })
+      .catch(() => {
+        setConfig(null);
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
-  function formatDate(dateStr) {
+  const formatDate = (dateStr) => {
     if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-  }
 
-  function formatDateTime(dateStr) {
-    if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" });
-  }
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
 
-  const periodStatus = getApplicationPeriodStatus(config);
+  const availableSlots =
+    config && !config.is_unlimited
+      ? Math.max(
+          0,
+          Number(config.slot_limit || 0) -
+            Number(config.slots_filled || 0)
+        )
+      : null;
 
   return (
-    <>
+    <div className="requirements-page">
+      {/* ========================================
+          NAVBAR
+      ======================================== */}
+
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
-          <a className="navbar-brand navbar-brand-custom" href="/">
-            <img src="/icons/sk-logo.jpg" alt="SK Logo" />
+          <a
+            className="navbar-brand navbar-brand-custom"
+            href="/"
+          >
+            <img
+              src="/icons/sk-logo.jpg"
+              alt="SK Logo"
+            />
+
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
-              <span>Educational Assistance System</span>
+
+              <span>
+                Educational Assistance System
+              </span>
             </div>
           </a>
-          <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
-            <span className="navbar-toggler-icon"></span>
+
+          <button
+            className="navbar-toggler"
+            type="button"
+            data-bs-toggle="collapse"
+            data-bs-target="#mainNavbar"
+            aria-controls="mainNavbar"
+            aria-expanded="false"
+            aria-label="Toggle navigation"
+          >
+            <span className="navbar-toggler-icon" />
           </button>
-          <div className="collapse navbar-collapse justify-content-end" id="mainNavbar">
+
+          <div
+            className="collapse navbar-collapse justify-content-end"
+            id="mainNavbar"
+          >
             <ul className="navbar-nav">
-              <li className="nav-item"><a className="nav-link" href="/">Home</a></li>
-              <li className="nav-item"><a className="nav-link active" href="/requirements">Requirements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/announcements">Announcements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/events">Events</a></li>
-              <li className="nav-item"><a className="nav-link" href="/login">Login</a></li>
-              <li className="nav-item"><a className="nav-link" href="/register">Register</a></li>
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/"
+                >
+                  Home
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link active"
+                  href="/requirements"
+                >
+                  Requirements
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/announcements"
+                >
+                  Announcements
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/events"
+                >
+                  Events
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/login"
+                >
+                  Login
+                </a>
+              </li>
+
+              <li className="nav-item">
+                <a
+                  className="nav-link"
+                  href="/register"
+                >
+                  Register
+                </a>
+              </li>
             </ul>
           </div>
         </div>
       </nav>
 
-      <section className="hero text-white text-center py-5"
-        style={{ background: "linear-gradient(rgba(183,28,28,0.85), rgba(211,47,47,0.85))" }}>
+      {/* ========================================
+          HERO
+      ======================================== */}
+
+      <section
+        className="hero text-white text-center py-5"
+        style={{
+          background:
+            "linear-gradient(rgba(183,28,28,0.85), rgba(211,47,47,0.85))",
+        }}
+      >
         <div className="container">
-          <h1>Application Requirements</h1>
-          <p>Applicants must prepare the required documents before submitting their Educational Assistance application. Ensure all documents are clear and complete.</p>
+          <h1>Educational Assistance Requirements</h1>
+
+          <p>
+            Review the eligibility requirements,
+            required documents, and application
+            process before submitting your
+            application.
+          </p>
         </div>
       </section>
+
+      {/* ========================================
+          IMPORTANT REMINDERS
+      ======================================== */}
 
       <section className="py-4">
         <div className="container">
           <div className="featured-announcement-card featured-split-layout">
             <div className="featured-main-col">
               <div className="featured-badge-row">
-                <span className="featured-badge">Notice</span>
-                <span className="featured-badge-divider"></span>
-                <span className="featured-bulletin-label">Application Guidelines</span>
+                <span className="featured-badge">
+                  Important
+                </span>
+
+                <span className="featured-badge-divider" />
+
+                <span className="featured-bulletin-label">
+                  Application Reminder
+                </span>
               </div>
-              <h5 className="featured-title">Important Reminders</h5>
-              <ul className="events-reminder-list mb-0">
-                <li>Ensure documents are clear and readable.</li>
-                <li>Incomplete applications may be rejected.</li>
-                <li>Check your account regularly for updates.</li>
-                <li>False information leads to disqualification.</li>
-                <li>Follow official schedule announcements.</li>
+
+              <h5 className="featured-title">
+                Important Reminders
+              </h5>
+
+              <ul className="requirements-reminder-list mb-0">
+                <li>
+                  Ensure that all application
+                  information is complete and
+                  accurate.
+                </li>
+
+                <li>
+                  Upload clear and readable copies
+                  of the required documents.
+                </li>
+
+                <li>
+                  Documents must match the
+                  information entered in your
+                  application.
+                </li>
+
+                <li>
+                  Submit your application before
+                  the announced deadline.
+                </li>
               </ul>
             </div>
+
             <div className="featured-side-col">
-              <span className="featured-department-label">Department</span>
-              <p className="featured-department-name">Office of the SK Chairman</p>
+              <span className="featured-department-label">
+                Department
+              </span>
+
+              <p className="featured-department-name">
+                Office of the SK Chairman
+              </p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Live application status */}
-      <section className="py-5">
+      {/* ========================================
+          APPLICATION STATUS
+      ======================================== */}
+
+      <section className="requirements-status-section">
         <div className="container">
           {loading ? (
-            <div className="py-3"><div className="spinner-border text-danger" role="status" /></div>
+            <div className="text-center py-5">
+              <div
+                className="spinner-border text-danger"
+                role="status"
+              />
+            </div>
           ) : config ? (
             <div className="status-window-card">
+              {/* LEFT */}
+
               <div className="status-window-left">
-                <span className="status-window-label">Application Status</span>
-                <h4 className="status-window-title">
+                <span className="status-window-label">
+                  APPLICATION STATUS
+                </span>
+
+                <h2 className="status-window-title">
                   Application is{" "}
-                  {config.is_active
-                    ? <span className="status-window-open">Open</span>
-                    : <span className="status-window-closed">Closed</span>}
-                </h4>
-                <div className="status-window-meta-row">
-                  <span className={`status-window-pill ${config.is_active ? "status-window-pill-open" : "status-window-pill-closed"}`}>
-                    {config.is_active ? "Accepting Submissions" : "Not Accepting Submissions"}
+                  <span
+                    className={
+                      config.is_active
+                        ? "status-window-open"
+                        : "status-window-closed"
+                    }
+                  >
+                    {config.is_active
+                      ? "Open"
+                      : "Closed"}
                   </span>
-                  <span className="status-window-schoolyear">School Year {config.school_year}</span>
+                </h2>
+
+                <div className="status-window-meta-row">
+                  <span
+                    className={`status-window-pill ${
+                      config.is_active
+                        ? "status-window-pill-open"
+                        : "status-window-pill-closed"
+                    }`}
+                  >
+                    {config.is_active
+                      ? "Accepting Submissions"
+                      : "Not Accepting Submissions"}
+                  </span>
+
+                  <span className="status-window-schoolyear">
+                    School Year{" "}
+                    {config.school_year || "—"}
+                  </span>
                 </div>
               </div>
+
+              {/* RIGHT */}
+
               <div className="status-window-right">
                 <div className="status-window-dates-box">
+                  {/* START */}
+
                   <div className="status-window-date-item">
-                    <span className="status-window-date-icon">
-                      <img src="/icons/req-calendar.png" alt="Start Date" />
-                    </span>
-                    <div>
-                      <span className="status-window-date-label">Start Date</span>
-                      <p className="status-window-date-value">{formatDate(config.open_date)}</p>
+                    <div className="status-window-date-icon">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect
+                          x="3"
+                          y="5"
+                          width="18"
+                          height="16"
+                          rx="2"
+                        />
+
+                        <path d="M16 3v4M8 3v4M3 10h18" />
+                      </svg>
+                    </div>
+
+                    <div className="status-window-date-content">
+                      <span className="status-window-date-label">
+                        START DATE
+                      </span>
+
+                      <strong className="status-window-date-value">
+                        {formatDate(
+                          config.open_date
+                        )}
+                      </strong>
                     </div>
                   </div>
-                  <div className="status-window-date-divider"></div>
+
+                  {/* DEADLINE */}
+
                   <div className="status-window-date-item">
-                    <span className="status-window-date-icon">
-                      <img src="/icons/req-clock.png" alt="Deadline" />
-                    </span>
-                    <div>
-                      <span className="status-window-date-label">Deadline</span>
-                      <p className="status-window-date-value">{formatDate(config.close_date)}</p>
+                    <div className="status-window-date-icon">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <circle
+                          cx="12"
+                          cy="12"
+                          r="9"
+                        />
+
+                        <path d="M12 7v5l3 2" />
+                      </svg>
+                    </div>
+
+                    <div className="status-window-date-content">
+                      <span className="status-window-date-label">
+                        DEADLINE
+                      </span>
+
+                      <strong className="status-window-date-value">
+                        {formatDate(
+                          config.close_date
+                        )}
+                      </strong>
                     </div>
                   </div>
                 </div>
+
+                {/* SLOTS / APPLY */}
+
                 <div className="status-window-slots-row">
-                  <div className="status-window-slots-info">
-                    <span className="status-window-slots-label">Available Slots</span>
-                    <p className="status-window-slots-value">
-                      {config.is_unlimited
-                        ? "Unlimited"
-                        : <>{config.slot_limit - config.slots_filled} <span className="status-window-slots-total">/ {config.slot_limit}</span></>}
-                    </p>
+                  <div className="status-window-slots">
+                    <span className="status-window-slots-label">
+                      AVAILABLE SLOTS
+                    </span>
+
+                    <div className="status-window-slots-value">
+                      {config.is_unlimited ? (
+                        <strong>Unlimited</strong>
+                      ) : (
+                        <>
+                          <strong>
+                            {availableSlots}
+                          </strong>
+
+                          <span>
+                            /{" "}
+                            {config.slot_limit ||
+                              0}
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
+
                   {config.is_active && (
-                    <a href="/register" className="status-window-apply-btn">Apply Now</a>
+                    <a
+                      href="/register"
+                      className="status-window-apply-btn"
+                    >
+                      <span>Apply Now</span>
+
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M5 12h14" />
+                        <path d="M13 6l6 6-6 6" />
+                      </svg>
+                    </a>
                   )}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="status-box">
-              <h4 className="text-muted">No Active Application Period</h4>
-              <p className="mt-3 mb-0">There is no active application period at this time. Please check back later or follow our announcements for updates.</p>
+            <div className="alert alert-light border">
+              Application period information is
+              currently unavailable.
             </div>
           )}
         </div>
       </section>
 
-      <section className="py-5">
+      {/* ========================================
+          REQUIRED DOCUMENTS
+      ======================================== */}
+
+      <section className="requirements-documents-section">
         <div className="container">
-          <h2 className="section-title">Required Documents</h2>
+          <h2 className="section-title requirements-section-title">
+            Required Documents
+          </h2>
+
           <div className="row g-4">
-            <div className="col-md-4">
+            {/* RESIDENCY */}
+
+            <div className="col-lg-4 col-md-6">
               <div className="req-doc-card">
-                <div className="req-doc-icon-wrap">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0118 0z" strokeLinecap="round" strokeLinejoin="round" />
-                    <circle cx="12" cy="10" r="3" />
+                <div className="req-doc-icon">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M20 10c0 5-8 11-8 11s-8-6-8-11a8 8 0 1116 0z" />
+                    <circle
+                      cx="12"
+                      cy="10"
+                      r="2.5"
+                    />
                   </svg>
                 </div>
-                <h5 className="req-doc-card-title">Residency</h5>
-                <ul className="req-doc-list">
-                  <li>
-                    <span className="req-doc-check">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                        <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
-                    Voter's Certificate
-                  </li>
-                </ul>
+
+                <h3 className="req-doc-title">
+                  Residency
+                </h3>
+
+                <div className="req-doc-item">
+                  <span className="req-doc-check">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  </span>
+
+                  <span>
+                    Voter&apos;s Certificate
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="col-md-4">
+
+            {/* ACADEMIC */}
+
+            <div className="col-lg-4 col-md-6">
               <div className="req-doc-card">
-                <div className="req-doc-icon-wrap">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M22 10L12 5 2 10l10 5 10-5z" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M6 12v5c0 1.5 3 3 6 3s6-1.5 6-3v-5" strokeLinecap="round" strokeLinejoin="round" />
+                <div className="req-doc-icon">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M3 10l9-5 9 5-9 5-9-5z" />
+                    <path d="M7 12v5c3 2 7 2 10 0v-5" />
                   </svg>
                 </div>
-                <h5 className="req-doc-card-title">Academic</h5>
-                <ul className="req-doc-list">
-                  <li>
-                    <span className="req-doc-check">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                        <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
+
+                <h3 className="req-doc-title">
+                  Academic
+                </h3>
+
+                <div className="req-doc-item">
+                  <span className="req-doc-check">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  </span>
+
+                  <span>
                     Registration Form
-                  </li>
-                  <li>
-                    <span className="req-doc-check">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                        <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    </span>
+                  </span>
+                </div>
+
+                <div className="req-doc-item">
+                  <span className="req-doc-check">
+                    <svg
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M20 6L9 17l-5-5" />
+                    </svg>
+                  </span>
+
+                  <span>
                     Valid School ID
-                  </li>
-                </ul>
+                  </span>
+                </div>
               </div>
             </div>
-            <div className="col-md-4">
+
+            {/* REMINDER */}
+
+            <div className="col-lg-4 col-md-12">
               <div className="req-doc-reminder-card">
-                <div className="req-doc-reminder-icon-wrap">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="9" />
-                    <path d="M12 8v5M12 16h.01" strokeLinecap="round" />
+                <div className="req-doc-reminder-icon">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle
+                      cx="12"
+                      cy="12"
+                      r="9"
+                    />
+
+                    <path d="M12 8v5" />
+                    <path d="M12 17h.01" />
                   </svg>
                 </div>
-                <h5 className="req-doc-reminder-title">Reminder</h5>
+
+                <h3 className="req-doc-title">
+                  Reminder
+                </h3>
+
                 <p className="req-doc-reminder-text">
-                  Documents must be clear and match application details.
+                  Documents must be clear and match
+                  application details.
                 </p>
               </div>
             </div>
@@ -228,26 +577,57 @@ const Requirements = () => {
         </div>
       </section>
 
-      <section className="py-5">
+      {/* ========================================
+          APPLICATION PROCESS
+      ======================================== */}
+
+      <section className="requirements-process-section">
         <div className="container">
-          <h2 className="section-title">Application Process</h2>
+          <h2 className="section-title requirements-section-title">
+            Application Process
+          </h2>
+
           <div className="process-steps-card">
             <div className="process-steps-row">
               <div className="process-step process-step-active">
-                <div className="process-step-circle">1</div>
-                <p className="process-step-text">Create an account and log in</p>
+                <div className="process-step-circle">
+                  1
+                </div>
+
+                <p className="process-step-text">
+                  Create an account and log in
+                </p>
               </div>
+
               <div className="process-step">
-                <div className="process-step-circle">2</div>
-                <p className="process-step-text">Complete the application form</p>
+                <div className="process-step-circle">
+                  2
+                </div>
+
+                <p className="process-step-text">
+                  Complete the application form
+                </p>
               </div>
+
               <div className="process-step">
-                <div className="process-step-circle">3</div>
-                <p className="process-step-text">Upload the required documents and submit the application</p>
+                <div className="process-step-circle">
+                  3
+                </div>
+
+                <p className="process-step-text">
+                  Upload the required documents and
+                  submit the application
+                </p>
               </div>
+
               <div className="process-step">
-                <div className="process-step-circle">4</div>
-                <p className="process-step-text">Wait for verification</p>
+                <div className="process-step-circle">
+                  4
+                </div>
+
+                <p className="process-step-text">
+                  Wait for verification
+                </p>
               </div>
             </div>
           </div>
@@ -255,7 +635,7 @@ const Requirements = () => {
       </section>
 
       <Footer />
-    </>
+    </div>
   );
 };
 

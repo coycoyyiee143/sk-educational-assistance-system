@@ -66,6 +66,17 @@ function ApplicantSubmission() {
   const [profile, setProfile] = useState(null);
   const periodStatus = getApplicationPeriodStatus(activeConfig);
 
+    useEffect(() => {
+    if (error) {
+      const mainEl = document.querySelector(".applicant-main");
+      if (mainEl) {
+        mainEl.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [error]);
+
   const setFile = (key) => async (e) => {
     const file = e.target.files[0] ?? null;
     if (!file) {
@@ -883,8 +894,9 @@ function ApplicantSubmission() {
                               Information
                             </span>
                           </div>
-                          <Link
+                           <Link
                             to="/ApplicantProfile"
+                            state={{ from: "submission" }}
                             className="btn profile-completion-btn"
                           >
                             Complete Profile
