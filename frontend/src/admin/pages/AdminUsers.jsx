@@ -28,56 +28,81 @@ function getPageNumbers(currentPage, totalPages) {
 }
 function ViewApplicantModal({ applicant, onClose }) {
   if (!applicant) return null;
+  const initials = `${applicant.first_name?.charAt(0) ?? ""}${applicant.last_name?.charAt(0) ?? ""}`.toUpperCase();
+  const registeredDate = applicant.created_at
+    ? new Date(applicant.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
+    : "—";
+  const applicantPhoto =
+    applicant.profile_photo_url ||
+    applicant.photo_url ||
+    applicant.image_url ||
+    applicant.avatar_url ||
+    applicant.profile?.photo_url ||
+    null;
   return (
     <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
-      <div className="modal-dialog modal-lg modal-dialog-centered">
+      <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "700px", width: "calc(100% - 32px)" }}>
         <div className="modal-content applicant-details-modal">
-          <div className="modal-header">
-            <h5 className="modal-title">Applicant Details</h5>
-            <button type="button" className="btn-close" onClick={onClose} />
+          <div className="applicant-details-header">
+            <div className="applicant-details-heading">
+              <div className="applicant-details-heading-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="12" cy="8" r="3.25" />
+                  <path d="M5.5 19c.7-4 3-6 6.5-6s5.8 2 6.5 6" strokeLinecap="round" />
+                </svg>
+              </div>
+              <div>
+                <h5>Applicant Details</h5>
+                <p>Account Information &amp; Registration Details</p>
+              </div>
+            </div>
+            <button type="button" className="applicant-details-header-close" onClick={onClose} aria-label="Close">×</button>
           </div>
           <div className="modal-body">
-            <div className="row g-3">
-              <div className="col-md-6">
-                <div className="applicant-detail-box">
-                  <span className="applicant-detail-label">USER ID</span>
-                  <span className="applicant-detail-value">{applicant.id}</span>
+            <div className="applicant-details-summary">
+              <div className="applicant-details-avatar">
+                {applicantPhoto ? <img src={applicantPhoto} alt={`${applicant.first_name} ${applicant.last_name}`} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : initials || "A"}
+              </div>
+              <div className="applicant-details-summary-text">
+                <strong>{applicant.first_name} {applicant.last_name}</strong>
+                <span>Registered Applicant</span>
+              </div>
+              <span className={`applicant-detail-status ${applicant.is_active ? "applicant-detail-status-active" : "applicant-detail-status-inactive"}`}>
+                <span className="applicant-detail-status-dot"></span>
+                {applicant.is_active ? "Active" : "Inactive"}
+              </span>
+            </div>
+            <div className="applicant-details-section">
+              <div className="applicant-details-section-title">PROFILE &amp; ACCOUNT DETAILS</div>
+              <div className="applicant-details-grid">
+                <div className="applicant-details-field">
+                  <span>First Name</span>
+                  <strong>{applicant.first_name}</strong>
+                </div>
+                <div className="applicant-details-field">
+                  <span>Last Name</span>
+                  <strong>{applicant.last_name}</strong>
+                </div>
+                <div className="applicant-details-field">
+                  <span>User ID</span>
+                  <strong>{applicant.id}</strong>
+                </div>
+                <div className="applicant-details-field">
+                  <span>Role &amp; Permissions</span>
+                  <strong className="applicant-details-role">Applicant</strong>
                 </div>
               </div>
-              <div className="col-md-6">
-                <div className="applicant-detail-box">
-                  <span className="applicant-detail-label">STATUS</span>
-                  <span className={`applicant-detail-status ${applicant.is_active ? "applicant-detail-status-active" : "applicant-detail-status-inactive"}`}>{applicant.is_active ? "Active" : "Inactive"}</span>
+            </div>
+            <div className="applicant-details-section applicant-details-section-contact">
+              <div className="applicant-details-section-title">CONTACT &amp; REGISTRATION</div>
+              <div className="applicant-details-grid">
+                <div className="applicant-details-field">
+                  <span>Email Address</span>
+                  <strong className="applicant-details-email">{applicant.email}</strong>
                 </div>
-              </div>
-              <div className="col-md-6">
-                <div className="applicant-detail-box">
-                  <span className="applicant-detail-label">FIRST NAME</span>
-                  <span className="applicant-detail-value">{applicant.first_name}</span>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="applicant-detail-box">
-                  <span className="applicant-detail-label">LAST NAME</span>
-                  <span className="applicant-detail-value">{applicant.last_name}</span>
-                </div>
-              </div>
-              <div className="col-12">
-                <div className="applicant-detail-box">
-                  <span className="applicant-detail-label">EMAIL ADDRESS</span>
-                  <span className="applicant-detail-value">{applicant.email}</span>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="applicant-detail-box">
-                  <span className="applicant-detail-label">ROLE</span>
-                  <span className="applicant-detail-value">Applicant</span>
-                </div>
-              </div>
-              <div className="col-md-6">
-                <div className="applicant-detail-box">
-                  <span className="applicant-detail-label">REGISTERED DATE</span>
-                  <span className="applicant-detail-value">{applicant.created_at?.split("T")[0]}</span>
+                <div className="applicant-details-field">
+                  <span>Registered Date</span>
+                  <strong>{registeredDate}</strong>
                 </div>
               </div>
             </div>

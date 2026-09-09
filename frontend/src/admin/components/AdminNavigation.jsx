@@ -3,13 +3,11 @@ import { NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import AdminChangePasswordModal from "../pages/AdminChangePasswordModal";
-
 function AdminNavigation() {
   const { logout } = useAuth();
   const navigate = useNavigate();
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-
   const handleLogout = async () => {
     try {
       await api.post("/logout");
@@ -20,7 +18,6 @@ function AdminNavigation() {
       navigate("/login");
     }
   };
-
   return (
     <>
       <aside className={collapsed ? "admin-sidebar admin-sidebar-collapsed" : "admin-sidebar"}>
@@ -33,7 +30,6 @@ function AdminNavigation() {
             <polyline points={collapsed ? "9 18 15 12 9 6" : "15 18 9 12 15 6"} />
           </svg>
         </button>
-
         <NavLink className="admin-sidebar-brand" to="/AdminDashboard">
           <img src="/icons/sk-logo.jpg" alt="logo" />
           <div className="admin-sidebar-brand-text">
@@ -41,7 +37,6 @@ function AdminNavigation() {
             <span>Admin Panel</span>
           </div>
         </NavLink>
-
         <nav className="admin-sidebar-nav">
           <NavLink
             to="/AdminDashboard"
@@ -55,7 +50,6 @@ function AdminNavigation() {
             </svg>
             <span className="admin-sidebar-label">Dashboard</span>
           </NavLink>
-
           <NavLink
             to="/AdminUsers"
             className={({ isActive }) => isActive ? "admin-sidebar-link active" : "admin-sidebar-link"}
@@ -68,7 +62,6 @@ function AdminNavigation() {
             </svg>
             <span className="admin-sidebar-label">Users</span>
           </NavLink>
-
           <NavLink
             to="/AdminSchedule"
             className={({ isActive }) => isActive ? "admin-sidebar-link active" : "admin-sidebar-link"}
@@ -81,7 +74,6 @@ function AdminNavigation() {
             </svg>
             <span className="admin-sidebar-label">Schedules</span>
           </NavLink>
-
           <NavLink
             to="/AdminAnnouncements"
             className={({ isActive }) => isActive ? "admin-sidebar-link active" : "admin-sidebar-link"}
@@ -92,7 +84,6 @@ function AdminNavigation() {
             </svg>
             <span className="admin-sidebar-label">Announcements</span>
           </NavLink>
-
           <NavLink
             to="/AdminEvents"
             className={({ isActive }) => isActive ? "admin-sidebar-link active" : "admin-sidebar-link"}
@@ -106,7 +97,6 @@ function AdminNavigation() {
             </svg>
             <span className="admin-sidebar-label">Events</span>
           </NavLink>
-
           <NavLink
             to="/AdminReports"
             className={({ isActive }) => isActive ? "admin-sidebar-link active" : "admin-sidebar-link"}
@@ -119,7 +109,6 @@ function AdminNavigation() {
             </svg>
             <span className="admin-sidebar-label">Reports</span>
           </NavLink>
-
           <NavLink
             to="/AdminSettings"
             className={({ isActive }) => isActive ? "admin-sidebar-link active" : "admin-sidebar-link"}
@@ -130,20 +119,7 @@ function AdminNavigation() {
             </svg>
             <span className="admin-sidebar-label">Application Settings</span>
           </NavLink>
-
           <div className="admin-sidebar-divider"></div>
-
-          <NavLink
-            to="/AdminUsers"
-            className={({ isActive }) => isActive ? "admin-sidebar-link active" : "admin-sidebar-link"}
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-            <span className="admin-sidebar-label">Manage Users</span>
-          </NavLink>
-
           <NavLink
             to="/AdminMasterActivityLog"
             className={({ isActive }) => isActive ? "admin-sidebar-link active" : "admin-sidebar-link"}
@@ -154,7 +130,6 @@ function AdminNavigation() {
             </svg>
             <span className="admin-sidebar-label">System Activity Log</span>
           </NavLink>
-
           <button
             className="admin-sidebar-link admin-sidebar-btn"
             onClick={() => setShowChangePassword(true)}
@@ -166,7 +141,6 @@ function AdminNavigation() {
             <span className="admin-sidebar-label">Change Password</span>
           </button>
         </nav>
-
         <button className="admin-sidebar-logout" onClick={handleLogout}>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
@@ -176,10 +150,8 @@ function AdminNavigation() {
           <span className="admin-sidebar-label">Logout</span>
         </button>
       </aside>
-
       <AdminChangePasswordModal show={showChangePassword} onClose={() => setShowChangePassword(false)} />
     </>
   );
 }
-
 export default AdminNavigation;
