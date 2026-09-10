@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
+use App\Models\PasswordHistory;
+use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -61,8 +63,16 @@ class AdminController extends Controller
             'last_name'  => 'required|string',
             'email'      => 'required|email|unique:users,email',
             'role'       => 'required|in:sk_verifier,sk_admin',
-            'password'   => ['required', 'confirmed', Password::min(8)->mixedCase()->numbers()->uncompromised()],
+            'password'   => [
+                'required',
+                'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*\d).+$/',
+                Password::min(8)->uncompromised(),
+                new NotObviouslyWeakPassword(),
+            ],
             'is_active'  => 'boolean',
+        ], [
+            'password.regex' => 'Password must include at least one lowercase letter and one number.',
         ]);
 
         $user = User::create([
@@ -74,7 +84,10 @@ class AdminController extends Controller
             'is_active'  => $request->is_active ?? true,
         ]);
 
-        
+        PasswordHistory::create([
+            'user_id'       => $user->id,
+            'password_hash' => $user->password,
+        ]);
 
         return response()->json(['message' => 'Personnel created.', 'user' => $user], 201);
     }
@@ -89,11 +102,28 @@ class AdminController extends Controller
             'email'      => 'sometimes|email|unique:users,email,' . $id,
             'role'       => 'sometimes|in:sk_verifier,sk_admin',
             'is_active'  => 'sometimes|boolean',
-            'password'   => ['sometimes', 'confirmed', Password::min(8)->mixedCase()->numbers()->uncompromised()],
+            'password'   => [
+                'sometimes',
+                'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*\d).+$/',
+                Password::min(8)->uncompromised(),
+                new NotObviouslyWeakPassword(),
+            ],
+        ], [
+            'password.regex' => 'Password must include at least one lowercase letter and one number.',
         ]);
 
         if (isset($data['password'])) {
-            $data['password'] = Hash::make($data['password']);
+            $newHash = Hash::make($data['password']);
+            $data['password'] = $newHash;
+
+            PasswordHistory::create([
+                'user_id'       => $user->id,
+                'password_hash' => $newHash,
+            ]);
+
+            $keepIds = PasswordHistory::where('user_id', $user->id)->latest()->take(5)->pluck('id');
+            PasswordHistory::where('user_id', $user->id)->whereNotIn('id', $keepIds)->delete();
         }
 
         $user->update($data);

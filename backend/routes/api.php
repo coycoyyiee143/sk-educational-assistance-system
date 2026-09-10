@@ -24,6 +24,12 @@ Route::post('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
 Route::post('/email/resend', [AuthController::class, 'resendVerification']);
 Route::post('/email/verify-by-code', [AuthController::class, 'verifyEmailByCode']);
 
+// 2FA — called right after /login returns a "2fa_required" response,
+// using a short-lived pending token instead of a session (stateless API).
+// Both handled inside AuthController — no separate TwoFactorController.
+Route::post('/2fa/setup/confirm', [AuthController::class, 'confirmTwoFactorSetup']); // activates + logs in
+Route::post('/2fa/verify', [AuthController::class, 'verifyTwoFactor']);              // normal login 2FA step
+
 // Forgot Password
 Route::post('/password/forgot', [PasswordResetController::class, 'sendResetCode']);
 Route::post('/password/verify-code', [PasswordResetController::class, 'verifyResetCode']);

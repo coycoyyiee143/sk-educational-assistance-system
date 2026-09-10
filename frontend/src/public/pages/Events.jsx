@@ -1,10 +1,7 @@
 import React, { useEffect, useState } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import api from "../../services/api";
+import api, { STORAGE_URL } from "../../services/api";
 import Footer from "../../components/Footer";
-
-const API_BASE = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
-const STORAGE_URL = `${API_BASE.replace(/\/api\/?$/, "")}/storage/`;
 
 const Events = () => {
   const PAGE_SIZE = 3;
