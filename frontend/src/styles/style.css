@@ -15011,6 +15011,8 @@ body {
 
   .verifier-ocr-check-values {
     grid-template-columns: 1fr !important;
+  }
+
   .requirements-page .process-step:not(:last-child)::after {
     content: "";
     position: absolute;
@@ -15052,6 +15054,8 @@ body {
   .verifier-mobile-menu-btn svg {
     width: 21px;
     height: 21px;
+  }
+
   .requirements-page .requirements-status-section .container,
   .requirements-page .requirements-documents-section .container,
   .requirements-page .requirements-process-section .container {
@@ -15127,6 +15131,8 @@ body {
 
   .verifier-stat-top h2 {
     font-size: 26px;
+  }
+
   .requirements-page .status-window-date-item:first-child {
     padding-top: 0;
     border-bottom: 1px solid #e3e5e7;
@@ -15144,6 +15150,8 @@ body {
   .verifier-stat-icon svg {
     width: 19px;
     height: 19px;
+  }
+
   .requirements-page .status-window-date-icon svg {
     width: 17px !important;
     height: 17px !important;
@@ -15174,6 +15182,8 @@ body {
   .verifier-table-pagination-bar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
   .requirements-page .status-window-slots-value {
     justify-content: flex-start;
   }
@@ -15199,6 +15209,8 @@ body {
   /* Claiming */
   .verifier-claiming-header-row {
     flex-direction: column;
+  }
+
   .requirements-page .status-window-apply-btn svg {
     width: 16px !important;
     height: 16px !important;
@@ -15237,6 +15249,8 @@ body {
 
   .verifier-claiming-status-action-btn {
     width: 100%;
+  }
+
   .requirements-page .req-doc-icon svg,
   .requirements-page .req-doc-reminder-icon svg {
     width: 14px !important;
@@ -15299,6 +15313,8 @@ body {
   .verifier-ocr-section-title {
     font-size: 17px;
     line-height: 1.35;
+  }
+
   .requirements-page .process-step {
     grid-template-columns:
       42px minmax(0, 1fr);
@@ -15318,6 +15334,8 @@ body {
   .verifier-review-bottom-actions {
     align-items: stretch;
     gap: 14px;
+  }
+
   .requirements-page .process-step:not(:last-child)::after {
     top: 62px;
     bottom: -26px;
