@@ -6,6 +6,21 @@ import api from "../../services/api";
 import Footer from "../../components/Footer";
 import FaceCapture from "../../applicant/components/FaceCapture";
 
+// Small reusable block: renders one red line per message for a given
+// backend field key, or nothing if there's no error for that field.
+function FieldError({ errors, field }) {
+  if (!errors || !errors[field] || errors[field].length === 0) return null;
+  return (
+    <div className="mt-1">
+      {errors[field].map((msg, i) => (
+        <div key={i} className="text-danger small" style={{ lineHeight: 1.4 }}>
+          {msg}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const Register = () => {
   const [form, setForm] = useState({
     firstName: "",
@@ -22,7 +37,13 @@ const Register = () => {
   const [showPass, setShowPass] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const [error, setError] = useState("");
+  // General, not-tied-to-one-field errors (e.g. the name+birthdate
+  // duplicate check, network failures) still show as a top banner.
+  const [generalError, setGeneralError] = useState("");
+  // Per-field errors from Laravel's {errors: {field: [messages]}}
+  // shape, rendered directly under the matching input.
+  const [fieldErrors, setFieldErrors] = useState({});
+
   const [loading, setLoading] = useState(false);
 
   const [idImage, setIdImage] = useState(null);
@@ -44,6 +65,15 @@ const Register = () => {
   // rapid double-click bago mag-re-render ang loading state
   const submittingRef = useRef(false);
 
+  // One ref per field, so a field-level error can scroll straight to
+  // the input it belongs to — useful since the form is long enough
+  // that an error near the bottom (like password) could otherwise be
+  // scrolled out of view when the person is still looking at the top.
+  const fieldRefs = useRef({});
+  const setFieldRef = (key) => (el) => {
+    fieldRefs.current[key] = el;
+  };
+
   /* ========================================
      FORM
   ======================================== */
@@ -54,7 +84,26 @@ const Register = () => {
       [e.target.name]: e.target.value,
     });
 
-    setError("");
+    setGeneralError("");
+    // Clear that specific field's errors as soon as the person edits
+    // it, rather than leaving stale errors up until the next submit.
+    setFieldErrors((prev) => {
+      const backendKey = {
+        firstName: "first_name",
+        middleName: "middle_name",
+        lastName: "last_name",
+        mobile: "mobile_number",
+        email: "email",
+        birthdate: "birthdate",
+        password: "password",
+        confirmPassword: "password",
+      }[e.target.name];
+
+      if (!backendKey || !prev[backendKey]) return prev;
+      const next = { ...prev };
+      delete next[backendKey];
+      return next;
+    });
   };
 
   function handleIdChange(e) {
@@ -64,7 +113,7 @@ const Register = () => {
 
     setIdImage(file);
     setIdPreview(URL.createObjectURL(file));
-    setError("");
+    setGeneralError("");
   }
 
   const handleNext = async (e) => {
@@ -72,26 +121,27 @@ const Register = () => {
 
     if (submittingRef.current) return; // block double click/double submit
 
-    setError("");
+    setGeneralError("");
+    setFieldErrors({});
 
     const passwordRule = /^(?=.*[a-z])(?=.*\d).{8,}$/;
     if (!passwordRule.test(form.password)) {
-      setError("Password must be at least 8 characters, with a lowercase letter and a number.");
+      setFieldErrors({ password: ["Password must be at least 8 characters, with a lowercase letter and a number."] });
       return;
     }
 
     if (form.password !== form.confirmPassword) {
-      setError("Passwords do not match.");
+      setFieldErrors({ password: ["Passwords do not match."] });
       return;
     }
 
     if (!idImage) {
-      setError("Please upload a valid ID.");
+      setGeneralError("Please upload a valid ID.");
       return;
     }
 
     if (!agreePrivacy) {
-      setError("Please read and agree to the Data Privacy Notice before proceeding.");
+      setGeneralError("Please read and agree to the Data Privacy Notice before proceeding.");
       return;
     }
 
@@ -99,15 +149,15 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // Check duplicate name+birthdate and existing email BEFORE
-      // face verification, so applicant doesn't waste time on
-      // face capture only to fail after.
       await api.post("/register/check", {
         first_name: form.firstName,
         middle_name: form.middleName,
         last_name: form.lastName,
         birthdate: form.birthdate,
         email: form.email,
+        mobile_number: form.mobile,
+        password: form.password,
+        password_confirmation: form.confirmPassword,
       });
 
       setStep("face");
@@ -115,16 +165,25 @@ const Register = () => {
       const errors = err.response?.data?.errors;
 
       if (errors) {
-        setError(
-          Object.values(errors)
-            .flat()
-            .join(" ")
-        );
+        setFieldErrors(errors);
+
+        // Scroll to the first field that actually has an error. A
+        // small delay lets React finish rendering the error text first
+        // — scrollIntoView needs the element (and its new height, now
+        // that the error message pushed things down) to already exist.
+        const firstErrorField = Object.keys(errors)[0];
+        setTimeout(() => {
+          fieldRefs.current[firstErrorField]?.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }, 50);
       } else {
-        setError(
+        setGeneralError(
           err.response?.data?.message ||
           "An account matching your name and date of birth already exists under a different account. Please contact the SK office if you believe this is an error."
         );
+        window.scrollTo({ top: 0, behavior: "smooth" });
       }
     } finally {
       submittingRef.current = false;
@@ -140,7 +199,7 @@ const Register = () => {
     idImage: capturedIdImage,
     liveBlob,
   }) {
-    setError("");
+    setGeneralError("");
     setLoading(true);
 
     try {
@@ -165,10 +224,8 @@ const Register = () => {
 
       await api.post("/register", formData);
 
-      // Show confirmation popup
       setFaceVerified(true);
 
-      // Redirect after 3 seconds
       setTimeout(() => {
         navigate("/verify-email-notice", {
           state: {
@@ -180,13 +237,13 @@ const Register = () => {
       const errors = err.response?.data?.errors;
 
       if (errors) {
-        setError(
+        setGeneralError(
           Object.values(errors)
             .flat()
             .join(" ")
         );
       } else {
-        setError(
+        setGeneralError(
           err.response?.data?.message ||
           "Registration failed."
         );
@@ -258,8 +315,6 @@ const Register = () => {
         <section className="identity-page">
           <div className="identity-shell">
 
-            {/* NOTICE */}
-
             <div className="identity-notice">
               <div className="identity-notice-icon">
                 i
@@ -283,8 +338,6 @@ const Register = () => {
             </div>
 
             <div className="identity-landscape">
-
-              {/* LEFT — ID */}
 
               <div className="identity-reference">
                 <div className="identity-section-title">
@@ -332,8 +385,6 @@ const Register = () => {
                 </div>
               </div>
 
-              {/* RIGHT — FACE */}
-
               <div className="identity-scan-card">
                 <div className="identity-scan-top">
                   <div>
@@ -356,9 +407,9 @@ const Register = () => {
                   </span>
                 </div>
 
-                {error && (
+                {generalError && (
                   <div className="alert alert-danger">
-                    {error}
+                    {generalError}
                   </div>
                 )}
 
@@ -379,8 +430,6 @@ const Register = () => {
                     }
                   />
                 </div>
-
-                {/* GUIDES */}
 
                 <div className="identity-guides">
                   <div className="identity-guide">
@@ -434,8 +483,6 @@ const Register = () => {
                   </div>
                 </div>
 
-                {/* FOOTER */}
-
                 <div className="identity-footer">
                   <button
                     type="button"
@@ -463,10 +510,6 @@ const Register = () => {
             </div>
           </div>
         </section>
-
-        {/* ========================================
-            FACE VERIFIED POPUP
-        ======================================== */}
 
         {faceVerified && (
           <div
@@ -498,8 +541,6 @@ const Register = () => {
                   "'Inter', sans-serif",
               }}
             >
-              {/* SUCCESS CHECK */}
-
               <div
                 className="d-flex align-items-center justify-content-center mx-auto mb-3"
                 style={{
@@ -697,16 +738,12 @@ const Register = () => {
       <section className="register-split-section">
         <div className="register-split-wrap">
 
-          {/* LEFT IMAGE */}
-
           <div className="register-split-image">
             <img
               src="/icons/register-bg.png"
               alt="SK Educational Assistance"
             />
           </div>
-
-          {/* RIGHT FORM */}
 
           <div className="register-split-form">
             <div className="login-card-wrap">
@@ -735,9 +772,9 @@ const Register = () => {
                   assistance.
                 </p>
 
-                {error && (
+                {generalError && (
                   <div className="alert alert-danger">
-                    {error}
+                    {generalError}
                   </div>
                 )}
 
@@ -746,10 +783,8 @@ const Register = () => {
                   className="register-form-spaced"
                 >
 
-                  {/* NAME */}
-
                   <div className="row">
-                    <div className="col-md-4 mb-3">
+                    <div className="col-md-4 mb-3" ref={setFieldRef("first_name")}>
                       <label className="form-label">
                         First Name{" "}
                         <span className="text-danger">
@@ -765,9 +800,10 @@ const Register = () => {
                         onChange={handleChange}
                         required
                       />
+                      <FieldError errors={fieldErrors} field="first_name" />
                     </div>
 
-                    <div className="col-md-4 mb-3">
+                    <div className="col-md-4 mb-3" ref={setFieldRef("middle_name")}>
                       <label className="form-label">
                         Middle Name
                       </label>
@@ -779,9 +815,10 @@ const Register = () => {
                         value={form.middleName}
                         onChange={handleChange}
                       />
+                      <FieldError errors={fieldErrors} field="middle_name" />
                     </div>
 
-                    <div className="col-md-4 mb-3">
+                    <div className="col-md-4 mb-3" ref={setFieldRef("last_name")}>
                       <label className="form-label">
                         Last Name{" "}
                         <span className="text-danger">
@@ -797,13 +834,12 @@ const Register = () => {
                         onChange={handleChange}
                         required
                       />
+                      <FieldError errors={fieldErrors} field="last_name" />
                     </div>
                   </div>
 
-                  {/* CONTACT */}
-
                   <div className="row">
-                    <div className="col-md-6 mb-3">
+                    <div className="col-md-6 mb-3" ref={setFieldRef("mobile_number")}>
                       <label className="form-label">
                         Mobile Number
                       </label>
@@ -815,9 +851,10 @@ const Register = () => {
                         value={form.mobile}
                         onChange={handleChange}
                       />
+                      <FieldError errors={fieldErrors} field="mobile_number" />
                     </div>
 
-                    <div className="col-md-6 mb-3">
+                    <div className="col-md-6 mb-3" ref={setFieldRef("email")}>
                       <label className="form-label">
                         Email{" "}
                         <span className="text-danger">
@@ -859,13 +896,12 @@ const Register = () => {
                           i
                         </span>
                       </div>
+                      <FieldError errors={fieldErrors} field="email" />
                     </div>
                   </div>
 
-                  {/* BIRTHDATE / BARANGAY */}
-
                   <div className="row">
-                    <div className="col-md-6 mb-3">
+                    <div className="col-md-6 mb-3" ref={setFieldRef("birthdate")}>
                       <label className="form-label">
                         Date of Birth{" "}
                         <span className="text-danger">
@@ -881,6 +917,7 @@ const Register = () => {
                         onChange={handleChange}
                         required
                       />
+                      <FieldError errors={fieldErrors} field="birthdate" />
                     </div>
 
                     <div className="col-md-6 mb-3">
@@ -901,8 +938,6 @@ const Register = () => {
                       </div>
                     </div>
                   </div>
-
-                  {/* VALID ID */}
 
                   <div className="mb-3">
                     <label className="form-label">
@@ -942,9 +977,7 @@ const Register = () => {
                     )}
                   </div>
 
-                  {/* PASSWORD */}
-
-                  <div className="mb-3">
+                  <div className="mb-3" ref={setFieldRef("password")}>
                     <label className="form-label">
                       Password{" "}
                       <span className="text-danger">*</span>
@@ -990,6 +1023,8 @@ const Register = () => {
                       </button>
                     </div>
 
+                    <FieldError errors={fieldErrors} field="password" />
+
                     <div className="register-password-requirements">
                       <span className="register-password-requirements-title">PASSWORD REQUIREMENTS</span>
                       <div className="register-password-requirement-item">
@@ -1008,8 +1043,6 @@ const Register = () => {
                       </div>
                     </div>
                   </div>
-
-                  {/* CONFIRM PASSWORD */}
 
                   <div className="mb-3">
                     <label className="form-label">
@@ -1067,8 +1100,6 @@ const Register = () => {
                       ))}
                   </div>
 
-                  {/* DATA PRIVACY CONSENT */}
-
                   <div className="mb-3 form-check">
                     <input
                       type="checkbox"
@@ -1077,7 +1108,7 @@ const Register = () => {
                       checked={agreePrivacy}
                       onChange={(e) => {
                         setAgreePrivacy(e.target.checked);
-                        setError("");
+                        setGeneralError("");
                       }}
                       required
                     />
@@ -1094,8 +1125,6 @@ const Register = () => {
                       <span className="text-danger">*</span>
                     </label>
                   </div>
-
-                  {/* NEXT */}
 
                   <button
                     className="btn btn-danger w-100"
@@ -1122,10 +1151,6 @@ const Register = () => {
           </div>
         </div>
       </section>
-
-      {/* ========================================
-          DATA PRIVACY MODAL
-      ======================================== */}
 
       {showPrivacyModal && (
         <div

@@ -10,6 +10,7 @@ use App\Models\PasswordHistory;
 use App\Notifications\ApplicationStatusNotification;
 use App\Services\FaceMatchingService;
 use App\Services\TwoFactorService;
+use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
@@ -28,7 +29,9 @@ class AuthController extends Controller
 
     // Shared password rule set: 8 char min, lowercase + number, breach-checked,
     // blocked against obvious/context-specific weak terms.
-    // Used by register() and (reuse-block added) by ProfileController::updatePassword().
+    // Used by register(), checkDuplicate() (pre-check, same rules so a
+    // failure can't surface for the first time only after face capture),
+    // and (reuse-block added) by ProfileController::updatePassword().
     public static function passwordRules(): array
     {
         return [
@@ -36,7 +39,7 @@ class AuthController extends Controller
             'confirmed',
             'regex:/^(?=.*[a-z])(?=.*\d).+$/',
             Password::min(8)->uncompromised(),
-            new \App\Rules\NotObviouslyWeakPassword(),
+            new NotObviouslyWeakPassword(),
         ];
     }
 
@@ -68,24 +71,29 @@ class AuthController extends Controller
     }
 
     /**
-     * Lightweight pre-check called from the Register form BEFORE the
-     * applicant moves on to face verification. Same email-uniqueness
-     * and name+birthdate duplicate rules as register(), just without
-     * the file uploads / face match — so a doomed registration fails
-     * fast, before the applicant wastes time on face capture.
+     * Pre-check called from the Register form BEFORE the applicant moves
+     * on to face verification. Validates EVERYTHING that register() will
+     * eventually check — email/mobile uniqueness, name+birthdate
+     * duplicate, AND the full password policy — so a doomed registration
+     * fails fast on the account-details form, before the applicant
+     * wastes time on face capture only to be bounced back afterward with
+     * an error that has nothing to do with their face.
      *
-     * This does NOT reserve the email or name+birthdate combo — it's
-     * just an early warning. register() still re-checks both at save
-     * time, since another registration could complete in between.
+     * This does NOT reserve the email/mobile/name+birthdate combo — it's
+     * still just a pre-check. register() re-validates everything again
+     * at save time, since another registration could complete in
+     * between the two calls.
      */
     public function checkDuplicate(Request $request)
     {
         $request->validate([
-            'first_name'  => 'required|string|max:255',
-            'middle_name' => 'nullable|string|max:255',
-            'last_name'   => 'required|string|max:255',
-            'birthdate'   => 'required|date|before:today',
-            'email'       => 'required|email',
+            'first_name'    => 'required|string|max:255',
+            'middle_name'   => 'nullable|string|max:255',
+            'last_name'     => 'required|string|max:255',
+            'birthdate'     => 'required|date|before:today',
+            'email'         => 'required|email',
+            'mobile_number' => 'nullable|string|unique:users,mobile_number',
+            'password'      => self::passwordRules(),
         ]);
 
         if (User::where('email', $request->email)->exists()) {
@@ -124,9 +132,10 @@ class AuthController extends Controller
      * going to fail anyway — no reason to call the face service for a
      * registration that's getting blocked regardless. (The Register form
      * also calls checkDuplicate() above earlier in the flow, before the
-     * applicant even reaches face capture — this check here is the
-     * authoritative re-check at save time, in case something changed
-     * between the two calls.)
+     * applicant even reaches face capture, now including mobile +
+     * password validation too — this check here is the authoritative
+     * re-check at save time, in case something changed between the two
+     * calls.)
      *
      * A second duplicate check runs AFTER face verification: this one
      * compares the new live-photo embedding against every other verified
