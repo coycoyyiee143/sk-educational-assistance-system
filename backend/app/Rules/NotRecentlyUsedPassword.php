@@ -15,11 +15,17 @@ class NotRecentlyUsedPassword implements ValidationRule
         $recent = PasswordHistory::where('user_id', $this->userId)
             ->latest()
             ->take($this->historyLimit)
-            ->pluck('password_hash');
+            ->get();
 
-        foreach ($recent as $oldHash) {
-            if (Hash::check($value, $oldHash)) {
-                $fail("Password can't match any of your last {$this->historyLimit} passwords.");
+        foreach ($recent as $index => $entry) {
+            if (Hash::check($value, $entry->password_hash)) {
+                if ($index === 0) {
+                    // This IS the current password — a more specific,
+                    // more useful message than "matches a recent password".
+                    $fail('This is your current password. Please choose a different one.');
+                } else {
+                    $fail("Password can't match any of your last {$this->historyLimit} passwords.");
+                }
                 return;
             }
         }
