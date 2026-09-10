@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
 use App\Models\PasswordHistory;
+use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -67,6 +68,7 @@ class AdminController extends Controller
                 'confirmed',
                 'regex:/^(?=.*[a-z])(?=.*\d).+$/',
                 Password::min(8)->uncompromised(),
+                new NotObviouslyWeakPassword(),
             ],
             'is_active'  => 'boolean',
         ], [
@@ -105,6 +107,7 @@ class AdminController extends Controller
                 'confirmed',
                 'regex:/^(?=.*[a-z])(?=.*\d).+$/',
                 Password::min(8)->uncompromised(),
+                new NotObviouslyWeakPassword(),
             ],
         ], [
             'password.regex' => 'Password must include at least one lowercase letter and one number.',

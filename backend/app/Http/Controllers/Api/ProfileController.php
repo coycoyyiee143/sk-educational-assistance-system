@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\PasswordHistory;
 use App\Rules\NotRecentlyUsedPassword;
+use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules\Password;
@@ -134,6 +135,7 @@ class ProfileController extends Controller
                 'confirmed',
                 'regex:/^(?=.*[a-z])(?=.*\d).+$/',
                 Password::min(8)->uncompromised(),
+                new NotObviouslyWeakPassword(),
                 new NotRecentlyUsedPassword($user->id, 5),
             ],
         ], [

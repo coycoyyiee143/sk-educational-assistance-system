@@ -26,7 +26,8 @@ class AuthController extends Controller
     const LOCKOUT_MINUTES = 15;
     const PENDING_TOKEN_MINUTES = 10;
 
-    // Shared password rule set: 8 char min, lowercase + number, breach-checked.
+    // Shared password rule set: 8 char min, lowercase + number, breach-checked,
+    // blocked against obvious/context-specific weak terms.
     // Used by register() and (reuse-block added) by ProfileController::updatePassword().
     public static function passwordRules(): array
     {
@@ -35,6 +36,7 @@ class AuthController extends Controller
             'confirmed',
             'regex:/^(?=.*[a-z])(?=.*\d).+$/',
             Password::min(8)->uncompromised(),
+            new \App\Rules\NotObviouslyWeakPassword(),
         ];
     }
 
@@ -143,8 +145,8 @@ class AuthController extends Controller
             'password'      => self::passwordRules(),
             'birthdate'     => 'required|date|before:today',
             'barangay'      => 'required|string|max:255',
-            'id_image'      => 'required|file|mimes:jpg,jpeg,png|max:5120',
-            'live_photo'    => 'required|file|mimes:jpg,jpeg,png|max:5120',
+            'id_image'      => 'required|file|mimes:jpg,jpeg,png,webp,heic,heif|max:5120',
+            'live_photo'    => 'required|file|mimes:jpg,jpeg,png,webp,heic,heif|max:5120',
             'privacy_consent' => 'required|accepted',
         ]);
 
