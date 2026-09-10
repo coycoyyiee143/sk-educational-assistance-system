@@ -596,6 +596,7 @@ function FaceCapture({
             <div className="face-capture-camera-frame">
               <Webcam
                 ref={webcamRef}
+                mirrored
                 audio={false}
                 screenshotFormat="image/jpeg"
                 className="face-capture-webcam"

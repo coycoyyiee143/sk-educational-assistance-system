@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -33,8 +33,16 @@ const Register = () => {
   // Shows the success popup before redirecting to email verification
   const [faceVerified, setFaceVerified] = useState(false);
 
+  // Data Privacy consent
+  const [agreePrivacy, setAgreePrivacy] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  // synchronous lock, hindi state — para hindi maabutan ng
+  // rapid double-click bago mag-re-render ang loading state
+  const submittingRef = useRef(false);
 
   /* ========================================
      FORM
@@ -59,10 +67,18 @@ const Register = () => {
     setError("");
   }
 
-  const handleNext = (e) => {
+  const handleNext = async (e) => {
     e.preventDefault();
 
+    if (submittingRef.current) return; // block double click/double submit
+
     setError("");
+
+    const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRule.test(form.password)) {
+      setError("Password must be at least 8 characters, with uppercase, lowercase, and a number.");
+      return;
+    }
 
     if (form.password !== form.confirmPassword) {
       setError("Passwords do not match.");
@@ -74,7 +90,46 @@ const Register = () => {
       return;
     }
 
-    setStep("face");
+    if (!agreePrivacy) {
+      setError("Please read and agree to the Data Privacy Notice before proceeding.");
+      return;
+    }
+
+    submittingRef.current = true;
+    setLoading(true);
+
+    try {
+      // Check duplicate name+birthdate and existing email BEFORE
+      // face verification, so applicant doesn't waste time on
+      // face capture only to fail after.
+      await api.post("/register/check", {
+        first_name: form.firstName,
+        middle_name: form.middleName,
+        last_name: form.lastName,
+        birthdate: form.birthdate,
+        email: form.email,
+      });
+
+      setStep("face");
+    } catch (err) {
+      const errors = err.response?.data?.errors;
+
+      if (errors) {
+        setError(
+          Object.values(errors)
+            .flat()
+            .join(" ")
+        );
+      } else {
+        setError(
+          err.response?.data?.message ||
+          "An account matching your name and date of birth already exists under a different account. Please contact the SK office if you believe this is an error."
+        );
+      }
+    } finally {
+      submittingRef.current = false;
+      setLoading(false);
+    }
   };
 
   /* ========================================
@@ -106,6 +161,7 @@ const Register = () => {
 
       formData.append("id_image", capturedIdImage);
       formData.append("live_photo", liveBlob, "live.jpg");
+      formData.append("privacy_consent", agreePrivacy ? "1" : "0");
 
       await api.post("/register", formData);
 
@@ -132,7 +188,7 @@ const Register = () => {
       } else {
         setError(
           err.response?.data?.message ||
-            "Registration failed."
+          "Registration failed."
         );
       }
     } finally {
@@ -891,21 +947,15 @@ const Register = () => {
                   <div className="mb-3">
                     <label className="form-label">
                       Password{" "}
-                      <span className="text-danger">
-                        *
-                      </span>
+                      <span className="text-danger">*</span>
                     </label>
 
                     <div className="register-input-wrap">
                       <input
-                        type={
-                          showPass
-                            ? "text"
-                            : "password"
-                        }
+                        type={showPass ? "text" : "password"}
                         name="password"
                         className="form-control register-input-eye"
-                        placeholder="Password (min. 8 characters)"
+                        placeholder="Min 8 characters, uppercase, lowercase, and a number"
                         value={form.password}
                         onChange={handleChange}
                         required
@@ -914,59 +964,48 @@ const Register = () => {
                       <button
                         type="button"
                         className="register-eye-btn-inline"
-                        onClick={() =>
-                          setShowPass(!showPass)
-                        }
+                        onClick={() => setShowPass(!showPass)}
                         tabIndex={-1}
-                        aria-label={
-                          showPass
-                            ? "Hide password"
-                            : "Show password"
-                        }
+                        aria-label={showPass ? "Hide password" : "Show password"}
                       >
                         {showPass ? (
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path
                               d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             />
-
-                            <line
-                              x1="1"
-                              y1="1"
-                              x2="23"
-                              y2="23"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
+                            <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         ) : (
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path
                               d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             />
-
-                            <circle
-                              cx="12"
-                              cy="12"
-                              r="3"
-                            />
+                            <circle cx="12" cy="12" r="3" />
                           </svg>
                         )}
                       </button>
+                    </div>
+
+                    <div className="register-password-requirements">
+                      <span className="register-password-requirements-title">PASSWORD REQUIREMENTS</span>
+                      <div className="register-password-requirement-item">
+                        <span>{form.password.length >= 8 ? "✓" : "○"}</span>
+                        <p>At least 8 characters</p>
+                      </div>
+                      <div className="register-password-requirement-item">
+                        <span>
+                          {/[A-Z]/.test(form.password) && /[a-z]/.test(form.password) ? "✓" : "○"}
+                        </span>
+                        <p>Uppercase and lowercase letters</p>
+                      </div>
+                      <div className="register-password-requirement-item">
+                        <span>{/\d/.test(form.password) ? "✓" : "○"}</span>
+                        <p>At least one number</p>
+                      </div>
                     </div>
                   </div>
 
@@ -975,18 +1014,12 @@ const Register = () => {
                   <div className="mb-3">
                     <label className="form-label">
                       Confirm Password{" "}
-                      <span className="text-danger">
-                        *
-                      </span>
+                      <span className="text-danger">*</span>
                     </label>
 
                     <div className="register-input-wrap">
                       <input
-                        type={
-                          showConfirm
-                            ? "text"
-                            : "password"
-                        }
+                        type={showConfirm ? "text" : "password"}
                         name="confirmPassword"
                         className="form-control register-input-eye"
                         placeholder="Confirm Password"
@@ -998,60 +1031,68 @@ const Register = () => {
                       <button
                         type="button"
                         className="register-eye-btn-inline"
-                        onClick={() =>
-                          setShowConfirm(!showConfirm)
-                        }
+                        onClick={() => setShowConfirm(!showConfirm)}
                         tabIndex={-1}
-                        aria-label={
-                          showConfirm
-                            ? "Hide password"
-                            : "Show password"
-                        }
+                        aria-label={showConfirm ? "Hide password" : "Show password"}
                       >
                         {showConfirm ? (
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path
                               d="M17.94 17.94A10.94 10.94 0 0112 20c-7 0-11-8-11-8a18.5 18.5 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             />
-
-                            <line
-                              x1="1"
-                              y1="1"
-                              x2="23"
-                              y2="23"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
+                            <line x1="1" y1="1" x2="23" y2="23" strokeLinecap="round" strokeLinejoin="round" />
                           </svg>
                         ) : (
-                          <svg
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <path
                               d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"
                               strokeLinecap="round"
                               strokeLinejoin="round"
                             />
-
-                            <circle
-                              cx="12"
-                              cy="12"
-                              r="3"
-                            />
+                            <circle cx="12" cy="12" r="3" />
                           </svg>
                         )}
                       </button>
                     </div>
+
+                    {form.confirmPassword &&
+                      (form.password === form.confirmPassword ? (
+                        <span className="register-password-match">✓ Passwords match</span>
+                      ) : (
+                        <span className="register-password-match" style={{ color: "#dc3545" }}>
+                          ✕ Passwords do not match
+                        </span>
+                      ))}
+                  </div>
+
+                  {/* DATA PRIVACY CONSENT */}
+
+                  <div className="mb-3 form-check">
+                    <input
+                      type="checkbox"
+                      className="form-check-input"
+                      id="agreePrivacy"
+                      checked={agreePrivacy}
+                      onChange={(e) => {
+                        setAgreePrivacy(e.target.checked);
+                        setError("");
+                      }}
+                      required
+                    />
+                    <label className="form-check-label" htmlFor="agreePrivacy">
+                      I have read and agree to the{" "}
+                      <button
+                        type="button"
+                        className="btn btn-link p-0 align-baseline"
+                        onClick={() => setShowPrivacyModal(true)}
+                      >
+                        Data Privacy Notice
+                      </button>
+                      .{" "}
+                      <span className="text-danger">*</span>
+                    </label>
                   </div>
 
                   {/* NEXT */}
@@ -1059,8 +1100,14 @@ const Register = () => {
                   <button
                     className="btn btn-danger w-100"
                     type="submit"
+                    disabled={loading || !agreePrivacy}
+                    title={
+                      !agreePrivacy
+                        ? "Please agree to the Data Privacy Notice first"
+                        : undefined
+                    }
                   >
-                    Next: Verify Identity
+                    {loading ? "Checking..." : "Next: Verify Identity"}
                   </button>
 
                   <p className="text-center mt-3">
@@ -1075,6 +1122,84 @@ const Register = () => {
           </div>
         </div>
       </section>
+
+      {/* ========================================
+          DATA PRIVACY MODAL
+      ======================================== */}
+
+      {showPrivacyModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            background: "rgba(17, 24, 39, 0.48)",
+            backdropFilter: "blur(3px)",
+            WebkitBackdropFilter: "blur(3px)",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "560px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "28px 26px",
+              borderRadius: "16px",
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.22)",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <h4 className="text-danger mb-3" style={{ fontWeight: 700 }}>
+              Data Privacy Notice
+            </h4>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              In accordance with the Data Privacy Act of 2012 (RA 10173),
+              SK Barangay Mamatid collects your personal information
+              (name, birthdate, contact details, valid ID, and photo)
+              solely for the purpose of processing your application for
+              the Educational Assistance Program. Your uploaded ID and
+              live photo will be used strictly for identity verification
+              and may be referenced by SK staff during claiming.
+            </p>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              Your data will not be shared with third parties without
+              your consent, except when required by law. You may
+              request access, correction, or deletion of your data by
+              contacting the SK office.
+            </p>
+
+            <div className="d-flex justify-content-end gap-2 mt-3">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setShowPrivacyModal(false)}
+              >
+                Close
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => {
+                  setAgreePrivacy(true);
+                  setShowPrivacyModal(false);
+                }}
+              >
+                I Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Footer />
     </>

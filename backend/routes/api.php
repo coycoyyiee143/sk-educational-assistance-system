@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\PasswordResetController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
+Route::post('/register/check', [AuthController::class, 'checkDuplicate']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
     ->name('verification.verify');
