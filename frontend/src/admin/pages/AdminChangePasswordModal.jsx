@@ -41,9 +41,9 @@ function AdminChangePasswordModal({ show, onClose }) {
     e.preventDefault();
     setError("");
     setSuccess("");
-    const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    const passwordRule = /^(?=.*[a-z])(?=.*\d).{8,}$/;
     if (!passwordRule.test(newPassword)) {
-      setError("New password must be at least 8 characters, with uppercase, lowercase, and a number.");
+      setError("New password must be at least 8 characters, with a lowercase letter and a number.");
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -76,7 +76,7 @@ function AdminChangePasswordModal({ show, onClose }) {
   }
   if (!show && !error && !success) return null;
   const hasLength = newPassword.length >= 8;
-  const hasMixedCase = /[A-Z]/.test(newPassword) && /[a-z]/.test(newPassword);
+  const hasLowercase = /[a-z]/.test(newPassword);
   const hasNumber = /\d/.test(newPassword);
   return (
     <>
@@ -173,8 +173,8 @@ function AdminChangePasswordModal({ show, onClose }) {
                         <p>At least 8 characters</p>
                       </div>
                       <div className="admin-password-requirement-item">
-                        <span>{hasMixedCase ? "✓" : "○"}</span>
-                        <p>Uppercase and lowercase letters</p>
+                        <span>{hasLowercase ? "✓" : "○"}</span>
+                        <p>A lowercase letter</p>
                       </div>
                       <div className="admin-password-requirement-item">
                         <span>{hasNumber ? "✓" : "○"}</span>

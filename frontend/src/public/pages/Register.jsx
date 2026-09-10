@@ -74,9 +74,9 @@ const Register = () => {
 
     setError("");
 
-    const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    const passwordRule = /^(?=.*[a-z])(?=.*\d).{8,}$/;
     if (!passwordRule.test(form.password)) {
-      setError("Password must be at least 8 characters, with uppercase, lowercase, and a number.");
+      setError("Password must be at least 8 characters, with a lowercase letter and a number.");
       return;
     }
 
@@ -955,7 +955,7 @@ const Register = () => {
                         type={showPass ? "text" : "password"}
                         name="password"
                         className="form-control register-input-eye"
-                        placeholder="Min 8 characters, uppercase, lowercase, and a number"
+                        placeholder="Min 8 characters, with a lowercase letter and a number"
                         value={form.password}
                         onChange={handleChange}
                         required
@@ -998,9 +998,9 @@ const Register = () => {
                       </div>
                       <div className="register-password-requirement-item">
                         <span>
-                          {/[A-Z]/.test(form.password) && /[a-z]/.test(form.password) ? "✓" : "○"}
+                          {/[a-z]/.test(form.password) ? "✓" : "○"}
                         </span>
-                        <p>Uppercase and lowercase letters</p>
+                        <p>A lowercase letter</p>
                       </div>
                       <div className="register-password-requirement-item">
                         <span>{/\d/.test(form.password) ? "✓" : "○"}</span>

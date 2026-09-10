@@ -59,9 +59,9 @@ function ApplicantChangePasswordModal({ show, onClose }) {
     setError("");
     setSuccess("");
 
-    const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    const passwordRule = /^(?=.*[a-z])(?=.*\d).{8,}$/;
     if (!passwordRule.test(newPassword)) {
-      setError("New password must be at least 8 characters, with uppercase, lowercase, and a number.");
+      setError("New password must be at least 8 characters, with a lowercase letter and a number.");
       return;
     }
 
@@ -113,7 +113,7 @@ function ApplicantChangePasswordModal({ show, onClose }) {
   if (!show && !error && !success) return null;
 
   const hasLength = newPassword.length >= 8;
-  const hasMixedCase = /[A-Z]/.test(newPassword) && /[a-z]/.test(newPassword);
+  const hasLowercase = /[a-z]/.test(newPassword);
   const hasNumber = /\d/.test(newPassword);
 
   return (
@@ -310,9 +310,9 @@ function ApplicantChangePasswordModal({ show, onClose }) {
                       </div>
 
                       <div className="verifier-password-requirement-item">
-                        <span>{hasMixedCase ? "✓" : "○"}</span>
+                        <span>{hasLowercase ? "✓" : "○"}</span>
                         <p>
-                          Uppercase and lowercase letters
+                          A lowercase letter
                         </p>
                       </div>
 
