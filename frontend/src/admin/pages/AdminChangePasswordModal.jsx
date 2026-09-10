@@ -9,38 +9,45 @@ function AdminChangePasswordModal({ show, onClose }) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [errorList, setErrorList] = useState([]);
   const [success, setSuccess] = useState("");
   const [countdown, setCountdown] = useState(10);
   useEffect(() => {
-    if (!error && !success) return;
+    if (!error && errorList.length === 0 && !success) return;
     setCountdown(10);
     const tick = setInterval(() => {
       setCountdown((c) => (c <= 1 ? 0 : c - 1));
     }, 1000);
     const dismiss = setTimeout(() => {
       setError("");
+      setErrorList([]);
       setSuccess("");
     }, 10000);
     return () => {
       clearInterval(tick);
       clearTimeout(dismiss);
     };
-  }, [error, success]);
+  }, [error, errorList, success]);
   function resetForm() {
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
     setError("");
+    setErrorList([]);
     setSuccess("");
   }
   function handleClose() {
     resetForm();
     onClose();
   }
+  function clearFeedback() {
+    setError("");
+    setErrorList([]);
+    setSuccess("");
+  }
   async function handleSubmit(e) {
     e.preventDefault();
-    setError("");
-    setSuccess("");
+    clearFeedback();
     const passwordRule = /^(?=.*[a-z])(?=.*\d).{8,}$/;
     if (!passwordRule.test(newPassword)) {
       setError("New password must be at least 8 characters, with a lowercase letter and a number.");
@@ -66,7 +73,12 @@ function AdminChangePasswordModal({ show, onClose }) {
       const message = err.response?.data?.message;
       const errors = err.response?.data?.errors;
       if (errors) {
-        setError(Object.values(errors).flat().join(" "));
+        const messages = Object.values(errors).flat();
+        if (messages.length > 1) {
+          setErrorList(messages);
+        } else {
+          setError(messages[0]);
+        }
       } else {
         setError(message || "Failed to update password.");
       }
@@ -74,10 +86,11 @@ function AdminChangePasswordModal({ show, onClose }) {
       setSaving(false);
     }
   }
-  if (!show && !error && !success) return null;
+  if (!show && !error && errorList.length === 0 && !success) return null;
   const hasLength = newPassword.length >= 8;
   const hasLowercase = /[a-z]/.test(newPassword);
   const hasNumber = /\d/.test(newPassword);
+  const showFeedback = error || errorList.length > 0 || success;
   return (
     <>
       {show && (
@@ -196,18 +209,61 @@ function AdminChangePasswordModal({ show, onClose }) {
           </div>
         </>
       )}
-      {(error || success) && (
+      {showFeedback && (
         <div className="feedback-popup-backdrop">
-          <div className={`feedback-popup ${error ? "feedback-popup-error" : "feedback-popup-success"}`}>
+          <div className={`feedback-popup ${error || errorList.length > 0 ? "feedback-popup-error" : "feedback-popup-success"}`}>
             <div className="feedback-popup-icon-wrap">
-              <span className="feedback-popup-icon">{error ? "!" : "✓"}</span>
+              <span className="feedback-popup-icon">{error || errorList.length > 0 ? "!" : "✓"}</span>
             </div>
-            <h4 className="feedback-popup-title">{error ? "Something Went Wrong" : "Password Updated"}</h4>
-            <p className="feedback-popup-message">{error || success}</p>
+            <h4 className="feedback-popup-title">
+              {errorList.length > 0
+                ? "Your password needs a few changes"
+                : error
+                  ? "Something Went Wrong"
+                  : "Password Updated"}
+            </h4>
+
+            {errorList.length > 0 ? (
+              <ul
+                style={{
+                  listStyle: "none",
+                  margin: "0 0 4px",
+                  padding: 0,
+                  textAlign: "left",
+                  width: "100%",
+                }}
+              >
+                {errorList.map((msg, i) => (
+                  <li
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "8px",
+                      padding: "6px 0",
+                      borderBottom:
+                        i < errorList.length - 1
+                          ? "1px solid rgba(0,0,0,0.06)"
+                          : "none",
+                    }}
+                  >
+                    <span style={{ color: "#dc3545", fontWeight: 700, flexShrink: 0 }}>
+                      ✕
+                    </span>
+                    <span className="feedback-popup-message" style={{ margin: 0 }}>
+                      {msg}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="feedback-popup-message">{error || success}</p>
+            )}
+
             <button
               type="button"
               className="feedback-popup-dismiss"
-              onClick={() => { setError(""); setSuccess(""); }}
+              onClick={clearFeedback}
             >
               <span>Dismiss</span>
               <span className="feedback-popup-arrow">→</span>

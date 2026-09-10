@@ -11,12 +11,13 @@ function ApplicantChangePasswordModal({ show, onClose }) {
   const [showConfirm, setShowConfirm] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState("");       // single string message
+  const [errorList, setErrorList] = useState([]); // multiple failed rules
   const [success, setSuccess] = useState("");
   const [countdown, setCountdown] = useState(10);
 
   useEffect(() => {
-    if (!error && !success) return;
+    if (!error && errorList.length === 0 && !success) return;
 
     setCountdown(10);
 
@@ -26,6 +27,7 @@ function ApplicantChangePasswordModal({ show, onClose }) {
 
     const dismiss = setTimeout(() => {
       setError("");
+      setErrorList([]);
       setSuccess("");
     }, 10000);
 
@@ -33,7 +35,7 @@ function ApplicantChangePasswordModal({ show, onClose }) {
       clearInterval(tick);
       clearTimeout(dismiss);
     };
-  }, [error, success]);
+  }, [error, errorList, success]);
 
   function resetForm() {
     setCurrentPassword("");
@@ -45,6 +47,7 @@ function ApplicantChangePasswordModal({ show, onClose }) {
     setShowConfirm(false);
 
     setError("");
+    setErrorList([]);
     setSuccess("");
   }
 
@@ -53,11 +56,16 @@ function ApplicantChangePasswordModal({ show, onClose }) {
     onClose();
   }
 
+  function clearFeedback() {
+    setError("");
+    setErrorList([]);
+    setSuccess("");
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
 
-    setError("");
-    setSuccess("");
+    clearFeedback();
 
     const passwordRule = /^(?=.*[a-z])(?=.*\d).{8,}$/;
     if (!passwordRule.test(newPassword)) {
@@ -95,26 +103,27 @@ function ApplicantChangePasswordModal({ show, onClose }) {
       const errors = err.response?.data?.errors;
 
       if (errors) {
-        setError(
-          Object.values(errors)
-            .flat()
-            .join(" ")
-        );
+        const messages = Object.values(errors).flat();
+        if (messages.length > 1) {
+          setErrorList(messages);
+        } else {
+          setError(messages[0]);
+        }
       } else {
-        setError(
-          message || "Failed to update password."
-        );
+        setError(message || "Failed to update password.");
       }
     } finally {
       setSaving(false);
     }
   }
 
-  if (!show && !error && !success) return null;
+  if (!show && !error && errorList.length === 0 && !success) return null;
 
   const hasLength = newPassword.length >= 8;
   const hasLowercase = /[a-z]/.test(newPassword);
   const hasNumber = /\d/.test(newPassword);
+
+  const showFeedback = error || errorList.length > 0 || success;
 
   return (
     <>
@@ -351,38 +360,72 @@ function ApplicantChangePasswordModal({ show, onClose }) {
         </>
       )}
 
-      {(error || success) && (
+      {showFeedback && (
         <div className="verifier-password-feedback-backdrop">
 
           <div
-            className={`verifier-password-feedback ${error
+            className={`verifier-password-feedback ${error || errorList.length > 0
               ? "verifier-password-feedback-error"
               : "verifier-password-feedback-success"
               }`}
           >
             <div className="verifier-password-feedback-icon-wrap">
               <span className="verifier-password-feedback-icon">
-                {error ? "!" : "✓"}
+                {error || errorList.length > 0 ? "!" : "✓"}
               </span>
             </div>
 
             <h4 className="verifier-password-feedback-title">
-              {error
-                ? "Something Went Wrong"
-                : "Password Updated"}
+              {errorList.length > 0
+                ? "Your password needs a few changes"
+                : error
+                  ? "Something Went Wrong"
+                  : "Password Updated"}
             </h4>
 
-            <p className="verifier-password-feedback-message">
-              {error || success}
-            </p>
+            {errorList.length > 0 ? (
+              <ul
+                style={{
+                  listStyle: "none",
+                  margin: "0 0 4px",
+                  padding: 0,
+                  textAlign: "left",
+                  width: "100%",
+                }}
+              >
+                {errorList.map((msg, i) => (
+                  <li
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "8px",
+                      padding: "6px 0",
+                      borderBottom:
+                        i < errorList.length - 1
+                          ? "1px solid rgba(0,0,0,0.06)"
+                          : "none",
+                    }}
+                  >
+                    <span style={{ color: "#dc3545", fontWeight: 700, flexShrink: 0 }}>
+                      ✕
+                    </span>
+                    <span className="verifier-password-feedback-message" style={{ margin: 0 }}>
+                      {msg}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="verifier-password-feedback-message">
+                {error || success}
+              </p>
+            )}
 
             <button
               type="button"
               className="verifier-password-feedback-dismiss"
-              onClick={() => {
-                setError("");
-                setSuccess("");
-              }}
+              onClick={clearFeedback}
             >
               <span>
                 Dismiss
