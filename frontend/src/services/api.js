@@ -1,7 +1,14 @@
 import axios from "axios";
 
+// Shared derivation of the storage URL (for images/uploads) so every
+// component builds it the same way instead of each having its own
+// separate localhost fallback. Import this wherever you need it:
+//   import api, { STORAGE_URL } from "../../services/api";
+const apiUrl = process.env.REACT_APP_API_URL || "http://localhost:8000/api";
+export const STORAGE_URL = `${apiUrl.replace(/\/api\/?$/, "")}/storage/`;
+
 const api = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || "http://localhost:8000/api",
+    baseURL: apiUrl,
     headers: {
         Accept: "application/json",
     },

@@ -1,9 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import AdminNavigation from "../components/AdminNavigation";
-import api from "../../services/api";
+import api, { STORAGE_URL } from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
-
-const STORAGE_URL = `${process.env.REACT_APP_API_URL?.replace('/api', '') || 'http://localhost:8000'}/storage/`;
 
 const emptyForm = { title: "", venue: "", event_date: "", event_time: "", description: "", image: null };
 
