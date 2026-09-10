@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
+import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
 import { getReasonsByDocType, OTHER } from "../constants/verificationReasons";

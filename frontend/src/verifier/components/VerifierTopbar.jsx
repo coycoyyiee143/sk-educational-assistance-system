@@ -1,7 +1,6 @@
 function VerifierTopbar({ onMenuOpen }) {
   return (
     <div className="verifier-topbar">
-      {/* MOBILE MENU BUTTON */}
       <button
         type="button"
         className="verifier-mobile-menu-btn"
@@ -21,7 +20,6 @@ function VerifierTopbar({ onMenuOpen }) {
         </svg>
       </button>
 
-      {/* EXISTING VERIFIER USER INFO */}
       <div className="verifier-topbar-user">
         <div className="verifier-topbar-user-text">
           <span className="verifier-topbar-user-name">
@@ -33,7 +31,7 @@ function VerifierTopbar({ onMenuOpen }) {
           </span>
         </div>
 
-        <div className="verifier-topbar-avatar" />
+        <div className="verifier-topbar-avatar"></div>
       </div>
     </div>
   );

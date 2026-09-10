@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
+
 import VerifierTopbar from "../components/VerifierTopbar";
 import api from "../../services/api";
 import {
