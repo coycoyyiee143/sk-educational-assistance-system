@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import ClaimingFaceVerify from "../components/ClaimingFaceVerify";
 import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
+import { usePolling } from "../../hooks/usePolling";
 import {
   DOC_TYPES,
   NOT_CLEARED_REASONS,
@@ -177,11 +178,11 @@ function VerifierClaiming() {
 
     if (gracePeriodMode) {
       handleSearch({
-        preventDefault: () => {},
+        preventDefault: () => { },
       });
     } else if (assignedLane) {
       handleSearch({
-        preventDefault: () => {},
+        preventDefault: () => { },
       });
     }
 
@@ -201,42 +202,42 @@ function VerifierClaiming() {
   // a claim action is mid-submit: silently swapping `results` out from
   // under an open detail view, or racing a real submission, would be
   // far worse than a few seconds of staleness.
-  useEffect(() => {
-    if (!lanesLoaded) return;
+  const silentRefreshResults = useCallback(async () => {
+    if (selected || submitting) return;
 
-    function silentRefreshResults() {
-      if (selected || submitting) return;
-
-      const params = {};
-      if (gracePeriodMode) {
-        params.grace_period = 1;
-      } else {
-        if (!selectedLaneId && !controlNo.trim() && !applicantName.trim()) return;
-        if (selectedLaneId) params.lane_id = selectedLaneId;
-        if (controlNo.trim()) params.control_number = controlNo.trim();
-        if (applicantName.trim()) params.name = applicantName.trim();
-      }
-
-      api.get("/verifier/claiming/search", { params })
-        .then((res) => {
-          // Guard again after the request resolves — the verifier may
-          // have selected someone or started submitting while this was
-          // in flight.
-          if (!selected && !submitting) setResults(res.data);
-        })
-        .catch(() => {
-          // Silent poll — a dropped tick isn't worth surfacing an error
-          // over. If the list is genuinely empty now (e.g. everyone on
-          // it just got claimed), a 404 here would otherwise wipe
-          // `results` via the same path handleSearch() uses; skip that
-          // for silent ticks and just let the next tick (or a manual
-          // Refresh) sort it out.
-        });
+    const params = {};
+    if (gracePeriodMode) {
+      params.grace_period = 1;
+    } else {
+      if (!selectedLaneId && !controlNo.trim() && !applicantName.trim()) return;
+      if (selectedLaneId) params.lane_id = selectedLaneId;
+      if (controlNo.trim()) params.control_number = controlNo.trim();
+      if (applicantName.trim()) params.name = applicantName.trim();
     }
 
-    const interval = setInterval(silentRefreshResults, 10000);
-    return () => clearInterval(interval);
-  }, [lanesLoaded, selected, submitting, gracePeriodMode, selectedLaneId, controlNo, applicantName]);
+    try {
+      const res = await api.get("/verifier/claiming/search", { params });
+      // Guard again after the request resolves — the verifier may have
+      // selected someone or started submitting while this was in flight.
+      if (!selected && !submitting) setResults(res.data);
+    } catch {
+      // Silent poll — a dropped tick isn't worth surfacing an error
+      // over. If the list is genuinely empty now (e.g. everyone on it
+      // just got claimed), a 404 here would otherwise wipe `results`
+      // via the same path handleSearch() uses; skip that for silent
+      // ticks and just let the next tick (or a manual Refresh) sort it
+      // out.
+    }
+  }, [selected, submitting, gracePeriodMode, selectedLaneId, controlNo, applicantName]);
+
+  // Was a raw setInterval with no visibility pause or overlap guard —
+  // usePolling adds both. All the existing skip logic (selected/
+  // submitting mid-action, awaiting lanesLoaded) is preserved as-is
+  // inside silentRefreshResults above; only the timer mechanics moved.
+  usePolling(silentRefreshResults, {
+    intervalMs: 10000,
+    enabled: lanesLoaded,
+  });
 
   // Revoke any lingering photo blob URL if the verifier navigates away
   // from this page entirely, so it doesn't leak.
@@ -332,7 +333,7 @@ function VerifierClaiming() {
     } catch (err) {
       setSearchError(
         err.response?.data?.message ||
-          "Failed to self-assign lane."
+        "Failed to self-assign lane."
       );
     } finally {
       setAssigningLane(false);
@@ -396,7 +397,7 @@ function VerifierClaiming() {
 
       setSearchError(
         err.response?.data?.message ||
-          "No matching approved applicant found."
+        "No matching approved applicant found."
       );
     } finally {
       setSearching(false);
@@ -503,11 +504,11 @@ function VerifierClaiming() {
 
       reasonCategories =
         notClearedReasons.includes(OTHER) &&
-        notClearedOtherText.trim()
+          notClearedOtherText.trim()
           ? [
-              ...withoutOther,
-              notClearedOtherText.trim(),
-            ]
+            ...withoutOther,
+            notClearedOtherText.trim(),
+          ]
           : withoutOther;
 
       if (reasonCategories.length === 0) {
@@ -567,12 +568,12 @@ function VerifierClaiming() {
       setApplicantName("");
 
       handleSearch({
-        preventDefault: () => {},
+        preventDefault: () => { },
       });
     } catch (err) {
       setClaimError(
         err.response?.data?.message ||
-          "Failed to update claiming status."
+        "Failed to update claiming status."
       );
 
       setTimeout(() => {
@@ -722,13 +723,13 @@ function VerifierClaiming() {
     (a, b) => {
       const aPending =
         a.claiming_assignment?.claim_status ===
-        "pending_claiming"
+          "pending_claiming"
           ? 0
           : 1;
 
       const bPending =
         b.claiming_assignment?.claim_status ===
-        "pending_claiming"
+          "pending_claiming"
           ? 0
           : 1;
 
@@ -816,7 +817,7 @@ function VerifierClaiming() {
                   <div className="verifier-review-profile-area">
                     <div className="verifier-review-profile-main">
                       {registrationPhotoStatus ===
-                      "ready" ? (
+                        "ready" ? (
                         <img
                           src={
                             registrationPhotoUrl
@@ -969,11 +970,11 @@ function VerifierClaiming() {
                               ?.lane
                               ?.claiming_date
                               ? formatDateDisplay(
-                                  selected
-                                    .claiming_assignment
-                                    .lane
-                                    .claiming_date
-                                )
+                                selected
+                                  .claiming_assignment
+                                  .lane
+                                  .claiming_date
+                              )
                               : "—"}
                           </span>
                         </div>
@@ -988,8 +989,8 @@ function VerifierClaiming() {
                               .claiming_assignment
                               ?.lane?.batch
                               ? selected
-                                  .claiming_assignment
-                                  .lane.batch ===
+                                .claiming_assignment
+                                .lane.batch ===
                                 "morning"
                                 ? "Morning"
                                 : "Afternoon"
@@ -1047,7 +1048,7 @@ function VerifierClaiming() {
                               {selected
                                 .claiming_assignment
                                 ?.source ===
-                              "waitlist_promotion" ? (
+                                "waitlist_promotion" ? (
                                 <span className="verifier-claiming-type-badge verifier-claiming-type-promoted">
                                   Promoted
                                 </span>
@@ -1063,54 +1064,54 @@ function VerifierClaiming() {
                         {selected
                           .claiming_assignment
                           ?.verifier && (
-                          <div className="verifier-review-detail-item">
-                            <span className="verifier-review-detail-label">
-                              Disbursed By
-                            </span>
+                            <div className="verifier-review-detail-item">
+                              <span className="verifier-review-detail-label">
+                                Disbursed By
+                              </span>
 
-                            <span className="verifier-review-detail-value">
-                              {
-                                selected
-                                  .claiming_assignment
-                                  .verifier
-                                  .first_name
-                              }{" "}
-                              {
-                                selected
-                                  .claiming_assignment
-                                  .verifier
-                                  .last_name
-                              }
-                            </span>
-                          </div>
-                        )}
+                              <span className="verifier-review-detail-value">
+                                {
+                                  selected
+                                    .claiming_assignment
+                                    .verifier
+                                    .first_name
+                                }{" "}
+                                {
+                                  selected
+                                    .claiming_assignment
+                                    .verifier
+                                    .last_name
+                                }
+                              </span>
+                            </div>
+                          )}
 
                         {selected
                           .claiming_assignment
                           ?.verified_at && (
-                          <div className="verifier-review-detail-item">
-                            <span className="verifier-review-detail-label">
-                              Disbursed At
-                            </span>
+                            <div className="verifier-review-detail-item">
+                              <span className="verifier-review-detail-label">
+                                Disbursed At
+                              </span>
 
-                            <span className="verifier-review-detail-value">
-                              {new Date(
-                                selected.claiming_assignment.verified_at
-                              ).toLocaleString(
-                                "en-US",
-                                {
-                                  month:
-                                    "short",
-                                  day: "numeric",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute:
-                                    "2-digit",
-                                }
-                              )}
-                            </span>
-                          </div>
-                        )}
+                              <span className="verifier-review-detail-value">
+                                {new Date(
+                                  selected.claiming_assignment.verified_at
+                                ).toLocaleString(
+                                  "en-US",
+                                  {
+                                    month:
+                                      "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute:
+                                      "2-digit",
+                                  }
+                                )}
+                              </span>
+                            </div>
+                          )}
                       </div>
                     </div>
                   </div>
@@ -1157,7 +1158,7 @@ function VerifierClaiming() {
 
                             const status =
                               docStatus[
-                                doc.key
+                              doc.key
                               ];
 
                             return (
@@ -1173,10 +1174,10 @@ function VerifierClaiming() {
                                       <i
                                         className={
                                           doc.key ===
-                                          "registration_form"
+                                            "registration_form"
                                             ? "bi bi-file-earmark-text"
                                             : doc.key ===
-                                                "school_id"
+                                              "school_id"
                                               ? "bi bi-mortarboard"
                                               : "bi bi-patch-check"
                                         }
@@ -1214,21 +1215,20 @@ function VerifierClaiming() {
                                   </div>
 
                                   <span
-                                    className={`verifier-claiming-doc-status ${
-                                      status ===
+                                    className={`verifier-claiming-doc-status ${status ===
                                       "matched"
-                                        ? "verifier-claiming-doc-status-matched"
-                                        : status ===
-                                            "issue"
-                                          ? "verifier-claiming-doc-status-issue"
-                                          : "verifier-claiming-doc-status-unreviewed"
-                                    }`}
+                                      ? "verifier-claiming-doc-status-matched"
+                                      : status ===
+                                        "issue"
+                                        ? "verifier-claiming-doc-status-issue"
+                                        : "verifier-claiming-doc-status-unreviewed"
+                                      }`}
                                   >
                                     {status ===
-                                    "matched"
+                                      "matched"
                                       ? "Matched"
                                       : status ===
-                                          "issue"
+                                        "issue"
                                         ? "Issue Found"
                                         : "Not Reviewed"}
                                   </span>
@@ -1237,12 +1237,11 @@ function VerifierClaiming() {
                                 <div className="verifier-claiming-doc-actions">
                                   <button
                                     type="button"
-                                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-match ${
-                                      status ===
+                                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-match ${status ===
                                       "matched"
-                                        ? "verifier-claiming-doc-action-active-match"
-                                        : ""
-                                    }`}
+                                      ? "verifier-claiming-doc-action-active-match"
+                                      : ""
+                                      }`}
                                     onClick={() =>
                                       setDocStatus(
                                         doc.key,
@@ -1258,12 +1257,11 @@ function VerifierClaiming() {
 
                                   <button
                                     type="button"
-                                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-issue ${
-                                      status ===
+                                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-issue ${status ===
                                       "issue"
-                                        ? "verifier-claiming-doc-action-active-issue"
-                                        : ""
-                                    }`}
+                                      ? "verifier-claiming-doc-action-active-issue"
+                                      : ""
+                                      }`}
                                     onClick={() =>
                                       setDocStatus(
                                         doc.key,
@@ -1288,50 +1286,63 @@ function VerifierClaiming() {
                       </p>
                     </div>
 
-                    <div className="verifier-claiming-split-col verifier-claiming-split-col-border verifier-claiming-verification-col">
-                      <div className="verifier-claiming-step-heading">
-                        <h4 className="verifier-claiming-mode-title">
-                          Face Verification
-                        </h4>
+                    {/* Face verification is proof-of-identity for
+                       unscheduled grace-period walk-ins, where there's
+                       no lane/time structure backing up who this is.
+                       Regular claiming already has that structure (a
+                       scheduled lane, a control number, a verifier who
+                       selected them off that lane's own list), so this
+                       step is skipped entirely there rather than shown
+                       as merely optional — matches the backend, which
+                       already only enforces a passed face verification
+                       for grace-period 'claimed' actions (see
+                       VerifierController::updateClaimStatus). */}
+                    {gracePeriodMode && (
+                      <div className="verifier-claiming-split-col verifier-claiming-split-col-border verifier-claiming-verification-col">
+                        <div className="verifier-claiming-step-heading">
+                          <h4 className="verifier-claiming-mode-title">
+                            Face Verification
+                          </h4>
 
-                        <span className="verifier-claiming-step-badge">
-                          Step 2
-                        </span>
-                      </div>
-
-                      <div className="verifier-waitlist-notice">
-                        <span className="verifier-waitlist-notice-icon">
-                          !
-                        </span>
-
-                        <div className="verifier-waitlist-notice-body">
-                          <p className="verifier-waitlist-notice-text">
-                            Verify the applicant’s identity using the registered photo before updating the final claiming status.
-                          </p>
+                          <span className="verifier-claiming-step-badge">
+                            Step 2
+                          </span>
                         </div>
-                      </div>
 
-                      <div className="verifier-claiming-face-panel">
-                        <ClaimingFaceVerify
-                          applicationId={
-                            selected.id
-                          }
-                          required={
-                            gracePeriodMode
-                          }
-                          registrationPhotoUrl={
-                            registrationPhotoUrl
-                          }
-                          registrationPhotoStatus={
-                            registrationPhotoStatus
-                          }
-                        />
-                      </div>
+                        <div className="verifier-waitlist-notice">
+                          <span className="verifier-waitlist-notice-icon">
+                            !
+                          </span>
 
-                      <p className="verifier-claiming-step-note">
-                        Final identity confirmation before claiming
-                      </p>
-                    </div>
+                          <div className="verifier-waitlist-notice-body">
+                            <p className="verifier-waitlist-notice-text">
+                              Verify the applicant’s identity using the registered photo before updating the final claiming status.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="verifier-claiming-face-panel">
+                          <ClaimingFaceVerify
+                            applicationId={
+                              selected.id
+                            }
+                            required={
+                              gracePeriodMode
+                            }
+                            registrationPhotoUrl={
+                              registrationPhotoUrl
+                            }
+                            registrationPhotoStatus={
+                              registrationPhotoStatus
+                            }
+                          />
+                        </div>
+
+                        <p className="verifier-claiming-step-note">
+                          Final identity confirmation before claiming
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div
@@ -1406,9 +1417,8 @@ function VerifierClaiming() {
                                       )
                                       .join(
                                         ", "
-                                      )} ${
-                                      issueDocs.length ===
-                                      1
+                                      )} ${issueDocs.length ===
+                                        1
                                         ? "was"
                                         : "were"
                                     } flagged with an issue. `}
@@ -1443,11 +1453,10 @@ function VerifierClaiming() {
                         <div className="verifier-claiming-mode-tabs">
                           <button
                             type="button"
-                            className={`verifier-claiming-mode-btn ${
-                              !gracePeriodMode
-                                ? "verifier-claiming-mode-btn-active"
-                                : ""
-                            }`}
+                            className={`verifier-claiming-mode-btn ${!gracePeriodMode
+                              ? "verifier-claiming-mode-btn-active"
+                              : ""
+                              }`}
                             onClick={
                               switchToRegularMode
                             }
@@ -1457,11 +1466,10 @@ function VerifierClaiming() {
 
                           <button
                             type="button"
-                            className={`verifier-claiming-mode-btn ${
-                              gracePeriodMode
-                                ? "verifier-claiming-mode-btn-active"
-                                : ""
-                            }`}
+                            className={`verifier-claiming-mode-btn ${gracePeriodMode
+                              ? "verifier-claiming-mode-btn-active"
+                              : ""
+                              }`}
                             onClick={
                               switchToGracePeriodMode
                             }
@@ -1473,7 +1481,7 @@ function VerifierClaiming() {
 
                       {gracePeriodMode ? (
                         gracePeriodDates.start &&
-                        gracePeriodDates.end ? (
+                          gracePeriodDates.end ? (
                           <div className="verifier-claiming-context verifier-claiming-context-warning">
                             <span className="verifier-claiming-context-icon">
                               <i className="bi bi-calendar3"></i>
@@ -1539,7 +1547,7 @@ function VerifierClaiming() {
                               </strong>
 
                               {todaysLanes.length >
-                              0 ? (
+                                0 ? (
                                 <span>
                                   — Lanes claiming today:{" "}
                                   {todaysLanes
@@ -1547,13 +1555,11 @@ function VerifierClaiming() {
                                       (
                                         lane
                                       ) =>
-                                        `${
-                                          lane.lane_name
-                                        } (${
-                                          lane.batch ===
+                                        `${lane.lane_name
+                                        } (${lane.batch ===
                                           "morning"
-                                            ? "Morning"
-                                            : "Afternoon"
+                                          ? "Morning"
+                                          : "Afternoon"
                                         })`
                                     )
                                     .join(
@@ -1581,10 +1587,10 @@ function VerifierClaiming() {
                                   )
                                   {assignedLane.claiming_date <
                                     todayStr() && (
-                                    <span className="text-danger ms-1">
-                                      — this lane&apos;s date has already passed
-                                    </span>
-                                  )}
+                                      <span className="text-danger ms-1">
+                                        — this lane&apos;s date has already passed
+                                      </span>
+                                    )}
                                 </span>
                               )}
                             </div>
@@ -1605,7 +1611,7 @@ function VerifierClaiming() {
                                 </strong>{" "}
                                 (
                                 {assignedLane.batch ===
-                                "morning"
+                                  "morning"
                                   ? "Morning"
                                   : "Afternoon"}
                                 ,{" "}
@@ -1649,7 +1655,7 @@ function VerifierClaiming() {
                                     }{" "}
                                     —{" "}
                                     {lane.batch ===
-                                    "morning"
+                                      "morning"
                                       ? "Morning"
                                       : "Afternoon"}{" "}
                                     —{" "}
@@ -1657,7 +1663,7 @@ function VerifierClaiming() {
                                       lane.lane_name
                                     }
                                     {lane.verifier_id &&
-                                    lane.id !==
+                                      lane.id !==
                                       assignedLane?.id
                                       ? " (assigned to another verifier)"
                                       : ""}
@@ -1671,7 +1677,7 @@ function VerifierClaiming() {
                                 String(
                                   assignedLane.id
                                 ) !==
-                                  selectedLaneId) && (
+                                selectedLaneId) && (
                                 <button
                                   type="button"
                                   className="verifier-waitlist-action-btn mt-2"
@@ -1700,11 +1706,10 @@ function VerifierClaiming() {
                       </h4>
 
                       <div
-                        className={`verifier-claiming-search-box ${
-                          gracePeriodMode
-                            ? "verifier-claiming-search-disabled"
-                            : ""
-                        }`}
+                        className={`verifier-claiming-search-box ${gracePeriodMode
+                          ? "verifier-claiming-search-disabled"
+                          : ""
+                          }`}
                       >
                         <form
                           onSubmit={
@@ -1772,7 +1777,7 @@ function VerifierClaiming() {
                               }
                             >
                               {searching &&
-                              !gracePeriodMode
+                                !gracePeriodMode
                                 ? "Searching..."
                                 : "Search"}
                             </button>
@@ -1784,7 +1789,7 @@ function VerifierClaiming() {
                             Search is unavailable while viewing the Grace Period List.
                           </p>
                         ) : results.length ===
-                            0 &&
+                          0 &&
                           !searching &&
                           !searchError ? (
                           <p className="text-muted small mt-3 mb-0">
@@ -1812,7 +1817,7 @@ function VerifierClaiming() {
                           onClick={() =>
                             handleSearch({
                               preventDefault:
-                                () => {},
+                                () => { },
                             })
                           }
                           disabled={
@@ -1822,11 +1827,10 @@ function VerifierClaiming() {
                           aria-label="Refresh list"
                         >
                           <svg
-                            className={`verifier-ocr-refresh-icon ${
-                              searching
-                                ? "verifier-ocr-refresh-icon-spinning"
-                                : ""
-                            }`}
+                            className={`verifier-ocr-refresh-icon ${searching
+                              ? "verifier-ocr-refresh-icon-spinning"
+                              : ""
+                              }`}
                             viewBox="0 0 24 24"
                             fill="none"
                             stroke="currentColor"
@@ -1857,319 +1861,318 @@ function VerifierClaiming() {
 
                     {(searching ||
                       results.length >
-                        0) && (
-                      <>
-                        <div className="table-responsive mt-3 verifier-claiming-table-wrap">
-                          <table className="table table-bordered table-striped align-middle verifier-attention-table verifier-claiming-results-table">
-                            {gracePeriodMode ? (
-                              <colgroup>
-                                <col
-                                  style={{
-                                    width:
-                                      "15%",
-                                  }}
-                                />
-                                <col
-                                  style={{
-                                    width:
-                                      "15%",
-                                  }}
-                                />
-                                <col
-                                  style={{
-                                    width:
-                                      "25%",
-                                  }}
-                                />
-                                <col
-                                  style={{
-                                    width:
-                                      "15%",
-                                  }}
-                                />
-                                <col
-                                  style={{
-                                    width:
-                                      "10%",
-                                  }}
-                                />
-                                <col
-                                  style={{
-                                    width:
-                                      "10%",
-                                  }}
-                                />
-                              </colgroup>
-                            ) : (
-                              <colgroup>
-                                <col
-                                  style={{
-                                    width:
-                                      "15%",
-                                  }}
-                                />
-                                <col
-                                  style={{
-                                    width:
-                                      "15%",
-                                  }}
-                                />
-                                <col
-                                  style={{
-                                    width:
-                                      "25%",
-                                  }}
-                                />
-                                <col
-                                  style={{
-                                    width:
-                                      "15%",
-                                  }}
-                                />
-                                <col
-                                  style={{
-                                    width:
-                                      "10%",
-                                  }}
-                                />
-                              </colgroup>
-                            )}
-
-                            <thead>
-                              <tr>
-                                <th>
-                                  Control Number
-                                </th>
-                                <th>
-                                  Applicant Name
-                                </th>
-                                <th>
-                                  School
-                                </th>
-                                <th>
-                                  Status
-                                </th>
-
-                                {gracePeriodMode && (
-                                  <th>
-                                    Type
-                                  </th>
-                                )}
-
-                                <th>
-                                  Action
-                                </th>
-                              </tr>
-                            </thead>
-
-                            <tbody>
-                              {searching ? (
-                                <tr>
-                                  <td
-                                    colSpan={
-                                      gracePeriodMode
-                                        ? 6
-                                        : 5
-                                    }
-                                    className="text-center py-4"
-                                  >
-                                    <div
-                                      className="spinner-border text-danger"
-                                      role="status"
-                                    >
-                                      <span className="visually-hidden">
-                                        Loading...
-                                      </span>
-                                    </div>
-                                  </td>
-                                </tr>
+                      0) && (
+                        <>
+                          <div className="table-responsive mt-3 verifier-claiming-table-wrap">
+                            <table className="table table-bordered table-striped align-middle verifier-attention-table verifier-claiming-results-table">
+                              {gracePeriodMode ? (
+                                <colgroup>
+                                  <col
+                                    style={{
+                                      width:
+                                        "15%",
+                                    }}
+                                  />
+                                  <col
+                                    style={{
+                                      width:
+                                        "15%",
+                                    }}
+                                  />
+                                  <col
+                                    style={{
+                                      width:
+                                        "25%",
+                                    }}
+                                  />
+                                  <col
+                                    style={{
+                                      width:
+                                        "15%",
+                                    }}
+                                  />
+                                  <col
+                                    style={{
+                                      width:
+                                        "10%",
+                                    }}
+                                  />
+                                  <col
+                                    style={{
+                                      width:
+                                        "10%",
+                                    }}
+                                  />
+                                </colgroup>
                               ) : (
-                                pagedResults.map(
-                                  (
-                                    app
-                                  ) => (
-                                    <tr
-                                      key={
-                                        app.id
+                                <colgroup>
+                                  <col
+                                    style={{
+                                      width:
+                                        "15%",
+                                    }}
+                                  />
+                                  <col
+                                    style={{
+                                      width:
+                                        "15%",
+                                    }}
+                                  />
+                                  <col
+                                    style={{
+                                      width:
+                                        "25%",
+                                    }}
+                                  />
+                                  <col
+                                    style={{
+                                      width:
+                                        "15%",
+                                    }}
+                                  />
+                                  <col
+                                    style={{
+                                      width:
+                                        "10%",
+                                    }}
+                                  />
+                                </colgroup>
+                              )}
+
+                              <thead>
+                                <tr>
+                                  <th>
+                                    Control Number
+                                  </th>
+                                  <th>
+                                    Applicant Name
+                                  </th>
+                                  <th>
+                                    School
+                                  </th>
+                                  <th>
+                                    Status
+                                  </th>
+
+                                  {gracePeriodMode && (
+                                    <th>
+                                      Type
+                                    </th>
+                                  )}
+
+                                  <th>
+                                    Action
+                                  </th>
+                                </tr>
+                              </thead>
+
+                              <tbody>
+                                {searching ? (
+                                  <tr>
+                                    <td
+                                      colSpan={
+                                        gracePeriodMode
+                                          ? 6
+                                          : 5
                                       }
+                                      className="text-center py-4"
                                     >
-                                      <td>
-                                        {
-                                          app.control_number
+                                      <div
+                                        className="spinner-border text-danger"
+                                        role="status"
+                                      >
+                                        <span className="visually-hidden">
+                                          Loading...
+                                        </span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  pagedResults.map(
+                                    (
+                                      app
+                                    ) => (
+                                      <tr
+                                        key={
+                                          app.id
                                         }
-                                      </td>
-
-                                      <td>
-                                        {
-                                          app.user
-                                            ?.first_name
-                                        }{" "}
-                                        {
-                                          app.user
-                                            ?.last_name
-                                        }
-                                      </td>
-
-                                      <td>
-                                        {
-                                          app.school_name
-                                        }
-                                      </td>
-
-                                      <td className="verifier-claiming-status-cell">
-                                        <ClaimStatusBadge
-                                          status={
-                                            app.claiming_assignment
-                                              ?.claim_status
+                                      >
+                                        <td>
+                                          {
+                                            app.control_number
                                           }
-                                        />
-                                      </td>
+                                        </td>
 
-                                      {gracePeriodMode && (
-                                        <td className="verifier-claiming-type-cell">
-                                          {app
-                                            .claiming_assignment
-                                            ?.source ===
-                                            "waitlist_promotion" && (
-                                            <span className="verifier-claiming-type-badge verifier-claiming-type-promoted">
-                                              Promoted
-                                            </span>
-                                          )}
+                                        <td>
+                                          {
+                                            app.user
+                                              ?.first_name
+                                          }{" "}
+                                          {
+                                            app.user
+                                              ?.last_name
+                                          }
+                                        </td>
 
-                                          {(app
-                                            .claiming_assignment
-                                            ?.source ===
-                                            "grace_period_retry" ||
-                                            app
+                                        <td>
+                                          {
+                                            app.school_name
+                                          }
+                                        </td>
+
+                                        <td className="verifier-claiming-status-cell">
+                                          <ClaimStatusBadge
+                                            status={
+                                              app.claiming_assignment
+                                                ?.claim_status
+                                            }
+                                          />
+                                        </td>
+
+                                        {gracePeriodMode && (
+                                          <td className="verifier-claiming-type-cell">
+                                            {app
                                               .claiming_assignment
                                               ?.source ===
-                                              "original") && (
-                                            <span className="verifier-claiming-type-badge verifier-claiming-type-retrying">
-                                              Retrying
-                                            </span>
-                                          )}
-                                        </td>
-                                      )}
+                                              "waitlist_promotion" && (
+                                                <span className="verifier-claiming-type-badge verifier-claiming-type-promoted">
+                                                  Promoted
+                                                </span>
+                                              )}
 
-                                      <td className="verifier-attention-action">
-                                        <button
-                                          type="button"
-                                          className="btn-save-green"
-                                          onClick={() =>
-                                            selectApplicant(
+                                            {(app
+                                              .claiming_assignment
+                                              ?.source ===
+                                              "grace_period_retry" ||
                                               app
-                                            )
-                                          }
-                                        >
-                                          Select
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  )
-                                )
-                              )}
-                            </tbody>
-                          </table>
-                        </div>
+                                                .claiming_assignment
+                                                ?.source ===
+                                              "original") && (
+                                                <span className="verifier-claiming-type-badge verifier-claiming-type-retrying">
+                                                  Retrying
+                                                </span>
+                                              )}
+                                          </td>
+                                        )}
 
-                        {!searching && (
-                          <div className="verifier-table-pagination-bar">
-                            <span className="verifier-table-pagination-info">
-                              Showing{" "}
-                              {pageStart +
-                                1}
-                              –
-                              {Math.min(
-                                pageStart +
+                                        <td className="verifier-attention-action">
+                                          <button
+                                            type="button"
+                                            className="btn-save-green"
+                                            onClick={() =>
+                                              selectApplicant(
+                                                app
+                                              )
+                                            }
+                                          >
+                                            Select
+                                          </button>
+                                        </td>
+                                      </tr>
+                                    )
+                                  )
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {!searching && (
+                            <div className="verifier-table-pagination-bar">
+                              <span className="verifier-table-pagination-info">
+                                Showing{" "}
+                                {pageStart +
+                                  1}
+                                –
+                                {Math.min(
+                                  pageStart +
                                   perPage,
-                                sortedResults.length
-                              )}{" "}
-                              of{" "}
-                              {
-                                sortedResults.length
-                              }{" "}
-                              applicants
-                            </span>
+                                  sortedResults.length
+                                )}{" "}
+                                of{" "}
+                                {
+                                  sortedResults.length
+                                }{" "}
+                                applicants
+                              </span>
 
-                            <div className="verifier-table-pagination-controls">
-                              <button
-                                type="button"
-                                className="verifier-table-pagination-arrow"
-                                onClick={() =>
-                                  goToPage(
-                                    currentPage -
+                              <div className="verifier-table-pagination-controls">
+                                <button
+                                  type="button"
+                                  className="verifier-table-pagination-arrow"
+                                  onClick={() =>
+                                    goToPage(
+                                      currentPage -
                                       1
-                                  )
-                                }
-                                disabled={
-                                  currentPage ===
-                                  1
-                                }
-                                aria-label="Previous page"
-                              >
-                                ‹
-                              </button>
+                                    )
+                                  }
+                                  disabled={
+                                    currentPage ===
+                                    1
+                                  }
+                                  aria-label="Previous page"
+                                >
+                                  ‹
+                                </button>
 
-                              {getPageNumbers().map(
-                                (
-                                  page,
-                                  idx
-                                ) =>
-                                  page ===
-                                  "..." ? (
-                                    <span
-                                      key={`ellipsis-${idx}`}
-                                      className="verifier-table-pagination-ellipsis"
-                                    >
-                                      …
-                                    </span>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      key={
-                                        page
-                                      }
-                                      className={`verifier-table-pagination-page ${
-                                        page ===
-                                        currentPage
+                                {getPageNumbers().map(
+                                  (
+                                    page,
+                                    idx
+                                  ) =>
+                                    page ===
+                                      "..." ? (
+                                      <span
+                                        key={`ellipsis-${idx}`}
+                                        className="verifier-table-pagination-ellipsis"
+                                      >
+                                        …
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        key={
+                                          page
+                                        }
+                                        className={`verifier-table-pagination-page ${page ===
+                                          currentPage
                                           ? "verifier-table-pagination-page-active"
                                           : ""
-                                      }`}
-                                      onClick={() =>
-                                        goToPage(
+                                          }`}
+                                        onClick={() =>
+                                          goToPage(
+                                            page
+                                          )
+                                        }
+                                      >
+                                        {
                                           page
-                                        )
-                                      }
-                                    >
-                                      {
-                                        page
-                                      }
-                                    </button>
-                                  )
-                              )}
+                                        }
+                                      </button>
+                                    )
+                                )}
 
-                              <button
-                                type="button"
-                                className="verifier-table-pagination-arrow"
-                                onClick={() =>
-                                  goToPage(
-                                    currentPage +
+                                <button
+                                  type="button"
+                                  className="verifier-table-pagination-arrow"
+                                  onClick={() =>
+                                    goToPage(
+                                      currentPage +
                                       1
-                                  )
-                                }
-                                disabled={
-                                  currentPage ===
-                                  totalPages
-                                }
-                                aria-label="Next page"
-                              >
-                                ›
-                              </button>
+                                    )
+                                  }
+                                  disabled={
+                                    currentPage ===
+                                    totalPages
+                                  }
+                                  aria-label="Next page"
+                                >
+                                  ›
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </>
-                    )}
+                          )}
+                        </>
+                      )}
 
                     {results.length ===
                       0 &&
@@ -2423,20 +2426,20 @@ function VerifierClaiming() {
                     {notClearedReasons.includes(
                       OTHER
                     ) && (
-                      <input
-                        className="form-control form-control-sm verifier-claiming-action-other-input"
-                        placeholder="Specify the reason..."
-                        value={
-                          notClearedOtherText
-                        }
-                        onChange={(e) =>
-                          setNotClearedOtherText(
-                            e.target
-                              .value
-                          )
-                        }
-                      />
-                    )}
+                        <input
+                          className="form-control form-control-sm verifier-claiming-action-other-input"
+                          placeholder="Specify the reason..."
+                          value={
+                            notClearedOtherText
+                          }
+                          onChange={(e) =>
+                            setNotClearedOtherText(
+                              e.target
+                                .value
+                            )
+                          }
+                        />
+                      )}
                   </div>
 
                   <div className="verifier-claiming-quick-notes">
@@ -2537,15 +2540,14 @@ function VerifierClaiming() {
               }
             >
               <div
-                className={`verifier-claiming-feedback-icon ${
-                  claimingFeedback.type ===
+                className={`verifier-claiming-feedback-icon ${claimingFeedback.type ===
                   "claimed"
-                    ? "verifier-claiming-feedback-icon-claimed"
-                    : "verifier-claiming-feedback-icon-not-cleared"
-                }`}
+                  ? "verifier-claiming-feedback-icon-claimed"
+                  : "verifier-claiming-feedback-icon-not-cleared"
+                  }`}
               >
                 {claimingFeedback.type ===
-                "claimed"
+                  "claimed"
                   ? "✓"
                   : "!"}
               </div>
@@ -2564,12 +2566,11 @@ function VerifierClaiming() {
 
               <button
                 type="button"
-                className={`verifier-claiming-feedback-dismiss ${
-                  claimingFeedback.type ===
+                className={`verifier-claiming-feedback-dismiss ${claimingFeedback.type ===
                   "claimed"
-                    ? "verifier-claiming-feedback-dismiss-claimed"
-                    : "verifier-claiming-feedback-dismiss-not-cleared"
-                }`}
+                  ? "verifier-claiming-feedback-dismiss-claimed"
+                  : "verifier-claiming-feedback-dismiss-not-cleared"
+                  }`}
                 onClick={() =>
                   setClaimingFeedback(
                     null

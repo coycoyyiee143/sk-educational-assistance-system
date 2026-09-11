@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
+import { usePolling } from "../../hooks/usePolling";
 
 function formatWaitTime(waitlistedAt) {
   if (!waitlistedAt) return "—";
@@ -13,34 +14,31 @@ function formatWaitTime(waitlistedAt) {
 
   const days = Math.floor(
     diffMs /
-      (1000 * 60 * 60 * 24)
+    (1000 * 60 * 60 * 24)
   );
 
   if (days >= 1) {
-    return `${days} day${
-      days === 1 ? "" : "s"
-    } ago`;
+    return `${days} day${days === 1 ? "" : "s"
+      } ago`;
   }
 
   const hours = Math.floor(
     diffMs /
-      (1000 * 60 * 60)
+    (1000 * 60 * 60)
   );
 
   if (hours >= 1) {
-    return `${hours} hour${
-      hours === 1 ? "" : "s"
-    } ago`;
+    return `${hours} hour${hours === 1 ? "" : "s"
+      } ago`;
   }
 
   const mins = Math.floor(
     diffMs /
-      (1000 * 60)
+    (1000 * 60)
   );
 
-  return `${mins} minute${
-    mins === 1 ? "" : "s"
-  } ago`;
+  return `${mins} minute${mins === 1 ? "" : "s"
+    } ago`;
 }
 
 function VerifierWaitlist() {
@@ -55,49 +53,30 @@ function VerifierWaitlist() {
   const [error, setError] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const fetchData = () => {
-    api
-      .get("/verifier/waitlist")
-      .then((res) => {
-        setWaitlist(
-          res.data.waitlist ?? []
-        );
-
-        setConfigId(
-          res.data.config_id ?? null
-        );
-
-        setNotClearedCount(
-          res.data.not_cleared_count ??
-            0
-        );
-
-        setFreeSlots(
-          res.data.free_slots ?? 0
-        );
-      })
-      .catch(() =>
-        setError(
-          "Failed to load waitlist."
-        )
-      )
-      .finally(() =>
-        setLoading(false)
-      );
-  };
+  // async + awaited so usePolling's overlap guard below knows when this
+  // actually finishes, not just when it starts. Same error-on-failure
+  // behavior as before — unchanged, just now guarded against overlap
+  // and paused while the tab is backgrounded.
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await api.get("/verifier/waitlist");
+      setWaitlist(res.data.waitlist ?? []);
+      setConfigId(res.data.config_id ?? null);
+      setNotClearedCount(res.data.not_cleared_count ?? 0);
+      setFreeSlots(res.data.free_slots ?? 0);
+    } catch {
+      setError("Failed to load waitlist.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
 
-    const interval =
-      setInterval(
-        fetchData,
-        15000
-      );
-
-    return () =>
-      clearInterval(interval);
-  }, []);
+  // Was a raw setInterval(fetchData, 15000) with no guards.
+  usePolling(fetchData, { intervalMs: 15000 });
 
   async function handlePromote() {
     if (!configId) return;
@@ -120,7 +99,7 @@ function VerifierWaitlist() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Failed to promote next applicant."
+        "Failed to promote next applicant."
       );
     } finally {
       setPromoting(false);
@@ -148,7 +127,7 @@ function VerifierWaitlist() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Failed to promote applicants."
+        "Failed to promote applicants."
       );
     } finally {
       setPromotingAll(false);
@@ -301,7 +280,7 @@ function VerifierWaitlist() {
                       promoting ||
                       promotingAll ||
                       waitlist.length ===
-                        0
+                      0
                     }
                   >
                     {promoting
@@ -319,7 +298,7 @@ function VerifierWaitlist() {
                       promoting ||
                       promotingAll ||
                       waitlist.length ===
-                        0
+                      0
                     }
                   >
                     {promotingAll
@@ -409,7 +388,7 @@ function VerifierWaitlist() {
                             key={app.id}
                             className={
                               app.position ===
-                              1
+                                1
                                 ? "table-warning"
                                 : undefined
                             }
@@ -421,10 +400,10 @@ function VerifierWaitlist() {
 
                               {app.position ===
                                 1 && (
-                                <span className="badge bg-warning text-dark ms-2">
-                                  Next
-                                </span>
-                              )}
+                                  <span className="badge bg-warning text-dark ms-2">
+                                    Next
+                                  </span>
+                                )}
                             </td>
 
                             <td>
@@ -463,7 +442,7 @@ function VerifierWaitlist() {
 
               {!loading &&
                 waitlist.length >
-                  0 && (
+                0 && (
                   <div className="verifier-table-pagination-bar">
                     <span className="verifier-table-pagination-info">
                       Showing 1–

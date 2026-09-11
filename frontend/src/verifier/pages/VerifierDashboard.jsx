@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
+import { usePolling } from "../../hooks/usePolling";
 
 import VerifierTopbar from "../components/VerifierTopbar";
 import api from "../../services/api";
@@ -37,35 +38,41 @@ function VerifierDashboard() {
 
   const perPage = 10;
 
-  const fetchData = () => {
-    Promise.all([
-      api.get("/verifier/stats"),
-      api.get("/verifier/applications"),
-    ])
-      .then(([statsRes, appsRes]) => {
-        setStats(statsRes.data);
+  // async + awaited (not just a fire-and-forget .then chain) so
+  // usePolling's overlap guard below actually knows when this finishes,
+  // not just when it starts.
+  const fetchData = useCallback(async () => {
+    try {
+      const [statsRes, appsRes] = await Promise.all([
+        api.get("/verifier/stats"),
+        api.get("/verifier/applications"),
+      ]);
+      setStats(statsRes.data);
 
-        const actionable = appsRes.data.filter((a) =>
-          ["for_review"].includes(a.status)
-        );
+      const actionable = appsRes.data.filter((a) =>
+        ["for_review"].includes(a.status)
+      );
 
-        setApplications(actionable);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  };
+      setApplications(actionable);
+    } catch {
+      // Silent on poll ticks — a failed refresh just retries next
+      // interval instead of surfacing an error on an otherwise-working
+      // dashboard.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
 
-    const interval = setInterval(
-      fetchData,
-      10000
-    );
-
-    return () =>
-      clearInterval(interval);
-  }, []);
+  // Was a raw setInterval(fetchData, 10000) with no guards — this
+  // dashboard is exactly the kind of tab a verifier leaves open in the
+  // background all day, so pausing while hidden and never overlapping
+  // requests (usePolling's job) matters more here than almost anywhere
+  // else in the app.
+  usePolling(fetchData, { intervalMs: 10000 });
 
   const cards = [
     {
@@ -423,14 +430,14 @@ function VerifierDashboard() {
               {/* PAGINATION */}
               {!loading &&
                 applications.length >
-                  0 && (
+                0 && (
                   <div className="verifier-table-pagination-bar">
                     <span className="verifier-table-pagination-info">
                       Showing{" "}
                       {pageStart + 1}–
                       {Math.min(
                         pageStart +
-                          perPage,
+                        perPage,
                         applications.length
                       )}{" "}
                       of{" "}
@@ -447,7 +454,7 @@ function VerifierDashboard() {
                         onClick={() =>
                           goToPage(
                             currentPage -
-                              1
+                            1
                           )
                         }
                         disabled={
@@ -465,7 +472,7 @@ function VerifierDashboard() {
                           idx
                         ) =>
                           page ===
-                          "..." ? (
+                            "..." ? (
                             <span
                               key={`ellipsis-${idx}`}
                               className="verifier-table-pagination-ellipsis"
@@ -478,12 +485,11 @@ function VerifierDashboard() {
                               key={
                                 page
                               }
-                              className={`verifier-table-pagination-page ${
-                                page ===
+                              className={`verifier-table-pagination-page ${page ===
                                 currentPage
-                                  ? "verifier-table-pagination-page-active"
-                                  : ""
-                              }`}
+                                ? "verifier-table-pagination-page-active"
+                                : ""
+                                }`}
                               onClick={() =>
                                 goToPage(
                                   page
@@ -501,7 +507,7 @@ function VerifierDashboard() {
                         onClick={() =>
                           goToPage(
                             currentPage +
-                              1
+                            1
                           )
                         }
                         disabled={

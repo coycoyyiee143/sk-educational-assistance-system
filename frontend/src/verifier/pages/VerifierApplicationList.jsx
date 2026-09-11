@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import api from "../../services/api";
+import { usePolling } from "../../hooks/usePolling";
 
 import {
   getVerifierStatusLabel,
@@ -36,21 +37,28 @@ function VerifierApplicationList() {
 
   const perPage = 10;
 
-  const fetchData = () => {
-    api
-      .get("/verifier/applications")
-      .then((res) => setApplications(res.data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  };
+  // async + awaited so usePolling's overlap guard below knows when this
+  // actually finishes, not just when it starts.
+  const fetchData = useCallback(async () => {
+    try {
+      const res = await api.get("/verifier/applications");
+      setApplications(res.data);
+    } catch {
+      // Silent on poll ticks — a failed refresh just retries next
+      // interval.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
 
-    const interval = setInterval(fetchData, 10000);
-
-    return () => clearInterval(interval);
-  }, []);
+  // Was a raw setInterval(fetchData, 10000) with no guards. This list
+  // is another all-day-open tab for verifiers, so pausing while the
+  // tab is backgrounded and never overlapping requests matters here.
+  usePolling(fetchData, { intervalMs: 10000 });
 
   const counts = {
     all: applications.length,
@@ -172,11 +180,10 @@ function VerifierApplicationList() {
                     <button
                       key={tab.key}
                       type="button"
-                      className={`verifier-application-filter-btn ${
-                        statusTab === tab.key
-                          ? "verifier-application-filter-btn-active"
-                          : ""
-                      }`}
+                      className={`verifier-application-filter-btn ${statusTab === tab.key
+                        ? "verifier-application-filter-btn-active"
+                        : ""
+                        }`}
                       onClick={() => handleTabChange(tab.key)}
                     >
                       <span>{tab.label}</span>
@@ -300,11 +307,10 @@ function VerifierApplicationList() {
                         <button
                           type="button"
                           key={page}
-                          className={`verifier-table-pagination-page ${
-                            page === currentPage
-                              ? "verifier-table-pagination-page-active"
-                              : ""
-                          }`}
+                          className={`verifier-table-pagination-page ${page === currentPage
+                            ? "verifier-table-pagination-page-active"
+                            : ""
+                            }`}
                           onClick={() => goToPage(page)}
                         >
                           {page}
