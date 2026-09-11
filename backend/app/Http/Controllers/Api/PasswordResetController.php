@@ -5,11 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\AuditLog;
+use App\Models\PasswordHistory;
+use App\Rules\NotObviouslyWeakPassword;
+use App\Rules\NotRecentlyUsedPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 
 class PasswordResetController extends Controller
 {
@@ -204,23 +208,40 @@ class PasswordResetController extends Controller
 
     /**
      * Reset the user's password.
+     *
+     * Now enforces the SAME policy as every other password-writing
+     * path in the system (register, self-service change, admin-created
+     * accounts, personnel setup): 8 char min, lowercase+number,
+     * breach-checked, blocked against obvious weak terms, can't reuse
+     * last 5. Previously this only checked `min:8|confirmed` — meaning
+     * "forgot password" was a complete bypass of the entire policy,
+     * and the new password was never even recorded into
+     * PasswordHistory, leaving a gap for future reuse-checks too.
      */
     public function resetPassword(Request $request)
     {
+        $email = strtolower(trim($request->email ?? ''));
+        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
+
         $request->validate([
             'email' => ['required', 'email'],
-            'code' => ['required', 'digits:6'],
+            'code'  => ['required', 'digits:6'],
             'password' => [
                 'required',
-                'string',
-                'min:8',
                 'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*\d).+$/',
+                Password::min(8)->uncompromised(),
+                new NotObviouslyWeakPassword(),
+                // Only meaningful if we actually found a user above —
+                // pass a harmless 0 otherwise so this rule doesn't
+                // itself throw on a not-found account (the "don't
+                // reveal whether an email exists" pattern used
+                // elsewhere in this controller still applies below).
+                new NotRecentlyUsedPassword($user->id ?? 0, 5),
             ],
+        ], [
+            'password.regex' => 'Password must include at least one lowercase letter and one number.',
         ]);
-
-        $email = strtolower(trim($request->email));
-
-        $user = User::whereRaw('LOWER(email) = ?', [$email])->first();
 
         if (!$user) {
             return response()->json([
@@ -269,10 +290,19 @@ class PasswordResetController extends Controller
         /*
          * Save the new password.
          */
+        $newHash = Hash::make($request->password);
         $user->forceFill([
-            'password' => Hash::make($request->password),
-            'remember_token' => Str::random(60),
+            'password'              => $newHash,
+            'remember_token'        => Str::random(60),
+            'failed_login_attempts' => 0,
+            'locked_until'          => null,
         ])->save();
+
+        PasswordHistory::create(['user_id' => $user->id, 'password_hash' => $newHash]);
+
+        // Keep only the last 5 history rows per user.
+        $keepIds = PasswordHistory::where('user_id', $user->id)->latest()->take(5)->pluck('id');
+        PasswordHistory::where('user_id', $user->id)->whereNotIn('id', $keepIds)->delete();
 
         /*
          * IMPORTANT:
