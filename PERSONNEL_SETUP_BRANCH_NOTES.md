@@ -33,6 +33,29 @@ everything added on top of it in this branch.
    `$hidden` — every API response returning a user object was leaking
    the literal TOTP seed and active setup/reset/verification tokens in
    plain JSON.
+6. **Blocked an admin from resetting their own password** via the
+   personnel Reset Password flow — found this the hard way during
+   testing (locked myself out). Guarded on both frontend (button
+   disabled on own row) and backend (422 if target id matches
+   requester id).
+7. **TOTP issuer hardcoded, QR setup screen labeled with the account
+   email.** `TwoFactorService` no longer relies on `config('app.name')`
+   — that key always has *some* value (Laravel's own default is
+   literally the string `"Laravel"`), so a fallback there would never
+   actually trigger. Issuer is now the hardcoded `Mamatid SK-EAS`,
+   shown consistently in both the authenticator app and the login
+   screen's own labeling of which account is being set up.
+8. **Clearer error when deleting a personnel account with activity
+   history.** Several tables (`application_configurations`,
+   `announcements`, `sk_events`, `verifier_actions`, claiming-related
+   tables) reference `users` via foreign keys with no `ON DELETE` rule
+   — meaning MySQL blocks deletion of any account that's ever posted,
+   approved, or verified anything. This is *correct* behavior (an
+   account with real history shouldn't be silently erasable — it'd
+   destroy accountability), the bug was only that the error surfaced
+   as a generic "Failed to delete user" with no explanation.
+   `deleteUser()` now catches the constraint violation and tells the
+   admin to Deactivate instead.
 
 ---
 
@@ -64,8 +87,10 @@ that design outright, not layers on top of it.
 | `app/Mail/PersonnelAccountMail.php` | One mailable, two modes (`isNewAccount` bool controls copy) — used for both first-time setup and admin resets |
 | `resources/views/emails/personnel-account-setup.blade.php` | The email template |
 | `app/Http/Controllers/Api/PersonnelSetupController.php` | Public (no-auth) controller: `show()` validates a token and returns the person's first name before they see the form; `store()` actually sets the password |
-| `app/Http/Controllers/Api/AdminController.php` | `createPersonnel()` — no password field, generates token via `forceFill()` (NOT `create()` — those columns aren't in `$fillable`, `create()` would've silently dropped them). `resetPassword()` — new method, same token mechanism, scoped to `sk_verifier`/`sk_admin` only |
+| `app/Http/Controllers/Api/AdminController.php` | `createPersonnel()` — no password field, generates token via `forceFill()` (NOT `create()` — those columns aren't in `$fillable`, `create()` would've silently dropped them). `resetPassword()` — same token mechanism, scoped to `sk_verifier`/`sk_admin` only, blocks resetting your own account. `deleteUser()` — catches FK constraint violations and returns a specific "deactivate instead" message. |
 | `app/Http/Controllers/Api/PasswordResetController.php` | `resetPassword()` now enforces the full password policy and records to `PasswordHistory` |
+| `app/Services/TwoFactorService.php` | `ISSUER` hardcoded to `Mamatid SK-EAS` instead of reading `config('app.name')`, which always has a value regardless of whether `APP_NAME` is set |
+| `app/Http/Controllers/Api/AuthController.php` | `login()`'s `requires_2fa_setup` response now includes `email`, so the frontend can label which account the QR belongs to |
 | `app/Models/User.php` | `$hidden` now includes `google2fa_secret`, `verification_token`, `verification_code` |
 | `routes/api.php` | Added `GET`/`POST /personnel/setup/{token}` (public) and `POST /admin/users/{id}/reset-password` (inside the `role:sk_admin` group) |
 
@@ -77,9 +102,10 @@ applicant email-verification flow.
 
 | File | Purpose |
 |---|---|
-| `src/admin/pages/AdminUsers.jsx` | `AddPersonnelModal` — password field removed entirely, replaced with a note explaining the link will be emailed. Personnel table — added a "Reset Password" action per row (with a confirm dialog) and a "Setup Pending" badge for accounts that haven't clicked their link yet |
+| `src/admin/pages/AdminUsers.jsx` | `AddPersonnelModal` — password field removed entirely, replaced with a note explaining the link will be emailed. Personnel table — "Reset Password" action per row (disabled on the admin's own row), a "Setup Pending" badge for accounts that haven't clicked their link yet, and `deleteUser()` now surfaces the backend's specific error message instead of a hardcoded generic one |
 | `src/public/pages/PersonnelSetup.jsx` | New page — the `/personnel/setup/:token` route. Validates the token on load, shows "Welcome, {name}" + a password form (same checklist/error-list UI pattern as `ForgotPassword.jsx`), or an "invalid/expired" state |
-| `src/public/pages/ForgotPassword.jsx` | (From earlier in the parent branch, listed here for completeness) — reset step now has the live password checklist and checklist-style error list, matching the rest of the app |
+| `src/public/pages/ForgotPassword.jsx` | Reset step now has the live password checklist and checklist-style error list, matching the rest of the app |
+| `src/public/pages/Login.jsx` | QR setup screen now shows which account email the code is being set up for, alongside the (now-hardcoded) issuer name |
 
 **Still needed — not done yet:** register the new route in your React
 Router setup:
@@ -133,6 +159,31 @@ php artisan config:clear
   environment's `.env`, the setup links emailed to real verifiers/
   admins would point at the wrong domain entirely. Confirm this on the
   server specifically, don't assume local correctness carries over.
+- **Deleting a personnel account with activity history is blocked by
+  design, not a bug.** `application_configurations`, `announcements`,
+  `sk_events`, `verifier_actions`, and the claiming-related tables all
+  reference `users` with no `ON DELETE` rule, so MySQL blocks deletion
+  of any account that's ever posted, approved, or verified anything.
+  Considered fixing the foreign keys to `SET NULL` instead (would let
+  hard-delete succeed, just orphaning the "who did this" reference) —
+  decided against it. An account with real history destroying that
+  accountability trail on delete is worse than the delete failing.
+  Deactivate is the correct action for any account that's actually
+  been used; Delete only cleanly works for accounts created by
+  mistake before they've done anything. The fix that WAS made:
+  `deleteUser()` now catches the constraint violation and tells the
+  admin to deactivate instead, rather than a bare "Failed to delete
+  user" with no explanation.
+- **`config('app.name')` is not a safe fallback-detection mechanism.**
+  It was tempting to write `config('app.name', 'SK-EAS')` in
+  `TwoFactorService` assuming the second argument kicks in if
+  `APP_NAME` isn't set — it doesn't. Laravel's own `config/app.php`
+  already defaults `'name' => env('APP_NAME', 'Laravel')`, so the key
+  always resolves to something (worst case, the literal string
+  `"Laravel"`). A `config()` call's own default argument only applies
+  if the key is entirely missing from the config array, which it
+  never is here. Fixed by hardcoding the TOTP issuer name directly in
+  the service instead of routing through `app.name` at all.
 
 ---
 
@@ -163,3 +214,10 @@ php artisan config:clear
       and actually reachable
 - [ ] `.env` files (including `FRONTEND_URL` correctness) verified on
       the actual deployed server, not just assumed from local config
+- [ ] Authenticator app shows "Mamatid SK-EAS (email)" on scan, not
+      "Laravel (email)" — confirms the issuer fix took effect
+- [ ] Deleting a personnel account with real activity history shows
+      the specific "deactivate instead" message, not a generic failure
+- [ ] Deleting a personnel account with NO activity history still
+      succeeds normally (confirms the fix didn't accidentally block
+      legitimate deletes too)
