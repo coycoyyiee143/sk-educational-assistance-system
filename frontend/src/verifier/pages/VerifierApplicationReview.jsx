@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { usePolling } from "../../hooks/usePolling";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
@@ -101,6 +102,30 @@ function VerifierApplicationReview() {
       .catch(() => setError("Failed to load application."))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Auto-refresh the application while it's still in a state a verifier
+  // needs to watch (waiting on OCR, or waiting on this verifier's own
+  // review) — so a document that finishes processing, or gets
+  // re-uploaded by the applicant, shows up without a manual refresh.
+  // Deliberately only updates `app` itself, NOT `flaggedDocs` — that
+  // holds this verifier's in-progress typed review notes, and a poll
+  // tick must never overwrite something they're actively filling in.
+  // Self-terminating: once `app.status` leaves the watched set (this
+  // verifier submits a decision, or someone else does), `enabled`
+  // recalculates to false and polling stops on its own.
+  const pollForApplicationUpdate = useCallback(async () => {
+    try {
+      const res = await api.get(`/verifier/applications/${id}`);
+      setApp(res.data);
+    } catch {
+      // Silent — a failed poll tick just tries again on the next one.
+    }
+  }, [id]);
+
+  usePolling(pollForApplicationUpdate, {
+    intervalMs: 10000,
+    enabled: !!app && ["pending_prescreening", "for_review"].includes(app.status),
+  });
 
   useEffect(() => {
     if (!app?.documents) return;
@@ -395,8 +420,8 @@ function VerifierApplicationReview() {
 
   const activeChecks = activeLatestDoc
     ? (app.verification_checks || []).filter(
-        (check) => check.document_id === activeLatestDoc.id
-      )
+      (check) => check.document_id === activeLatestDoc.id
+    )
     : [];
 
   const checkpointTotal = activeChecks.length;
@@ -793,12 +818,12 @@ function VerifierApplicationReview() {
                         "Residential Address",
                         profile
                           ? [
-                              profile.barangay,
-                              profile.city,
-                              profile.province,
-                            ]
-                              .filter(Boolean)
-                              .join(", ") || "—"
+                            profile.barangay,
+                            profile.city,
+                            profile.province,
+                          ]
+                            .filter(Boolean)
+                            .join(", ") || "—"
                           : "—",
                       ],
                     ].map(([label, value]) => (
@@ -824,14 +849,12 @@ function VerifierApplicationReview() {
 
                         <span className="verifier-review-detail-value">
                           {profile.guardian_first_name ||
-                          profile.guardian_last_name
-                            ? `${profile.guardian_first_name ?? ""} ${
-                                profile.guardian_middle_name ?? ""
-                              } ${
-                                profile.guardian_last_name ?? ""
+                            profile.guardian_last_name
+                            ? `${profile.guardian_first_name ?? ""} ${profile.guardian_middle_name ?? ""
+                              } ${profile.guardian_last_name ?? ""
                               }`
-                                .replace(/\s+/g, " ")
-                                .trim()
+                              .replace(/\s+/g, " ")
+                              .trim()
                             : "No guardian on file"}
 
                           {profile.guardian_relationship &&
@@ -899,11 +922,10 @@ function VerifierApplicationReview() {
                   aria-label="Refresh OCR verification results"
                 >
                   <svg
-                    className={`verifier-ocr-refresh-icon ${
-                      refreshingOcr
-                        ? "verifier-ocr-refresh-icon-spinning"
-                        : ""
-                    }`}
+                    className={`verifier-ocr-refresh-icon ${refreshingOcr
+                      ? "verifier-ocr-refresh-icon-spinning"
+                      : ""
+                      }`}
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
@@ -922,21 +944,21 @@ function VerifierApplicationReview() {
               {(app.documents || []).some(
                 (d) => d.status === "failed"
               ) && (
-                <div className="alert alert-warning d-flex justify-content-between align-items-center">
-                  <span>
-                    Some documents failed OCR processing.
-                  </span>
+                  <div className="alert alert-warning d-flex justify-content-between align-items-center">
+                    <span>
+                      Some documents failed OCR processing.
+                    </span>
 
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-warning"
-                    onClick={handleRetryAllFailed}
-                    disabled={refreshingOcr}
-                  >
-                    Retry All Failed
-                  </button>
-                </div>
-              )}
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-warning"
+                      onClick={handleRetryAllFailed}
+                      disabled={refreshingOcr}
+                    >
+                      Retry All Failed
+                    </button>
+                  </div>
+                )}
 
               <div className="verifier-ocr-document-tabs">
                 {documentTabs.map((tab) => {
@@ -947,11 +969,10 @@ function VerifierApplicationReview() {
                     <button
                       type="button"
                       key={tab.type}
-                      className={`verifier-ocr-document-tab ${
-                        activeDocumentType === tab.type
-                          ? "verifier-ocr-document-tab-active"
-                          : ""
-                      }`}
+                      className={`verifier-ocr-document-tab ${activeDocumentType === tab.type
+                        ? "verifier-ocr-document-tab-active"
+                        : ""
+                        }`}
                       onClick={() => handleTabClick(tab)}
                       disabled={refreshingOcr}
                     >
@@ -1005,8 +1026,8 @@ function VerifierApplicationReview() {
                     const confidence =
                       doc.ocr_result?.confidence_score
                         ? `${(
-                            doc.ocr_result.confidence_score * 100
-                          ).toFixed(1)}%`
+                          doc.ocr_result.confidence_score * 100
+                        ).toFixed(1)}%`
                         : "—";
 
                     const displayedChecks =
@@ -1150,8 +1171,8 @@ function VerifierApplicationReview() {
                                   </span>
                                 </div>
                               ) : previewFile.type.startsWith(
-                                  "image/"
-                                ) ? (
+                                "image/"
+                              ) ? (
                                 <div
                                   className="verifier-ocr-preview-image-wrap"
                                   onClick={() =>
@@ -1228,7 +1249,7 @@ function VerifierApplicationReview() {
                                 <strong>
                                   {formatTimestamp(
                                     doc.created_at ||
-                                      doc.updated_at
+                                    doc.updated_at
                                   )}
                                 </strong>
                               </div>
@@ -1264,12 +1285,11 @@ function VerifierApplicationReview() {
                                 <div className="verifier-checkpoints-segments">
                                   <button
                                     type="button"
-                                    className={`verifier-checkpoint-segment ${
-                                      checkpointFilter ===
+                                    className={`verifier-checkpoint-segment ${checkpointFilter ===
                                       "all"
-                                        ? "verifier-checkpoint-segment-active"
-                                        : ""
-                                    }`}
+                                      ? "verifier-checkpoint-segment-active"
+                                      : ""
+                                      }`}
                                     onClick={() =>
                                       setCheckpointFilter(
                                         "all"
@@ -1281,12 +1301,11 @@ function VerifierApplicationReview() {
 
                                   <button
                                     type="button"
-                                    className={`verifier-checkpoint-segment ${
-                                      checkpointFilter ===
+                                    className={`verifier-checkpoint-segment ${checkpointFilter ===
                                       "review"
-                                        ? "verifier-checkpoint-segment-active"
-                                        : ""
-                                    }`}
+                                      ? "verifier-checkpoint-segment-active"
+                                      : ""
+                                      }`}
                                     onClick={() =>
                                       setCheckpointFilter(
                                         "review"
@@ -1299,12 +1318,11 @@ function VerifierApplicationReview() {
 
                                   <button
                                     type="button"
-                                    className={`verifier-checkpoint-segment ${
-                                      checkpointFilter ===
+                                    className={`verifier-checkpoint-segment ${checkpointFilter ===
                                       "passed"
-                                        ? "verifier-checkpoint-segment-active"
-                                        : ""
-                                    }`}
+                                      ? "verifier-checkpoint-segment-active"
+                                      : ""
+                                      }`}
                                     onClick={() =>
                                       setCheckpointFilter(
                                         "passed"
@@ -1323,11 +1341,10 @@ function VerifierApplicationReview() {
                                 {displayedChecks.map(
                                   (check) => (
                                     <div
-                                      className={`verifier-ocr-check-card ${
-                                        check.passed
-                                          ? "verifier-ocr-check-card-passed"
-                                          : "verifier-ocr-check-card-failed"
-                                      }`}
+                                      className={`verifier-ocr-check-card ${check.passed
+                                        ? "verifier-ocr-check-card-passed"
+                                        : "verifier-ocr-check-card-failed"
+                                        }`}
                                       key={check.id}
                                     >
                                       <div className="verifier-ocr-check-header">
@@ -1339,11 +1356,10 @@ function VerifierApplicationReview() {
                                           </span>
 
                                           <code
-                                            className={`verifier-ocr-check-code ${
-                                              check.passed
-                                                ? "verifier-ocr-check-code-passed"
-                                                : "verifier-ocr-check-code-failed"
-                                            }`}
+                                            className={`verifier-ocr-check-code ${check.passed
+                                              ? "verifier-ocr-check-code-passed"
+                                              : "verifier-ocr-check-code-failed"
+                                              }`}
                                           >
                                             {
                                               check.check_name
@@ -1353,11 +1369,11 @@ function VerifierApplicationReview() {
                                           {check.metadata
                                             ?.flag ===
                                             "SUGGESTED_DISAPPROVAL" && (
-                                            <span className="badge bg-dark verifier-ocr-badge">
-                                              Suggested:
-                                              Reject
-                                            </span>
-                                          )}
+                                              <span className="badge bg-dark verifier-ocr-badge">
+                                                Suggested:
+                                                Reject
+                                              </span>
+                                            )}
                                         </div>
 
                                         <OcrBadge
@@ -1431,9 +1447,9 @@ function VerifierApplicationReview() {
                             ) : (
                               <div className="verifier-ocr-empty">
                                 {activeChecks.length ===
-                                0 ? (
+                                  0 ? (
                                   doc.status ===
-                                  "failed" ? (
+                                    "failed" ? (
                                     <div className="verifier-ocr-empty-content">
                                       <span className="text-danger">
                                         OCR processing
@@ -1462,12 +1478,12 @@ function VerifierApplicationReview() {
                                       </button>
                                     </div>
                                   ) : [
-                                      "processing",
-                                      "pending",
-                                      "pending_prescreening",
-                                    ].includes(
-                                      app.status
-                                    ) ? (
+                                    "processing",
+                                    "pending",
+                                    "pending_prescreening",
+                                  ].includes(
+                                    app.status
+                                  ) ? (
                                     <div className="verifier-ocr-empty-content">
                                       <span
                                         className="spinner-border spinner-border-sm verifier-ocr-empty-spinner"
@@ -1561,18 +1577,16 @@ function VerifierApplicationReview() {
                                               l,
                                               i
                                             ) =>
-                                              `[Line ${
-                                                i +
-                                                1
+                                              `[Line ${i +
+                                              1
                                               } | Conf: ${(
                                                 (l.confidence ??
                                                   0) *
                                                 100
                                               ).toFixed(
                                                 0
-                                              )}%] ${
-                                                l.text ??
-                                                ""
+                                              )}%] ${l.text ??
+                                              ""
                                               }`
                                           )
                                           .join(
@@ -1691,7 +1705,7 @@ function VerifierApplicationReview() {
                   <div>
                     {documentDirection ===
                       "backward" &&
-                    previousDocument ? (
+                      previousDocument ? (
                       <button
                         type="button"
                         className="verifier-ocr-file-btn verifier-document-nav-btn"
@@ -1782,14 +1796,14 @@ function VerifierApplicationReview() {
                     "pending_prescreening",
                     "reupload_requested",
                   ].includes(app.status) && (
-                    <button
-                      type="button"
-                      className="verifier-proceed-action-btn"
-                      onClick={handleProceed}
-                    >
-                      Proceed to Verification Action
-                    </button>
-                  )}
+                      <button
+                        type="button"
+                        className="verifier-proceed-action-btn"
+                        onClick={handleProceed}
+                      >
+                        Proceed to Verification Action
+                      </button>
+                    )}
                 </div>
 
                 {refreshingOcr && (

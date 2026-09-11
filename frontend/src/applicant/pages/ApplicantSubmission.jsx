@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
+import { usePolling } from "../../hooks/usePolling";
 import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import PanelFooter from "../../components/PanelFooter";
@@ -66,7 +67,7 @@ function ApplicantSubmission() {
   const [profile, setProfile] = useState(null);
   const periodStatus = getApplicationPeriodStatus(activeConfig);
 
-    useEffect(() => {
+  useEffect(() => {
     if (error) {
       const mainEl = document.querySelector(".applicant-main");
       if (mainEl) {
@@ -374,11 +375,57 @@ function ApplicantSubmission() {
           }
         }
       )
-      .catch(() => {})
+      .catch(() => { })
       .finally(() =>
         setCheckingApp(false)
       );
   }, []);
+
+  // Auto-refresh while sitting on the "done" screen waiting for OCR to
+  // finish — this is specifically the moment an applicant just
+  // submitted and needs to see, without manually refreshing, whether
+  // an auto-reupload got flagged. Deliberately narrow in scope:
+  // - Only polls while step === "done" AND the application is still
+  //   "pending_prescreening" (OCR actively processing) — never while
+  //   the applicant is actively filling the documents/reupload forms,
+  //   so an in-progress upload is never disturbed by a background
+  //   refetch.
+  // - Only ever moves step forward to "reupload" if the poll detects
+  //   that's needed — the same one-directional transition the initial
+  //   load effect above already makes, just checked repeatedly instead
+  //   of once. Never moves step backward or touches form state.
+  // - Self-terminating: once the application's status leaves
+  //   "pending_prescreening" (resolved either way), `enabled` below
+  //   recalculates to false and polling stops on its own.
+  const pollForApplicationUpdate = useCallback(async () => {
+    if (!existingApp) return;
+    try {
+      const res = await api.get("/applications");
+      const updated = res.data.find((a) => a.id === existingApp.id);
+      if (!updated) return;
+
+      if (STATUS_CONFIG[updated.status]?.showReupload) {
+        const docsRes = await api.get(
+          `/applications/${updated.id}/documents`
+        );
+        setExistingApp(updated);
+        setExistingDocs(docsRes.data);
+        setStep("reupload");
+      } else if (updated.status !== existingApp.status) {
+        // Status moved forward without needing a reupload (e.g. to
+        // for_review/approved) — keep the stored app in sync so any
+        // read-only status display is accurate, without changing step.
+        setExistingApp(updated);
+      }
+    } catch {
+      // Silent — a failed poll tick just tries again on the next one.
+    }
+  }, [existingApp]);
+
+  usePolling(pollForApplicationUpdate, {
+    intervalMs: 10000,
+    enabled: step === "done" && existingApp?.status === "pending_prescreening",
+  });
 
   useEffect(() => {
     api
@@ -386,7 +433,7 @@ function ApplicantSubmission() {
       .then((res) =>
         setProfile(res.data.profile)
       )
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const isMinor =
@@ -429,9 +476,9 @@ function ApplicantSubmission() {
     if (isAutoReupload) {
       return doc?.needs_auto_reupload
         ? {
-            reason:
-              doc.auto_reupload_reason,
-          }
+          reason:
+            doc.auto_reupload_reason,
+        }
         : null;
     }
     return reuploadDetails.find(
@@ -507,11 +554,11 @@ function ApplicantSubmission() {
       setError(
         errors
           ? Object.values(errors)
-              .flat()
-              .join(" ")
+            .flat()
+            .join(" ")
           : err.response?.data
-              ?.message ||
-              "Failed to submit application."
+            ?.message ||
+          "Failed to submit application."
       );
     } finally {
       setLoading(false);
@@ -602,14 +649,13 @@ function ApplicantSubmission() {
       setError(
         errors
           ? "Upload failed: " +
-              Object.values(errors)
-                .flat()
-                .join(" ")
-          : `Upload failed: ${
-              err.response?.data
-                ?.message ||
-              "Please check your files and try again."
-            }`
+          Object.values(errors)
+            .flat()
+            .join(" ")
+          : `Upload failed: ${err.response?.data
+            ?.message ||
+          "Please check your files and try again."
+          }`
       );
     } finally {
       setLoading(false);
@@ -682,10 +728,9 @@ function ApplicantSubmission() {
     } catch (err) {
       setUploadProgress("");
       setError(
-        `Re-upload failed: ${
-          err.response?.data
-            ?.message ||
-          "Please try again."
+        `Re-upload failed: ${err.response?.data
+          ?.message ||
+        "Please try again."
         }`
       );
     } finally {
@@ -832,9 +877,9 @@ function ApplicantSubmission() {
                           existingApp?.status
                         ]?.showReupload
                           ? () =>
-                              setStep(
-                                "reupload"
-                              )
+                            setStep(
+                              "reupload"
+                            )
                           : undefined
                       }
                     />
@@ -894,7 +939,7 @@ function ApplicantSubmission() {
                               Information
                             </span>
                           </div>
-                           <Link
+                          <Link
                             to="/ApplicantProfile"
                             state={{ from: "submission" }}
                             className="btn profile-completion-btn"
