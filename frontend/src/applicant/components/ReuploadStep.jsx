@@ -251,11 +251,15 @@ function ReuploadStep({
                                     <p className="reupload-upload-hint">
                                         {field.hint}
                                     </p>
-                                    <label className="reupload-file-picker">
+                                    <label
+                                        className="reupload-file-picker"
+                                        style={!isRequested ? { opacity: 0.5, cursor: "not-allowed" } : undefined}
+                                    >
                                         <input
                                             type="file"
                                             accept=".jpg,.jpeg,.png"
                                             onChange={setReupload(field.key)}
+                                            disabled={!isRequested}
                                             hidden
                                         />
                                         <span className="reupload-file-button">

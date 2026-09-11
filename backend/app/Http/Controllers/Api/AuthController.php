@@ -519,6 +519,22 @@ class AuthController extends Controller
         return response()->json(['message' => 'Email verified successfully.']);
     }
 
+        // Progressive cooldown schedule for resend-verification requests, in
+    // seconds — indexed by attempt number (1st, 2nd, 3rd, ...). Modeled on
+    // NIST SP 800-63B Section 5.2.2 (Rate Limiting/Throttling), which
+    // recommends requiring the claimant to wait "30 seconds to an hour"
+    // between attempts, scaling with how close they are to abuse territory.
+    // The last value repeats for any attempt beyond the array length.
+    // Capped at 900s (15 minutes) to match the verification code/link
+    // expiration window — no point making someone wait longer than the
+    // code itself stays valid before letting them request a fresh one.
+    const RESEND_COOLDOWN_SCHEDULE = [30, 60, 120, 300, 900];
+
+    // Window after which the attempt counter resets, so a single burst of
+    // resends today doesn't permanently throttle someone who genuinely
+    // needs a new code next week.
+    const RESEND_WINDOW_HOURS = 2;
+
     public function resendVerification(Request $request)
     {
         $request->validate(['email' => 'required|email']);
@@ -533,10 +549,40 @@ class AuthController extends Controller
             return response()->json(['message' => 'Email already verified.']);
         }
 
-        // TRIGGER: Manually resends verification notification on request
+        $cacheKey = 'resend_verification:' . strtolower($request->email);
+        $state = Cache::get($cacheKey, ['attempts' => 0, 'next_allowed_at' => null]);
+
+        // Still inside the cooldown window from the previous resend — block
+        // and tell the applicant exactly how long they have left, per NIST's
+        // usability guidance (clear feedback on wait time, not a silent block).
+        // next_allowed_at is stored as a plain Unix timestamp (int), not a
+        // Carbon object — cache serialization can silently corrupt Carbon
+        // instances into __PHP_Incomplete_Class on some drivers.
+        if (is_int($state['next_allowed_at'] ?? null) && time() < $state['next_allowed_at']) {
+            $secondsLeft = $state['next_allowed_at'] - time();
+            return response()->json([
+                'message'      => "Please wait before requesting another code.",
+                'retry_after'  => $secondsLeft,
+            ], 429);
+        }
+
+        // Cooldown has passed (or this is the first attempt) — send the
+        // email, then advance the attempt counter and set the next cooldown.
         $user->sendEmailVerificationNotification();
 
-        return response()->json(['message' => 'Verification email resent.']);
+        $nextAttemptNumber = $state['attempts'] + 1;
+        $scheduleIndex = min($nextAttemptNumber - 1, count(self::RESEND_COOLDOWN_SCHEDULE) - 1);
+        $cooldownSeconds = self::RESEND_COOLDOWN_SCHEDULE[$scheduleIndex];
+
+        Cache::put($cacheKey, [
+            'attempts'        => $nextAttemptNumber,
+            'next_allowed_at' => time() + $cooldownSeconds,
+        ], now()->addHours(self::RESEND_WINDOW_HOURS));
+
+        return response()->json([
+            'message'      => 'Verification email resent.',
+            'retry_after'  => $cooldownSeconds,
+        ]);
     }
 
     // Fallback verification path: lets the applicant type the 6-digit code

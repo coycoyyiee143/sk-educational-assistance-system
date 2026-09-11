@@ -1,7 +1,19 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
+
+// Formats a seconds count into a short human-readable string — "45s" for
+// short waits, "2m 30s" once it crosses a minute, since the cooldown
+// schedule can reach up to an hour on repeated attempts.
+function formatCountdown(totalSeconds) {
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+}
 
 export default function VerifyEmailNotice() {
   const location = useLocation();
@@ -17,10 +29,32 @@ export default function VerifyEmailNotice() {
   const [codeSuccess, setCodeSuccess] = useState("");
 
   const [resending, setResending] = useState(false);
-  const [resendMsg, setResendMsg] = useState("");
-  const [resendError, setResendError] = useState("");
+  const [toast, setToast] = useState(null); // { type: "success" | "error", message: string }
+  const [resendCountdown, setResendCountdown] = useState(0);
 
   const inputRefs = useRef([]);
+
+  /* =========================
+     TOAST AUTO-DISMISS
+  ========================= */
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 5000);
+    return () => clearTimeout(timer);
+  }, [toast]);
+
+  /* =========================
+     RESEND COUNTDOWN TICKER
+  ========================= */
+
+  useEffect(() => {
+    if (resendCountdown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCountdown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCountdown > 0]);
 
   /* =========================
      OTP INPUT
@@ -86,8 +120,7 @@ export default function VerifyEmailNotice() {
 
     setCodeError("");
     setCodeSuccess("");
-    setResendMsg("");
-    setResendError("");
+    setToast(null);
   }
 
   /* =========================
@@ -96,30 +129,46 @@ export default function VerifyEmailNotice() {
 
   async function handleResend() {
     if (!email) {
-      setResendError(
-        "Could not determine your email address. Please register again."
-      );
+      setToast({
+        type: "error",
+        message: "Could not determine your email address. Please register again.",
+      });
       return;
     }
 
+    if (resendCountdown > 0) return;
+
     setResending(true);
-    setResendMsg("");
-    setResendError("");
+    setToast(null);
     setCodeError("");
 
     try {
-      await api.post("/email/resend", { email });
+      const res = await api.post("/email/resend", { email });
 
-      setResendMsg(
-        showLinkView
+      setToast({
+        type: "success",
+        message: showLinkView
           ? "A new verification email has been sent. Please check your inbox."
-          : "A new verification code has been sent to your email."
-      );
+          : "A new verification code has been sent to your email.",
+      });
+
+      if (res.data?.retry_after) {
+        setResendCountdown(res.data.retry_after);
+      }
     } catch (err) {
-      setResendError(
-        err.response?.data?.message ||
-          "Failed to resend the verification email. Please try again."
-      );
+      const retryAfter = err.response?.data?.retry_after;
+
+      setToast({
+        type: "error",
+        message: retryAfter
+          ? `Please wait ${formatCountdown(retryAfter)} before requesting another code.`
+          : err.response?.data?.message ||
+              "Failed to resend the verification email. Please try again.",
+      });
+
+      if (retryAfter) {
+        setResendCountdown(retryAfter);
+      }
     } finally {
       setResending(false);
     }
@@ -134,8 +183,7 @@ export default function VerifyEmailNotice() {
 
     setCodeError("");
     setCodeSuccess("");
-    setResendMsg("");
-    setResendError("");
+    setToast(null);
 
     if (!email) {
       setCodeError(
@@ -324,30 +372,6 @@ export default function VerifyEmailNotice() {
                     </div>
                   )}
 
-                  {resendMsg && (
-                    <div
-                      className="alert alert-success py-2 px-3 mb-3"
-                      style={{
-                        fontSize: "13px",
-                        borderRadius: "9px",
-                      }}
-                    >
-                      {resendMsg}
-                    </div>
-                  )}
-
-                  {resendError && (
-                    <div
-                      className="alert alert-danger py-2 px-3 mb-3"
-                      style={{
-                        fontSize: "13px",
-                        borderRadius: "9px",
-                      }}
-                    >
-                      {resendError}
-                    </div>
-                  )}
-
                   {/* =========================
                       CODE VERIFICATION
                   ========================= */}
@@ -471,11 +495,11 @@ export default function VerifyEmailNotice() {
                           type="button"
                           className="btn p-0 align-baseline"
                           onClick={handleResend}
-                          disabled={resending}
+                          disabled={resending || resendCountdown > 0}
                           style={{
                             border: "none",
                             background: "transparent",
-                            color: "#b71c1c",
+                            color: resendCountdown > 0 ? "#999" : "#b71c1c",
                             fontSize: "13px",
                             fontWeight: 700,
                           }}
@@ -494,6 +518,8 @@ export default function VerifyEmailNotice() {
 
                               Sending...
                             </>
+                          ) : resendCountdown > 0 ? (
+                            `Resend code (${formatCountdown(resendCountdown)})`
                           ) : (
                             "Resend code"
                           )}
@@ -566,12 +592,12 @@ export default function VerifyEmailNotice() {
                         type="button"
                         className="btn w-100 d-flex align-items-center justify-content-center gap-2"
                         onClick={handleResend}
-                        disabled={resending}
+                        disabled={resending || resendCountdown > 0}
                         style={{
                           minHeight: "48px",
                           border: "none",
                           borderRadius: "10px",
-                          background: "#b71c1c",
+                          background: resendCountdown > 0 ? "#c98d8d" : "#b71c1c",
                           color: "#fff",
                           fontSize: "14px",
                           fontWeight: 600,
@@ -589,6 +615,8 @@ export default function VerifyEmailNotice() {
 
                             Resending...
                           </>
+                        ) : resendCountdown > 0 ? (
+                          `Resend available in ${formatCountdown(resendCountdown)}`
                         ) : (
                           <>
                             Resend Verification Email
@@ -659,6 +687,48 @@ export default function VerifyEmailNotice() {
       </main>
 
       <Footer />
+
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 1060,
+            maxWidth: "90vw",
+            width: "420px",
+          }}
+        >
+          <div
+            className="d-flex align-items-start gap-2 p-3 shadow"
+            style={{
+              background: toast.type === "success" ? "#e6f4ea" : "#fce4e4",
+              borderLeft: `4px solid ${toast.type === "success" ? "#2e7d32" : "#b71c1c"}`,
+              borderRadius: "10px",
+              color: toast.type === "success" ? "#1b4d20" : "#7a1414",
+              fontSize: "13px",
+            }}
+          >
+            <div className="flex-grow-1">{toast.message}</div>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              style={{
+                background: "none",
+                border: "none",
+                color: "inherit",
+                fontSize: "16px",
+                lineHeight: 1,
+                cursor: "pointer",
+                opacity: 0.7,
+              }}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }
