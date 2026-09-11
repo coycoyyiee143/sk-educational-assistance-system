@@ -237,7 +237,23 @@ class AdminController extends Controller
         $name = "{$user->first_name} {$user->last_name}";
         $email = $user->email;
 
-        $user->delete();
+        try {
+            $user->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            // Error code 23000 = foreign key constraint violation. This
+            // account has real activity tied to it (posted an
+            // announcement, approved an application, verified a claim,
+            // etc.) — deleting it would orphan that history. Deactivate
+            // instead, which removes login access without destroying
+            // the accountability trail.
+            if ($e->getCode() === '23000') {
+                return response()->json([
+                    'message' => "Can't delete {$name} — this account has activity history (posts, approvals, verifications, etc.) tied to it. Deactivate the account instead to remove access while preserving records.",
+                ], 409);
+            }
+
+            throw $e;
+        }
 
         // Note: no $subject model passed since the record is now deleted
         \App\Models\AuditLog::record(
@@ -248,6 +264,7 @@ class AdminController extends Controller
 
         return response()->json(['message' => 'User deleted.']);
     }
+    
     // Returns the logged-in admin's own activity history
     public function activityLog(Request $request)
     {

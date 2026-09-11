@@ -327,8 +327,8 @@ function AdminUsers() {
     try {
       await api.delete(`/admin/users/${id}`);
       loadUsers();
-    } catch {
-      setError("Failed to delete user.");
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to delete user.");
     }
   }
   async function savePersonnel(form) {
