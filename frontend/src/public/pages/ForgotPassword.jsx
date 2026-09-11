@@ -22,12 +22,17 @@ export default function ForgotPassword() {
   const [resending, setResending] = useState(false);
 
   const [error, setError] = useState("");
+  // Multiple failed password rules render as a checklist (red ✕ per
+  // line), same pattern as the change-password modals — instead of
+  // one run-on sentence.
+  const [errorList, setErrorList] = useState([]);
   const [success, setSuccess] = useState("");
 
   const inputRefs = useRef([]);
 
   function clearMessages() {
     setError("");
+    setErrorList([]);
     setSuccess("");
   }
 
@@ -107,14 +112,14 @@ export default function ForgotPassword() {
 
       setSuccess(
         res.data?.message ||
-          "A password reset code has been sent to your email."
+        "A password reset code has been sent to your email."
       );
 
       setStep("code");
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Unable to send the password reset code. Please try again."
+        "Unable to send the password reset code. Please try again."
       );
     } finally {
       setLoading(false);
@@ -138,12 +143,12 @@ export default function ForgotPassword() {
 
       setSuccess(
         res.data?.message ||
-          "A new password reset code has been sent to your email."
+        "A new password reset code has been sent to your email."
       );
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Unable to resend the reset code. Please try again."
+        "Unable to resend the reset code. Please try again."
       );
     } finally {
       setResending(false);
@@ -178,7 +183,7 @@ export default function ForgotPassword() {
     } catch (err) {
       setError(
         err.response?.data?.message ||
-          "Invalid or expired reset code. Please try again."
+        "Invalid or expired reset code. Please try again."
       );
     } finally {
       setLoading(false);
@@ -190,13 +195,12 @@ export default function ForgotPassword() {
 
     clearMessages();
 
-    if (!password) {
-      setError("Please enter your new password.");
-      return;
-    }
-
-    if (password.length < 8) {
-      setError("Password must contain at least 8 characters.");
+    // Client-side pre-check mirrors the backend rule exactly (lowercase
+    // + number + 8 char min) instead of just checking length, so the
+    // person doesn't get a false "looks fine" before hitting the API.
+    const passwordRule = /^(?=.*[a-z])(?=.*\d).{8,}$/;
+    if (!passwordRule.test(password)) {
+      setError("Password must be at least 8 characters, with a lowercase letter and a number.");
       return;
     }
 
@@ -219,7 +223,7 @@ export default function ForgotPassword() {
 
       setSuccess(
         res.data?.message ||
-          "Your password has been reset successfully."
+        "Your password has been reset successfully."
       );
 
       setStep("success");
@@ -227,17 +231,26 @@ export default function ForgotPassword() {
       const errors = err.response?.data?.errors;
 
       if (errors) {
-        setError(Object.values(errors).flat().join(" "));
+        const messages = Object.values(errors).flat();
+        if (messages.length > 1) {
+          setErrorList(messages);
+        } else {
+          setError(messages[0]);
+        }
       } else {
         setError(
           err.response?.data?.message ||
-            "Unable to reset your password. Please try again."
+          "Unable to reset your password. Please try again."
         );
       }
     } finally {
       setLoading(false);
     }
   }
+
+  const hasLength = password.length >= 8;
+  const hasLowercase = /[a-z]/.test(password);
+  const hasNumber = /\d/.test(password);
 
   return (
     <>
@@ -596,6 +609,56 @@ export default function ForgotPassword() {
                         </div>
                       )}
 
+                      {errorList.length > 0 && (
+                        <div
+                          className="alert alert-danger"
+                          style={{
+                            borderRadius: "9px",
+                            padding: "14px 16px",
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontSize: "13px",
+                              fontWeight: 700,
+                              marginBottom: "6px",
+                              color: "#842029",
+                            }}
+                          >
+                            Your password needs a few changes
+                          </div>
+
+                          <ul
+                            style={{
+                              listStyle: "none",
+                              margin: 0,
+                              padding: 0,
+                            }}
+                          >
+                            {errorList.map((msg, i) => (
+                              <li
+                                key={i}
+                                style={{
+                                  display: "flex",
+                                  alignItems: "flex-start",
+                                  gap: "8px",
+                                  padding: "5px 0",
+                                  borderBottom:
+                                    i < errorList.length - 1
+                                      ? "1px solid rgba(0,0,0,0.08)"
+                                      : "none",
+                                }}
+                              >
+                                <span style={{ color: "#dc3545", fontWeight: 700, flexShrink: 0 }}>
+                                  ✕
+                                </span>
+                                <span style={{ fontSize: "13px" }}>{msg}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
                       <form onSubmit={handleResetPassword}>
                         <div className="mb-3">
                           <label
@@ -616,6 +679,7 @@ export default function ForgotPassword() {
                               onChange={(e) => {
                                 setPassword(e.target.value);
                                 setError("");
+                                setErrorList([]);
                               }}
                               placeholder="Enter new password"
                               autoComplete="new-password"
@@ -644,6 +708,41 @@ export default function ForgotPassword() {
                               {showPassword ? "Hide" : "Show"}
                             </button>
                           </div>
+
+                          <div
+                            style={{
+                              marginTop: "10px",
+                              padding: "10px 12px",
+                              background: "#f8f9fa",
+                              borderRadius: "8px",
+                            }}
+                          >
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                letterSpacing: "0.03em",
+                                color: "#888",
+                                display: "block",
+                                marginBottom: "6px",
+                              }}
+                            >
+                              PASSWORD REQUIREMENTS
+                            </span>
+
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: hasLength ? "#218c46" : "#666" }}>
+                              <span>{hasLength ? "✓" : "○"}</span>
+                              <span>At least 8 characters</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: hasLowercase ? "#218c46" : "#666" }}>
+                              <span>{hasLowercase ? "✓" : "○"}</span>
+                              <span>A lowercase letter</span>
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px", color: hasNumber ? "#218c46" : "#666" }}>
+                              <span>{hasNumber ? "✓" : "○"}</span>
+                              <span>At least one number</span>
+                            </div>
+                          </div>
                         </div>
 
                         <div className="mb-4">
@@ -667,6 +766,7 @@ export default function ForgotPassword() {
                               onChange={(e) => {
                                 setPasswordConfirmation(e.target.value);
                                 setError("");
+                                setErrorList([]);
                               }}
                               placeholder="Confirm new password"
                               autoComplete="new-password"
@@ -697,6 +797,18 @@ export default function ForgotPassword() {
                               {showPasswordConfirmation ? "Hide" : "Show"}
                             </button>
                           </div>
+
+                          {passwordConfirmation && (
+                            password === passwordConfirmation ? (
+                              <span style={{ fontSize: "12.5px", color: "#218c46", marginTop: "6px", display: "inline-block" }}>
+                                ✓ Passwords match
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: "12.5px", color: "#dc3545", marginTop: "6px", display: "inline-block" }}>
+                                ✕ Passwords do not match
+                              </span>
+                            )
+                          )}
                         </div>
 
                         <button
