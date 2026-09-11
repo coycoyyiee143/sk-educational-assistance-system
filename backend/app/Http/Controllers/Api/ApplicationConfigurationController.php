@@ -22,7 +22,20 @@ class ApplicationConfigurationController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'school_year'        => 'required|string',
+            // Must be exactly "YYYY-YYYY" (e.g. "2025-2026"). This is
+            // enforced here, not just in the AdminSettings dropdown,
+            // because ProcessOcrDocument derives the voter's-certificate
+            // cert-year check directly from this field via
+            // explode('-', $config->school_year)[0]. A malformed value
+            // reaching the database (a differently-built admin tool,
+            // a direct API call, a future edit to the frontend) would
+            // silently produce the wrong year — or (int) cast to 0 for
+            // a non-numeric prefix — and silently reject every valid
+            // voter's certificate for that entire application period,
+            // with no error surfaced anywhere. This regex is the
+            // backend's own guarantee of that assumption, independent
+            // of what the frontend currently sends.
+            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/'],
             'open_date'          => 'required|date',
             'close_date'         => 'required|date|after:open_date',
             'is_unlimited'       => 'boolean',
@@ -62,7 +75,9 @@ class ApplicationConfigurationController extends Controller
         $config = ApplicationConfiguration::findOrFail($id);
     
         $data = $request->validate([
-            'school_year'        => 'required|string',
+            // Same format guarantee as store() above — see that comment
+            // for why this matters beyond just input tidiness.
+            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/'],
             'open_date'          => 'required|date',
             'close_date'         => 'required|date|after:open_date',
             'is_unlimited'       => 'boolean',
