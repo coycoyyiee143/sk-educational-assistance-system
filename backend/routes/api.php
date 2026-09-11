@@ -65,6 +65,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::patch('/admin/users/{id}/toggle-status', [AdminController::class, 'toggleStatus']);
         Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
         Route::post('/admin/users/{id}/reset-password', [AdminController::class, 'resetPassword']);
+        // Works for personnel AND applicant accounts — see resetTwoFactor()
+        // docblock in AdminController for why this is admin-only and not
+        // self-service.
+        Route::post('/admin/users/{id}/reset-2fa', [AdminController::class, 'resetTwoFactor']);
         Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
         Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
         Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);

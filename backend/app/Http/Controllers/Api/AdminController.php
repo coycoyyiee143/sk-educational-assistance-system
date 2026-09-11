@@ -213,6 +213,54 @@ class AdminController extends Controller
         ]);
     }
 
+    /**
+     * Admin-initiated 2FA reset — works for ANY account (applicant,
+     * verifier, or admin). Clears the account's TOTP secret and
+     * enrollment timestamp, which forces re-enrollment (QR setup
+     * screen) on their next login, via the same google2fa_enabled_at
+     * check AuthController::login() already uses.
+     *
+     * Deliberately NOT self-service, and deliberately NOT restricted
+     * by role (unlike resetPassword). Forgot Password is already
+     * recoverable by email alone (PasswordResetController) — if 2FA
+     * reset were ALSO recoverable by email alone, compromising an
+     * inbox would be a full account takeover: reset password by email,
+     * reset 2FA by email, log in with a QR you control. Human-verified
+     * admin recovery is what keeps 2FA meaningful as a second factor —
+     * this mirrors how GitHub/Google/AWS handle "lost my authenticator
+     * and my backup codes": a person confirms identity, then support
+     * clears it, nothing is recoverable by email token alone.
+     *
+     * Still blocks an admin from resetting their OWN 2FA this way,
+     * same reasoning as resetPassword: avoids fumbling your own
+     * account mid-action.
+     */
+    public function resetTwoFactor(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        if ($user->id === $request->user()->id) {
+            return response()->json([
+                'message' => "You can't reset your own 2FA this way.",
+            ], 422);
+        }
+
+        $user->forceFill([
+            'google2fa_secret'      => null,
+            'google2fa_enabled_at'  => null,
+        ])->save();
+
+        \App\Models\AuditLog::record(
+            '2fa_reset',
+            $user,
+            "2FA reset by admin for {$user->first_name} {$user->last_name} ({$user->role})"
+        );
+
+        return response()->json([
+            'message' => '2FA has been reset. They will be prompted to set it up again on next login.',
+        ]);
+    }
+
     public function toggleStatus($id)
     {
         $user = User::findOrFail($id);
@@ -264,7 +312,7 @@ class AdminController extends Controller
 
         return response()->json(['message' => 'User deleted.']);
     }
-    
+
     // Returns the logged-in admin's own activity history
     public function activityLog(Request $request)
     {

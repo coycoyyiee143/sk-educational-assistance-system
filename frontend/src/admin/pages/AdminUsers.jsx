@@ -285,8 +285,10 @@ function AdminUsers() {
   const [personnelPage, setPersonnelPage] = useState(1);
   const [roleFilter, setRoleFilter] = useState("");
   const [showRoleMenu, setShowRoleMenu] = useState(false);
-  const [resetTarget, setResetTarget] = useState(null); // confirm-dialog target
+  const [resetTarget, setResetTarget] = useState(null); // confirm-dialog target (password reset)
   const [resetting, setResetting] = useState(false);
+  const [twoFATarget, setTwoFATarget] = useState(null); // confirm-dialog target (2FA reset)
+  const [resettingTwoFA, setResettingTwoFA] = useState(false);
   const roleMenuRef = useRef(null);
   const perPage = 10;
   function loadUsers() {
@@ -352,6 +354,27 @@ function AdminUsers() {
       setError(err.response?.data?.message || "Failed to reset password.");
     } finally {
       setResetting(false);
+    }
+  }
+  // Admin-initiated 2FA reset: clears the account's TOTP secret so
+  // they're walked through QR setup again on next login. Works for
+  // personnel AND applicant accounts — no self-service path exists on
+  // purpose (see AdminController::resetTwoFactor docblock), so this
+  // confirm dialog is the only way to recover a lost authenticator.
+  async function confirmResetTwoFA() {
+    if (!twoFATarget) return;
+    setResettingTwoFA(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await api.post(`/admin/users/${twoFATarget.id}/reset-2fa`);
+      setSuccess(res.data?.message || "2FA has been reset.");
+      setTwoFATarget(null);
+      loadUsers();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to reset 2FA.");
+    } finally {
+      setResettingTwoFA(false);
     }
   }
   const filteredApplicants = applicants.filter((a) =>
@@ -450,6 +473,14 @@ function AdminUsers() {
                             >
                               Reset Password
                             </button>
+                            <button
+                              className="user-action-btn me-1"
+                              onClick={() => setTwoFATarget(p)}
+                              disabled={p.id === currentUser?.id}
+                              title={p.id === currentUser?.id ? "You can't reset your own 2FA this way" : "Clears their authenticator setup — use if they lost their device or QR code"}
+                            >
+                              Reset 2FA
+                            </button>
                             <button className="user-action-btn user-action-delete" onClick={() => deleteUser(p.id)}>Delete</button>
                           </td>
                         </tr>
@@ -509,7 +540,14 @@ function AdminUsers() {
                           <td><StatusBadge active={a.is_active} /></td>
                           <td>
                             <button className="user-action-btn user-action-view me-1" onClick={() => setViewApplicant(a)}>View</button>
-                            <button className={`user-action-btn ${a.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(a.id)}>{a.is_active ? "Deactivate" : "Activate"}</button>
+                            <button className={`user-action-btn me-1 ${a.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(a.id)}>{a.is_active ? "Deactivate" : "Activate"}</button>
+                            <button
+                              className="user-action-btn"
+                              onClick={() => setTwoFATarget(a)}
+                              title="Clears their authenticator setup — use if they lost their device or QR code"
+                            >
+                              Reset 2FA
+                            </button>
                           </td>
                         </tr>
                       ))
@@ -560,6 +598,36 @@ function AdminUsers() {
                 </button>
                 <button type="button" className="btn btn-custom" onClick={confirmResetPassword} disabled={resetting}>
                   {resetting ? "Resetting..." : "Yes, Reset Password"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {twoFATarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Reset 2FA?</h5>
+                <button type="button" className="btn-close" onClick={() => setTwoFATarget(null)} disabled={resettingTwoFA} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  This will clear the authenticator setup for {twoFATarget.first_name} {twoFATarget.last_name}
+                  ({twoFATarget.email}). They will be walked through scanning a new
+                  QR code the next time they log in. Only do this after confirming
+                  their identity — this is the only way to recover a lost
+                  authenticator device or QR code.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setTwoFATarget(null)} disabled={resettingTwoFA}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-custom" onClick={confirmResetTwoFA} disabled={resettingTwoFA}>
+                  {resettingTwoFA ? "Resetting..." : "Yes, Reset 2FA"}
                 </button>
               </div>
             </div>
