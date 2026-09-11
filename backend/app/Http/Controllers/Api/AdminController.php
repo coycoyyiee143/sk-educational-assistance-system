@@ -159,10 +159,24 @@ class AdminController extends Controller
      *
      * Deliberately scoped to sk_verifier/sk_admin only — applicants
      * use the existing self-service PasswordResetController flow.
+     *
+     * Also blocks an admin from resetting their OWN account this way —
+     * this action kills the current password and revokes all sessions
+     * immediately, which would lock the admin out of their own account
+     * mid-action with no recovery path except the email link (and if
+     * that email is fake/unreachable, permanently). Self-service
+     * password changes already exist via PUT /user/password — that's
+     * the correct path for an admin changing their own password.
      */
     public function resetPassword(Request $request, $id)
     {
         $user = User::findOrFail($id);
+
+        if ($user->id === $request->user()->id) {
+            return response()->json([
+                'message' => "You can't reset your own password this way — use Change Password in your account settings instead.",
+            ], 422);
+        }
 
         if (!in_array($user->role, ['sk_verifier', 'sk_admin'])) {
             return response()->json([

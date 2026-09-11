@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import AdminNavigation from "../components/AdminNavigation";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
+import { useAuth } from "../../context/AuthContext";
 function StatusBadge({ active }) {
   return <span className={active ? "status-badge status-active" : "status-badge status-inactive"}>{active ? "Active" : "Inactive"}</span>;
 }
@@ -270,6 +271,7 @@ function AddPersonnelModal({ onClose, onSave }) {
   );
 }
 function AdminUsers() {
+  const { user: currentUser } = useAuth();
   const [applicants, setApplicants] = useState([]);
   const [personnel, setPersonnel] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -440,7 +442,14 @@ function AdminUsers() {
                           </td>
                           <td>
                             <button className={`user-action-btn me-1 ${p.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(p.id)}>{p.is_active ? "Deactivate" : "Activate"}</button>
-                            <button className="user-action-btn me-1" onClick={() => setResetTarget(p)}>Reset Password</button>
+                            <button
+                              className="user-action-btn me-1"
+                              onClick={() => setResetTarget(p)}
+                              disabled={p.id === currentUser?.id}
+                              title={p.id === currentUser?.id ? "Use Change Password in your own account settings instead" : undefined}
+                            >
+                              Reset Password
+                            </button>
                             <button className="user-action-btn user-action-delete" onClick={() => deleteUser(p.id)}>Delete</button>
                           </td>
                         </tr>

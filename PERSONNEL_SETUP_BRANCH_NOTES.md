@@ -117,12 +117,17 @@ php artisan config:clear
   misconfigured, credentials wrong) and you've just invalidated your
   only admin's password, you're locked out until you manually fix it
   via `tinker`.
-- **Self-reset UX gap (not fixed, just noted)**: nothing currently
-  stops an admin from clicking "Reset Password" on their *own* account
-  by mistake, which would immediately log them out of their own
-  session. Not a security bug, just a possible annoyance — add a
-  guard (`resetTarget.id !== currentUser.id`) if you want to prevent
-  it.
+- **Self-reset guard**: confirmed as a real bug, not just a theoretical
+  one — this happened during testing. Resetting your own account kills
+  your current password and revokes your session immediately; if the
+  email on that account isn't real/reachable, you're locked out with
+  no recovery path short of `migrate:fresh` or manual `tinker`
+  intervention. Fixed on both frontend (`AdminUsers.jsx` disables the
+  "Reset Password" button on the admin's own row) and backend
+  (`AdminController::resetPassword()` returns 422 if the target id
+  matches the requester's id) — the backend check matters even with
+  the frontend guard in place, since a direct API call could otherwise
+  bypass the disabled button.
 - **`FRONTEND_URL` must be set correctly in production**, not just
   local `.env` — if it's missing or wrong in the deployed
   environment's `.env`, the setup links emailed to real verifiers/
@@ -144,6 +149,10 @@ php artisan config:clear
 - [ ] Reset an existing verifier/admin's password — confirm their old
       password stops working immediately and their existing session(s)
       are logged out
+- [ ] Confirm an admin CANNOT reset their own password via the
+      personnel Reset Password button — the button should be disabled
+      on their own row, and a direct API call to the endpoint should
+      return a 422 rather than actually resetting anything
 - [ ] Forgot-password flow (applicant-facing) rejects a breached
       password, an obvious weak term, and a reused password — same as
       every other password-writing path
