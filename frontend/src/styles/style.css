@@ -6711,6 +6711,157 @@ a:hover {
 /* ============================================
    VERIFIER PANEL - SIDEBAR
    ============================================ */
+.verifier-attention-table-wrap,
+.verifier-claiming-table-wrap,
+.verifier-main .table-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.verifier-attention-table,
+.verifier-claiming-results-table {
+  min-width: 720px;
+}
+
+.verifier-table-pagination-bar {
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.verifier-claiming-split-card {
+  grid-template-columns: 1fr !important;
+}
+
+.verifier-claiming-split-col {
+  min-width: 0;
+}
+
+.verifier-claiming-split-col-border {
+  border-left: 0 !important;
+  border-top: 1px solid #e5e7eb;
+}
+
+.verifier-claiming-header-row {
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.verifier-claiming-header-text,
+.verifier-claiming-doc-copy {
+  min-width: 0;
+}
+
+.verifier-claiming-doc-file {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.verifier-claiming-doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.verifier-claiming-doc-card {
+  width: 100%;
+  overflow: hidden;
+  border: 1px solid #c9c9c9;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.verifier-claiming-doc-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin: 0 12px 12px;
+  overflow: hidden;
+  border: 1px solid #c9c9c9;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.verifier-claiming-doc-status {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.verifier-claiming-doc-status-unreviewed {
+  background: #26384a;
+  color: #ffffff;
+}
+
+.verifier-claiming-doc-status-matched {
+  background: #dcf5e3;
+  color: #1e7e42;
+}
+
+.verifier-claiming-doc-status-issue {
+  background: #fce4e4;
+  color: #b71c1c;
+}
+
+.verifier-claiming-doc-action-match {
+  background: #ffffff;
+  color: #198754;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  transition: background .15s ease, color .15s ease;
+}
+
+.verifier-claiming-doc-action-issue {
+  background: #ffffff;
+  color: #dc3545;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  transition: background .15s ease, color .15s ease;
+}
+
+.verifier-claiming-doc-action-match:hover {
+  background: #cfe9da;
+  color: #146c43;
+}
+
+.verifier-claiming-doc-action-issue:hover {
+  background: #f6d2d6;
+  color: #b02a37;
+}
+
+.verifier-claiming-doc-action-active-match,
+.verifier-claiming-doc-action-active-match:hover {
+  background: #198754;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.verifier-claiming-doc-action-active-issue,
+.verifier-claiming-doc-action-active-issue:hover {
+  background: #dc3545;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.verifier-claiming-doc-action-active-match i,
+.verifier-claiming-doc-action-active-match span,
+.verifier-claiming-doc-action-active-issue i,
+.verifier-claiming-doc-action-active-issue span {
+  color: #ffffff;
+}
+
+.verifier-claiming-doc-action+.verifier-claiming-doc-action {
+  border-left: 1px solid #c9c9c9;
+}
+
 .verifier-sidebar {
   width: 260px;
   flex-shrink: 0;
