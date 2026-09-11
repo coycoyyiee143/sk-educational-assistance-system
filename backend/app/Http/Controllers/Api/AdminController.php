@@ -103,12 +103,34 @@ class AdminController extends Controller
         ])->save();
 
         $setupUrl = rtrim(config('app.frontend_url', config('app.url')), '/') . "/personnel/setup/{$token}";
+
         // send(), not queue() — this only listens to the notifications/
         // ocr queues on the server, so anything queued to the default
         // queue would sit unsent unless QUEUE_CONNECTION=sync. Account
         // creation is low-volume enough that sending synchronously here
         // is fine and removes this whole class of silent-failure bug.
-        Mail::to($user->email)->send(new PersonnelAccountMail($user->first_name, $setupUrl, true));
+        //
+        // Wrapped in try/catch: the account row above is already
+        // committed by this point, so a mail failure here must NOT
+        // bubble up as a raw 500 — the admin needs to know the account
+        // exists but the link never went out, not just see a generic
+        // error with no idea what state things are in.
+        try {
+            Mail::to($user->email)->send(new PersonnelAccountMail($user->first_name, $setupUrl, true));
+        } catch (\Throwable $e) {
+            \Log::error("Personnel setup email failed to send for new user {$user->id} ({$user->email}): " . $e->getMessage());
+
+            \App\Models\AuditLog::record(
+                'personnel_created',
+                $user,
+                "Created {$user->role} account for {$user->first_name} {$user->last_name}, but the setup email FAILED to send"
+            );
+
+            return response()->json([
+                'message' => "Account created for {$user->first_name} {$user->last_name}, but the setup email failed to send. Check mail configuration, then use Reset Password on this account to resend a fresh setup link once it's fixed.",
+                'user'    => $user,
+            ], 207);
+        }
 
         \App\Models\AuditLog::record(
             'personnel_created',
@@ -200,7 +222,27 @@ class AdminController extends Controller
         $user->tokens()->delete();
 
         $setupUrl = rtrim(config('app.frontend_url', config('app.url')), '/') . "/personnel/setup/{$token}";
-        Mail::to($user->email)->send(new PersonnelAccountMail($user->first_name, $setupUrl, false));
+
+        // Wrapped in try/catch: by this point the account's OLD password
+        // is already dead and all sessions already revoked — if the email
+        // fails here, that person is locked out with no password and no
+        // link, and the admin needs a clear message saying exactly that,
+        // not a raw 500 with no idea what state the account is in.
+        try {
+            Mail::to($user->email)->send(new PersonnelAccountMail($user->first_name, $setupUrl, false));
+        } catch (\Throwable $e) {
+            \Log::error("Password reset email failed to send for user {$user->id} ({$user->email}): " . $e->getMessage());
+
+            \App\Models\AuditLog::record(
+                'personnel_password_reset',
+                $user,
+                "Password reset by admin for {$user->first_name} {$user->last_name} ({$user->role}), but the setup email FAILED to send — their old password no longer works"
+            );
+
+            return response()->json([
+                'message' => "Password reset for {$user->first_name} {$user->last_name}, but the setup email failed to send. Their old password no longer works — fix mail configuration, then use Reset Password again to resend the link.",
+            ], 207);
+        }
 
         \App\Models\AuditLog::record(
             'personnel_password_reset',

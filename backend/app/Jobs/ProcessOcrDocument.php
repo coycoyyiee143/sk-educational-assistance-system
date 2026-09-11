@@ -17,6 +17,8 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ConnectException;
+use GuzzleHttp\Exception\RequestException;
 
 
 class ProcessOcrDocument implements ShouldQueue
@@ -46,104 +48,153 @@ class ProcessOcrDocument implements ShouldQueue
     }
 
 
+    /**
+     * Was previously one ~200-line try/catch around the whole method,
+     * with a single generic "OCR Processing Failed for Doc {id}: {msg}"
+     * log line no matter what actually broke — file missing, the OCR
+     * service being unreachable, a malformed/non-JSON response from it,
+     * or a DB write failing partway through all looked identical in the
+     * logs. Split into scoped stages below so the log line itself tells
+     * you which stage failed, without needing to reproduce the failure
+     * to find out.
+     */
     public function handle()
     {
         if ($this->document->status === 'processed') {
             return;
         }
-   
+
+        // Stage 1: local file must exist before anything else is worth doing.
+        $storagePath = Storage::disk('local')->path($this->filePath);
+        if (!file_exists($storagePath)) {
+            \Log::error("OCR processing failed for doc {$this->document->id}: file not found at {$storagePath}");
+            $this->document->update(['status' => 'failed']);
+            return;
+        }
+
+        // Clear any stale results from a prior processing attempt on
+        // this exact document row, so reprocessing (retry, manual
+        // re-trigger during testing, etc.) doesn't leave old and new
+        // checks sitting side by side in the same table.
+        \App\Models\VerificationCheck::where('document_id', $this->document->id)->delete();
+        \App\Models\OcrResult::where('document_id', $this->document->id)->delete();
+
+
+        // Update the timeout to 180 seconds to accommodate heavy PaddleOCR models
+        $client = new Client([
+            'timeout'         => 180,
+            'connect_timeout' => 10 // Optional: fail fast if the server is completely down
+        ]);
+
+
+        $user    = $this->application->user;
+        $config  = $this->application->configuration;
+        $profile = $user->profile;
+
+
+        $multipart = [
+            ['name' => 'file', 'contents' => fopen($storagePath, 'r'), 'filename' => $this->document->file_name],
+            ['name' => 'first_name',  'contents' => $user->first_name],
+            ['name' => 'middle_name', 'contents' => $user->middle_name ?? ''],
+            ['name' => 'last_name',   'contents' => $user->last_name],
+        ];
+
+
+        $endpoint = match($this->document->document_type) {
+            'voters_certificate' => '/api/ocr/voters-certificate',
+            'registration_form'  => '/api/ocr/registration-form',
+            'school_id'          => '/api/ocr/school-id',
+        };
+
+
+        if ($this->document->document_type === 'registration_form') {
+            $multipart[] = ['name' => 'declared_school', 'contents' => $this->application->school_name];
+            $multipart[] = ['name' => 'school_year',     'contents' => $config->school_year];
+        }
+
+
+        if ($this->document->document_type === 'school_id') {
+            $multipart[] = ['name' => 'declared_school', 'contents' => $this->application->school_name];
+        }
+
+
+        if ($this->document->document_type === 'voters_certificate') {
+            $isMinor = $profile?->is_minor ?? false;
+            $multipart[] = ['name' => 'is_minor', 'contents' => $isMinor ? '1' : '0'];
+            $multipart[] = ['name' => 'guardian_first_name',  'contents' => $profile?->guardian_first_name ?? ''];
+            $multipart[] = ['name' => 'guardian_middle_name', 'contents' => $profile?->guardian_middle_name ?? ''];
+            $multipart[] = ['name' => 'guardian_last_name',   'contents' => $profile?->guardian_last_name ?? ''];
+
+
+            // Voter's Certificate should be issued/updated within the
+            // school year's starting calendar year — confirmed directly
+            // by SK during the needs-assessment interview. Enforced
+            // unconditionally for every cycle, not admin-configurable,
+            // since this is a fixed rule rather than something that
+            // varies per period.
+            //
+            // Derived from the active period's school_year (e.g.
+            // "2025-2026" -> 2025) rather than the server's current
+            // calendar year, since an application submitted any time
+            // during the school year should validate against the year
+            // the period actually started, not whatever date happens
+            // to be "today" on the server.
+            $schoolYearStart = (int) explode('-', $config->school_year)[0];
+
+
+            $multipart[] = ['name' => 'enforce_cert_year', 'contents' => 'true'];
+            $multipart[] = ['name' => 'cert_year', 'contents' => (string) $schoolYearStart];
+        }
+
+
+        $flaskUrl = env('OCR_SERVICE_URL', 'http://localhost:5000');
+
+        // Stage 2: the network call to the OCR microservice — the part
+        // most likely to fail for reasons that have nothing to do with
+        // this document (service down, still starting up, timed out
+        // under load). Caught separately so the log says exactly that,
+        // instead of getting lumped in with a genuine processing bug.
         try {
-            $storagePath = Storage::disk('local')->path($this->filePath);
-            if (!file_exists($storagePath)) {
-                throw new \Exception("File not found: {$storagePath}");
-            }
-   
-            // Clear any stale results from a prior processing attempt on
-            // this exact document row, so reprocessing (retry, manual
-            // re-trigger during testing, etc.) doesn't leave old and new
-            // checks sitting side by side in the same table.
-            \App\Models\VerificationCheck::where('document_id', $this->document->id)->delete();
-            \App\Models\OcrResult::where('document_id', $this->document->id)->delete();
-
-
-            // Update the timeout to 180 seconds to accommodate heavy PaddleOCR models
-            $client = new Client([
-                'timeout'         => 180,
-                'connect_timeout' => 10 // Optional: fail fast if the server is completely down
-            ]);
-
-
-            $user    = $this->application->user;
-            $config  = $this->application->configuration;
-            $profile = $user->profile;
-
-
-            $multipart = [
-                ['name' => 'file', 'contents' => fopen($storagePath, 'r'), 'filename' => $this->document->file_name],
-                ['name' => 'first_name',  'contents' => $user->first_name],
-                ['name' => 'middle_name', 'contents' => $user->middle_name ?? ''],
-                ['name' => 'last_name',   'contents' => $user->last_name],
-            ];
-
-
-            $endpoint = match($this->document->document_type) {
-                'voters_certificate' => '/api/ocr/voters-certificate',
-                'registration_form'  => '/api/ocr/registration-form',
-                'school_id'          => '/api/ocr/school-id',
-            };
-
-
-            if ($this->document->document_type === 'registration_form') {
-                $multipart[] = ['name' => 'declared_school', 'contents' => $this->application->school_name];
-                $multipart[] = ['name' => 'school_year',     'contents' => $config->school_year];
-            }
-
-
-            if ($this->document->document_type === 'school_id') {
-                $multipart[] = ['name' => 'declared_school', 'contents' => $this->application->school_name];
-            }
-
-
-            if ($this->document->document_type === 'voters_certificate') {
-                $isMinor = $profile?->is_minor ?? false;
-                $multipart[] = ['name' => 'is_minor', 'contents' => $isMinor ? '1' : '0'];
-                $multipart[] = ['name' => 'guardian_first_name',  'contents' => $profile?->guardian_first_name ?? ''];
-                $multipart[] = ['name' => 'guardian_middle_name', 'contents' => $profile?->guardian_middle_name ?? ''];
-                $multipart[] = ['name' => 'guardian_last_name',   'contents' => $profile?->guardian_last_name ?? ''];
-
-
-                // Voter's Certificate should be issued/updated within the
-                // school year's starting calendar year — confirmed directly
-                // by SK during the needs-assessment interview. Enforced
-                // unconditionally for every cycle, not admin-configurable,
-                // since this is a fixed rule rather than something that
-                // varies per period.
-                //
-                // Derived from the active period's school_year (e.g.
-                // "2025-2026" -> 2025) rather than the server's current
-                // calendar year, since an application submitted any time
-                // during the school year should validate against the year
-                // the period actually started, not whatever date happens
-                // to be "today" on the server.
-                $schoolYearStart = (int) explode('-', $config->school_year)[0];
-
-
-                $multipart[] = ['name' => 'enforce_cert_year', 'contents' => 'true'];
-                $multipart[] = ['name' => 'cert_year', 'contents' => (string) $schoolYearStart];
-            }
-
-
-            $flaskUrl = env('OCR_SERVICE_URL', 'http://localhost:5000');
             $response = $client->post($flaskUrl . $endpoint, ['multipart' => $multipart]);
-            $result = json_decode($response->getBody()->getContents(), true);
+        } catch (ConnectException $e) {
+            \Log::error("OCR service unreachable for doc {$this->document->id} at {$flaskUrl}{$endpoint}: " . $e->getMessage());
+            $this->document->update(['status' => 'failed']);
+            return;
+        } catch (RequestException $e) {
+            \Log::error("OCR service request failed for doc {$this->document->id}: " . $e->getMessage());
+            $this->document->update(['status' => 'failed']);
+            return;
+        }
 
+        // Stage 3: response must actually be the JSON shape we expect.
+        // Previously `json_decode` returning null here (e.g. the service
+        // crashed and returned an HTML error page instead of JSON) would
+        // make the very next line, `if (!$result['success'])`, throw a
+        // "trying to access array offset on null" error — which then
+        // just got swallowed by the old single catch-all as if it were
+        // an ordinary OCR failure. Guarded explicitly now, with its own
+        // log line, so that specific failure mode is distinguishable
+        // from a genuine "the OCR service said no" response.
+        $result = json_decode($response->getBody()->getContents(), true);
 
-            if (!$result['success']) {
-                $this->document->update(['status' => 'failed']);
-                return;
-            }
+        if (!is_array($result) || !isset($result['success'])) {
+            \Log::error("OCR service returned an unreadable response for doc {$this->document->id}: " . $response->getBody());
+            $this->document->update(['status' => 'failed']);
+            return;
+        }
 
+        if (!$result['success']) {
+            \Log::warning("OCR service reported failure for doc {$this->document->id}: " . ($result['error'] ?? 'no error message given'));
+            $this->document->update(['status' => 'failed']);
+            return;
+        }
 
+        // Stage 4: everything from here on is trusted local processing —
+        // saving the OCR result, writing VerificationCheck rows, and
+        // deciding the application's status. Kept in its own try/catch
+        // so a DB failure here is clearly labelled as a save failure,
+        // not confused with a network or response-shape problem above.
+        try {
             $data = $result['verification'] ?? [];
 
 
@@ -218,9 +269,9 @@ class ProcessOcrDocument implements ShouldQueue
 
             $this->document->update(['status' => 'processed']);
             $this->updateApplicationStatus($this->application);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+            \Log::error("Saving OCR results failed for doc {$this->document->id}: " . $e->getMessage());
             $this->document->update(['status' => 'failed']);
-            \Log::error("OCR Processing Failed for Doc {$this->document->id}: " . $e->getMessage());
         }
     }
 
