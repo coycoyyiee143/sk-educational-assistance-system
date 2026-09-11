@@ -6389,6 +6389,7 @@ a:hover {
   background: #8e0000;
   border-color: #8e0000;
 }
+
 /* ============================================
    ADMIN USERS - APPLICANT DETAILS MODAL
    ============================================ */
@@ -6629,13 +6630,13 @@ a:hover {
   gap: 4px;
 }
 
-.applicant-details-field > span {
+.applicant-details-field>span {
   color: #8993a0;
   font-size: 14px;
   font-weight: 500;
 }
 
-.applicant-details-field > strong {
+.applicant-details-field>strong {
   color: #202733;
   font-size: 17px;
   font-weight: 600;
@@ -14668,6 +14669,7 @@ body {
 }
 
 @media (max-width: 991.98px) {
+
   /* Layout */
   .verifier-layout {
     display: block;
@@ -15032,12 +15034,13 @@ body {
 }
 
 @media (min-width: 576px) and (max-width: 991.98px) {
-  .verifier-stats-row > div {
+  .verifier-stats-row>div {
     width: 50%;
   }
 }
 
 @media (max-width: 575.98px) {
+
   /* Topbar */
   .verifier-topbar {
     min-height: 58px;
@@ -15120,7 +15123,7 @@ body {
     --bs-gutter-y: 12px;
   }
 
-  .verifier-stats-row > div {
+  .verifier-stats-row>div {
     width: 100%;
   }
 
@@ -15202,7 +15205,7 @@ body {
   }
 
   /* Waitlist */
-  .verifier-waitlist-summary-card .row > div {
+  .verifier-waitlist-summary-card .row>div {
     width: 100%;
   }
 
@@ -15342,7 +15345,7 @@ body {
     left: 20px;
   }
 
-  .verifier-review-bottom-actions > div,
+  .verifier-review-bottom-actions>div,
   .verifier-document-nav-btn,
   .verifier-proceed-action-btn {
     width: 100%;
@@ -15457,12 +15460,10 @@ body {
   justify-content: center;
   border-radius: 50%;
   background:
-    conic-gradient(
-      #176b4d 0deg var(--report-approved-end),
+    conic-gradient(#176b4d 0deg var(--report-approved-end),
       #9b2929 var(--report-approved-end) var(--report-rejected-end),
       #657386 var(--report-rejected-end) var(--report-pending-end),
-      #e8ecef var(--report-pending-end) 360deg
-    );
+      #e8ecef var(--report-pending-end) 360deg);
 }
 
 .report-overview-donut::before {
@@ -15546,7 +15547,7 @@ body {
   background: #657386;
 }
 
-.report-overview-legend-row > strong {
+.report-overview-legend-row>strong {
   color: #20242a;
   font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 15px;
@@ -15554,7 +15555,7 @@ body {
   white-space: nowrap;
 }
 
-.report-overview-legend-row > strong small {
+.report-overview-legend-row>strong small {
   color: #7f8996;
   font-size: 11px;
   font-weight: 500;
@@ -15585,7 +15586,7 @@ body {
   flex-direction: column;
 }
 
-.report-overview-metric-text > span {
+.report-overview-metric-text>span {
   margin-bottom: 3px;
   color: #59616d;
   font-size: 11px;
@@ -15594,7 +15595,7 @@ body {
   text-transform: uppercase;
 }
 
-.report-overview-metric-text > strong {
+.report-overview-metric-text>strong {
   color: #20242a;
   font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 27px;
@@ -15602,7 +15603,7 @@ body {
   line-height: 1.1;
 }
 
-.report-overview-metric-text > small {
+.report-overview-metric-text>small {
   margin-top: 5px;
   color: #798390;
   font-size: 11px;
@@ -15632,28 +15633,22 @@ body {
 .report-overview-mini-ring-green {
   color: #176b4d;
   background:
-    conic-gradient(
-      #176b4d 0deg var(--report-progress),
-      #e5ebe8 var(--report-progress) 360deg
-    );
+    conic-gradient(#176b4d 0deg var(--report-progress),
+      #e5ebe8 var(--report-progress) 360deg);
 }
 
 .report-overview-mini-ring-red {
   color: #9b2929;
   background:
-    conic-gradient(
-      #9b2929 0deg var(--report-progress),
-      #eee6e6 var(--report-progress) 360deg
-    );
+    conic-gradient(#9b2929 0deg var(--report-progress),
+      #eee6e6 var(--report-progress) 360deg);
 }
 
 .report-overview-mini-ring-gray {
   color: #657386;
   background:
-    conic-gradient(
-      #657386 0deg var(--report-progress),
-      #e6eaed var(--report-progress) 360deg
-    );
+    conic-gradient(#657386 0deg var(--report-progress),
+      #e6eaed var(--report-progress) 360deg);
 }
 
 .report-overview-mini-ring-inner {
@@ -15757,7 +15752,7 @@ body {
     padding: 15px 16px;
   }
 
-  .report-overview-metric-text > strong {
+  .report-overview-metric-text>strong {
     font-size: 24px;
   }
 
@@ -15776,6 +15771,7 @@ body {
     height: 18px;
   }
 }
+
 /* ============================================
    ADMIN REPORTS - RECORDS + APPROVED LIST
    ============================================ */
@@ -15848,7 +15844,7 @@ body {
   flex-direction: column;
 }
 
-.report-records-section form > .mt-4 {
+.report-records-section form>.mt-4 {
   margin-top: auto !important;
   padding-top: 24px;
 }
@@ -15904,22 +15900,760 @@ body {
     font-size: 13px;
   }
 
-  .report-records-combined .row.g-3 > div {
+  .report-records-combined .row.g-3>div {
     width: 100%;
   }
 
-  .report-records-section form > .mt-4 {
+  .report-records-section form>.mt-4 {
     padding-top: 20px;
   }
 
-  .report-records-section form > .mt-4,
+  .report-records-section form>.mt-4,
   .report-approved-actions {
     flex-direction: column;
   }
 
-  .report-records-section form > .mt-4 .btn,
+  .report-records-section form>.mt-4 .btn,
   .report-approved-actions .btn {
     width: 100%;
     flex: initial;
+  }
+}
+
+/* ============================================
+   VERIFIER CLAIMING — DOCUMENT/FACE VERIFICATION
+   (missing base rules — classes were used in JSX
+   but never defined; added to match existing
+   verifier-review-* / verifier-action-modal* /
+   feedback-popup* look)
+   ============================================ */
+
+.verifier-claiming-combined-card {
+  padding: 25px;
+}
+
+.verifier-claiming-split-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  margin-top: 16px;
+  border: 1px solid #e8edf2;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.verifier-claiming-split-col {
+  padding: 22px;
+}
+
+.verifier-claiming-split-col-border {
+  border-left: 1px solid #e8edf2;
+}
+
+.verifier-claiming-verification-col {
+  background: #ffffff;
+}
+
+.verifier-claiming-step-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.verifier-claiming-step-badge {
+  flex-shrink: 0;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: var(--maroon-bg-light);
+  color: var(--maroon);
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.verifier-claiming-step-note {
+  margin: 14px 0 0;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12px;
+  color: #8b96a1;
+  text-align: center;
+}
+
+/* Document list */
+
+.verifier-claiming-doc-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.verifier-claiming-doc-card {
+  padding: 14px 16px;
+  border: 1px solid #e3e8ed;
+  border-radius: 10px;
+  background: #f8f9fa;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.verifier-claiming-doc-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.verifier-claiming-doc-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.verifier-claiming-doc-icon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid #e3e8ed;
+  color: var(--maroon);
+  font-size: 16px;
+}
+
+.verifier-claiming-doc-copy h6 {
+  margin: 0 0 4px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.verifier-claiming-doc-copy p {
+  margin: 0;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12.5px;
+  color: #8b96a1;
+}
+
+.verifier-claiming-doc-file {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #1f5688;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.verifier-claiming-doc-status {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.verifier-claiming-doc-status-unreviewed {
+  background: #eef1f4;
+  color: #667788;
+}
+
+.verifier-claiming-doc-status-matched {
+  background: #dcf5e3;
+  color: #1e7e42;
+}
+
+.verifier-claiming-doc-status-issue {
+  background: #fce4e4;
+  color: #b71c1c;
+}
+
+.verifier-claiming-doc-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.verifier-claiming-doc-action {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid #d7dde3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #555f69;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease, border-color .15s ease;
+}
+
+.verifier-claiming-doc-action:hover {
+  background: #f2f4f6;
+}
+
+.verifier-claiming-doc-action-active-match {
+  background: #1e7e42;
+  border-color: #1e7e42;
+  color: #ffffff;
+}
+
+.verifier-claiming-doc-action-active-match:hover {
+  background: #196b37;
+}
+
+.verifier-claiming-doc-action-active-issue {
+  background: var(--maroon);
+  border-color: var(--maroon);
+  color: #ffffff;
+}
+
+.verifier-claiming-doc-action-active-issue:hover {
+  background: var(--maroon-dark);
+}
+
+/* Face verification panel */
+
+.verifier-claiming-face-panel {
+  margin-top: 4px;
+}
+
+/* Status action buttons + validation notice */
+
+.verifier-claiming-status-action-btn {
+  min-height: 40px;
+  padding: 9px 20px;
+  border-radius: 8px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.verifier-claiming-validation-notice {
+  margin-top: 4px;
+}
+
+/* Header row / back button */
+
+.verifier-claiming-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.verifier-claiming-header-text {
+  flex: 1;
+  min-width: 260px;
+}
+
+.verifier-claiming-header-back-btn {
+  flex-shrink: 0;
+  padding: 9px 16px;
+  border: 1px solid #d7dde3;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #333d47;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.verifier-claiming-header-back-btn:hover {
+  background: #f2f4f6;
+  border-color: #c8c8c8;
+}
+
+/* Applicant profile photo */
+
+.verifier-claiming-profile-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid #e3e8ed;
+}
+
+/* Type badges (grace period list) */
+
+.verifier-claiming-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.verifier-claiming-type-promoted {
+  background: #dcf5e3;
+  color: #1e7e42;
+}
+
+.verifier-claiming-type-retrying {
+  background: #fff3cd;
+  color: #b88600;
+}
+
+/* Results card / table */
+
+.verifier-claiming-results-card {
+  padding: 25px;
+}
+
+.verifier-claiming-results-title {
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.verifier-claiming-table-wrap {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.verifier-claiming-results-table {
+  margin-bottom: 0;
+}
+
+.verifier-claiming-status-cell,
+.verifier-claiming-type-cell {
+  vertical-align: middle;
+}
+
+/* Action modal (Mark as Claimed / Not Cleared) */
+
+.verifier-claiming-action-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1060;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(16, 24, 40, 0.55);
+}
+
+.verifier-claiming-action-modal {
+  width: 100%;
+  max-height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+.verifier-claiming-action-modal-small {
+  max-width: 520px;
+}
+
+.verifier-claiming-action-modal-medium {
+  max-width: 620px;
+}
+
+.verifier-claiming-action-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #e8edf2;
+}
+
+.verifier-claiming-action-modal-heading {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.verifier-claiming-action-modal-heading h5 {
+  margin: 0;
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.verifier-claiming-action-modal-heading span {
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+  color: #8b96a1;
+}
+
+.verifier-claiming-action-modal-icon {
+  width: 34px;
+  height: 34px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.verifier-claiming-action-modal-icon-claimed {
+  background: #dcf5e3;
+  color: #1e7e42;
+}
+
+.verifier-claiming-action-modal-icon-not-cleared {
+  background: #fce4e4;
+  color: #b71c1c;
+}
+
+.verifier-claiming-action-modal-close {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #9aa3ad;
+  font-family: Arial, sans-serif;
+  font-size: 25px;
+  font-weight: 300;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.verifier-claiming-action-modal-close:hover {
+  color: #555f69;
+}
+
+.verifier-claiming-action-modal-close:disabled {
+  opacity: .5;
+  cursor: default;
+}
+
+.verifier-claiming-action-modal-body {
+  flex: 1;
+  min-height: 0;
+  padding: 20px;
+  overflow-y: auto;
+  background: #ffffff;
+}
+
+.verifier-claiming-action-modal-error {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  border: 1px solid #f3c2c2;
+  border-radius: 8px;
+  background: #fce4e4;
+  color: #b71c1c;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.verifier-claiming-action-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  background: #ffffff;
+  border-top: 1px solid #e8edf2;
+}
+
+.verifier-claiming-action-modal-cancel {
+  min-height: 38px;
+  padding: 9px 18px;
+  border: 1px solid #dddddd;
+  border-radius: 8px;
+  background: #eeeeee;
+  color: #555555;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.verifier-claiming-action-modal-cancel:hover {
+  background: #d6d6d6;
+  color: #333333;
+  border-color: #c8c8c8;
+}
+
+.verifier-claiming-action-modal-confirm {
+  min-height: 38px;
+  padding: 9px 20px;
+  border: none;
+  border-radius: 8px;
+  color: #ffffff;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.verifier-claiming-action-modal-confirm:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.verifier-claiming-action-modal-confirm-claimed {
+  background: #1e7e42;
+}
+
+.verifier-claiming-action-modal-confirm-claimed:hover:not(:disabled) {
+  background: #196b37;
+}
+
+.verifier-claiming-action-modal-confirm-not-cleared {
+  background: var(--maroon);
+}
+
+.verifier-claiming-action-modal-confirm-not-cleared:hover:not(:disabled) {
+  background: var(--maroon-dark);
+}
+
+.verifier-claiming-action-field {
+  display: flex;
+  flex-direction: column;
+  margin-top: 18px;
+}
+
+.verifier-claiming-action-field label {
+  margin-bottom: 8px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333d47;
+}
+
+.verifier-claiming-action-field textarea {
+  resize: none;
+}
+
+.verifier-claiming-action-reasons-title {
+  display: block;
+  margin-bottom: 10px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #333d47;
+}
+
+.verifier-claiming-action-reason-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f2f4;
+}
+
+.verifier-claiming-action-reason-option:last-of-type {
+  border-bottom: none;
+}
+
+.verifier-claiming-action-reason-option label {
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13.5px;
+  color: #333d47;
+}
+
+.verifier-claiming-action-other-input {
+  margin-top: 8px;
+  margin-left: 26px;
+  max-width: calc(100% - 26px);
+}
+
+/* Quick notes chips */
+
+.verifier-claiming-quick-notes {
+  margin-top: 18px;
+}
+
+.verifier-claiming-quick-notes-label {
+  display: block;
+  margin-bottom: 8px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: #333d47;
+}
+
+.verifier-claiming-quick-notes-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.verifier-claiming-quick-note-btn {
+  padding: 6px 12px;
+  border: 1px solid #d7dde3;
+  border-radius: 999px;
+  background: #f8f9fa;
+  color: #333d47;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.verifier-claiming-quick-note-btn:hover {
+  background: #eef1f4;
+  border-color: #c8c8c8;
+}
+
+/* Feedback popup (success confirmation) */
+
+.verifier-claiming-feedback-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1070;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(16, 24, 40, 0.55);
+}
+
+.verifier-claiming-feedback-popup {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px 28px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22);
+  font-family: 'Inter', Arial, sans-serif;
+}
+
+.verifier-claiming-feedback-icon {
+  width: 56px;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
+.verifier-claiming-feedback-icon-claimed {
+  background: #dcf5e3;
+  color: #1e7e42;
+}
+
+.verifier-claiming-feedback-icon-not-cleared {
+  background: #fce4e4;
+  color: #b71c1c;
+}
+
+.verifier-claiming-feedback-title {
+  margin: 0 0 8px;
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.verifier-claiming-feedback-message {
+  margin: 0 0 22px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #667788;
+}
+
+.verifier-claiming-feedback-dismiss {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 18px;
+  border: none;
+  border-radius: 9px;
+  color: #ffffff;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+
+.verifier-claiming-feedback-dismiss-claimed {
+  background: #1e7e42;
+}
+
+.verifier-claiming-feedback-dismiss-claimed:hover {
+  background: #196b37;
+}
+
+.verifier-claiming-feedback-dismiss-not-cleared {
+  background: var(--maroon);
+}
+
+.verifier-claiming-feedback-dismiss-not-cleared:hover {
+  background: var(--maroon-dark);
+}
+
+.verifier-claiming-feedback-button-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.verifier-claiming-feedback-arrow {
+  font-size: 15px;
+}
+
+.verifier-claiming-feedback-timer {
+  opacity: .85;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+/* Preview modal — PDF variant (image variant already defined) */
+
+.verifier-preview-modal-pdf {
+  display: block;
+  width: 85vw;
+  height: 84vh;
+  border: none;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+/* Responsive: stack split columns on small screens */
+
+@media (max-width: 900px) {
+  .verifier-claiming-split-card {
+    grid-template-columns: 1fr;
+  }
+
+  .verifier-claiming-split-col-border {
+    border-left: none;
+    border-top: 1px solid #e8edf2;
   }
 }
