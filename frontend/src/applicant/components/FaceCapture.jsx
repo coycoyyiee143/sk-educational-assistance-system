@@ -25,6 +25,51 @@ async function loadModels() {
 
   return modelsLoadPromise;
 }
+
+// ---- Image normalization helper -------------------------------------------
+// Some mobile browsers (Android/Samsung camera especially) report the wrong
+// MIME type on <input type="file"> captures, or hand back HEIC/WEBP bytes
+// even when the filename/type claims .jpg. Re-encoding through a canvas
+// guarantees the bytes we send are actually JPEG, regardless of what the
+// browser claimed the source file was.
+function fileToJpegBlob(file, maxSize = 1600) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      let { width, height } = img;
+
+      if (width > maxSize || height > maxSize) {
+        const scale = maxSize / Math.max(width, height);
+        width *= scale;
+        height *= scale;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(url);
+          blob ? resolve(blob) : reject(new Error("Conversion failed"));
+        },
+        "image/jpeg",
+        0.9
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Invalid image file"));
+    };
+
+    img.src = url;
+  });
+}
+
 // ---- Small inline icons (no extra dependency) -----------------------------
 const IconCheck = (props) => (
   <svg
@@ -164,6 +209,7 @@ function FaceCapture({
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
   const [idError, setIdError] = useState("");
+  const [idProcessing, setIdProcessing] = useState(false);
   const [livePreview, setLivePreview] = useState(null);
   const [liveBlob, setLiveBlob] = useState(null);
 
@@ -178,24 +224,13 @@ function FaceCapture({
   const [progress, setProgress] = useState(0);
   const showIdUpload = mode === "registration" && !externalIdImage;
   const effectiveIdImage = externalIdImage || idImage;
-  function handleIdChange(e) {
+
+  async function handleIdChange(e) {
     const file = e.target.files[0];
 
     if (!file) return;
 
     setIdError("");
-
-    const validTypes = [
-      "image/jpeg",
-      "image/jpg",
-      "image/png",
-    ];
-
-    if (!validTypes.includes(file.type)) {
-      setIdError("Please upload a JPG or PNG image.");
-      e.target.value = "";
-      return;
-    }
 
     if (file.size > MAX_ID_SIZE_MB * 1024 * 1024) {
       setIdError(
@@ -205,9 +240,27 @@ function FaceCapture({
       return;
     }
 
-    setIdImage(file);
-    setIdPreview(URL.createObjectURL(file));
+    setIdProcessing(true);
+
+    try {
+      // Re-encode through canvas so the bytes we send are always real JPEG,
+      // regardless of what MIME type the browser/camera claimed the file was
+      // (Android camera captures often mislabel HEIC/WEBP as image/jpeg).
+      const jpegBlob = await fileToJpegBlob(file);
+      const converted = new File([jpegBlob], "id_image.jpg", {
+        type: "image/jpeg",
+      });
+
+      setIdImage(converted);
+      setIdPreview(URL.createObjectURL(converted));
+    } catch {
+      setIdError("Please upload a valid JPG or PNG image.");
+      e.target.value = "";
+    } finally {
+      setIdProcessing(false);
+    }
   }
+
   function attemptLoadModels() {
     setModelsFailed(false);
     setScanStatus("loading");
@@ -305,8 +358,8 @@ function FaceCapture({
           faceWidthRatio >= 0.62
             ? "tooClose"
             : faceWidthRatio <= 0.22
-            ? "tooFar"
-            : "positioning"
+              ? "tooFar"
+              : "positioning"
         );
 
         return;
@@ -538,13 +591,22 @@ function FaceCapture({
 
           <input
             type="file"
-            accept="image/jpeg,image/png,image/jpg"
-            className={`form-control ${
-              idError ? "is-invalid" : ""
-            }`}
+            accept="image/*"
+            className={`form-control ${idError ? "is-invalid" : ""
+              }`}
             onChange={handleIdChange}
-            disabled={isBusy}
+            disabled={isBusy || idProcessing}
           />
+
+          {idProcessing && (
+            <div className="text-muted small mt-2 d-flex align-items-center gap-2">
+              <span
+                className="spinner-border spinner-border-sm"
+                role="status"
+              />
+              Processing image...
+            </div>
+          )}
 
           {idError && (
             <div className="invalid-feedback d-block">
@@ -697,18 +759,18 @@ function FaceCapture({
 
             {(scanStatus === "manual" ||
               modelsFailed) && (
-              <button
-                type="button"
-                className="face-capture-manual-btn"
-                onClick={doCapture}
-                disabled={
-                  !cameraReady || isBusy
-                }
-              >
-                <IconCamera />
-                Capture Photo
-              </button>
-            )}
+                <button
+                  type="button"
+                  className="face-capture-manual-btn"
+                  onClick={doCapture}
+                  disabled={
+                    !cameraReady || isBusy
+                  }
+                >
+                  <IconCamera />
+                  Capture Photo
+                </button>
+              )}
 
             {!modelsFailed &&
               scanStatus !== "loading" &&
@@ -773,8 +835,8 @@ function FaceCapture({
                       ? "Verifying..."
                       : mode ===
                         "registration"
-                      ? "Verify & Create Account"
-                      : "Verify Face")}
+                        ? "Verify & Create Account"
+                        : "Verify Face")}
                 </span>
 
                 {!submitting && (
