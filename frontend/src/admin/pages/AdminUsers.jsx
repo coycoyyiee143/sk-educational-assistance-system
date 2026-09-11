@@ -10,6 +10,23 @@ function RoleBadge({ role }) {
   const labels = { applicant: "Applicant", sk_verifier: "Verifier", sk_admin: "Admin" };
   return <span className={map[role] ?? "role-applicant"}>{labels[role] ?? role}</span>;
 }
+// Shown alongside StatusBadge for personnel — distinguishes "active
+// but never finished setting up their password" from a normal active
+// account, since those look identical otherwise (is_active defaults
+// to true at creation even though the account is unusable until the
+// setup link is clicked).
+function SetupPendingBadge({ emailVerifiedAt }) {
+  if (emailVerifiedAt) return null;
+  return (
+    <span
+      className="status-badge"
+      style={{ background: "#fff3cd", color: "#856404", marginLeft: "4px" }}
+      title="This account hasn't clicked their setup link yet and can't log in."
+    >
+      Setup Pending
+    </span>
+  );
+}
 function getPageNumbers(currentPage, totalPages) {
   const pages = [];
   const maxVisible = 5;
@@ -178,24 +195,27 @@ function ViewApplicantModal({ applicant, onClose }) {
     </div>
   );
 }
+// No password field anymore — the new account gets an unguessable
+// placeholder password and a one-time setup link emailed to them
+// instead. Neither this form nor the admin submitting it ever sees or
+// chooses the account's real password.
 function AddPersonnelModal({ onClose, onSave }) {
-  const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "", password: "", password_confirmation: "", is_active: true });
+  const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "", is_active: true });
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    const passwordRule = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
-    if (!passwordRule.test(form.password)) {
-      setError("Password must be at least 8 characters, with uppercase, lowercase, and a number.");
-      return;
-    }
+    setSaving(true);
     try {
       await onSave(form);
       onClose();
     } catch (err) {
       setError(err.response?.data?.message || Object.values(err.response?.data?.errors ?? {}).flat().join(" ") || "Failed.");
+    } finally {
+      setSaving(false);
     }
   }
   return (
@@ -209,6 +229,11 @@ function AddPersonnelModal({ onClose, onSave }) {
           <form onSubmit={handleSubmit}>
             <div className="modal-body">
               {error && <div className="alert alert-danger">{error}</div>}
+              <div className="alert alert-info" style={{ fontSize: "13.5px" }}>
+                A setup link will be emailed to this person — they'll choose
+                their own password when they click it. You won't set or see
+                their password here.
+              </div>
               <div className="row g-3">
                 <div className="col-md-6">
                   <label className="form-label">First Name</label>
@@ -230,43 +255,13 @@ function AddPersonnelModal({ onClose, onSave }) {
                     <option value="sk_admin">Admin</option>
                   </select>
                 </div>
-                <div className="col-md-6">
-                  <label className="form-label">Password</label>
-                  <input type="password" className="form-control" value={form.password} onChange={set("password")} required />
-                </div>
-                <div className="col-md-6">
-                  <label className="form-label">Confirm Password</label>
-                  <input type="password" className="form-control" value={form.password_confirmation} onChange={set("password_confirmation")} required />
-                  {form.password_confirmation && (
-                    form.password === form.password_confirmation ? (
-                      <span className="admin-password-match">✓ Passwords match</span>
-                    ) : (
-                      <span className="admin-password-match" style={{ color: "#dc3545" }}>✕ Passwords do not match</span>
-                    )
-                  )}
-                </div>
-                <div className="col-12">
-                  <div className="admin-password-requirements">
-                    <span className="admin-password-requirements-title">PASSWORD REQUIREMENTS</span>
-                    <div className="admin-password-requirement-item">
-                      <span>{form.password.length >= 8 ? "✓" : "○"}</span>
-                      <p>At least 8 characters</p>
-                    </div>
-                    <div className="admin-password-requirement-item">
-                      <span>{/[A-Z]/.test(form.password) && /[a-z]/.test(form.password) ? "✓" : "○"}</span>
-                      <p>Uppercase and lowercase letters</p>
-                    </div>
-                    <div className="admin-password-requirement-item">
-                      <span>{/\d/.test(form.password) ? "✓" : "○"}</span>
-                      <p>At least one number</p>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
             <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button type="submit" className="btn btn-custom">Save Personnel</button>
+              <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+              <button type="submit" className="btn btn-custom" disabled={saving}>
+                {saving ? "Sending..." : "Create & Send Setup Link"}
+              </button>
             </div>
           </form>
         </div>
@@ -283,10 +278,13 @@ function AdminUsers() {
   const [viewApplicant, setViewApplicant] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [applicantPage, setApplicantPage] = useState(1);
   const [personnelPage, setPersonnelPage] = useState(1);
   const [roleFilter, setRoleFilter] = useState("");
   const [showRoleMenu, setShowRoleMenu] = useState(false);
+  const [resetTarget, setResetTarget] = useState(null); // confirm-dialog target
+  const [resetting, setResetting] = useState(false);
   const roleMenuRef = useRef(null);
   const perPage = 10;
   function loadUsers() {
@@ -299,6 +297,14 @@ function AdminUsers() {
       .finally(() => setLoading(false));
   }
   useEffect(() => { loadUsers(); }, []);
+  useEffect(() => {
+    if (!error && !success) return;
+    const t = setTimeout(() => {
+      setError("");
+      setSuccess("");
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [error, success]);
   useEffect(() => {
     function handleClickOutside(e) {
       if (roleMenuRef.current && !roleMenuRef.current.contains(e.target)) setShowRoleMenu(false);
@@ -326,6 +332,25 @@ function AdminUsers() {
   async function savePersonnel(form) {
     await api.post("/admin/users/personnel", form);
     loadUsers();
+  }
+  // Admin-initiated reset: kills the current password immediately and
+  // emails a fresh setup link. Confirmed via resetTarget before firing,
+  // since this revokes the account's active sessions right away.
+  async function confirmResetPassword() {
+    if (!resetTarget) return;
+    setResetting(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await api.post(`/admin/users/${resetTarget.id}/reset-password`);
+      setSuccess(res.data?.message || "Password reset. A setup link has been emailed.");
+      setResetTarget(null);
+      loadUsers();
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to reset password.");
+    } finally {
+      setResetting(false);
+    }
   }
   const filteredApplicants = applicants.filter((a) =>
     `${a.first_name} ${a.last_name} ${a.email}`.toLowerCase().includes(applicantSearch.toLowerCase())
@@ -360,6 +385,7 @@ function AdminUsers() {
               <p className="text-muted mb-0">View registered applicants and manage authorized system personnel.</p>
             </div>
             {error && <div className="alert alert-danger">{error}</div>}
+            {success && <div className="alert alert-success">{success}</div>}
             {/* Personnel */}
             <div className="page-card">
               <div className="d-flex justify-content-between align-items-center mb-3">
@@ -386,12 +412,12 @@ function AdminUsers() {
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle announcement-table">
                   <colgroup>
-                    <col style={{ width: "8%" }} />
-                    <col style={{ width: "20%" }} />
+                    <col style={{ width: "7%" }} />
+                    <col style={{ width: "17%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "14%" }} />
                     <col style={{ width: "28%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "20%" }} />
                   </colgroup>
                   <thead>
                     <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
@@ -408,9 +434,13 @@ function AdminUsers() {
                           <td>{p.first_name} {p.last_name}</td>
                           <td>{p.email}</td>
                           <td><RoleBadge role={p.role} /></td>
-                          <td><StatusBadge active={p.is_active} /></td>
+                          <td>
+                            <StatusBadge active={p.is_active} />
+                            <SetupPendingBadge emailVerifiedAt={p.email_verified_at} />
+                          </td>
                           <td>
                             <button className={`user-action-btn me-1 ${p.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(p.id)}>{p.is_active ? "Deactivate" : "Activate"}</button>
+                            <button className="user-action-btn me-1" onClick={() => setResetTarget(p)}>Reset Password</button>
                             <button className="user-action-btn user-action-delete" onClick={() => deleteUser(p.id)}>Delete</button>
                           </td>
                         </tr>
@@ -499,6 +529,34 @@ function AdminUsers() {
       </div>
       {viewApplicant && <ViewApplicantModal applicant={viewApplicant} onClose={() => setViewApplicant(null)} />}
       {showAdd && <AddPersonnelModal onClose={() => setShowAdd(false)} onSave={savePersonnel} />}
+
+      {resetTarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Reset Password?</h5>
+                <button type="button" className="btn-close" onClick={() => setResetTarget(null)} disabled={resetting} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  This will immediately invalidate {resetTarget.first_name} {resetTarget.last_name}'s
+                  current password and log them out of all active sessions. A
+                  link to set a new password will be emailed to <strong>{resetTarget.email}</strong>.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setResetTarget(null)} disabled={resetting}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-custom" onClick={confirmResetPassword} disabled={resetting}>
+                  {resetting ? "Resetting..." : "Yes, Reset Password"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

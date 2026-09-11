@@ -56,6 +56,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Frontend URL
+    |--------------------------------------------------------------------------
+    |
+    | Used to build links back to the React frontend from backend-generated
+    | emails (e.g. the personnel account setup/reset link). Falls back to
+    | APP_URL if FRONTEND_URL isn't set in .env.
+    |
+    */
+
+    'frontend_url' => env('FRONTEND_URL', env('APP_URL')),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

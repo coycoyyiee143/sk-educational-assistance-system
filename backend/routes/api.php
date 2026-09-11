@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\VerifierController;
 use App\Http\Controllers\Api\FaceVerificationController;
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\PersonnelSetupController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -34,6 +35,11 @@ Route::post('/2fa/verify', [AuthController::class, 'verifyTwoFactor']);         
 Route::post('/password/forgot', [PasswordResetController::class, 'sendResetCode']);
 Route::post('/password/verify-code', [PasswordResetController::class, 'verifyResetCode']);
 Route::post('/password/reset', [PasswordResetController::class, 'resetPassword']);
+
+// Personnel account setup / admin-initiated reset — public, since the
+// person clicking this link from their email isn't logged in yet.
+Route::get('/personnel/setup/{token}', [PersonnelSetupController::class, 'show']);
+Route::post('/personnel/setup/{token}', [PersonnelSetupController::class, 'store']);
 
 // Public info routes
 Route::get('/announcements', [AnnouncementController::class, 'index']);
@@ -58,6 +64,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/admin/users/{id}', [AdminController::class, 'updateUser']);
         Route::patch('/admin/users/{id}/toggle-status', [AdminController::class, 'toggleStatus']);
         Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
+        Route::post('/admin/users/{id}/reset-password', [AdminController::class, 'resetPassword']);
         Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
         Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
         Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);
