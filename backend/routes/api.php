@@ -19,7 +19,7 @@ use App\Http\Controllers\Api\PersonnelSetupController;
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/register/check', [AuthController::class, 'checkDuplicate']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1'); // 10 attempts per minute per IP
 Route::post('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
     ->name('verification.verify');
 Route::post('/email/resend', [AuthController::class, 'resendVerification']);

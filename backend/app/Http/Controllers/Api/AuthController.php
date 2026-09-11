@@ -23,7 +23,7 @@ class AuthController extends Controller
     protected FaceMatchingService $faceService;
     protected TwoFactorService $twoFactor;
 
-    const MAX_FAILED_ATTEMPTS = 5;
+    const MAX_FAILED_ATTEMPTS = 3;
     const LOCKOUT_MINUTES = 15;
     const PENDING_TOKEN_MINUTES = 10;
 
