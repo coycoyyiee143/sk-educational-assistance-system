@@ -377,6 +377,7 @@ class AuthController extends Controller
                 'pending_token'      => $pendingToken,
                 'qr_code_url'        => $this->twoFactor->getQrCodeUrl($user, $secret),
                 'secret'             => $secret, // manual-entry fallback if they can't scan
+                'email'              => $user->email, // shown in the UI so it's clear WHICH account this QR belongs to
             ]);
         }
 

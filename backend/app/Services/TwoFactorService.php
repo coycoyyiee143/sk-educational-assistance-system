@@ -9,6 +9,14 @@ class TwoFactorService
 {
     protected Google2FA $engine;
 
+    // Hardcoded rather than relying on config('app.name') — that config
+    // key ALWAYS has a value (Laravel's own default is the literal
+    // string "Laravel", from config/app.php's env('APP_NAME', 'Laravel')),
+    // so a fallback default here would never actually trigger. If
+    // APP_NAME isn't set in .env, every user's authenticator app would
+    // show "Laravel (their email)" instead of your actual system name.
+    const ISSUER = 'Mamatid SK-EAS';
+
     public function __construct()
     {
         $this->engine = new Google2FA();
@@ -23,7 +31,7 @@ class TwoFactorService
     public function getQrCodeUrl(User $user, string $secret): string
     {
         return $this->engine->getQRCodeUrl(
-            config('app.name', 'SK-EAS'),
+            self::ISSUER,
             $user->email,
             $secret
         );

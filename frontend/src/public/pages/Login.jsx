@@ -21,6 +21,7 @@ const Login = () => {
   const [pendingToken, setPendingToken] = useState(null);
   const [qrCodeUrl, setQrCodeUrl] = useState(null);
   const [secret, setSecret] = useState(null);
+  const [setupEmail, setSetupEmail] = useState(null);
   const [code, setCode] = useState("");
 
   function goToRoleHome(user) {
@@ -45,6 +46,7 @@ const Login = () => {
         setPendingToken(data.pending_token);
         setQrCodeUrl(data.qr_code_url);
         setSecret(data.secret);
+        setSetupEmail(data.email);
         setStep("2fa_setup");
         return;
       }
@@ -102,6 +104,7 @@ const Login = () => {
     setPendingToken(null);
     setQrCodeUrl(null);
     setSecret(null);
+    setSetupEmail(null);
   }
 
   if (user) {
@@ -219,9 +222,12 @@ const Login = () => {
                 {step === "2fa_setup" && (
                   <>
                     <h3 className="text-danger text-start login-title-bold">Set Up Authenticator</h3>
-                    <p className="text-muted text-start login-subtext-lg mb-3">
-                      Scan this QR code with Google Authenticator, Authy, or a similar app. This is a
-                      one-time setup — you'll only see this screen once.
+                    <p className="text-muted text-start login-subtext-lg mb-1">
+                      Scan this QR code with Google Authenticator, Authy, or a similar app.
+                    </p>
+                    <p className="text-muted text-start mb-3" style={{ fontSize: "13px" }}>
+                      This will appear in your app as <strong>Mamatid SK-EAS ({setupEmail})</strong> —
+                      a one-time setup, you'll only see this screen once.
                     </p>
 
                     {error && (
