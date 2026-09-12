@@ -211,18 +211,25 @@ function VerifierApplicationReview() {
   useEffect(() => {
     const scrollContainer = document.querySelector(".verifier-main");
 
-    if (!scrollContainer) return undefined;
+    const getScrollTop = () =>
+      Math.max(
+        scrollContainer?.scrollTop || 0,
+        window.scrollY || 0,
+        document.documentElement.scrollTop || 0
+      );
 
-    const handleScroll = () =>
-      setShowScrollTop(scrollContainer.scrollTop > 360);
+    const handleScroll = () => setShowScrollTop(getScrollTop() > 360);
 
-    scrollContainer.addEventListener("scroll", handleScroll, {
+    scrollContainer?.addEventListener("scroll", handleScroll, {
       passive: true,
     });
+    window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
 
-    return () =>
-      scrollContainer.removeEventListener("scroll", handleScroll);
+    return () => {
+      scrollContainer?.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("scroll", handleScroll);
+    };
   }, []);
 
   function scrollToTop() {
@@ -230,6 +237,7 @@ function VerifierApplicationReview() {
       top: 0,
       behavior: "smooth",
     });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   if (loading) {
@@ -1361,89 +1369,48 @@ function VerifierApplicationReview() {
                                     <OcrBadge passed={check.passed} />
                                   </div>
 
-                                  <div
-                                    style={{
-                                      display: "grid",
-                                      gridTemplateColumns: "1fr 1fr",
-                                      marginTop: "8px",
-                                    }}
-                                  >
-                                    <div
-                                      style={{
-                                        paddingRight: "16px",
-                                        borderRight: "1px solid #e0e0e0",
-                                      }}
-                                    >
-                                      <div
-                                        style={{
-                                          fontSize: "0.72rem",
-                                          fontWeight: 700,
-                                          color: "#1565c0",
-                                          letterSpacing: "0.04em",
-                                          marginBottom: "3px",
-                                        }}
-                                      >
+                                  <div className="verifier-ocr-check-value-pair">
+                                    <div className="verifier-ocr-check-value-col">
+                                      <div className="verifier-ocr-check-value-pair-label">
                                         EXTRACTED VALUE
                                       </div>
                                       <div
-                                        style={{
-                                          fontSize: "0.9rem",
-                                          fontWeight: 700,
-                                          color: check.passed ? "#1a1a1a" : "#b71c1c",
-                                        }}
+                                        className={`verifier-ocr-check-value-pair-value ${
+                                          !check.passed ? "verifier-ocr-check-value-pair-value-mismatch" : ""
+                                        }`}
                                       >
                                         {check.extracted_value || "not extracted"}
                                       </div>
                                     </div>
 
-                                    <div style={{ paddingLeft: "16px" }}>
-                                      <div
-                                        style={{
-                                          fontSize: "0.72rem",
-                                          fontWeight: 700,
-                                          color: "#1565c0",
-                                          letterSpacing: "0.04em",
-                                          marginBottom: "3px",
-                                        }}
-                                      >
+                                    <div className="verifier-ocr-check-value-col">
+                                      <div className="verifier-ocr-check-value-pair-label">
                                         EXPECTED VALUE
                                       </div>
-                                      <div
-                                        style={{
-                                          fontSize: "0.9rem",
-                                          fontWeight: 700,
-                                          color: "#1a1a1a",
-                                        }}
-                                      >
+                                      <div className="verifier-ocr-check-value-pair-value">
                                         {check.expected_value ?? "—"}
                                       </div>
                                     </div>
                                   </div>
                                   {check.passed ? (
-                                    <div className="verifier-ocr-check-pass-reason" style={{ marginTop: "6px", fontSize: "0.8rem" }}>
-                                      <span className="verifier-ocr-check-pass-label">
+                                    <div className="verifier-ocr-check-reason-row">
+                                      <span className="verifier-ocr-check-reason-label">
                                         Flag Reason:
                                       </span>
-
-                                      <span className="verifier-ocr-check-pass-none">
+                                      <span className="verifier-ocr-check-reason-value-pass">
                                         None
                                       </span>
-
-                                      <span className="verifier-ocr-check-pass-message">
-                                        • {getPassedCheckMessage(check.check_name)}
+                                      <span className="verifier-ocr-check-reason-message">
+                                        · {getPassedCheckMessage(check.check_name)}
                                       </span>
                                     </div>
                                   ) : (
-                                    <div className="verifier-ocr-check-flag" style={{ marginTop: "6px", fontSize: "0.8rem" }}>
-                                      <span className="verifier-ocr-check-flag-icon">
-                                        !
-                                      </span>
-
-                                      <span className="verifier-ocr-check-flag-label">
+                                    <div className="verifier-ocr-check-reason-row">
+                                      <span className="verifier-ocr-check-reason-label">
                                         Flag Reason:
                                       </span>
-
-                                      <span className="verifier-ocr-check-flag-text">
+                                      <span className="verifier-ocr-check-reason-value-fail">
+                                        <span className="verifier-ocr-check-reason-icon">!</span>
                                         {check.flag_reason ?? "—"}
                                       </span>
                                     </div>

@@ -16915,3 +16915,141 @@ body {
     border-top: 1px solid #e8edf2;
   }
 }
+
+.verifier-ocr-check-value-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-top: 8px;
+}
+
+.verifier-ocr-check-value-col {
+  min-width: 0;
+  padding-right: 16px;
+  border-right: 1px solid #e0e0e0;
+}
+
+.verifier-ocr-check-value-col:last-child {
+  padding-right: 0;
+  padding-left: 16px;
+  border-right: none;
+}
+
+.verifier-ocr-check-value-pair-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #1565c0;
+  letter-spacing: 0.04em;
+  margin-bottom: 3px;
+}
+
+.verifier-ocr-check-value-pair-value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.verifier-ocr-check-value-pair-value-mismatch {
+  color: #b71c1c;
+}
+
+@media (max-width: 700px) {
+  .verifier-ocr-check-value-pair {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .verifier-ocr-check-value-col {
+    padding-right: 0;
+    padding-left: 0;
+    border-right: none;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #e0e0e0;
+  }
+
+  .verifier-ocr-check-value-col:last-child {
+    padding-left: 0;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+}
+
+/* Fix badge overlap on mobile */
+@media (max-width: 575.98px) {
+  .verifier-review-info-header-top .status-badge {
+    position: static;
+    top: auto;
+    margin-top: 8px;
+  }
+}
+
+.verifier-ocr-check-reason-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  column-gap: 6px;
+  row-gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eee;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  max-width: 100%;
+}
+
+.verifier-ocr-check-reason-label {
+  font-weight: 700;
+  color: #4f5f6f;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.verifier-ocr-check-reason-value-pass {
+  font-weight: 700;
+  color: #198754;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.verifier-ocr-check-reason-value-fail {
+  display: inline-flex;
+  align-items: flex-start;
+  gap: 5px;
+  font-weight: 700;
+  color: #b71c1c;
+  min-width: 0;
+  flex: 1 1 220px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.verifier-ocr-check-reason-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #c91f24;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.verifier-ocr-check-reason-message {
+  color: #667788;
+  font-weight: 400;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Safety net — keeps the whole check card from ever pushing past its
+   container width, regardless of what text ends up inside it. */
+.verifier-ocr-check-card {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
