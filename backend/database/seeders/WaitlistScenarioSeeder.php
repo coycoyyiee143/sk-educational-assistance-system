@@ -10,6 +10,7 @@ use App\Models\ClaimingSchedule;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class WaitlistScenarioSeeder extends Seeder
@@ -47,61 +48,56 @@ class WaitlistScenarioSeeder extends Seeder
 
     public function run(): void
     {
-        $admin = User::create([
-            'first_name'        => 'SK Admin',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'admin@skmamatid.com',
-            'mobile_number'     => '09123456789',
-            'password'          => Hash::make('admin123'),
-            'role'              => 'sk_admin',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
+        $this->verifier = User::where('role', 'sk_verifier')->first();
+        if (!$this->verifier) {
+            $this->command->error('No sk_verifier user found in the database. Create one first, then re-run this seeder.');
+            return;
+        }
 
-        $this->verifier = User::create([
-            'first_name'        => 'SK Verifier',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'verifier@skmamatid.com',
-            'mobile_number'     => '09876543210',
-            'password'          => Hash::make('verifier123'),
-            'role'              => 'sk_verifier',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
+        $admin = User::where('role', 'sk_admin')->first();
 
-        // Active period, deliberately created AT capacity from the start —
-        // 200 approved against a 200 slot_limit — so waitlisted applicants
-        // and freed-slot math are consistent from the moment this seeder
-        // finishes, no post-hoc adjustment needed. Bumped from 40 to 200
-        // specifically to give the two-column approved-list PDF/image
-        // export something realistic to paginate across multiple pages.
-        $config = ApplicationConfiguration::create([
-            'school_year'  => '2026-2027',
-            'open_date'    => now()->subDays(10)->startOfDay(),
-            'close_date'   => now()->addDays(4)->endOfDay(),
-            'slot_limit'   => 200,
-            'slots_filled' => 200,
-            'is_unlimited' => false,
-            'is_active'    => true,
-            'created_by'   => $admin->id,
-        ]);
+        DB::transaction(function () use ($admin) {
+            ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
 
-        $this->seedApprovedApplicants($config, 200);
-        $this->seedWaitlistedApplicants($config, 5);
+            $config = ApplicationConfiguration::create([
+                'school_year'        => '2026-2027 (Test)',
+                'open_date'          => now()->subDays(10)->startOfDay(),
+                'close_date'         => now()->subDays(3)->endOfDay(),
+                'slot_limit'         => 30,
+                'slots_filled'       => 30,
+                'is_unlimited'       => false,
+                'is_active'          => true,
+                'assistance_amount'  => 2000,
+                'created_by'         => $admin?->id,
+            ]);
 
-        $schedule = $this->seedClaimingSchedule($config);
+            $this->seedApprovedApplicants($config, 30);
+            $this->seedWaitlistedApplicants($config, 5);
 
-        // 3 not_cleared (claiming-day rejections) + 2 unclaimed (no-shows,
-        // still eligible to retry during grace period) — 5 freed slots
-        // total. Only not_cleared actively offers its slot to the waitlist
-        // per the team's confirmed business rule; unclaimed just needs to
-        // show up correctly in the Grace Period Claiming List as a retry.
-        $this->seedNotClearedOutcomes($config, $schedule, 3, startingAt: 0);
-        $this->seedUnclaimedOutcomes($config, $schedule, 2, startingAt: 3);
+            $schedule = $this->seedClaimingSchedule($config);
 
-        $this->command->info('Waitlist scenario seeded: period at capacity (200/200), 5 waitlisted applicants, 3 not_cleared + 2 unclaimed freed slots, grace period set for notification, Grace Period Claiming List, and paginated approved-list testing.');
+            // Frozen, ordered-by-id list of exactly the 30 originally-
+            // approved applicants, captured ONCE right after assignment.
+            // Every step below slices THIS SAME list — never re-queries
+            // Application::where('status','approved') again, since each
+            // prior step mutates status and would shift what "approved"
+            // even means by the time the next step runs. That reindexing
+            // bug previously caused claimed/no-show counts to drift.
+            $assignedApps = $this->assignApprovedApplicantsToLane($config, $schedule);
+
+            // Indices 0-2: not_cleared (3 apps)
+            $this->seedNotClearedOutcomes($config, $assignedApps->slice(0, 3));
+
+            // Indices 3-4: left untouched as unswept no-shows (2 apps) —
+            // stays pending_claiming/original from the assignment step
+            // above, which is what makes them grace-period-eligible per
+            // GracePeriodEligibility rule 2. Nothing to do here.
+
+            // Indices 5-29: claimed (25 apps)
+            $this->seedClaimedOutcomes($config, $schedule, $assignedApps->slice(5));
+        });
+
+        $this->command->info('Waitlist scenario seeded: period at capacity (30/30), 5 waitlisted applicants, 3 not_cleared freed slots, 2 unswept no-shows currently grace-period-eligible.');
     }
 
     private function seedApprovedApplicants(ApplicationConfiguration $config, int $count): void
@@ -150,21 +146,19 @@ class WaitlistScenarioSeeder extends Seeder
 
     private function seedClaimingSchedule(ApplicationConfiguration $config): ClaimingSchedule
     {
-        // Grace period set to next week so ClaimingScheduleNotification's
-        // grace-period branch actually gets exercised, not the fallback.
         $schedule = ClaimingSchedule::create([
             'config_id'             => $config->id,
             'location'              => 'Barangay Mamatid Covered Court',
-            'is_published'          => true,
-            'published_at'          => now()->subDays(2),
-            'grace_period_date'     => now()->addWeek()->startOfWeek()->addDay()->toDateString(),
-            'grace_period_end_date' => now()->addWeek()->startOfWeek()->addDays(5)->toDateString(),
+            'is_active'             => true,
+            'activated_at'          => now()->subDays(2),
+            'grace_period_date'     => now()->subDay()->toDateString(),
+            'grace_period_end_date' => now()->addDays(5)->toDateString(),
         ]);
 
         ClaimingLane::create([
             'claiming_schedule_id' => $schedule->id,
             'lane_name'            => 'Lane A',
-            'capacity'             => 50,
+            'capacity'             => 30,
             'batch'                => 'morning',
             'claiming_date'        => now()->subDays(2)->toDateString(),
         ]);
@@ -172,15 +166,21 @@ class WaitlistScenarioSeeder extends Seeder
         return $schedule;
     }
 
-    private function seedNotClearedOutcomes(ApplicationConfiguration $config, ClaimingSchedule $schedule, int $count, int $startingAt): void
+    /**
+     * Assigns every originally-approved applicant to the lane, and
+     * returns the exact ordered-by-id Collection of Application models
+     * it just assigned. This return value is the single source of truth
+     * every later step slices against — nobody re-queries 'status =
+     * approved' again, since that status gets mutated as later steps
+     * run and would silently shift what "approved" means each time.
+     */
+    private function assignApprovedApplicantsToLane(ApplicationConfiguration $config, ClaimingSchedule $schedule)
     {
         $lane = $schedule->lanes()->first();
 
         $approvedApps = Application::where('config_id', $config->id)
             ->where('status', 'approved')
             ->orderBy('id')
-            ->skip($startingAt)
-            ->take($count)
             ->get();
 
         foreach ($approvedApps as $app) {
@@ -188,43 +188,44 @@ class WaitlistScenarioSeeder extends Seeder
                 'application_id'       => $app->id,
                 'claiming_schedule_id' => $schedule->id,
                 'claiming_lane_id'     => $lane->id,
-                'claim_status'         => 'not_cleared',
+                'claim_status'         => 'pending_claiming',
                 'source'               => 'original',
-                'reason_categories'    => collect($this->notClearedReasons)->random(1)->values()->all(),
-                'verified_by'          => $this->verifier->id,
-                'verified_at'          => now()->subDays(1),
+            ]);
+        }
+
+        return $approvedApps->values();
+    }
+
+    private function seedNotClearedOutcomes(ApplicationConfiguration $config, $apps): void
+    {
+        foreach ($apps as $app) {
+            ClaimingAssignment::where('application_id', $app->id)->update([
+                'claim_status'       => 'not_cleared',
+                'reason_categories'  => collect($this->notClearedReasons)->random(1)->values()->all(),
+                'verified_by'        => $this->verifier->id,
+                'verified_at'        => now()->subDays(1),
             ]);
 
             $app->update(['status' => 'not_cleared']);
         }
 
-        // Mirrors the real decrement updateClaimStatus() performs.
-        $config->decrement('slots_filled', $approvedApps->count());
+        $config->decrement('slots_filled', $apps->count());
     }
 
-    private function seedUnclaimedOutcomes(ApplicationConfiguration $config, ClaimingSchedule $schedule, int $count, int $startingAt): void
+    private function seedClaimedOutcomes(ApplicationConfiguration $config, ClaimingSchedule $schedule, $apps): void
     {
         $lane = $schedule->lanes()->first();
 
-        $approvedApps = Application::where('config_id', $config->id)
-            ->where('status', 'approved')
-            ->orderBy('id')
-            ->skip($startingAt)
-            ->take($count)
-            ->get();
-
-        foreach ($approvedApps as $app) {
-            ClaimingAssignment::create([
-                'application_id'       => $app->id,
-                'claiming_schedule_id' => $schedule->id,
-                'claiming_lane_id'     => $lane->id,
-                'claim_status'         => 'unclaimed',
-                'source'               => 'original',
-                'verified_by'          => $this->verifier->id,
-                'verified_at'          => now()->subDays(1),
+        foreach ($apps as $app) {
+            ClaimingAssignment::where('application_id', $app->id)->update([
+                'claim_status'       => 'claimed',
+                'verified_documents' => [],
+                'verified_by'        => $this->verifier->id,
+                'verified_at'        => $lane->claiming_date,
+                'amount'             => $config->assistance_amount,
             ]);
 
-            $app->update(['status' => 'unclaimed']);
+            $app->update(['status' => 'claimed']);
         }
     }
 
