@@ -64,13 +64,18 @@ class ProfileController extends Controller
         // forced it to be mandatory in practice (profile could never be
         // "complete" without it) even though nothing else in the system
         // treats it as required.
+        //
+        // "street" removed as a completeness requirement — the frontend
+        // no longer collects it (superseded by Subdivision/Village, which
+        // is collected instead, but only required when purok_type is
+        // "phase"; puroks run along streets and have no subdivision).
         $data['is_profile_complete'] = (bool) (
             ($data['birthdate'] ?? null) &&
             ($data['gender'] ?? null) &&
             ($data['house_no'] ?? null) &&
-            ($data['street'] ?? null) &&
             ($data['purok_type'] ?? null) &&
             ($data['purok'] ?? null) &&
+            (($data['purok_type'] ?? null) !== 'phase' || ($data['subdivision'] ?? null)) &&
             ($data['barangay'] ?? null) &&
             ($data['city'] ?? null) &&
             ($data['province'] ?? null)
@@ -175,6 +180,7 @@ class ProfileController extends Controller
             'street'                 => 'nullable|string',
             'purok_type'             => 'nullable|in:purok,phase',
             'purok'                  => 'nullable|string',
+            'subdivision'            => 'nullable|string|required_if:purok_type,phase',
             'barangay'               => 'nullable|string',
             'city'                   => 'nullable|string',
             'province'               => 'nullable|string',

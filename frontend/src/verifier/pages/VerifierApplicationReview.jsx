@@ -1250,7 +1250,11 @@ function VerifierApplicationReview() {
 
                               {previewIntegrityChecks.map((check) => (
                                 <div
-                                  className="verifier-preview-extraction-check"
+                                  className={`verifier-preview-extraction-check ${
+                                    check.passed
+                                      ? "verifier-preview-extraction-check-passed"
+                                      : "verifier-preview-extraction-check-failed"
+                                  }`}
                                   key={check.id}
                                 >
                                   <strong className="verifier-preview-extraction-label">
