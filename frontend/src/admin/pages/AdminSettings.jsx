@@ -45,6 +45,14 @@ function AdminSettings() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showStartNewModal, setShowStartNewModal] = useState(false);
 
+  // Extend Application Period — the ONLY way close_date changes now
+  // (ApplicationConfigurationController::extend()). Separate from the
+  // main settings form/modal entirely.
+  const [showExtendModal, setShowExtendModal] = useState(false);
+  const [extendDate, setExtendDate] = useState("");
+  const [extending, setExtending] = useState(false);
+  const [extendError, setExtendError] = useState("");
+
   useEffect(() => {
     api.get("/admin/application-configs")
       .then((res) => {
@@ -114,18 +122,39 @@ function AdminSettings() {
     }
   }
 
+  function openExtendModal() {
+    setExtendError("");
+    // Default the picker to the day after the current closing date, so
+    // it never opens already invalid against the after: rule.
+    const current = config?.close_date ? new Date(config.close_date) : new Date();
+    current.setDate(current.getDate() + 1);
+    setExtendDate(current.toISOString().slice(0, 10));
+    setShowExtendModal(true);
+  }
+
+  async function handleExtend() {
+    if (!config || !extendDate) return;
+    setExtending(true);
+    setExtendError("");
+    try {
+      const res = await api.post(`/admin/application-configs/${config.id}/extend`, {
+        close_date: extendDate,
+      });
+      setConfig(res.data.config);
+      setForm((f) => ({ ...f, close_date: res.data.config.close_date }));
+      setShowExtendModal(false);
+      setSuccess("Application period extended.");
+    } catch (err) {
+      setExtendError(err.response?.data?.message || "Failed to extend application period.");
+    } finally {
+      setExtending(false);
+    }
+  }
+
   function handleSubmit(e) {
     e.preventDefault();
     setError("");
     setSuccess("");
-    if (form.open_date && form.close_date) {
-      const openTime = new Date(form.open_date).getTime();
-      const closeTime = new Date(`${form.close_date.slice(0, 10)}T23:59:59`).getTime();
-      if (closeTime <= openTime) {
-        setError("Closing Date must be after the Opening Date.");
-        return;
-      }
-    }
     if (needsConfirmation()) {
       setShowConfirmModal(true);
       return;
@@ -141,7 +170,13 @@ function AdminSettings() {
         ...form,
         is_active: true,
         open_date: form.open_date ? `${form.open_date.slice(0, 10)} ${form.open_date.slice(11, 16)}:00` : "",
-        close_date: form.close_date ? `${form.close_date.slice(0, 10)} 23:59:59` : "",
+        // close_date is locked here — always sent back UNCHANGED. The
+        // backend rejects this form outright if it differs from what's
+        // on record; extending it only ever happens through
+        // handleExtend() above. Formatted the same way it's displayed
+        // (date only, midnight) so the equality check on the backend
+        // doesn't get tripped up by a stray time component.
+        close_date: config?.close_date ? config.close_date.slice(0, 10) + " 23:59:59" : "",
         slot_limit: form.is_unlimited ? null : form.slot_limit,
         assistance_amount: form.assistance_amount,
       };
@@ -300,13 +335,19 @@ function AdminSettings() {
                 </div>
               </div>
 
+              {config && (
+                <div className="alert alert-info">
+                  <strong>Closing Date is locked here.</strong>{" "}
+                  Use the "Extend Application Period" action below to move it later — it can never be edited
+                  through this form, whether or not the period has started.
+                </div>
+              )}
+
               {hasStarted && !hasClosed && (
                 <div className="alert alert-warning">
                   <strong>This application period has already started.</strong>{" "}
-                  School Year, Opening Date, Number of Available Slots, and
-                  Slot Type can no longer be changed to protect data integrity
-                  for applicants who have already applied. Closing Date can
-                  still be updated.
+                  School Year, Opening Date, Number of Available Slots, Slot Type, and Assistance Amount
+                  can no longer be changed to protect data integrity for applicants who have already applied.
                 </div>
               )}
 
@@ -387,9 +428,12 @@ function AdminSettings() {
                             type="date"
                             className="form-control"
                             value={form.close_date ? form.close_date.slice(0, 10) : ""}
-                            onChange={set("close_date")}
-                            required
+                            disabled
+                            readOnly
                           />
+                          <div className="form-text">
+                            Locked — use "Extend Application Period" below to change it.
+                          </div>
                         </div>
                       </div>
                       <div className="form-text mt-2">
@@ -504,6 +548,27 @@ function AdminSettings() {
               )}
             </div>
 
+            {config && !config.closed_at && (
+              <div className="page-card">
+                <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                  <div>
+                    <h4 className="sub-title sub-title-dark mb-1">Extend Application Period</h4>
+                    <p className="text-muted small mb-0">
+                      Move the Closing Date later. Blocked if it would collide with an already-scheduled
+                      claiming date or Grace Period start — reschedule those first if needed.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-outline-custom"
+                    onClick={openExtendModal}
+                  >
+                    Extend Closing Date
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="page-card">
               <h4 className="sub-title sub-title-dark">Current Application Settings</h4>
               <div className="table-responsive">
@@ -612,7 +677,7 @@ function AdminSettings() {
                   <li>Assistance Amount per Applicant</li>
                 </ul>
                 <p className="mb-0 text-muted small">
-                  Closing Date will still be editable after the period opens.
+                  Closing Date is never editable here — use "Extend Application Period" instead.
                 </p>
               </div>
               <div className="d-flex justify-content-end gap-2 p-3 border-top">
@@ -630,6 +695,50 @@ function AdminSettings() {
                   disabled={saving}
                 >
                   {saving ? "Saving..." : "Confirm & Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExtendModal && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content edit-announcement-modal">
+              <div className="modal-header">
+                <h5 className="modal-title">Extend Application Period</h5>
+              </div>
+              <div className="p-4">
+                <p className="mb-2 text-muted small">
+                  Current Closing Date: <strong>{formatDateTime(config?.close_date)}</strong>
+                </p>
+                <label className="form-label">New Closing Date</label>
+                <input
+                  type="date"
+                  className="form-control"
+                  value={extendDate}
+                  min={config?.close_date ? new Date(new Date(config.close_date).getTime() + 86400000).toISOString().slice(0, 10) : undefined}
+                  onChange={(e) => setExtendDate(e.target.value)}
+                />
+                {extendError && <div className="alert alert-danger mt-3 mb-0">{extendError}</div>}
+              </div>
+              <div className="d-flex justify-content-end gap-2 p-3 border-top">
+                <button
+                  type="button"
+                  className="btn btn-clear-dark"
+                  onClick={() => setShowExtendModal(false)}
+                  disabled={extending}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-save-green"
+                  onClick={handleExtend}
+                  disabled={extending || !extendDate}
+                >
+                  {extending ? "Extending..." : "Confirm Extension"}
                 </button>
               </div>
             </div>
