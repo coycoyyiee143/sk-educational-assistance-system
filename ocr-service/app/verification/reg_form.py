@@ -1,6 +1,6 @@
 # app/verification/reg_form.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_school_year
-from app.verification.shared import CONFIDENCE_THRESHOLD, RAW_FIELD_CONFIDENCE_FLOOR, _pass, _flag, _check_name, _check_school
+from app.verification.shared import CONFIDENCE_THRESHOLD, RAW_FIELD_CONFIDENCE_FLOOR, _pass, _flag, _check_name_or_reupload, _check_school
 from app.upload_checks.document_type_check import check_document_type
 from app.upload_checks.image_quality_check import check_image_quality
 from app.template_checks import get_template_strategy
@@ -40,8 +40,24 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
             "auto_reupload_reason": type_mismatch["reason"],
         }
 
+    # Confident name mismatch: a "Name" field was found and read
+    # reliably, but it isn't this applicant — most likely an honest
+    # mistaken upload. Short-circuits the same way as wrong_document_type
+    # above, BEFORE building the rest of the checks dict, so the
+    # applicant gets one clear reupload prompt instead of a full
+    # eligibility_issues report on a document that isn't even theirs.
+    name_tag, name_result = _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name)
+    if name_tag == "auto_reupload":
+        return {
+            "document": "registration_form",
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": name_result["category"],
+            "auto_reupload_reason": name_result["reason"],
+        }
+
     checks = {
-        "identity_match": _check_name(blocks, page_w, page_h, first_name, middle_name, last_name),
+        "identity_match": name_result,
         "institution_match": _check_school(blocks, page_w, page_h, declared_school)
     }
     sy_res = extract_school_year(blocks, page_w, page_h, declared_school, configured_school_year)
