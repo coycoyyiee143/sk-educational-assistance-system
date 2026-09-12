@@ -1,6 +1,6 @@
 # app/verification/school_id.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions
-from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name, _check_school
+from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name_or_reupload, _check_school
 from app.upload_checks.document_type_check import check_document_type
 from app.upload_checks.image_quality_check import check_image_quality
 from app.normalization import get_strategy_for_school
@@ -44,10 +44,27 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
     strategy = get_strategy_for_school(declared_school)
     blocks = strategy.preprocess_blocks(blocks)
 
-    name_check = _check_name(blocks, page_w, page_h, first_name, middle_name, last_name)
+    # Confident name mismatch — same short-circuit pattern as
+    # wrong_document_type above. NOTE: this only fires on school IDs
+    # that have an actual "Name" text label near the printed name.
+    # Many school ID layouts just print the name with no label at all,
+    # in which case this correctly falls through to the ambiguous/
+    # verifier-routed case below instead of firing — see
+    # AUTO_REUPLOAD_VERIFICATION_RULES.md for why school ID reliability
+    # is weaker here than reg form / voter's cert.
+    name_tag, name_result = _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name)
+    if name_tag == "auto_reupload":
+        return {
+            "document": "school_id",
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": name_result["category"],
+            "auto_reupload_reason": name_result["reason"],
+        }
+
     institution_check = _check_school(blocks, page_w, page_h, declared_school)
     checks = {
-        "identity_match":    name_check,
+        "identity_match":    name_result,
         "institution_match": institution_check,
     }
 
