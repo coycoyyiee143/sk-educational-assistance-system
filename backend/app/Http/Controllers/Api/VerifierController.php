@@ -25,8 +25,8 @@ class VerifierController extends Controller
 
         if (!$activeConfig) {
             return response()->json([
-                'pending' => 0,
-                'review' => 0,
+                'pending'  => 0,
+                'review'   => 0,
                 'approved' => 0,
                 'rejected' => 0,
                 'no_active_period' => true,
@@ -34,8 +34,8 @@ class VerifierController extends Controller
         }
 
         return response()->json([
-            'pending' => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening'])->whereHas('documents')->count(),
-            'review' => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
+            'pending'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening'])->whereHas('documents')->count(),
+            'review'   => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
             'approved' => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
             'rejected' => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
             'no_active_period' => false,
@@ -43,31 +43,30 @@ class VerifierController extends Controller
     }
 
     public function index(Request $request)
-    {
-        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+{
+    $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+    $configId = $request->query('config_id', $activeConfig?->id);
 
-        $configId = $request->query('config_id', $activeConfig?->id);
+    $applications = Application::with(['user', 'verifierActions'])
+        ->where('config_id', $configId)
+        ->whereHas('documents')
+        ->orderBy('updated_at', 'desc')   // CHANGED: was submitted_at — re-uploads now surface by recent activity
+        ->get()
+        ->map(function ($app) {
+            return [
+                'id'                => $app->id,
+                'control_number'    => $app->control_number,
+                'name'              => $app->user->first_name . ' ' . $app->user->last_name,
+                'submitted_at'      => $app->submitted_at,
+                'updated_at'        => $app->updated_at,
+                'status'            => $app->status,
+                'school_name'       => $app->school_name,
+                'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
+            ];
+        });
 
-        $applications = Application::with(['user', 'verifierActions'])
-            ->where('config_id', $configId)
-            ->whereHas('documents')
-            ->orderBy('updated_at', 'desc')
-            ->get()
-            ->map(function ($app) {
-                return [
-                    'id' => $app->id,
-                    'control_number' => $app->control_number,
-                    'name' => $app->user->first_name . ' ' . $app->user->last_name,
-                    'submitted_at' => $app->submitted_at,
-                    'updated_at' => $app->updated_at,
-                    'status' => $app->status,
-                    'school_name' => $app->school_name,
-                    'verifier_actions' => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
-                ];
-            });
-
-        return response()->json($applications);
-    }
+    return response()->json($applications);
+}
 
     public function show($id)
     {
@@ -76,7 +75,7 @@ class VerifierController extends Controller
             'documents.ocrResult',
             'verificationChecks',
             'configuration',
-            'verifierActions' => function ($q) {
+            'verifierActions' => function($q) {
                 $q->latest()->limit(1);
             },
         ])->findOrFail($id);
@@ -108,9 +107,9 @@ class VerifierController extends Controller
 
         VerifierAction::create([
             'application_id' => $app->id,
-            'verifier_id' => $request->user()->id,
-            'action' => 'approved',
-            'notes' => $request->notes ?? null,
+            'verifier_id'    => $request->user()->id,
+            'action'         => 'approved',
+            'notes'          => $request->notes ?? null,
         ]);
 
         // Log this approval for the audit trail
@@ -140,7 +139,7 @@ class VerifierController extends Controller
         }
 
         return response()->json([
-            'message' => 'Application approved.',
+            'message'    => 'Application approved.',
             'assignment' => $assignment,
         ]);
     }
@@ -191,12 +190,12 @@ class VerifierController extends Controller
             $lane = ClaimingLane::firstOrCreate(
                 [
                     'claiming_schedule_id' => $schedule->id,
-                    'lane_name' => 'Grace Period Claiming',
+                    'lane_name'            => 'Grace Period Claiming',
                 ],
                 [
-                    'batch' => 'morning',
+                    'batch'         => 'morning',
                     'claiming_date' => $schedule->grace_period_date,
-                    'capacity' => null,
+                    'capacity'      => null,
                 ]
             );
 
@@ -204,9 +203,9 @@ class VerifierController extends Controller
                 ['application_id' => $promoted->id],
                 [
                     'claiming_schedule_id' => $schedule->id,
-                    'claiming_lane_id' => $lane->id,
-                    'claim_status' => 'pending_claiming',
-                    'source' => 'waitlist_promotion',
+                    'claiming_lane_id'     => $lane->id,
+                    'claim_status'         => 'pending_claiming',
+                    'source'               => 'waitlist_promotion',
                 ]
             );
 
@@ -261,12 +260,12 @@ class VerifierController extends Controller
                 $lane = ClaimingLane::firstOrCreate(
                     [
                         'claiming_schedule_id' => $schedule->id,
-                        'lane_name' => 'Grace Period Claiming',
+                        'lane_name'            => 'Grace Period Claiming',
                     ],
                     [
-                        'batch' => 'morning',
+                        'batch'         => 'morning',
                         'claiming_date' => $schedule->grace_period_date,
-                        'capacity' => null,
+                        'capacity'      => null,
                     ]
                 );
 
@@ -274,9 +273,9 @@ class VerifierController extends Controller
                     ['application_id' => $promoted->id],
                     [
                         'claiming_schedule_id' => $schedule->id,
-                        'claiming_lane_id' => $lane->id,
-                        'claim_status' => 'pending_claiming',
-                        'source' => 'waitlist_promotion',
+                        'claiming_lane_id'     => $lane->id,
+                        'claim_status'         => 'pending_claiming',
+                        'source'               => 'waitlist_promotion',
                     ]
                 );
 
@@ -309,12 +308,8 @@ class VerifierController extends Controller
 
         if (!$config) {
             return response()->json([
-                'config_id' => null,
-                'waitlist' => [],
-                'not_cleared_count' => 0,
-                'free_slots' => 0,
-                'period_open' => false,
-                'slots_full' => false,
+                'config_id' => null, 'waitlist' => [], 'not_cleared_count' => 0,
+                'free_slots' => 0, 'period_open' => false, 'slots_full' => false,
             ]);
         }
 
@@ -326,11 +321,11 @@ class VerifierController extends Controller
             ->values()
             ->map(function ($app, $index) {
                 return [
-                    'id' => $app->id,
-                    'name' => trim($app->user->first_name . ' ' . $app->user->last_name),
-                    'school_name' => $app->school_name,
+                    'id'            => $app->id,
+                    'name'          => trim($app->user->first_name . ' ' . $app->user->last_name),
+                    'school_name'   => $app->school_name,
                     'waitlisted_at' => $app->waitlisted_at,
-                    'position' => $index + 1,
+                    'position'      => $index + 1,
                 ];
             });
 
@@ -346,39 +341,39 @@ class VerifierController extends Controller
         $freeSlots = $config->is_unlimited ? null : max(0, $config->slot_limit - $config->slots_filled);
 
         return response()->json([
-            'config_id' => $config->id,
-            'waitlist' => $waitlisted,
-            'not_cleared_count' => $notClearedCount,
-            'free_slots' => $freeSlots,
+            'config_id'          => $config->id,
+            'waitlist'           => $waitlisted,
+            'not_cleared_count'  => $notClearedCount,
+            'free_slots'         => $freeSlots,
             // Live-snapshot flags: waitlist position/free-slot numbers
             // aren't "final" until the period is closed or slots are full
             // — the frontend uses these to show that caveat.
-            'period_open' => !$config->closed_at,
-            'slots_full' => $config->is_unlimited ? false : $config->slots_filled >= $config->slot_limit,
+            'period_open'        => !$config->closed_at,
+            'slots_full'         => $config->is_unlimited ? false : $config->slots_filled >= $config->slot_limit,
         ]);
     }
 
     public function reject(Request $request, $id)
     {
         $request->validate([
-            'reason' => 'required|string',
-            'reason_categories' => 'required|array|min:1',
+            'reason'              => 'required|string',
+            'reason_categories'   => 'required|array|min:1',
             'reason_categories.*' => 'string',
         ]);
 
         $app = Application::with('user')->findOrFail($id);
 
         $app->update([
-            'status' => 'rejected',
+            'status'           => 'rejected',
             'rejection_reason' => $request->reason,
         ]);
 
         VerifierAction::create([
-            'application_id' => $app->id,
-            'verifier_id' => $request->user()->id,
-            'action' => 'rejected',
+            'application_id'    => $app->id,
+            'verifier_id'       => $request->user()->id,
+            'action'            => 'rejected',
             'reason_categories' => $request->reason_categories,
-            'notes' => $request->reason,
+            'notes'             => $request->reason,
         ]);
 
         \App\Models\AuditLog::record(
@@ -398,12 +393,12 @@ class VerifierController extends Controller
     public function requestReupload(Request $request, $id)
     {
         $request->validate([
-            'notes' => 'required|string',
-            'reupload_details' => 'required|array|min:1',
-            'reupload_details.*.document_type' => 'required|string',
-            'reupload_details.*.reason_categories' => 'required|array|min:1',
+            'notes'                                  => 'required|string',
+            'reupload_details'                       => 'required|array|min:1',
+            'reupload_details.*.document_type'       => 'required|string',
+            'reupload_details.*.reason_categories'   => 'required|array|min:1',
             'reupload_details.*.reason_categories.*' => 'string',
-            'reupload_details.*.reason' => 'required|string',
+            'reupload_details.*.reason'              => 'required|string',
         ]);
 
         $app = Application::with('user')->findOrFail($id);
@@ -411,10 +406,10 @@ class VerifierController extends Controller
         $app->update(['status' => 'reupload_requested']);
 
         VerifierAction::create([
-            'application_id' => $app->id,
-            'verifier_id' => $request->user()->id,
-            'action' => 'reupload_requested',
-            'notes' => $request->notes,
+            'application_id'   => $app->id,
+            'verifier_id'      => $request->user()->id,
+            'action'           => 'reupload_requested',
+            'notes'            => $request->notes,
             'reupload_details' => $request->reupload_details,
         ]);
 
@@ -448,11 +443,11 @@ class VerifierController extends Controller
     public function updateClaimStatus(Request $request, $id)
     {
         $request->validate([
-            'claim_status' => 'required|in:claimed,not_cleared',
-            'reason_categories' => 'required_if:claim_status,not_cleared|nullable|array',
-            'reason_categories.*' => 'string',
-            'verified_documents' => 'nullable|array',
-            'notes' => 'nullable|string',
+            'claim_status'          => 'required|in:claimed,not_cleared',
+            'reason_categories'     => 'required_if:claim_status,not_cleared|nullable|array',
+            'reason_categories.*'   => 'string',
+            'verified_documents'    => 'nullable|array',
+            'notes'                 => 'nullable|string',
         ]);
 
         $assignment = ClaimingAssignment::where('application_id', $id)->with(['application.configuration', 'latestFaceVerification'])->firstOrFail();
@@ -488,12 +483,12 @@ class VerifierController extends Controller
         }
 
         $updateData = [
-            'claim_status' => $request->claim_status,
-            'reason_categories' => $request->claim_status === 'not_cleared' ? $request->reason_categories : null,
+            'claim_status'       => $request->claim_status,
+            'reason_categories'  => $request->claim_status === 'not_cleared' ? $request->reason_categories : null,
             'verified_documents' => $request->verified_documents ?? [],
-            'verifier_notes' => $request->notes,
-            'verified_by' => $request->user()->id,
-            'verified_at' => now(),
+            'verifier_notes'     => $request->notes,
+            'verified_by'        => $request->user()->id,
+            'verified_at'        => now(),
         ];
 
         // Snapshot the assistance amount at the moment of claiming, so this
@@ -532,11 +527,11 @@ class VerifierController extends Controller
         // 'unclaimed' is exclusively set by SweepUnclaimedAssignments,
         // never through this endpoint.
         $messages = [
-            'claimed' => 'You have successfully claimed your educational assistance. Thank you!',
+            'claimed'     => 'You have successfully claimed your educational assistance. Thank you!',
             'not_cleared' => 'Your physical documents did not match your application record on claiming day. Please contact the SK office for further assistance.',
         ];
         $labels = [
-            'claimed' => 'Claimed',
+            'claimed'     => 'Claimed',
             'not_cleared' => 'Rejected — Document Mismatch at Claiming',
         ];
 
@@ -551,10 +546,10 @@ class VerifierController extends Controller
     public function searchClaiming(Request $request)
     {
         $controlNumber = $request->query('control_number');
-        $name = $request->query('name');
-        $laneId = $request->query('lane_id');
-        $gracePeriod = $request->boolean('grace_period');
-        $today = now()->toDateString();
+        $name          = $request->query('name');
+        $laneId        = $request->query('lane_id');
+        $gracePeriod   = $request->boolean('grace_period');
+        $today         = now()->toDateString();
 
         // Scoped to the ACTIVE application period only. Without this,
         // any historical applicant from any past, already-closed cycle
@@ -600,7 +595,7 @@ class VerifierController extends Controller
         if ($name) {
             $query->whereHas('user', function ($q) use ($name) {
                 $q->where('first_name', 'like', "%{$name}%")
-                    ->orWhere('last_name', 'like', "%{$name}%");
+                ->orWhere('last_name', 'like', "%{$name}%");
             });
         }
 
@@ -644,12 +639,12 @@ class VerifierController extends Controller
         $assignedLane = $allLanes->firstWhere('verifier_id', $request->user()->id);
 
         return response()->json([
-            'assigned_lane' => $assignedLane,
-            'all_lanes' => $allLanes,
+            'assigned_lane'         => $assignedLane,
+            'all_lanes'             => $allLanes,
             // So the frontend can auto-default to whichever mode actually
             // matches today, instead of always opening on Regular Claiming
             // regardless of what day it is.
-            'grace_period_date' => $schedule->grace_period_date,
+            'grace_period_date'     => $schedule->grace_period_date,
             'grace_period_end_date' => $schedule->grace_period_end_date,
         ]);
     }
@@ -674,7 +669,7 @@ class VerifierController extends Controller
 
         return response()->json([
             'message' => "You're now assigned to {$lane->lane_name}.",
-            'lane' => $lane,
+            'lane'    => $lane,
         ]);
     }
 
