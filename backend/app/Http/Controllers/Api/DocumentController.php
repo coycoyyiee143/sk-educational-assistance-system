@@ -24,20 +24,20 @@ class DocumentController extends Controller
     {
         $request->validate([
             'document_type' => 'required|in:voters_certificate,registration_form,school_id',
-            'file'          => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
         ]);
         $application = Application::where('id', $id)
             ->where('user_id', $request->user()->id)
             ->with(['user.profile', 'configuration'])
             ->firstOrFail();
-    
+
         if (now()->gt($application->configuration->close_date)) {
             return response()->json(['message' => 'The application period has closed. Document uploads are no longer accepted.'], 400);
         }
-    
-        $file     = $request->file('file');
+
+        $file = $request->file('file');
         $fileName = time() . '_' . $file->getClientOriginalName();
-        $path     = $file->storeAs(
+        $path = $file->storeAs(
             "documents/{$application->id}",
             $fileName,
             'local'   // CHANGED: was 'public'
@@ -45,12 +45,12 @@ class DocumentController extends Controller
 
         $document = ApplicationDocument::create([
             'application_id' => $application->id,
-            'document_type'  => $request->document_type,
-            'file_path'      => $path,
-            'file_name'      => $fileName,
-            'mime_type'      => $file->getMimeType(),
-            'version'        => 1,
-            'status'         => 'processing',
+            'document_type' => $request->document_type,
+            'file_path' => $path,
+            'file_name' => $fileName,
+            'mime_type' => $file->getMimeType(),
+            'version' => 1,
+            'status' => 'processing',
         ]);
 
         ProcessOcrDocument::dispatch($application, $document, $path);
@@ -59,14 +59,15 @@ class DocumentController extends Controller
         // an application isn't meaningfully "submitted" until documents are attached.
         $documentCount = $application->documents()->count();
         if ($documentCount === 3) {
+            $application->update(['status' => 'pending_prescreening']);   // dagdag ito
             $request->user()->notify(new \App\Notifications\ApplicationStatusNotification(
                 'Pending',
                 'Your educational assistance application has been submitted successfully and queued for document verification.'
             ));
         }
-
+        
         return response()->json([
-            'message'  => 'Document uploaded and queued for processing.',
+            'message' => 'Document uploaded and queued for processing.',
             'document' => $document->fresh(),
         ], 201);
     }
@@ -80,18 +81,18 @@ class DocumentController extends Controller
             ->where('user_id', $request->user()->id)
             ->with(['user.profile', 'configuration'])
             ->firstOrFail();
-    
+
         if (now()->gt($application->configuration->close_date)) {
             return response()->json(['message' => 'The application period has closed. Document uploads are no longer accepted.'], 400);
         }
-    
+
         $oldDocument = ApplicationDocument::where('id', $docId)
             ->where('application_id', $application->id)
             ->firstOrFail();
 
-        $file     = $request->file('file');
+        $file = $request->file('file');
         $fileName = time() . '_' . $file->getClientOriginalName();
-        $path     = $file->storeAs(
+        $path = $file->storeAs(
             "documents/{$application->id}",
             $fileName,
             'local'   // CHANGED: was 'public'
@@ -99,12 +100,12 @@ class DocumentController extends Controller
 
         $newDocument = ApplicationDocument::create([
             'application_id' => $application->id,
-            'document_type'  => $oldDocument->document_type,
-            'file_path'      => $path,
-            'file_name'      => $fileName,
-            'mime_type'      => $file->getMimeType(),
-            'version'        => $oldDocument->version + 1,
-            'status'         => 'processing',
+            'document_type' => $oldDocument->document_type,
+            'file_path' => $path,
+            'file_name' => $fileName,
+            'mime_type' => $file->getMimeType(),
+            'version' => $oldDocument->version + 1,
+            'status' => 'processing',
         ]);
 
         $application->update([
@@ -123,7 +124,7 @@ class DocumentController extends Controller
 
 
         return response()->json([
-            'message'  => 'Document re-uploaded and queued for processing.',
+            'message' => 'Document re-uploaded and queued for processing.',
             'document' => $newDocument->fresh(),
         ], 201);
     }
@@ -141,9 +142,9 @@ class DocumentController extends Controller
             ->firstOrFail();
 
         $user = $request->user();
-        $isOwner    = $user->id === $application->user_id;
+        $isOwner = $user->id === $application->user_id;
         $isVerifier = $user->role === 'sk_verifier';
-        $isAdmin    = $user->role === 'sk_admin';
+        $isAdmin = $user->role === 'sk_admin';
 
         if (!$isOwner && !$isVerifier && !$isAdmin) {
             abort(403, 'You are not authorized to view this document.');

@@ -103,7 +103,7 @@ class ApplicationController extends Controller
             'course'            => $request->course,
             'year_level'        => $request->year_level,
             'student_id_number' => $request->student_id_number,
-            'status'            => 'pending_prescreening',
+            'status'            => 'draft_incomplete',
             'submitted_at'      => now(),
         ]);
         \App\Models\AuditLog::record(
