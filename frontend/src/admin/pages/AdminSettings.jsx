@@ -537,7 +537,7 @@ function AdminSettings() {
                     </div>
                   </div>
                   <div className="d-flex justify-content-end gap-2">
-                    <button type="button" className="btn btn-clear-dark" onClick={() => setForm(emptyForm)}>
+                    <button type="button" className="btn btn-clear-dark" onClick={() => setForm(emptyForm)} disabled={hasStarted}>
                       Clear
                     </button>
                     <button type="submit" className="btn btn-save-green" disabled={saving}>
