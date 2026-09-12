@@ -17359,3 +17359,163 @@ button.verifier-claiming-photo-caption-retake:hover {
 .register-privacy-link:hover {
   color: var(--maroon-dark);
 }
+
+/* ============================================
+   APPLICATION HISTORY (ApplicationHistoryList)
+   ============================================ */
+.application-history-section {
+  margin-top: 30px;
+  padding-top: 25px;
+  border-top: 1px solid #eee;
+}
+
+.application-history-heading h4 {
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-weight: 700;
+  font-size: 20px;
+  color: #1a1a1a;
+  margin-bottom: 4px;
+}
+
+.application-history-heading p {
+  color: #6c757d;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+.application-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.application-history-card {
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.application-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.application-history-year {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--maroon);
+  margin: 0 0 4px;
+}
+
+.application-history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #6c757d;
+  font-size: 13px;
+}
+
+.application-history-dot {
+  color: #ccc;
+}
+
+.application-history-status {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: #f1f1f1;
+  color: #444;
+  white-space: nowrap;
+  height: fit-content;
+}
+
+.application-history-doc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.application-history-doc-card {
+  background: white;
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.application-history-doc-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.application-history-doc-top h6 {
+  font-weight: 600;
+  font-size: 14px;
+  color: #1a1a1a;
+  margin: 0 0 4px;
+}
+
+.application-history-doc-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6c757d;
+  background: #f1f1f1;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.application-history-doc-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--maroon);
+  background: var(--maroon-bg-light);
+  border-radius: 8px;
+}
+
+.application-history-doc-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.application-history-file-name {
+  font-size: 12px;
+  color: #6c757d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.application-history-view-btn {
+  border: 1px solid var(--maroon);
+  background: white;
+  color: var(--maroon);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.application-history-view-btn:hover {
+  background: var(--maroon);
+  color: white;
+}
