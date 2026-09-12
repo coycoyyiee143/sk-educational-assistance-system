@@ -5164,6 +5164,27 @@ a:hover {
   margin: 0;
 }
 
+.visibility-notice-compact {
+  padding: 10px 14px;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.visibility-notice-compact .visibility-notice-icon {
+  width: 20px;
+  height: 20px;
+  font-size: 12px;
+}
+
+.visibility-notice-compact .visibility-notice-title {
+  font-size: 13px;
+}
+
+.visibility-notice-compact .visibility-notice-text {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .btn-save-green {
   background: #2e8b47;
   color: #ffffff;
@@ -16386,6 +16407,233 @@ body {
 
 .verifier-claiming-face-panel {
   margin-top: 4px;
+}
+
+/* ===== ClaimingFaceVerify component ===== */
+
+.verifier-claiming-face-verify {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.verifier-claiming-photo-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 576px) {
+  .verifier-claiming-photo-compare {
+    grid-template-columns: 1fr;
+  }
+}
+
+.verifier-claiming-compare-card {
+  display: flex;
+  flex-direction: column;
+  border: 2px solid #e5e5e5;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  transition: border-color 0.2s ease;
+}
+
+.verifier-claiming-compare-card-match {
+  border-color: #1c7a3f;
+}
+
+.verifier-claiming-compare-card-mismatch {
+  border-color: #b71c1c;
+}
+
+.verifier-claiming-compare-image-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #f4f4f4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.verifier-claiming-compare-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.verifier-claiming-compare-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: #999;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+}
+
+.verifier-claiming-photo-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(183, 28, 28, 0.85);
+  color: #fff;
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.verifier-claiming-photo-overlay-live {
+  background: rgba(28, 122, 63, 0.85);
+}
+
+.verifier-claiming-photo-caption {
+  display: block;
+  text-align: center;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12px;
+  color: #666;
+  padding: 8px 10px;
+  border-top: 1px solid #eee;
+  background: #fafafa;
+}
+
+button.verifier-claiming-photo-caption-retake {
+  border: none;
+  cursor: pointer;
+  color: #b71c1c;
+  font-weight: 600;
+}
+
+button.verifier-claiming-photo-caption-retake:hover {
+  text-decoration: underline;
+}
+
+.verifier-claiming-face-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+}
+
+.verifier-claiming-face-result-match {
+  background: #e6f4ea;
+  color: #1c7a3f;
+}
+
+.verifier-claiming-face-result i {
+  font-size: 16px;
+}
+
+.verifier-claiming-face-start {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.verifier-claiming-face-verify-btn {
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+/* ===== Face capture modal ===== */
+
+.verifier-face-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1050;
+  padding: 16px;
+}
+
+.verifier-face-modal {
+  background: #fff;
+  border-radius: 14px;
+  width: 100%;
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.verifier-face-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.verifier-face-modal-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.verifier-face-modal-heading h5 {
+  margin: 0;
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  color: #222;
+}
+
+.verifier-face-modal-heading span {
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12px;
+  color: #777;
+}
+
+.verifier-face-modal-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #fce4e4;
+  color: #b71c1c;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.verifier-face-modal-close {
+  border: none;
+  background: transparent;
+  font-size: 22px;
+  line-height: 1;
+  color: #999;
+  cursor: pointer;
+}
+
+.verifier-face-modal-close:hover {
+  color: #333;
+}
+
+.verifier-face-modal-body {
+  padding: 20px;
+}
+
+.verifier-face-modal-capture {
+  display: flex;
+  justify-content: center;
 }
 
 /* Status action buttons + validation notice */
