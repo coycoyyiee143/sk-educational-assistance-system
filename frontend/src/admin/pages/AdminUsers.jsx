@@ -464,24 +464,26 @@ function AdminUsers() {
                             <SetupPendingBadge emailVerifiedAt={p.email_verified_at} />
                           </td>
                           <td>
-                            <button className={`user-action-btn me-1 ${p.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(p.id)}>{p.is_active ? "Deactivate" : "Activate"}</button>
-                            <button
-                              className="user-action-btn me-1"
-                              onClick={() => setResetTarget(p)}
-                              disabled={p.id === currentUser?.id}
-                              title={p.id === currentUser?.id ? "Use Change Password in your own account settings instead" : undefined}
-                            >
-                              Reset Password
-                            </button>
-                            <button
-                              className="user-action-btn me-1"
-                              onClick={() => setTwoFATarget(p)}
-                              disabled={p.id === currentUser?.id}
-                              title={p.id === currentUser?.id ? "You can't reset your own 2FA this way" : "Clears their authenticator setup — use if they lost their device or QR code"}
-                            >
-                              Reset 2FA
-                            </button>
-                            <button className="user-action-btn user-action-delete" onClick={() => deleteUser(p.id)}>Delete</button>
+                            <div className="user-action-group">
+                              <button className={`user-action-btn ${p.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(p.id)}>{p.is_active ? "Deactivate" : "Activate"}</button>
+                              <button
+                                className="user-action-btn"
+                                onClick={() => setResetTarget(p)}
+                                disabled={p.id === currentUser?.id}
+                                title={p.id === currentUser?.id ? "Use Change Password in your own account settings instead" : undefined}
+                              >
+                                Reset Password
+                              </button>
+                              <button
+                                className="user-action-btn"
+                                onClick={() => setTwoFATarget(p)}
+                                disabled={p.id === currentUser?.id}
+                                title={p.id === currentUser?.id ? "You can't reset your own 2FA this way" : "Clears their authenticator setup — use if they lost their device or QR code"}
+                              >
+                                Reset 2FA
+                              </button>
+                              <button className="user-action-btn user-action-delete" onClick={() => deleteUser(p.id)}>Delete</button>
+                            </div>
                           </td>
                         </tr>
                       ))
@@ -539,15 +541,17 @@ function AdminUsers() {
                           <td><RoleBadge role={a.role} /></td>
                           <td><StatusBadge active={a.is_active} /></td>
                           <td>
-                            <button className="user-action-btn user-action-view me-1" onClick={() => setViewApplicant(a)}>View</button>
-                            <button className={`user-action-btn me-1 ${a.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(a.id)}>{a.is_active ? "Deactivate" : "Activate"}</button>
-                            <button
-                              className="user-action-btn"
-                              onClick={() => setTwoFATarget(a)}
-                              title="Clears their authenticator setup — use if they lost their device or QR code"
-                            >
-                              Reset 2FA
-                            </button>
+                            <div className="user-action-group">
+                              <button className="user-action-btn user-action-view" onClick={() => setViewApplicant(a)}>View</button>
+                              <button className={`user-action-btn ${a.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(a.id)}>{a.is_active ? "Deactivate" : "Activate"}</button>
+                              <button
+                                className="user-action-btn"
+                                onClick={() => setTwoFATarget(a)}
+                                title="Clears their authenticator setup — use if they lost their device or QR code"
+                              >
+                                Reset 2FA
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))

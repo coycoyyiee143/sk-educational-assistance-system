@@ -6344,6 +6344,17 @@ a:hover {
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
+/* Wraps the buttons in an Actions cell. Was previously a bare row of
+   buttons with only Bootstrap's me-1 for spacing and no wrap behavior
+   — in a narrow column with 4-5 buttons, they stacked one per line
+   instead of flowing into a clean multi-line group. */
+.user-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: center;
+}
+
 .user-action-view {
   background: #6c757d;
   color: #ffffff;
