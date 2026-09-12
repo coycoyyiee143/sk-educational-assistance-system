@@ -221,7 +221,7 @@ function AdminSettings() {
         "Application Status",
         !config.is_active
           ? "Superseded"
-          : hasClosed
+          : config.closed_at
             ? "Closed"
             : hasStarted
               ? "Open"
@@ -361,7 +361,7 @@ function AdminSettings() {
                 </div>
               )}
 
-              {hasClosed && (
+              {config?.closed_at && (
                 <div className="settings-warning-box d-flex justify-content-between align-items-center flex-wrap gap-2">
                   <div>
                     <strong>This application period has closed.</strong>{" "}
