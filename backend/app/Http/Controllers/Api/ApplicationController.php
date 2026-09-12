@@ -35,6 +35,9 @@ class ApplicationController extends Controller
         if (now()->lt($config->open_date)) {
             return response()->json(['message' => 'This application period has not opened yet.'], 400);
         }
+        if ($config->closed_at) {
+            return response()->json(['message' => 'This application period has closed.'], 400);
+        }
         if (now()->gt($config->close_date)) {
             return response()->json(['message' => 'This application period has closed.'], 400);
         }
