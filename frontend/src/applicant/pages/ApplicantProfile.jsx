@@ -26,6 +26,7 @@ function ApplicantProfile() {
     street: "",
     purokType: "",
     purok: "",
+    subdivision: "",
     guardianFirstName: "",
     guardianMiddleName: "",
     guardianLastName: "",
@@ -71,9 +72,9 @@ function ApplicantProfile() {
           city: "Cabuyao",
           province: "Laguna",
           houseNo: p?.house_no ?? "",
-          street: p?.street ?? "",
           purokType: p?.purok_type ?? "",
           purok: p?.purok ?? "",
+          subdivision: p?.subdivision ?? "",
           guardianFirstName: p?.guardian_first_name ?? "",
           guardianMiddleName: p?.guardian_middle_name ?? "",
           guardianLastName: p?.guardian_last_name ?? "",
@@ -145,6 +146,31 @@ function ApplicantProfile() {
     }));
   };
 
+  // Flags likely acronyms (e.g. "BFH", "SGV") so applicants spell out
+  // the full subdivision/village name — needed as a clean, consistent
+  // value for reports.
+  function looksLikeAcronym(value) {
+    const trimmed = value.trim();
+    return (
+      trimmed.length > 0 &&
+      trimmed.length <= 6 &&
+      !trimmed.includes(" ") &&
+      /^[A-Za-z]+$/.test(trimmed) &&
+      trimmed === trimmed.toUpperCase()
+    );
+  }
+
+  // Normalizes casing so "mabuhay city" / "MABUHAY CITY" / "Mabuhay City"
+  // all end up saved as the same "Mabuhay City" — keeps report grouping
+  // consistent no matter how the applicant typed it.
+  function toTitleCase(value) {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
@@ -156,7 +182,6 @@ function ApplicantProfile() {
       form.gender,
       form.civilStatus,
       form.houseNo,
-      form.street,
       form.purokType,
       form.purok,
     ];
@@ -166,6 +191,18 @@ function ApplicantProfile() {
     if (hasEmptyRequiredField) {
       setError(
         "Please complete all required fields marked with an asterisk (*)."
+      );
+      return;
+    }
+    if (form.purokType === "phase" && !form.subdivision.trim()) {
+      setError(
+        "Please enter the name of your Subdivision/Village."
+      );
+      return;
+    }
+    if (form.purokType === "phase" && looksLikeAcronym(form.subdivision)) {
+      setError(
+        "Please spell out the full Subdivision/Village name instead of an abbreviation (e.g. \"Grand Homes\" instead of \"GH\")."
       );
       return;
     }
@@ -185,9 +222,12 @@ function ApplicantProfile() {
           ? form.civilStatus.toLowerCase()
           : null,
         house_no: form.houseNo,
-        street: form.street,
         purok_type: form.purokType,
         purok: form.purok,
+        subdivision:
+          form.purokType === "phase"
+            ? toTitleCase(form.subdivision)
+            : null,
         barangay: "Mamatid",
         city: "Cabuyao",
         province: "Laguna",
@@ -505,21 +545,8 @@ function ApplicantProfile() {
                           required
                         />
                       </div>
-                      {/* STREET */}
-                      <div className="col-md-4">
-                        <label className="form-label">
-                          Street <RequiredMark />
-                        </label>
-                        <input
-                          className="form-control"
-                          placeholder="Street"
-                          value={form.street}
-                          onChange={set("street")}
-                          required
-                        />
-                      </div>
                       {/* PUROK / PHASE */}
-                      <div className="col-md-2">
+                      <div className="col-md-4">
                         <label className="form-label">
                           Purok/Phase <RequiredMark />
                         </label>
@@ -553,6 +580,24 @@ function ApplicantProfile() {
                           required
                         />
                       </div>
+                      {/* SUBDIVISION / VILLAGE — only for Phase, hidden for Purok */}
+                      {form.purokType === "phase" && (
+                        <div className="col-md-6">
+                          <label className="form-label">
+                            Subdivision/Village <RequiredMark />
+                          </label>
+                          <input
+                            className="form-control"
+                            placeholder="e.g. Mabuhay City"
+                            value={form.subdivision}
+                            onChange={set("subdivision")}
+                            required
+                          />
+                          <div className="form-text">
+                            Please spell out the full name — avoid abbreviations.
+                          </div>
+                        </div>
+                      )}
                       {/* BARANGAY */}
                       <div className="col-md-4">
                         <label className="form-label">

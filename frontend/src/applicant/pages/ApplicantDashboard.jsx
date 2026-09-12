@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import AnnouncementsCard from "../components/AnnouncementsCard";
@@ -10,7 +11,8 @@ import ApplicantTopbarUser from "../components/ApplicantTopbarUser";
 import ApplicationHistoryList from "../components/ApplicationHistoryList";
 
 function ApplicantDashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   const [application, setApplication] = useState(null);
   const [applicationHistory, setApplicationHistory] = useState([]);
@@ -18,7 +20,20 @@ function ApplicantDashboard() {
   const [loadingApp, setLoadingApp] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(true);
 
+  // Shown every time an applicant reaches the dashboard (i.e. every
+  // login) — not a one-time, remembered acknowledgment.
+  const [showPrivacyModal, setShowPrivacyModal] = useState(true);
+
   const periodStatus = getApplicationPeriodStatus(config);
+
+  function handleAgreePrivacy() {
+    setShowPrivacyModal(false);
+  }
+
+  function handleExitPrivacy() {
+    logout();
+    navigate("/login");
+  }
 
   useEffect(() => {
     Promise.all([
@@ -257,6 +272,90 @@ function ApplicantDashboard() {
 
         <PanelFooter />
       </div>
+
+      {showPrivacyModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            background: "rgba(17, 24, 39, 0.48)",
+            backdropFilter: "blur(3px)",
+            WebkitBackdropFilter: "blur(3px)",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "580px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "28px 26px",
+              borderRadius: "16px",
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.22)",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <h4 className="text-danger mb-3" style={{ fontWeight: 700 }}>
+              Data Privacy Notice
+            </h4>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              The Sangguniang Kabataan of Barangay Mamatid is committed to
+              protecting your personal data in accordance with the Data
+              Privacy Act of 2012 (RA 10173). Every time you log in to the
+              Educational Assistance System, we ask you to review this
+              notice.
+            </p>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              We collect and process personal information you provide
+              through this system — including your name, birthdate,
+              contact details, uploaded valid ID, and photos — solely to
+              process your application for the Educational Assistance
+              Program, verify your identity, and, where applicable, serve
+              as reference during the claiming of your assistance.
+            </p>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              Your information is accessed only by authorized SK Barangay
+              Mamatid personnel and will not be shared with third parties
+              except when required by law. You may request access,
+              correction, or deletion of your data at any time by
+              contacting the SK office.
+            </p>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              By tapping <strong>Agree</strong>, you acknowledge that you
+              have read and understood this notice.
+            </p>
+
+            <div className="d-flex justify-content-end gap-2 mt-3">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={handleExitPrivacy}
+              >
+                Exit
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleAgreePrivacy}
+              >
+                Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

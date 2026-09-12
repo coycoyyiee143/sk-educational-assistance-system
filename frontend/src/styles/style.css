@@ -8980,9 +8980,18 @@ a:hover {
   margin-bottom: 10px;
   padding: 10px 11px;
   border: 1px solid #d7dde3;
-  border-left: 3px solid #16a36a;
+  border-left: 3px solid #d7dde3;
   border-radius: 7px;
   background: #ffffff;
+}
+
+.verifier-preview-extraction-check-passed {
+  border-left-color: #16a36a;
+}
+
+.verifier-preview-extraction-check-failed {
+  border-left-color: #c9302c;
+  background: #fff8f8;
 }
 
 .verifier-preview-extraction-label,
@@ -17518,4 +17527,17 @@ button.verifier-claiming-photo-caption-retake:hover {
 .application-history-view-btn:hover {
   background: var(--maroon);
   color: white;
+.status-box-pending .info-box {
+  background: #fffaf0;
+  border-left-color: #b88600;
+}
+
+.status-box-rejected .info-box {
+  background: #fff3f3;
+  border-left-color: var(--maroon);
+}
+
+.status-box-approved .info-box {
+  background: #f3fbf5;
+  border-left-color: #198754;
 }
