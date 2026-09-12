@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import { useNavigate, Navigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -48,6 +48,7 @@ const Register = () => {
 
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
+  const idFileInputRef = useRef(null);
 
   const [step, setStep] = useState("form");
 
@@ -115,6 +116,42 @@ const Register = () => {
     setIdPreview(URL.createObjectURL(file));
     setGeneralError("");
   }
+
+  // The native file input resets itself when the browser restores this
+  // page from back/forward cache (bfcache) — but our React state for
+  // the preview doesn't know that happened, so the old preview would
+  // otherwise keep showing next to an input that says "No file chosen."
+  // Clear our state to match whenever that restore happens.
+  useEffect(() => {
+    function handlePageShow(e) {
+      if (e.persisted) {
+        setIdImage(null);
+        setIdPreview(null);
+        if (idFileInputRef.current) idFileInputRef.current.value = "";
+      }
+    }
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
+
+  // The native file input resets itself when the browser restores this
+  // page from back/forward cache (bfcache) — but our React state for
+  // the preview doesn't know that happened, so the old preview would
+  // otherwise keep showing next to an input that says "No file chosen."
+  // Clear our state to match whenever that restore happens.
+  useEffect(() => {
+    function handlePageShow(e) {
+      if (e.persisted) {
+        setIdImage(null);
+        setIdPreview(null);
+        if (idFileInputRef.current) idFileInputRef.current.value = "";
+      }
+    }
+
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, []);
 
   const handleNext = async (e) => {
     e.preventDefault();
@@ -957,11 +994,29 @@ const Register = () => {
 
                     <input
                       type="file"
+                      ref={idFileInputRef}
                       accept="image/jpeg,image/png,image/jpg"
-                      className="form-control"
                       onChange={handleIdChange}
                       required
+                      style={{ display: "none" }}
                     />
+
+                    <div
+                      className="document-upload-picker"
+                      onClick={() => idFileInputRef.current?.click()}
+                    >
+                      <span className="document-upload-button">
+                        Choose File
+                      </span>
+
+                      <span
+                        className={`document-upload-filename ${
+                          idImage ? "has-file" : ""
+                        }`}
+                      >
+                        {idImage ? idImage.name : "No file chosen"}
+                      </span>
+                    </div>
 
                     {idPreview && (
                       <img
@@ -1116,7 +1171,7 @@ const Register = () => {
                       I have read and agree to the{" "}
                       <button
                         type="button"
-                        className="btn btn-link p-0 align-baseline"
+                        className="register-privacy-link"
                         onClick={() => setShowPrivacyModal(true)}
                       >
                         Data Privacy Notice
