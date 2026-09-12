@@ -45,9 +45,9 @@ function AdminSettings() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showStartNewModal, setShowStartNewModal] = useState(false);
 
-  // Extend Application Period — the ONLY way close_date changes now
-  // (ApplicationConfigurationController::extend()). Separate from the
-  // main settings form/modal entirely.
+  // Extend Application Period — the ONLY way close_date changes once a
+  // config exists (ApplicationConfigurationController::extend()).
+  // Separate from the main settings form/modal entirely.
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [extendDate, setExtendDate] = useState("");
   const [extending, setExtending] = useState(false);
@@ -81,6 +81,12 @@ function AdminSettings() {
     : false;
   const isAtCapacity =
     config && !config.is_unlimited && config.slots_filled >= config.slot_limit;
+
+  // Close Date is only free-editable before a config exists at all (first
+  // time setting up a period). Once a config record exists, it's locked
+  // here for good — "Extend Application Period" below is the only path.
+  const closeDateLocked = !!config;
+
   const set = (k) => (e) =>
     setForm((f) => ({
       ...f,
@@ -170,13 +176,17 @@ function AdminSettings() {
         ...form,
         is_active: true,
         open_date: form.open_date ? `${form.open_date.slice(0, 10)} ${form.open_date.slice(11, 16)}:00` : "",
-        // close_date is locked here — always sent back UNCHANGED. The
-        // backend rejects this form outright if it differs from what's
-        // on record; extending it only ever happens through
-        // handleExtend() above. Formatted the same way it's displayed
-        // (date only, midnight) so the equality check on the backend
-        // doesn't get tripped up by a stray time component.
-        close_date: config?.close_date ? config.close_date.slice(0, 10) + " 23:59:59" : "",
+        // Close Date is only ever taken from the form on FIRST creation
+        // (no config yet). Once a config exists it's locked to what's
+        // already on record — always sent back UNCHANGED — and the
+        // backend rejects this form outright if it differs. Extending
+        // it later only ever happens through handleExtend() above.
+        // Formatted the same way it's displayed (date only, midnight)
+        // so the equality check on the backend doesn't get tripped up
+        // by a stray time component.
+        close_date: config
+          ? config.close_date.slice(0, 10) + " 23:59:59"
+          : (form.close_date ? form.close_date.slice(0, 10) + " 23:59:59" : ""),
         slot_limit: form.is_unlimited ? null : form.slot_limit,
         assistance_amount: form.assistance_amount,
       };
@@ -427,12 +437,21 @@ function AdminSettings() {
                           <input
                             type="date"
                             className="form-control"
-                            value={form.close_date ? form.close_date.slice(0, 10) : ""}
-                            disabled
-                            readOnly
+                            value={
+                              closeDateLocked
+                                ? (config?.close_date ? config.close_date.slice(0, 10) : "")
+                                : (form.close_date ? form.close_date.slice(0, 10) : "")
+                            }
+                            onChange={closeDateLocked ? undefined : set("close_date")}
+                            disabled={closeDateLocked}
+                            readOnly={closeDateLocked}
+                            min={form.open_date ? form.open_date.slice(0, 10) : undefined}
+                            required={!closeDateLocked}
                           />
                           <div className="form-text">
-                            Locked — use "Extend Application Period" below to change it.
+                            {closeDateLocked
+                              ? 'Locked — use "Extend Application Period" below to change it.'
+                              : "Set once, at creation. After saving, only \"Extend Application Period\" can move it later."}
                           </div>
                         </div>
                       </div>
@@ -677,7 +696,7 @@ function AdminSettings() {
                   <li>Assistance Amount per Applicant</li>
                 </ul>
                 <p className="mb-0 text-muted small">
-                  Closing Date is never editable here — use "Extend Application Period" instead.
+                  Closing Date is never editable here once saved — use "Extend Application Period" instead.
                 </p>
               </div>
               <div className="d-flex justify-content-end gap-2 p-3 border-top">
