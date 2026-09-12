@@ -317,7 +317,7 @@ const Login = () => {
                       </button>
                       <button
                         type="button"
-                        className="btn btn-link w-100 mt-2"
+                        className="btn btn-link w-100 mt-2 login-2fa-back-btn"
                         onClick={backToCredentials}
                         disabled={loading}
                       >

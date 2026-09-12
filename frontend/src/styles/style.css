@@ -17053,3 +17053,28 @@ body {
   max-width: 100%;
   overflow-wrap: anywhere;
 }
+
+.login-2fa-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 30% !important;
+  margin: 12px 0 0 !important;
+  padding: 5px 0;
+  border: 2px solid var(--maroon);
+  border-radius: 8px;
+  background: #ffffff;
+  color: var(--maroon);
+  font-family: 'Segoe UI', Arial, sans-serif;
+  font-weight: 600;
+  font-size: 17px;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.login-2fa-back-btn:hover {
+  background: var(--maroon);
+  color: #ffffff;
+  text-decoration: none;
+}
