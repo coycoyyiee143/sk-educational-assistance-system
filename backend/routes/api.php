@@ -71,12 +71,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/admin/users/{id}/reset-2fa', [AdminController::class, 'resetTwoFactor']);
         Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
         Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
+        // The ONLY way to change close_date — separate from update()
+        // above, its own auditable action (see ApplicationConfigurationController::extend()).
+        Route::post('/admin/application-configs/{id}/extend', [ApplicationConfigurationController::class, 'extend']);
         Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);
         Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
         Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
         Route::get('/admin/claiming-schedule/lane-assignments', [AdminScheduleController::class, 'laneAssignments']);
-        Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
-        Route::get('/admin/claiming-schedule/{id}/preview', [AdminScheduleController::class, 'preview']);
+        // CHANGED: publish()/preview() removed — real-time assignment
+        // (ClaimingAssignmentService) means there's nothing left to
+        // preview or bulk-publish. activate() turns a schedule on and
+        // runs a one-time catch-up pass for anyone already approved.
+        Route::post('/admin/claiming-schedule/{id}/activate', [AdminScheduleController::class, 'activate']);
         Route::post('/admin/claiming-schedule/lanes/{laneId}/assign-verifier', [AdminScheduleController::class, 'assignVerifier']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable/pdf', [AdminScheduleController::class, 'printableLanePdf']);
