@@ -8685,6 +8685,24 @@ a:hover {
   margin-bottom: 35px;
 }
 
+@media (max-width: 700px) {
+  .verifier-ocr-document-tabs {
+    display: flex;
+    gap: 10px;
+    margin-right: -16px;
+    margin-left: -16px;
+    padding: 0 16px 8px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+
+  .verifier-ocr-document-tab {
+    flex: 0 0 min(310px, calc(100vw - 48px));
+    scroll-snap-align: start;
+  }
+}
+
 .verifier-ocr-document-tab {
   position: relative;
   display: flex;
@@ -8762,6 +8780,7 @@ a:hover {
   border: 1px solid #c9c9c9;
   border-radius: 10px;
   overflow: hidden;
+  scroll-margin-top: 24px;
   font-family: 'Inter', Arial, sans-serif;
   margin-top: 0;
 }
@@ -8918,6 +8937,37 @@ a:hover {
   font-size: 12px;
   font-weight: 600;
   text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.verifier-preview-extraction-checks {
+  margin-top: 18px;
+}
+
+.verifier-preview-extraction-check {
+  margin-bottom: 10px;
+  padding: 10px 11px;
+  border: 1px solid #d7dde3;
+  border-left: 3px solid #16a36a;
+  border-radius: 7px;
+  background: #ffffff;
+}
+
+.verifier-preview-extraction-label,
+.verifier-preview-extraction-value {
+  display: block;
+}
+
+.verifier-preview-extraction-label {
+  color: #1a1a1a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.verifier-preview-extraction-value {
+  margin-top: 4px;
+  color: #1a1a1a;
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 
@@ -9594,11 +9644,57 @@ a:hover {
 }
 
 .verifier-document-tab-status-review {
-  color: #667788;
+  color: #b42318;
 }
 
 .verifier-document-tab-status-review .verifier-document-tab-status-dot {
+  background: #dc3545;
+}
+
+.verifier-document-tab-status-passed {
+  color: #16794c;
+}
+
+.verifier-document-tab-status-passed .verifier-document-tab-status-dot {
   background: #16a36a;
+}
+
+.verifier-scroll-top-btn {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 1040;
+  width: 42px;
+  height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #9cc9e8;
+  border-radius: 50%;
+  background: #eaf5ff;
+  color: #17618f;
+  box-shadow: 0 3px 10px rgba(31, 86, 136, 0.2);
+  cursor: pointer;
+  transition: background-color 0.18s ease, transform 0.18s ease;
+}
+
+.verifier-scroll-top-btn:hover {
+  background: #d7edff;
+  transform: translateY(-2px);
+}
+
+.verifier-scroll-top-btn svg {
+  width: 19px;
+  height: 19px;
+}
+
+@media (max-width: 575.98px) {
+  .verifier-scroll-top-btn {
+    right: 16px;
+    bottom: 16px;
+    width: 38px;
+    height: 38px;
+  }
 }
 
 .verifier-review-detail-item .status-badge {
