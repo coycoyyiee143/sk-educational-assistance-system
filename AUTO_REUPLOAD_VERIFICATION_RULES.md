@@ -3,10 +3,12 @@
 This is the single source of truth for how the system decides whether a
 document verification problem gets **auto-reupload** (system asks the
 applicant to try again, no human involved) or **verifier routing**
-(a human SK verifier has to look at it). Status: **design finalized,
-partially implemented** — the low-quality / wrong-document-type /
-wrong-cert-year paths already exist in code; name/school mismatch and
-the guardian/minor fixes below are the planned extension.
+(a human SK verifier has to look at it). Status: low-quality /
+wrong-document-type / wrong-cert-year / **name_mismatch** are all
+implemented. `institution_mismatch` (school) is blocked on missing
+extraction infrastructure — see its own section below. Guardian/minor
+handling is implemented (partly pre-existing, partly added alongside
+name_mismatch) — see that section for what's what.
 
 If a defense panel asks "why doesn't the system just reject automatically"
 or "why does a human have to look at this one," the answer is always one
@@ -45,9 +47,9 @@ of the two principles below.
 | Image blurry / low document-level OCR confidence | **Auto-reupload** (`low_quality`) | Uncapped | Purely mechanical — a bad scan isn't evidence the applicant can't fix, so it never counts against them long-term |
 | Wrong document type uploaded (e.g. school ID submitted where a reg form was expected) | **Auto-reupload** (`wrong_document_type`) | 3 tries | Clear-cut, unambiguous — the system can tell what kind of document it's looking at reliably |
 | Cert year wrong, **high OCR confidence only** (≥0.9) | **Auto-reupload** (`wrong_cert_year`) | 3 tries | Only short-circuits when the read is confident; a low-confidence or not-found year falls through to the ambiguous case below instead |
-| Name on document confidently doesn't match applicant (label found, OCR read reliable, no match anywhere on the page) | **Auto-reupload** (`name_mismatch`) — *planned* | 3 tries | Same class of mistake as wrong-document-type: most likely explanation is the applicant mistakenly uploaded someone else's or an old document |
-| School/institution on document confidently doesn't match declared school | **Auto-reupload** (`institution_mismatch`) — *planned* | 3 tries | Same reasoning as name mismatch |
-| Guardian name on voter's certificate confidently doesn't match guardian on file (minor applicants only) | **Auto-reupload** (`name_mismatch`, guardian variant) — *planned* | 3 tries | Same identity-mismatch logic, just checked against guardian instead of applicant |
+| Name on document confidently doesn't match applicant (label found, OCR read reliable, no match anywhere on the page) | **Auto-reupload** (`name_mismatch`) — implemented | 3 tries | Same class of mistake as wrong-document-type: most likely explanation is the applicant mistakenly uploaded someone else's or an old document |
+| School/institution on document confidently doesn't match declared school | **Blocked — see Known Limitations** (`institution_mismatch`) | 3 tries (reserved, unused) | `extract_school()` has no keyword-label anchoring, so there's no way yet to distinguish a confident mismatch from "nothing matched" — see below |
+| Guardian name on voter's certificate confidently doesn't match guardian on file (minor applicants only) | **Auto-reupload** (`name_mismatch`, guardian variant) — implemented | 3 tries | Same identity-mismatch logic, just checked against guardian instead of applicant |
 | Name/school/guardian-name match is ambiguous — no label found at all, OR OCR confidence on the label/value is weak, OR similarity score is borderline | **Verifier** | Uncapped | Genuinely unsure whether it's a real mismatch or just a bad scan of the right document — a human has to make the call |
 | School year / cert year low-confidence or not-found | **Verifier** (existing design) | Uncapped | Documented in code as watermark-interference-prone and format-variant-heavy — deliberately kept manual even before this round of changes |
 | Residency (barangay ≠ Mamatid) | **Verifier — always** | N/A | This *is* the eligibility determination itself, not a wrong upload |
@@ -84,7 +86,7 @@ number that was already reasoned through.
 | `NAME_SCHOOL_CONFIDENCE_FLOOR` | 0.65 | Name & school checks specifically | See note below — this is a blended score, not raw OCR confidence |
 | `RAW_FIELD_CONFIDENCE_FLOOR` | 0.5 | School year, cert year, barangay | Raw OCR confidence floor for fields that don't use similarity blending |
 | Cert-year mismatch confidence gate | 0.9 | Cert year auto-reupload specifically | Only short-circuits to auto-reupload when OCR is very sure; anything less falls through to manual review |
-| **Confident-mismatch threshold (new)** | **0.75** *(proposed, reuses `CONFIDENCE_THRESHOLD`)* | Name/school "confidently doesn't match" signal | Minimum OCR confidence on the matched label/value before a mismatch is trusted enough to auto-reupload rather than route to verifier |
+| `CONFIDENT_MISMATCH_THRESHOLD` | 0.75 (reuses `CONFIDENCE_THRESHOLD`) | Name "confidently doesn't match" signal — implemented | Minimum OCR confidence on the matched label/value before a mismatch is trusted enough to auto-reupload rather than route to verifier |
 
 **Why 0.65 for `NAME_SCHOOL_CONFIDENCE_FLOOR` specifically:** name and
 school checks don't use raw OCR confidence directly — they blend OCR
@@ -149,6 +151,41 @@ matches reality:
    submission and processing), it routes to verifier — never
    auto-reupload. There is no "wrong file" to swap; the gap is missing
    data on the applicant's account, not a bad document.
+
+---
+
+## `institution_mismatch` — blocked, not built yet
+
+Unlike name matching, `extract_school()` (`ocr-service/app/extraction/school.py`)
+has **no keyword-label search at all** — no equivalent of name's
+"Name:" text-anchoring. It only does positional matching (header
+region, then whole-page pattern scan). When it doesn't find a match,
+it always returns the same generic `method: "none"`, `confidence: 0.0`
+result, regardless of whether the document confidently shows a
+*different* school or simply has no readable school text at all.
+There is currently no way to tell those two cases apart.
+
+Building `institution_mismatch` on top of that today would either
+silently never fire (since confidence is always 0.0 on a non-match, it
+would never clear `CONFIDENT_MISMATCH_THRESHOLD`), or require guessing
+at a different, unvalidated signal. Real fix: add a keyword-anchored
+extraction path to `school.py` (a `"school"` entry in
+`FIELD_KEYWORDS`, similar to how `"name"` works in
+`keyword_engine.py`), which is new extraction work, not a
+`shared.py`/routing change. `institution_mismatch` stays in
+`config/document_verification.php`'s `capped_categories` list — it's
+harmless to leave configured now, it simply won't be produced by
+anything until this extraction work is done.
+
+**School ID name-matching caveat (separate from the above):** even for
+`name_mismatch`, school IDs are less reliable than reg forms or voter's
+certificates for the same underlying reason — many ID layouts print
+the name with no "Name:" label at all, just raw text near a photo.
+When there's no label, `label_anchored_no_match` never fires, so it
+correctly falls through to the ambiguous/verifier-routed case instead
+of firing incorrectly. This isn't a bug — it's the safe default — but
+it does mean `name_mismatch` will trigger less often on school IDs
+than on the other two document types in practice.
 
 ---
 
