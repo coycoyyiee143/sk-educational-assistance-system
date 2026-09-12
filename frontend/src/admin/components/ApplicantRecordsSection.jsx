@@ -12,6 +12,7 @@ const emptyFilter = {
   course: "All Courses",
   year_level: "All Year Levels",
   applicant_type: "All Applicants",
+  reviewed_by: "",
 };
 
 const SUCCESS_SET = ["approved", "claimed"];
@@ -33,9 +34,10 @@ function formatDate(dateStr) {
 
 function ApplicantRecordsSection({ selectedConfigId }) {
   const [summary, setSummary] = useState(null);
-  const [filterOptions, setFilterOptions] = useState({ schools: [], courses: [] });
+  const [filterOptions, setFilterOptions] = useState({ schools: [], courses: [], verifiers: [] });
   const [filter, setFilter] = useState(emptyFilter);
   const [preview, setPreview] = useState([]);
+  const [recordSearch, setRecordSearch] = useState("");
   const [previewing, setPreviewing] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
@@ -45,16 +47,16 @@ function ApplicantRecordsSection({ selectedConfigId }) {
   useEffect(() => {
     api.get("/admin/reports/filter-options")
       .then((res) => setFilterOptions(res.data))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => {
     setSectionLoading(true);
     const params = selectedConfigId ? { config_id: selectedConfigId } : {};
     Promise.all([
-      api.get("/admin/reports/summary", { params }).then((res) => setSummary(res.data)).catch(() => {}),
-      api.get("/admin/reports/applications", { params }).then((res) => setPreview(res.data)).catch(() => {}),
-      api.get("/admin/reports/submission-vs-approval").then((res) => setSubmissionVsApproval(res.data)).catch(() => {}),
+      api.get("/admin/reports/summary", { params }).then((res) => setSummary(res.data)).catch(() => { }),
+      api.get("/admin/reports/applications", { params }).then((res) => setPreview(res.data)).catch(() => { }),
+      api.get("/admin/reports/submission-vs-approval").then((res) => setSubmissionVsApproval(res.data)).catch(() => { }),
     ]).finally(() => setSectionLoading(false));
   }, [selectedConfigId]);
 
@@ -69,6 +71,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     if (filter.course !== "All Courses") params.course = filter.course;
     if (filter.year_level !== "All Year Levels") params.year_level = filter.year_level;
     if (filter.applicant_type !== "All Applicants") params.applicant_type = filter.applicant_type.toLowerCase();
+    if (filter.reviewed_by) params.reviewed_by = filter.reviewed_by;
     if (selectedConfigId) params.config_id = selectedConfigId;
     return params;
   }
@@ -118,7 +121,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch {}
+    } catch { }
   }
 
   async function handleApprovedListExport() {
@@ -198,6 +201,15 @@ function ApplicantRecordsSection({ selectedConfigId }) {
       setError("Failed to generate approved applicants image preview.");
     }
   }
+
+  const filteredPreview = preview.filter((record) => {
+    if (!recordSearch.trim()) return true;
+    const q = recordSearch.trim().toLowerCase();
+    return (
+      record.name?.toLowerCase().includes(q) ||
+      record.control_number?.toLowerCase().includes(q)
+    );
+  });
 
   const stats = summary?.summary ?? {};
   const rates = summary?.rates ?? {};
@@ -372,6 +384,14 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   </select>
                 </div>
                 <div className="col-md-6">
+                  <label className="form-label">Reviewed By</label>
+                  <select className="form-select" value={filter.reviewed_by} onChange={set("reviewed_by")}>
+                    <option value="">All Verifiers</option>
+                    <option value="System (Auto-Approved)">System (Auto-Approved)</option>
+                    {filterOptions.verifiers.map((name) => <option key={name}>{name}</option>)}
+                  </select>
+                </div>
+                <div className="col-md-6">
                   <label className="form-label">From Date</label>
                   <input type="date" className="form-control" value={filter.from} onChange={set("from")} />
                 </div>
@@ -402,7 +422,17 @@ function ApplicantRecordsSection({ selectedConfigId }) {
 
       {/* RECORD PREVIEW */}
       <div className="page-card">
-        <h4 className="sub-title">Record Preview</h4>
+        <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+          <h4 className="sub-title mb-0">Record Preview</h4>
+          <input
+            type="text"
+            className="form-control"
+            style={{ maxWidth: "280px" }}
+            placeholder="Search name or control number..."
+            value={recordSearch}
+            onChange={(e) => setRecordSearch(e.target.value)}
+          />
+        </div>
         <div className="table-responsive table-scroll">
           <table className="table table-bordered table-striped align-middle mb-0">
             <thead>
@@ -412,26 +442,28 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 <th>Applicant Name</th>
                 <th>Submission Date</th>
                 <th>Status</th>
+                <th>Reviewed By</th>
                 <th>School</th>
                 <th>Course / Strand</th>
                 <th>Year Level</th>
               </tr>
             </thead>
             <tbody>
-              {preview.map((record) => (
+              {filteredPreview.map((record) => (
                 <tr key={record.id}>
                   <td>APP-{record.id}</td>
                   <td>{record.control_number ?? "—"}</td>
                   <td>{record.name}</td>
                   <td>{formatDate(record.submitted_at)}</td>
                   <td><StatusBadge status={record.status} /></td>
+                  <td>{record.reviewed_by ?? "—"}</td>
                   <td>{record.school_name}</td>
                   <td>{record.course}</td>
                   <td>{record.year_level}</td>
                 </tr>
               ))}
-              {preview.length === 0 && (
-                <tr><td colSpan="8" className="text-center text-muted">No records found.</td></tr>
+              {filteredPreview.length === 0 && (
+                <tr><td colSpan="9" className="text-center text-muted">No records found.</td></tr>
               )}
             </tbody>
           </table>

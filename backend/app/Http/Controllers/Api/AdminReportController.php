@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
 use App\Models\ClaimingAssignment;
+use App\Models\User;
 use App\Models\VerificationCheck;
 use App\Models\VerifierAction;
 use App\Traits\GracePeriodEligibility;
@@ -61,9 +62,16 @@ class AdminReportController extends Controller
 
     public function filterOptions()
     {
+        $verifiers = User::where('role', 'sk_verifier')
+            ->orderBy('first_name')
+            ->get()
+            ->map(fn($v) => trim($v->first_name . ' ' . $v->last_name))
+            ->values();
+
         return response()->json([
-            'schools' => Application::whereNotNull('school_name')->distinct()->orderBy('school_name')->pluck('school_name'),
-            'courses' => Application::whereNotNull('course')->distinct()->orderBy('course')->pluck('course'),
+            'schools'   => Application::whereNotNull('school_name')->distinct()->orderBy('school_name')->pluck('school_name'),
+            'courses'   => Application::whereNotNull('course')->distinct()->orderBy('course')->pluck('course'),
+            'verifiers' => $verifiers,
         ]);
     }
 
@@ -146,9 +154,41 @@ class AdminReportController extends Controller
         )->values();
     }
 
+    /**
+     * Resolves who's responsible for an application's current outcome, for
+     * the "Reviewed By" column. Three cases:
+     * 1. A human verifier explicitly clicked Approve — use that verifier's
+     *    name, even if the application later moved on to claimed/not_cleared/
+     *    unclaimed (those are downstream of an approval, not a new review).
+     * 2. No human ever approved it, but its status is in the approved
+     *    lineage anyway — it passed every automated OCR/rule check and was
+     *    auto-approved by the system (see ProcessOcrDocument::
+     *    updateApplicationStatus → Application::tryApprove). Label it
+     *    "System (Auto-Approved)" instead of leaving it blank.
+     * 3. Anything else (rejected, reupload_requested) always has a human
+     *    VerifierAction — auto-reject/auto-reupload doesn't exist — so just
+     *    use the latest one.
+     */
+    private function resolveReviewedBy(Application $app): ?string
+    {
+        $approvedStatuses = ['approved', 'claimed', 'not_cleared', 'unclaimed'];
+
+        $approvalAction = $app->verifierActions->firstWhere('action', 'approved');
+        if ($approvalAction) {
+            return trim($approvalAction->verifier->first_name . ' ' . $approvalAction->verifier->last_name);
+        }
+
+        if (in_array($app->status, $approvedStatuses)) {
+            return 'System (Auto-Approved)';
+        }
+
+        $latest = $app->latestVerifierAction;
+        return $latest?->verifier ? trim($latest->verifier->first_name . ' ' . $latest->verifier->last_name) : null;
+    }
+
     public function applications(Request $request)
     {
-        $query = Application::with('user.profile')
+        $query = Application::with('user.profile', 'verifierActions.verifier')
             ->orderByRaw('control_number IS NULL')
             ->orderBy('control_number')
             ->orderBy('submitted_at');
@@ -164,19 +204,38 @@ class AdminReportController extends Controller
                 'school_name'    => $app->school_name,
                 'course'         => $app->course,
                 'year_level'     => $app->year_level,
+                'reviewed_by'    => $this->resolveReviewedBy($app),
             ];
         });
+
+        // Reviewed By is computed, not a DB column — filter in-memory here.
+        if ($request->filled('reviewed_by')) {
+            $search = mb_strtolower($request->query('reviewed_by'));
+            $mapped = $mapped->filter(
+                fn($row) => $row['reviewed_by'] && str_contains(mb_strtolower($row['reviewed_by']), $search)
+            );
+        }
+
         return response()->json($mapped->values());
     }
 
     public function export(Request $request)
     {
-        $query = Application::with('user.profile')
+        $query = Application::with('user.profile', 'verifierActions.verifier')
             ->orderByRaw('control_number IS NULL')
             ->orderBy('control_number')
             ->orderBy('submitted_at');
         $this->applyFilters($query, $request);
         $applications = $this->filterByApplicantType($query->get(), $request);
+
+        // Reviewed By is computed, not a DB column — filter in-memory here.
+        if ($request->filled('reviewed_by')) {
+            $search = mb_strtolower($request->query('reviewed_by'));
+            $applications = $applications->filter(
+                fn($app) => ($reviewedBy = $this->resolveReviewedBy($app)) && str_contains(mb_strtolower($reviewedBy), $search)
+            )->values();
+        }
+
         $filename = 'applicant-records-' . now()->format('Y-m-d') . '.csv';
         $headers = [
             'Content-Type'        => 'text/csv',
@@ -186,7 +245,7 @@ class AdminReportController extends Controller
             $handle = fopen('php://output', 'w');
             fputcsv($handle, [
                 'Application ID', 'Control Number', 'Applicant Name', 'Email',
-                'School', 'Course', 'Year Level', 'Applicant Type', 'Status', 'Submitted At',
+                'School', 'Course', 'Year Level', 'Applicant Type', 'Status', 'Reviewed By', 'Submitted At',
             ]);
             foreach ($applications as $app) {
                 $applicantType = $app->user?->profile?->is_minor === true
@@ -202,6 +261,7 @@ class AdminReportController extends Controller
                     $app->year_level,
                     $applicantType,
                     $app->status,
+                    $this->resolveReviewedBy($app),
                     $app->submitted_at,
                 ]);
             }
