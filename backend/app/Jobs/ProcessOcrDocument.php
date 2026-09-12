@@ -1,14 +1,13 @@
 <?php
 
-
 namespace App\Jobs;
-
 
 use App\Models\Application;
 use App\Models\ApplicationDocument;
 use App\Models\OcrResult;
 use App\Models\VerificationCheck;
 use App\Notifications\ApplicationStatusNotification;
+use App\Services\DocumentReuploadRoutingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -20,24 +19,19 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
 
-
 class ProcessOcrDocument implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-
     // Allow the job to run up to 4 minutes before Laravel forces a timeout
     public $timeout = 240;
-
 
     // Limit retries so it doesn't slam your Python API if something breaks
     public $tries = 2;
 
-
     protected $application;
     protected $document;
     protected $filePath;
-
 
     public function __construct(Application $application, ApplicationDocument $document, string $filePath)
     {
@@ -312,35 +306,15 @@ class ProcessOcrDocument implements ShouldQueue
 
 
         if ($autoReuploadDocs->isNotEmpty()) {
-            // Categories that count toward the 3-attempt cap. 'low_quality'
-            // deliberately excluded — a repeatedly-blurry upload isn't
-            // necessarily something the applicant can fix faster by trying
-            // again, so it stays uncapped rather than forcing an unhelpful
-            // escalation.
-            $cappedCategories = ['wrong_document_type', 'wrong_cert_year'];
-            $escalated = collect();
+            // Capped-category list and max-attempt count are centralized
+            // in DocumentReuploadRoutingService / config/document_verification.php
+            // instead of hardcoded here — see AUTO_REUPLOAD_VERIFICATION_RULES.md
+            // for the reasoning behind the categories and the attempt cap.
+            $routing = new DocumentReuploadRoutingService();
 
-
-            foreach ($autoReuploadDocs as $doc) {
-                if (!in_array($doc->auto_reupload_category, $cappedCategories)) {
-                    continue;
-                }
-
-
-                // Count every prior version of THIS document type on THIS
-                // application that was ever flagged with a capped category —
-                // each reupload creates a new ApplicationDocument row, so this
-                // walks the full version history, not just the latest row.
-                $priorFlaggedCount = ApplicationDocument::where('application_id', $application->id)
-                    ->where('document_type', $doc->document_type)
-                    ->whereIn('auto_reupload_category', $cappedCategories)
-                    ->count();
-
-
-                if ($priorFlaggedCount > 3) {
-                    $escalated->push($doc);
-                }
-            }
+            $escalated = $autoReuploadDocs->filter(
+                fn($doc) => $routing->shouldEscalate($application, $doc)
+            );
 
 
             if ($escalated->isNotEmpty()) {
@@ -349,16 +323,10 @@ class ProcessOcrDocument implements ShouldQueue
                 // Build a full history so the verifier sees every prior
                 // reason, not just the latest one.
                 foreach ($escalated as $doc) {
-                    $history = ApplicationDocument::where('application_id', $application->id)
-                        ->where('document_type', $doc->document_type)
-                        ->whereIn('auto_reupload_category', $cappedCategories)
-                        ->orderBy('version')
-                        ->pluck('auto_reupload_reason')
-                        ->filter()
-                        ->values();
-
-
-                    $historyText = $history->map(fn($r, $i) => "Attempt " . ($i + 1) . ": {$r}")->implode(' | ');
+                    $history = $routing->attemptHistory($application, $doc);
+                    $historyText = collect($history)
+                        ->map(fn($r, $i) => "Attempt " . ($i + 1) . ": {$r}")
+                        ->implode(' | ');
 
 
                     VerificationCheck::create([
@@ -369,7 +337,7 @@ class ProcessOcrDocument implements ShouldQueue
                         'passed'         => false,
                         'extracted_value'=> null,
                         'expected_value' => null,
-                        'flag_reason'    => "Flagged {$history->count()} times for the same type of issue — escalated for manual review. History: {$historyText}",
+                        'flag_reason'    => "Flagged " . count($history) . " times for the same type of issue — escalated for manual review. History: {$historyText}",
                     ]);
                 }
 
