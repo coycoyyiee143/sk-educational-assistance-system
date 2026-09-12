@@ -2,6 +2,9 @@ import React from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+// Opposite of ProtectedRoute: blocks routes meant for logged-OUT users
+// (Login, Register) from a user who's already signed in. Sends them to
+// their role's dashboard instead of showing the login/register form.
 const GuestRoute = ({ children }) => {
     const { user, loading } = useAuth();
 

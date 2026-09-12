@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
+import { useAuth } from "../../context/AuthContext";
 
 // Public page — the person clicking their email link is NOT logged in.
 // Handles both first-time account setup and admin-initiated resets;
@@ -10,6 +11,10 @@ import Footer from "../../components/Footer";
 export default function PersonnelSetup() {
     const { token } = useParams();
     const navigate = useNavigate();
+    // Renamed to avoid colliding with the URL `token` above — this is
+    // whatever auth token (if any) is currently active in this browser,
+    // completely unrelated to the setup-link token.
+    const { token: activeAuthToken, logout } = useAuth();
 
     // "checking" -> "invalid" | "form" -> "success"
     const [status, setStatus] = useState("checking");
@@ -69,6 +74,22 @@ export default function PersonnelSetup() {
             });
 
             setStatus("success");
+
+            // If someone happens to be logged in on this browser (e.g. they
+            // opened this setup link from their own active session), clear
+            // that session now — it has nothing to do with the account just
+            // activated here, and leaving it active would bounce the next
+            // /login straight to their old dashboard instead of showing the
+            // login form for the newly-activated account.
+            if (activeAuthToken) {
+                try {
+                    await api.post("/logout"); // invalidate server-side too
+                } catch {
+                    // ignore — token may already be invalid/expired, doesn't
+                    // matter here, we're clearing local state regardless
+                }
+                logout();
+            }
         } catch (err) {
             const errors = err.response?.data?.errors;
 

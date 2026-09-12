@@ -27,6 +27,38 @@ export const AuthProvider = ({ children }) => {
         setLoading(false);
     }, []);
 
+    // Cross-tab sync: the storage event only fires in OTHER tabs when
+    // localStorage changes here (never fires in the tab that made the
+    // change itself). So if this tab is sitting on /login and another
+    // tab logs in, this one picks it up and GuestRoute redirects it away
+    // — no manual refresh needed. Same mechanism catches logout too:
+    // if another tab logs out, this tab (sitting on a protected page)
+    // gets bounced to /login automatically.
+    useEffect(() => {
+        function handleStorageChange(e) {
+            if (e.key !== "token" && e.key !== "user") return;
+
+            const storedToken = localStorage.getItem("token");
+            const storedUser = localStorage.getItem("user");
+
+            if (storedToken && storedUser) {
+                try {
+                    setToken(storedToken);
+                    setUser(JSON.parse(storedUser));
+                } catch (err) {
+                    console.warn("Corrupted auth data from storage event, ignoring.", err);
+                }
+            } else {
+                // Other tab logged out — clear here too.
+                setToken(null);
+                setUser(null);
+            }
+        }
+
+        window.addEventListener("storage", handleStorageChange);
+        return () => window.removeEventListener("storage", handleStorageChange);
+    }, []);
+
     const login = (userData, authToken) => {
         // Guard against ever re-introducing the bug: don't persist if either
         // value is missing (this is exactly what caused JSON.stringify(undefined)
