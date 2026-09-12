@@ -309,24 +309,25 @@ class AuthController extends Controller
             'email'    => 'required|email',
             'password' => 'required|string',
         ]);
-
+    
         $user = User::where('email', $request->email)->first();
-
+    
         // Lockout check — happens before the password check so a locked
         // account doesn't leak "your password was right" via timing/response
         // differences, and so we don't waste a Hash::check on it either.
         if ($user && $user->locked_until && now()->lessThan($user->locked_until)) {
-            $minutesLeft = now()->diffInMinutes($user->locked_until) + 1;
+            $secondsLeft = now()->diffInSeconds($user->locked_until);
+            $minutesLeft = (int) ceil($secondsLeft / 60);
             return response()->json([
                 'message' => "Too many failed attempts. Try again in {$minutesLeft} minute(s).",
             ], 429);
         }
-
+    
         if (!$user || !Hash::check($request->password, $user->password)) {
             if ($user) {
                 $this->registerFailedAttempt($user);
             }
-
+    
             // Log the failed attempt (useful for spotting brute-force attempts)
             \App\Models\AuditLog::create([
                 'user_id'     => $user->id ?? null,
@@ -334,12 +335,12 @@ class AuthController extends Controller
                 'description' => "An unsuccessful login attempt was made on your account.",
                 'ip_address'  => $request->ip(),
             ]);
-
+    
             throw ValidationException::withMessages([
                 'email' => ['Invalid credentials.'],
             ]);
         }
-
+    
         if (!$user->is_active) {
             return response()->json(['message' => 'Account is deactivated.'], 403);
         }
@@ -353,36 +354,36 @@ class AuthController extends Controller
                 'email'      => $user->email,
             ], 403);
         }
-
+    
         // Correct password, account in good standing — reset the failed-attempt counter.
         $user->forceFill(['failed_login_attempts' => 0, 'locked_until' => null])->save();
-
+    
         // 2FA gate. No Sanctum token is issued yet either way — only a
         // short-lived pending token the frontend must exchange (along with
         // the 6-digit code) at /2fa/setup/confirm or /2fa/verify.
         $pendingToken = Str::random(40);
-
+    
         if (!$user->google2fa_enabled_at) {
             // First login ever, or 2FA was never finished being set up —
             // force enrollment before they can do anything else.
             $secret = $this->twoFactor->generateSecret();
-
+    
             Cache::put("2fa_setup:{$pendingToken}", [
                 'user_id' => $user->id,
                 'secret'  => $secret,
             ], now()->addMinutes(self::PENDING_TOKEN_MINUTES));
-
+    
             return response()->json([
                 'requires_2fa_setup' => true,
                 'pending_token'      => $pendingToken,
                 'qr_code_url'        => $this->twoFactor->getQrCodeUrl($user, $secret),
-                'secret'             => $secret, // manual-entry fallback if they can't scan
-                'email'              => $user->email, // shown in the UI so it's clear WHICH account this QR belongs to
+                'secret'             => $secret,
+                'email'              => $user->email,
             ]);
         }
-
+    
         Cache::put("2fa_pending:{$pendingToken}", $user->id, now()->addMinutes(self::PENDING_TOKEN_MINUTES));
-
+    
         return response()->json([
             'requires_2fa'  => true,
             'pending_token' => $pendingToken,

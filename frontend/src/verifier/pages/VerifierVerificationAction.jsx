@@ -221,6 +221,26 @@ function VerifierVerificationAction() {
         <section className="page-section">
           <div className="container-fluid">
             <div className="verifier-dashboard-header">
+              <button
+                type="button"
+                className="verifier-review-back-btn"
+                onClick={() => navigate(`/VerifierApplicationReview/${id}`)}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M19 12H5" />
+                  <path d="M12 19l-7-7 7-7" />
+                </svg>
+
+                Back to Application Review
+              </button>
+
               <h3 className="verifier-dashboard-title">Verification Action</h3>
               <p className="verifier-dashboard-desc">Choose the appropriate verification action for this application.</p>
             </div>

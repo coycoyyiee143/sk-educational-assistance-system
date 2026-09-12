@@ -25,6 +25,36 @@ const CHECK_NAME_LABELS = {
   ai_generation_provenance: "AI-Generated or AI-Edited Image",
 };
 
+// Content-extraction checks (name, school year, geofence, etc.) are shown
+// first — verifiers care about those results most. Integrity/AI/template
+// checks are technical background signals, so they're pushed to the end
+// of the list instead of competing for attention at the top.
+const LATE_DISPLAY_CHECK_NAMES = [
+  "image_integrity",
+  "document_origin",
+  "ai_generation_provenance",
+];
+
+const PREVIEW_INTEGRITY_CHECK_NAMES = [
+  "image_integrity",
+  "document_origin",
+  "ai_generation_provenance",
+];
+
+function sortChecksForDisplay(checks) {
+  return [...checks].sort((a, b) => {
+    const aLate = LATE_DISPLAY_CHECK_NAMES.includes(a.check_name) ? 1 : 0;
+    const bLate = LATE_DISPLAY_CHECK_NAMES.includes(b.check_name) ? 1 : 0;
+    return aLate - bLate;
+  });
+}
+
+const DOCUMENT_TABS = [
+  { number: 1, type: "registration_form", label: "Registration Form" },
+  { number: 2, type: "school_id", label: "School ID" },
+  { number: 3, type: "voters_certificate", label: "Voter Certificate" },
+];
+
 function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
   const base = {
     registration_form: { reasons: [], otherText: "" },
@@ -65,13 +95,18 @@ function VerifierApplicationReview() {
   const [refreshingOcr, setRefreshingOcr] = useState(false);
   const [error, setError] = useState("");
   const [activeRawDocId, setActiveRawDocId] = useState(null);
-  const [activeDocumentType, setActiveDocumentType] =
-    useState("voters_certificate");
-  const [checkpointFilter, setCheckpointFilter] = useState("all");
-  const [documentDirection, setDocumentDirection] = useState("forward");
+  const [activeDocumentType, setActiveDocumentType] = useState(
+    "voters_certificate"
+  );
+  const [checkpointFilters, setCheckpointFilters] = useState({
+    voters_certificate: "all",
+    school_id: "all",
+    registration_form: "all",
+  });
   const [previewFiles, setPreviewFiles] = useState({});
   const [zoomPreview, setZoomPreview] = useState(null);
   const [openFlagDocId, setOpenFlagDocId] = useState(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const [flaggedDocs, setFlaggedDocs] = useState({
     registration_form: { reasons: [], otherText: "" },
@@ -132,9 +167,16 @@ function VerifierApplicationReview() {
 
     let cancelled = false;
 
-    const docs = app.documents.filter(
-      (doc) => doc.document_type === activeDocumentType
-    );
+    const latestByType = {};
+    app.documents.forEach((doc) => {
+      if (
+        !latestByType[doc.document_type] ||
+        doc.id > latestByType[doc.document_type].id
+      ) {
+        latestByType[doc.document_type] = doc;
+      }
+    });
+    const docs = Object.values(latestByType);
 
     const createdUrls = [];
 
@@ -164,7 +206,39 @@ function VerifierApplicationReview() {
       cancelled = true;
       createdUrls.forEach((url) => URL.revokeObjectURL(url));
     };
-  }, [app, activeDocumentType]);
+  }, [app]);
+
+  useEffect(() => {
+    const scrollContainer = document.querySelector(".verifier-main");
+
+    const getScrollTop = () =>
+      Math.max(
+        scrollContainer?.scrollTop || 0,
+        window.scrollY || 0,
+        document.documentElement.scrollTop || 0
+      );
+
+    const handleScroll = () => setShowScrollTop(getScrollTop() > 360);
+
+    scrollContainer?.addEventListener("scroll", handleScroll, {
+      passive: true,
+    });
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      scrollContainer?.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  function scrollToTop() {
+    document.querySelector(".verifier-main")?.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   if (loading) {
     return (
@@ -364,99 +438,7 @@ function VerifierApplicationReview() {
     });
   }
 
-  const sortedDocuments = app.documents
-    ? [...app.documents].sort((a, b) => b.id - a.id)
-    : [];
-
-  const documentTabs = [
-    {
-      number: 1,
-      type: "voters_certificate",
-      label: "Voter Certificate",
-    },
-    {
-      number: 2,
-      type: "school_id",
-      label: "School ID",
-    },
-    {
-      number: 3,
-      type: "registration_form",
-      label: "Registration Form",
-    },
-  ];
-
-  const getDocumentTabStatus = (documentType) => {
-    const latestDoc = latestDocsMap[documentType];
-
-    if (!latestDoc) {
-      return { text: "Processing", state: "processing" };
-    }
-
-    const checks = (app.verification_checks || []).filter(
-      (check) => check.document_id === latestDoc.id
-    );
-
-    if (checks.length === 0) {
-      return { text: "Processing", state: "processing" };
-    }
-
-    const hasFailed = checks.some((c) => !c.passed);
-
-    return hasFailed
-      ? { text: "For Review", state: "review" }
-      : { text: "Passed", state: "passed" };
-  };
-
-  const filteredDocuments = sortedDocuments.filter(
-    (doc) => doc.document_type === activeDocumentType
-  );
-
-  const activeLatestDoc = latestDocsMap[activeDocumentType];
-
-  const activeOverallStatus = activeLatestDoc
-    ? getOverallDocStatus(activeLatestDoc.id, true)
-    : null;
-
-  const activeChecks = activeLatestDoc
-    ? (app.verification_checks || []).filter(
-      (check) => check.document_id === activeLatestDoc.id
-    )
-    : [];
-
-  const checkpointTotal = activeChecks.length;
-
-  const checkpointReview = activeChecks.filter(
-    (check) => !check.passed
-  ).length;
-
-  const checkpointPassed = activeChecks.filter(
-    (check) => check.passed
-  ).length;
-
-  const filteredChecks = activeChecks.filter((check) => {
-    if (checkpointFilter === "review") return !check.passed;
-    if (checkpointFilter === "passed") return check.passed;
-    return true;
-  });
-
-  const activeDocumentIndex = documentTabs.findIndex(
-    (tab) => tab.type === activeDocumentType
-  );
-
-  const nextDocument =
-    activeDocumentIndex < documentTabs.length - 1
-      ? documentTabs[activeDocumentIndex + 1]
-      : null;
-
-  const previousDocument =
-    activeDocumentIndex > 0
-      ? documentTabs[activeDocumentIndex - 1]
-      : null;
-
-  const latestDocIds = Object.values(latestDocsMap).map(
-    (d) => d.id
-  );
+  const latestDocIds = Object.values(latestDocsMap).map((d) => d.id);
 
   const hasLowConfidence = Object.values(latestDocsMap).some(
     (d) => d.ocr_result?.is_low_confidence
@@ -488,6 +470,26 @@ function VerifierApplicationReview() {
   const showFlagSummary =
     hasLowConfidence || hasFailedCheck;
 
+  function getDocumentTabStatus(documentType) {
+    const latestDoc = latestDocsMap[documentType];
+
+    if (!latestDoc) {
+      return { text: "Processing", state: "processing" };
+    }
+
+    const checks = (app.verification_checks || []).filter(
+      (check) => check.document_id === latestDoc.id
+    );
+
+    if (checks.length === 0) {
+      return { text: "Processing", state: "processing" };
+    }
+
+    return checks.some((check) => !check.passed)
+      ? { text: "For Review", state: "review" }
+      : { text: "Passed", state: "passed" };
+  }
+
   function toggleReason(docType, reasonText) {
     setFlaggedDocs((prev) => {
       const current = prev[docType].reasons;
@@ -516,27 +518,15 @@ function VerifierApplicationReview() {
     }));
   }
 
-  function changeDocument(document, direction) {
-    if (!document) return;
-
-    setDocumentDirection(direction);
-    setActiveDocumentType(document.type);
-    setActiveRawDocId(null);
-    setCheckpointFilter("all");
-    setOpenFlagDocId(null);
+  function setCheckpointFilterFor(docType, value) {
+    setCheckpointFilters((prev) => ({ ...prev, [docType]: value }));
   }
 
-  function handleTabClick(tab) {
-    const targetIndex = documentTabs.findIndex(
-      (item) => item.type === tab.type
-    );
-
-    const direction =
-      targetIndex < activeDocumentIndex
-        ? "backward"
-        : "forward";
-
-    changeDocument(tab, direction);
+  function handleDocumentTabClick(documentType) {
+    setActiveDocumentType(documentType);
+    document
+      .getElementById(`verifier-document-${documentType}`)
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   async function handleRefreshOcr() {
@@ -551,7 +541,6 @@ function VerifierApplicationReview() {
 
       setApp(res.data);
       setActiveRawDocId(null);
-      setCheckpointFilter("all");
       setOpenFlagDocId(null);
     } catch {
       alert("Failed to refresh OCR verification results.");
@@ -674,7 +663,6 @@ function VerifierApplicationReview() {
 
             <div className="verifier-dashboard-header">
 
-              {/* BACK BUTTON ADDED HERE */}
               <button
                 type="button"
                 className="verifier-review-back-btn"
@@ -960,20 +948,21 @@ function VerifierApplicationReview() {
                   </div>
                 )}
 
-              <div className="verifier-ocr-document-tabs">
-                {documentTabs.map((tab) => {
-                  const tabStatus =
-                    getDocumentTabStatus(tab.type);
+              <div className="verifier-ocr-document-tabs" role="tablist">
+                {DOCUMENT_TABS.map((tab) => {
+                  const tabStatus = getDocumentTabStatus(tab.type);
 
                   return (
                     <button
                       type="button"
+                      role="tab"
                       key={tab.type}
                       className={`verifier-ocr-document-tab ${activeDocumentType === tab.type
                         ? "verifier-ocr-document-tab-active"
                         : ""
                         }`}
-                      onClick={() => handleTabClick(tab)}
+                      aria-selected={activeDocumentType === tab.type}
+                      onClick={() => handleDocumentTabClick(tab.type)}
                       disabled={refreshingOcr}
                     >
                       <span className="verifier-ocr-document-tab-number">
@@ -996,54 +985,15 @@ function VerifierApplicationReview() {
               </div>
 
               <div className="verifier-ocr-refresh-content">
-                <div className="verifier-ocr-document-content">
-                  {filteredDocuments.map((doc) => {
-                    const docLabel =
-                      doc.document_type
-                        .replace(/_/g, " ")
-                        .replace(/\b\w/g, (c) =>
-                          c.toUpperCase()
-                        );
+                {DOCUMENT_TABS.map((tab) => {
+                  const doc = latestDocsMap[tab.type];
 
-                    const relatedChecks =
-                      app.verification_checks?.filter(
-                        (c) => c.document_id === doc.id
-                      ) || [];
-
-                    const isLatestVersion =
-                      latestDocsMap[doc.document_type]?.id ===
-                      doc.id;
-
-                    const flagState =
-                      flaggedDocs[doc.document_type];
-
-                    const reasonOptions =
-                      reasonsByDocType[doc.document_type] || [];
-
-                    const previewFile =
-                      previewFiles[doc.id];
-
-                    const confidence =
-                      doc.ocr_result?.confidence_score
-                        ? `${(
-                          doc.ocr_result.confidence_score * 100
-                        ).toFixed(1)}%`
-                        : "—";
-
-                    const displayedChecks =
-                      isLatestVersion
-                        ? filteredChecks
-                        : relatedChecks;
-
+                  if (!doc) {
                     return (
                       <div
                         className="verifier-ocr-review-card mb-4"
-                        key={doc.id}
-                        style={{
-                          opacity: isLatestVersion
-                            ? 1
-                            : 0.75,
-                        }}
+                        key={tab.type}
+                        id={`verifier-document-${tab.type}`}
                       >
                         <div className="verifier-ocr-review-header">
                           <div className="verifier-ocr-review-header-left">
@@ -1058,46 +1008,137 @@ function VerifierApplicationReview() {
                               >
                                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                                 <polyline points="14 2 14 8 20 8" />
-                                <line
-                                  x1="8"
-                                  y1="13"
-                                  x2="16"
-                                  y2="13"
-                                />
-                                <line
-                                  x1="8"
-                                  y1="17"
-                                  x2="14"
-                                  y2="17"
-                                />
                               </svg>
                             </div>
 
-                            <div>
-                              <div className="d-flex align-items-center gap-2 flex-wrap">
-                                <h6 className="verifier-ocr-review-title">
-                                  {docLabel}
-                                </h6>
+                            <h6 className="verifier-ocr-review-title">
+                              {tab.label}
+                            </h6>
+                          </div>
+                        </div>
 
-                                {isLatestVersion ? (
-                                  <span className="badge bg-primary verifier-ocr-badge">
-                                    Current Version
-                                  </span>
-                                ) : (
-                                  <span className="badge bg-secondary verifier-ocr-badge">
-                                    Archived (v{doc.version})
-                                  </span>
-                                )}
-                              </div>
+                        <div className="verifier-ocr-empty">
+                          <div className="verifier-ocr-empty-content">
+                            <span>
+                              Not yet uploaded by the applicant.
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const docLabel = tab.label;
+
+                  const relatedChecks = sortChecksForDisplay(
+                    app.verification_checks?.filter(
+                      (c) => c.document_id === doc.id
+                    ) || []
+                  );
+
+                  const overallStatus = getOverallDocStatus(doc.id, true);
+
+                  const checkpointFilter = checkpointFilters[tab.type];
+
+                  const checkpointTotal = relatedChecks.length;
+                  const checkpointReview = relatedChecks.filter(
+                    (c) => !c.passed
+                  ).length;
+                  const checkpointPassed = relatedChecks.filter(
+                    (c) => c.passed
+                  ).length;
+
+                  const displayedChecks = relatedChecks.filter((check) => {
+                    if (checkpointFilter === "review") return !check.passed;
+                    if (checkpointFilter === "passed") return check.passed;
+                    return true;
+                  });
+
+                  const previewIntegrityChecks = displayedChecks.filter(
+                    (check) =>
+                      PREVIEW_INTEGRITY_CHECK_NAMES.includes(check.check_name)
+                  );
+
+                  const extractionChecks = displayedChecks.filter(
+                    (check) =>
+                      !PREVIEW_INTEGRITY_CHECK_NAMES.includes(check.check_name)
+                  );
+
+                  const flagState = flaggedDocs[tab.type];
+                  const reasonOptions = reasonsByDocType[tab.type] || [];
+                  const previewFile = previewFiles[doc.id];
+
+                  const confidence = doc.ocr_result?.confidence_score
+                    ? `${(doc.ocr_result.confidence_score * 100).toFixed(1)}%`
+                    : "—";
+
+                  return (
+                    <div
+                      className="verifier-ocr-review-card mb-4"
+                      key={doc.id}
+                      id={`verifier-document-${tab.type}`}
+                    >
+                      <div className="verifier-ocr-review-header">
+                        <div className="verifier-ocr-review-header-left">
+                          <div className="verifier-ocr-review-doc-icon">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="1.8"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="8" y1="13" x2="16" y2="13" />
+                              <line x1="8" y1="17" x2="14" y2="17" />
+                            </svg>
+                          </div>
+
+                          <div>
+                            <div className="d-flex align-items-center gap-2 flex-wrap">
+                              <h6 className="verifier-ocr-review-title">
+                                {docLabel}
+                              </h6>
+
+                              <span className="badge bg-primary verifier-ocr-badge">
+                                Current Version
+                              </span>
                             </div>
                           </div>
 
-                          <div className="verifier-ocr-review-actions">
+                        </div>
+
+                        <div className="verifier-ocr-review-actions">
+                          <button
+                            type="button"
+                            className="verifier-ocr-file-btn"
+                            onClick={() => handleViewFile(doc.id)}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+
+                            View File
+                          </button>
+
+                          {doc.ocr_result?.raw_text && (
                             <button
                               type="button"
                               className="verifier-ocr-file-btn"
                               onClick={() =>
-                                handleViewFile(doc.id)
+                                setActiveRawDocId(
+                                  activeRawDocId === doc.id ? null : doc.id
+                                )
                               }
                             >
                               <svg
@@ -1108,688 +1149,443 @@ function VerifierApplicationReview() {
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
                               >
-                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
-                                <circle
-                                  cx="12"
-                                  cy="12"
-                                  r="3"
-                                />
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                <polyline points="14 2 14 8 20 8" />
                               </svg>
 
-                              View File
+                              {activeRawDocId === doc.id
+                                ? "Hide Raw OCR"
+                                : "Raw OCR"}
                             </button>
+                          )}
+                        </div>
+                      </div>
 
-                            {doc.ocr_result?.raw_text && (
-                              <button
-                                type="button"
-                                className="verifier-ocr-file-btn"
+                      <div className="verifier-ocr-review-layout">
+                        <div className="verifier-ocr-preview-column">
+                          <div className="verifier-ocr-preview-heading">
+                            Document Preview
+                          </div>
+
+                          <div className="verifier-ocr-preview-frame">
+                            {!previewFile ? (
+                              <div className="verifier-ocr-preview-loading">
+                                <span
+                                  className="spinner-border spinner-border-sm"
+                                  role="status"
+                                />
+                                <span>Loading preview...</span>
+                              </div>
+                            ) : previewFile.type.startsWith("image/") ? (
+                              <div
+                                className="verifier-ocr-preview-image-wrap"
                                 onClick={() =>
-                                  setActiveRawDocId(
-                                    activeRawDocId ===
-                                      doc.id
-                                      ? null
-                                      : doc.id
-                                  )
+                                  setZoomPreview({
+                                    url: previewFile.url,
+                                    label: docLabel,
+                                  })
                                 }
                               >
-                                <svg
-                                  viewBox="0 0 24 24"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                >
-                                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-                                  <polyline points="14 2 14 8 20 8" />
-                                </svg>
+                                <img
+                                  src={previewFile.url}
+                                  alt={`${docLabel} preview`}
+                                  className="verifier-ocr-preview-image"
+                                />
 
-                                {activeRawDocId === doc.id
-                                  ? "Hide Raw OCR"
-                                  : "Raw OCR"}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="verifier-ocr-review-layout">
-                          <div className="verifier-ocr-preview-column">
-                            <div className="verifier-ocr-preview-heading">
-                              Document Preview
-                            </div>
-
-                            <div className="verifier-ocr-preview-frame">
-                              {!previewFile ? (
-                                <div className="verifier-ocr-preview-loading">
-                                  <span
-                                    className="spinner-border spinner-border-sm"
-                                    role="status"
-                                  />
-
-                                  <span>
-                                    Loading preview...
-                                  </span>
-                                </div>
-                              ) : previewFile.type.startsWith(
-                                "image/"
-                              ) ? (
-                                <div
-                                  className="verifier-ocr-preview-image-wrap"
-                                  onClick={() =>
-                                    setZoomPreview({
-                                      url: previewFile.url,
-                                      label: docLabel,
-                                    })
-                                  }
-                                >
-                                  <img
-                                    src={previewFile.url}
-                                    alt={`${docLabel} preview`}
-                                    className="verifier-ocr-preview-image"
-                                  />
-
-                                  <div className="verifier-ocr-preview-zoom-overlay">
-                                    <div className="verifier-ocr-preview-zoom-icon">
-                                      <svg
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                      >
-                                        <circle
-                                          cx="11"
-                                          cy="11"
-                                          r="7"
-                                        />
-                                        <line
-                                          x1="16.5"
-                                          y1="16.5"
-                                          x2="21"
-                                          y2="21"
-                                        />
-                                        <line
-                                          x1="11"
-                                          y1="8"
-                                          x2="11"
-                                          y2="14"
-                                        />
-                                        <line
-                                          x1="8"
-                                          y1="11"
-                                          x2="14"
-                                          y2="11"
-                                        />
-                                      </svg>
-                                    </div>
+                                <div className="verifier-ocr-preview-zoom-overlay">
+                                  <div className="verifier-ocr-preview-zoom-icon">
+                                    <svg
+                                      viewBox="0 0 24 24"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      strokeWidth="2"
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                    >
+                                      <circle cx="11" cy="11" r="7" />
+                                      <line x1="16.5" y1="16.5" x2="21" y2="21" />
+                                      <line x1="11" y1="8" x2="11" y2="14" />
+                                      <line x1="8" y1="11" x2="14" y2="11" />
+                                    </svg>
                                   </div>
                                 </div>
-                              ) : (
-                                <iframe
-                                  src={previewFile.url}
-                                  title={`${docLabel} preview`}
-                                  className="verifier-ocr-preview-iframe"
-                                />
-                              )}
+                              </div>
+                            ) : (
+                              <iframe
+                                src={previewFile.url}
+                                title={`${docLabel} preview`}
+                                className="verifier-ocr-preview-iframe"
+                              />
+                            )}
+                          </div>
+
+                          <div className="verifier-ocr-preview-meta">
+                            <div className="verifier-ocr-preview-meta-row">
+                              <span>File Name:</span>
+                              <strong title={doc.file_name}>
+                                {doc.file_name}
+                              </strong>
                             </div>
 
-                            <div className="verifier-ocr-preview-meta">
-                              <div className="verifier-ocr-preview-meta-row">
-                                <span>File Name:</span>
-                                <strong title={doc.file_name}>
-                                  {doc.file_name}
-                                </strong>
+                            <div className="verifier-ocr-preview-meta-row">
+                              <span>Uploaded & Processed:</span>
+                              <strong>
+                                {formatTimestamp(
+                                  doc.created_at || doc.updated_at
+                                )}
+                              </strong>
+                            </div>
+
+                            <div className="verifier-ocr-preview-meta-row">
+                              <span>Confidence:</span>
+                              <strong>{confidence}</strong>
+                            </div>
+                          </div>
+
+                          {previewIntegrityChecks.length > 0 && (
+                            <div className="verifier-preview-extraction-checks">
+                              <div className="verifier-ocr-preview-heading">
+                                AI & Document Integrity
                               </div>
 
-                              <div className="verifier-ocr-preview-meta-row">
-                                <span>
-                                  Uploaded & Processed:
+                              {previewIntegrityChecks.map((check) => (
+                                <div
+                                  className="verifier-preview-extraction-check"
+                                  key={check.id}
+                                >
+                                  <strong className="verifier-preview-extraction-label">
+                                    {getCheckRuleLabel(check.check_name)}
+                                  </strong>
+                                  <span className="verifier-preview-extraction-value">
+                                    {check.extracted_value || "Not extracted"}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="verifier-ocr-results-column">
+                          <div className="verifier-checkpoints-bar">
+                            <div className="verifier-checkpoints-info">
+                              <div className="verifier-checkpoints-title-row">
+                                <span className="verifier-checkpoints-title">
+                                  Checkpoints
                                 </span>
-                                <strong>
-                                  {formatTimestamp(
-                                    doc.created_at ||
-                                    doc.updated_at
-                                  )}
-                                </strong>
-                              </div>
 
-                              <div className="verifier-ocr-preview-meta-row">
-                                <span>Confidence:</span>
-                                <strong>{confidence}</strong>
+                                <span
+                                  className={`badge verifier-ocr-badge ${overallStatus.class}`}
+                                >
+                                  {overallStatus.text}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="verifier-checkpoints-controls">
+                              <div className="verifier-checkpoints-segments">
+                                <button
+                                  type="button"
+                                  className={`verifier-checkpoint-segment ${checkpointFilter === "all"
+                                    ? "verifier-checkpoint-segment-active"
+                                    : ""
+                                    }`}
+                                  onClick={() =>
+                                    setCheckpointFilterFor(tab.type, "all")
+                                  }
+                                >
+                                  All ({checkpointTotal})
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={`verifier-checkpoint-segment ${checkpointFilter === "review"
+                                    ? "verifier-checkpoint-segment-active"
+                                    : ""
+                                    }`}
+                                  onClick={() =>
+                                    setCheckpointFilterFor(tab.type, "review")
+                                  }
+                                >
+                                  Review ({checkpointReview})
+                                </button>
+
+                                <button
+                                  type="button"
+                                  className={`verifier-checkpoint-segment ${checkpointFilter === "passed"
+                                    ? "verifier-checkpoint-segment-active"
+                                    : ""
+                                    }`}
+                                  onClick={() =>
+                                    setCheckpointFilterFor(tab.type, "passed")
+                                  }
+                                >
+                                  Passed ({checkpointPassed})
+                                </button>
                               </div>
                             </div>
                           </div>
 
-                          <div className="verifier-ocr-results-column">
-                            <div className="verifier-checkpoints-bar">
-                              <div className="verifier-checkpoints-info">
-                                <div className="verifier-checkpoints-title-row">
-                                  <span className="verifier-checkpoints-title">
-                                    Checkpoints
-                                  </span>
-
-                                  {activeOverallStatus && (
-                                    <span
-                                      className={`badge verifier-ocr-badge ${activeOverallStatus.class}`}
-                                    >
-                                      {
-                                        activeOverallStatus.text
-                                      }
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-
-                              <div className="verifier-checkpoints-controls">
-                                <div className="verifier-checkpoints-segments">
-                                  <button
-                                    type="button"
-                                    className={`verifier-checkpoint-segment ${checkpointFilter ===
-                                      "all"
-                                      ? "verifier-checkpoint-segment-active"
-                                      : ""
-                                      }`}
-                                    onClick={() =>
-                                      setCheckpointFilter(
-                                        "all"
-                                      )
-                                    }
-                                  >
-                                    All ({checkpointTotal})
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    className={`verifier-checkpoint-segment ${checkpointFilter ===
-                                      "review"
-                                      ? "verifier-checkpoint-segment-active"
-                                      : ""
-                                      }`}
-                                    onClick={() =>
-                                      setCheckpointFilter(
-                                        "review"
-                                      )
-                                    }
-                                  >
-                                    Review (
-                                    {checkpointReview})
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    className={`verifier-checkpoint-segment ${checkpointFilter ===
-                                      "passed"
-                                      ? "verifier-checkpoint-segment-active"
-                                      : ""
-                                      }`}
-                                    onClick={() =>
-                                      setCheckpointFilter(
-                                        "passed"
-                                      )
-                                    }
-                                  >
-                                    Passed (
-                                    {checkpointPassed})
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-
-                            {displayedChecks.length > 0 ? (
-                              <div className="verifier-ocr-check-list">
-                                {displayedChecks.map(
-                                  (check) => (
-                                    <div
-                                      className={`verifier-ocr-check-card ${check.passed
-                                        ? "verifier-ocr-check-card-passed"
-                                        : "verifier-ocr-check-card-failed"
-                                        }`}
-                                      key={check.id}
-                                    >
-                                      <div className="verifier-ocr-check-header">
-                                        <div className="verifier-ocr-check-header-left">
-                                          <span className="verifier-ocr-check-name">
-                                            {getCheckRuleLabel(
-                                              check.check_name
-                                            )}
-                                          </span>
-
-                                          <code
-                                            className={`verifier-ocr-check-code ${check.passed
-                                              ? "verifier-ocr-check-code-passed"
-                                              : "verifier-ocr-check-code-failed"
-                                              }`}
-                                          >
-                                            {
-                                              check.check_name
-                                            }
-                                          </code>
-
-                                          {check.metadata
-                                            ?.flag ===
-                                            "SUGGESTED_DISAPPROVAL" && (
-                                              <span className="badge bg-dark verifier-ocr-badge">
-                                                Suggested:
-                                                Reject
-                                              </span>
-                                            )}
-                                        </div>
-
-                                        <OcrBadge
-                                          passed={
-                                            check.passed
-                                          }
-                                        />
-                                      </div>
-
-                                      <div className="verifier-ocr-check-values">
-                                        <div className="verifier-ocr-check-value-group">
-                                          <span className="verifier-ocr-check-value-label">
-                                            EXTRACTED VALUE
-                                          </span>
-
-                                          <span className="verifier-ocr-check-value">
-                                            {check.extracted_value ||
-                                              "not extracted"}
-                                          </span>
-                                        </div>
-
-                                        <div className="verifier-ocr-check-value-group">
-                                          <span className="verifier-ocr-check-value-label">
-                                            EXPECTED VALUE
-                                          </span>
-
-                                          <span className="verifier-ocr-check-value">
-                                            {check.expected_value ??
-                                              "—"}
-                                          </span>
-                                        </div>
-                                      </div>
-
-                                      {check.passed ? (
-                                        <div className="verifier-ocr-check-pass-reason">
-                                          <span className="verifier-ocr-check-pass-label">
-                                            Flag Reason:
-                                          </span>
-
-                                          <span className="verifier-ocr-check-pass-none">
-                                            None
-                                          </span>
-
-                                          <span className="verifier-ocr-check-pass-message">
-                                            •{" "}
-                                            {getPassedCheckMessage(
-                                              check.check_name
-                                            )}
-                                          </span>
-                                        </div>
-                                      ) : (
-                                        <div className="verifier-ocr-check-flag">
-                                          <span className="verifier-ocr-check-flag-icon">
-                                            !
-                                          </span>
-
-                                          <span className="verifier-ocr-check-flag-label">
-                                            Flag Reason:
-                                          </span>
-
-                                          <span className="verifier-ocr-check-flag-text">
-                                            {check.flag_reason ??
-                                              "—"}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            ) : (
-                              <div className="verifier-ocr-empty">
-                                {activeChecks.length ===
-                                  0 ? (
-                                  doc.status ===
-                                    "failed" ? (
-                                    <div className="verifier-ocr-empty-content">
-                                      <span className="text-danger">
-                                        OCR processing
-                                        failed for this
-                                        document. Try
-                                        refreshing, or ask
-                                        the applicant to
-                                        re-upload.
+                          {extractionChecks.length > 0 ? (
+                            <div
+                              className="verifier-ocr-check-list"
+                              style={{
+                                maxHeight: "700px",
+                                overflowY: "auto",
+                                paddingRight: "6px",
+                              }}
+                            >
+                              {extractionChecks.map((check) => (
+                                <div
+                                  className={`verifier-ocr-check-card ${check.passed
+                                    ? "verifier-ocr-check-card-passed"
+                                    : "verifier-ocr-check-card-failed"
+                                    }`}
+                                  style={{ padding: "10px 14px", marginBottom: "8px" }}
+                                  key={check.id}
+                                >
+                                  <div className="verifier-ocr-check-header">
+                                    <div className="verifier-ocr-check-header-left">
+                                      <span className="verifier-ocr-check-name">
+                                        {getCheckRuleLabel(check.check_name)}
                                       </span>
 
-                                      <button
-                                        type="button"
-                                        className="verifier-ocr-file-btn mt-2"
-                                        onClick={() =>
-                                          handleRetryOcr(
-                                            doc.id
-                                          )
-                                        }
-                                        disabled={
-                                          refreshingOcr
-                                        }
+                                      <code
+                                        className={`verifier-ocr-check-code ${check.passed
+                                          ? "verifier-ocr-check-code-passed"
+                                          : "verifier-ocr-check-code-failed"
+                                          }`}
                                       >
-                                        {refreshingOcr
-                                          ? "Retrying..."
-                                          : "Retry OCR Check"}
-                                      </button>
-                                    </div>
-                                  ) : [
-                                    "processing",
-                                    "pending",
-                                    "pending_prescreening",
-                                  ].includes(
-                                    app.status
-                                  ) ? (
-                                    <div className="verifier-ocr-empty-content">
-                                      <span
-                                        className="spinner-border spinner-border-sm verifier-ocr-empty-spinner"
-                                        role="status"
-                                      />
+                                        {check.check_name}
+                                      </code>
 
-                                      <span>
-                                        System is
-                                        extracting text
-                                        via OCR and
-                                        verifying rules.
-                                        Try refreshing
-                                        shortly.
+                                      {check.metadata?.flag ===
+                                        "SUGGESTED_DISAPPROVAL" && (
+                                          <span className="badge bg-dark verifier-ocr-badge">
+                                            Suggested: Reject
+                                          </span>
+                                        )}
+                                    </div>
+
+                                    <OcrBadge passed={check.passed} />
+                                  </div>
+
+                                  <div className="verifier-ocr-check-value-pair">
+                                    <div className="verifier-ocr-check-value-col">
+                                      <div className="verifier-ocr-check-value-pair-label">
+                                        EXTRACTED VALUE
+                                      </div>
+                                      <div
+                                        className={`verifier-ocr-check-value-pair-value ${
+                                          !check.passed ? "verifier-ocr-check-value-pair-value-mismatch" : ""
+                                        }`}
+                                      >
+                                        {check.extracted_value || "not extracted"}
+                                      </div>
+                                    </div>
+
+                                    <div className="verifier-ocr-check-value-col">
+                                      <div className="verifier-ocr-check-value-pair-label">
+                                        EXPECTED VALUE
+                                      </div>
+                                      <div className="verifier-ocr-check-value-pair-value">
+                                        {check.expected_value ?? "—"}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  {check.passed ? (
+                                    <div className="verifier-ocr-check-reason-row">
+                                      <span className="verifier-ocr-check-reason-label">
+                                        Flag Reason:
+                                      </span>
+                                      <span className="verifier-ocr-check-reason-value-pass">
+                                        None
+                                      </span>
+                                      <span className="verifier-ocr-check-reason-message">
+                                        · {getPassedCheckMessage(check.check_name)}
                                       </span>
                                     </div>
                                   ) : (
-                                    <div className="verifier-ocr-empty-content">
-                                      <span>
-                                        No execution
-                                        parameters run
-                                        against this file
-                                        configuration.
+                                    <div className="verifier-ocr-check-reason-row">
+                                      <span className="verifier-ocr-check-reason-label">
+                                        Flag Reason:
+                                      </span>
+                                      <span className="verifier-ocr-check-reason-value-fail">
+                                        <span className="verifier-ocr-check-reason-icon">!</span>
+                                        {check.flag_reason ?? "—"}
                                       </span>
                                     </div>
-                                  )
-                                ) : checkpointFilter ===
-                                  "review" ? (
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="verifier-ocr-empty">
+                              {relatedChecks.length === 0 ? (
+                                doc.status === "failed" ? (
                                   <div className="verifier-ocr-empty-content">
-                                    <span>
-                                      No review
-                                      checkpoints for
-                                      this document.
+                                    <span className="text-danger">
+                                      OCR processing failed for this
+                                      document. Try refreshing, or ask the
+                                      applicant to re-upload.
                                     </span>
+
+                                    <button
+                                      type="button"
+                                      className="verifier-ocr-file-btn mt-2"
+                                      onClick={() => handleRetryOcr(doc.id)}
+                                      disabled={refreshingOcr}
+                                    >
+                                      {refreshingOcr
+                                        ? "Retrying..."
+                                        : "Retry OCR Check"}
+                                    </button>
                                   </div>
-                                ) : checkpointFilter ===
-                                  "passed" ? (
+                                ) : [
+                                  "processing",
+                                  "pending",
+                                  "pending_prescreening",
+                                ].includes(app.status) ? (
                                   <div className="verifier-ocr-empty-content">
+                                    <span
+                                      className="spinner-border spinner-border-sm verifier-ocr-empty-spinner"
+                                      role="status"
+                                    />
                                     <span>
-                                      No passed
-                                      checkpoints for
-                                      this document.
+                                      System is extracting text via OCR and
+                                      verifying rules. Try refreshing shortly.
                                     </span>
                                   </div>
                                 ) : (
                                   <div className="verifier-ocr-empty-content">
                                     <span>
-                                      No checkpoints
-                                      available for this
-                                      document.
+                                      No execution parameters run against
+                                      this file configuration.
                                     </span>
                                   </div>
-                                )}
-                              </div>
-                            )}
-
-                            {activeRawDocId ===
-                              doc.id &&
-                              doc.ocr_result
-                                ?.raw_text && (
-                                <div className="bg-light border rounded p-3 mt-3 text-start verifier-ocr-raw">
-                                  <h6 className="small fw-bold mb-2 text-dark verifier-ocr-raw-title">
-                                    PaddleOCR Text
-                                    Output Stream:
-                                  </h6>
-
-                                  <pre
-                                    className="mb-0 verifier-ocr-raw-text"
-                                    style={{
-                                      fontSize:
-                                        "0.75rem",
-                                      maxHeight:
-                                        "200px",
-                                      overflowY:
-                                        "auto",
-                                      whiteSpace:
-                                        "pre-wrap",
-                                    }}
-                                  >
-                                    {(() => {
-                                      try {
-                                        const lines =
-                                          JSON.parse(
-                                            doc
-                                              .ocr_result
-                                              .raw_text
-                                          );
-
-                                        return lines
-                                          .map(
-                                            (
-                                              l,
-                                              i
-                                            ) =>
-                                              `[Line ${i +
-                                              1
-                                              } | Conf: ${(
-                                                (l.confidence ??
-                                                  0) *
-                                                100
-                                              ).toFixed(
-                                                0
-                                              )}%] ${l.text ??
-                                              ""
-                                              }`
-                                          )
-                                          .join(
-                                            "\n"
-                                          );
-                                      } catch {
-                                        return doc
-                                          .ocr_result
-                                          .raw_text;
-                                      }
-                                    })()}
-                                  </pre>
+                                )
+                              ) : checkpointFilter === "review" ? (
+                                <div className="verifier-ocr-empty-content">
+                                  <span>
+                                    No review checkpoints for this document.
+                                  </span>
+                                </div>
+                              ) : checkpointFilter === "passed" ? (
+                                <div className="verifier-ocr-empty-content">
+                                  <span>
+                                    No passed checkpoints for this document.
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="verifier-ocr-empty-content">
+                                  <span>
+                                    No checkpoints available for this
+                                    document.
+                                  </span>
                                 </div>
                               )}
-                          </div>
-                        </div>
-
-                        {isLatestVersion && (
-                          <details
-                            className="verifier-ocr-flag-section verifier-ocr-review-flags"
-                            open={
-                              openFlagDocId === doc.id
-                            }
-                            onToggle={(e) => {
-                              if (
-                                e.currentTarget.open
-                              ) {
-                                setOpenFlagDocId(
-                                  doc.id
-                                );
-                              } else if (
-                                openFlagDocId ===
-                                doc.id
-                              ) {
-                                setOpenFlagDocId(
-                                  null
-                                );
-                              }
-                            }}
-                          >
-                            <summary
-                              className="text-danger fw-semibold verifier-ocr-flag-title"
-                              style={{
-                                cursor: "pointer",
-                              }}
-                            >
-                              Flag an issue with this
-                              document
-                            </summary>
-
-                            <div className="verifier-ocr-flag-options">
-                              {reasonOptions.map(
-                                (reason) => (
-                                  <div
-                                    className="form-check verifier-ocr-flag-option"
-                                    key={reason}
-                                  >
-                                    <input
-                                      className="form-check-input"
-                                      type="checkbox"
-                                      id={`flag-${doc.document_type}-${reason}`}
-                                      checked={flagState.reasons.includes(
-                                        reason
-                                      )}
-                                      onChange={() =>
-                                        toggleReason(
-                                          doc.document_type,
-                                          reason
-                                        )
-                                      }
-                                    />
-
-                                    <label
-                                      className="form-check-label small verifier-ocr-check-label"
-                                      htmlFor={`flag-${doc.document_type}-${reason}`}
-                                    >
-                                      {getFlagReasonLabel(
-                                        reason
-                                      )}
-                                    </label>
-
-                                    {reason === OTHER &&
-                                      flagState.reasons.includes(
-                                        OTHER
-                                      ) && (
-                                        <input
-                                          className="form-control form-control-sm verifier-ocr-other-input verifier-ocr-other-inline"
-                                          placeholder="Specify the issue..."
-                                          value={
-                                            flagState.otherText
-                                          }
-                                          onChange={(
-                                            e
-                                          ) =>
-                                            setOtherText(
-                                              doc.document_type,
-                                              e
-                                                .target
-                                                .value
-                                            )
-                                          }
-                                        />
-                                      )}
-                                  </div>
-                                )
-                              )}
                             </div>
-                          </details>
-                        )}
+                          )}
+
+                          {activeRawDocId === doc.id &&
+                            doc.ocr_result?.raw_text && (
+                              <div className="bg-light border rounded p-3 mt-3 text-start verifier-ocr-raw">
+                                <h6 className="small fw-bold mb-2 text-dark verifier-ocr-raw-title">
+                                  PaddleOCR Text Output Stream:
+                                </h6>
+
+                                <pre
+                                  className="mb-0 verifier-ocr-raw-text"
+                                  style={{
+                                    fontSize: "0.75rem",
+                                    maxHeight: "200px",
+                                    overflowY: "auto",
+                                    whiteSpace: "pre-wrap",
+                                  }}
+                                >
+                                  {(() => {
+                                    try {
+                                      const lines = JSON.parse(
+                                        doc.ocr_result.raw_text
+                                      );
+
+                                      return lines
+                                        .map(
+                                          (l, i) =>
+                                            `[Line ${i + 1} | Conf: ${(
+                                              (l.confidence ?? 0) * 100
+                                            ).toFixed(0)}%] ${l.text ?? ""}`
+                                        )
+                                        .join("\n");
+                                    } catch {
+                                      return doc.ocr_result.raw_text;
+                                    }
+                                  })()}
+                                </pre>
+                              </div>
+                            )}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+
+                      <details
+                        className="verifier-ocr-flag-section verifier-ocr-review-flags"
+                        open={openFlagDocId === doc.id}
+                        onToggle={(e) => {
+                          if (e.currentTarget.open) {
+                            setOpenFlagDocId(doc.id);
+                          } else if (openFlagDocId === doc.id) {
+                            setOpenFlagDocId(null);
+                          }
+                        }}
+                      >
+                        <summary
+                          className="text-danger fw-semibold verifier-ocr-flag-title"
+                          style={{ cursor: "pointer" }}
+                        >
+                          Flag an issue with this document
+                        </summary>
+
+                        <div className="verifier-ocr-flag-options">
+                          {reasonOptions.map((reason) => (
+                            <div
+                              className="form-check verifier-ocr-flag-option"
+                              key={reason}
+                            >
+                              <input
+                                className="form-check-input"
+                                type="checkbox"
+                                id={`flag-${tab.type}-${reason}`}
+                                checked={flagState.reasons.includes(reason)}
+                                onChange={() => toggleReason(tab.type, reason)}
+                              />
+
+                              <label
+                                className="form-check-label small verifier-ocr-check-label"
+                                htmlFor={`flag-${tab.type}-${reason}`}
+                              >
+                                {getFlagReasonLabel(reason)}
+                              </label>
+
+                              {reason === OTHER &&
+                                flagState.reasons.includes(OTHER) && (
+                                  <input
+                                    className="form-control form-control-sm verifier-ocr-other-input verifier-ocr-other-inline"
+                                    placeholder="Specify the issue..."
+                                    value={flagState.otherText}
+                                    onChange={(e) =>
+                                      setOtherText(tab.type, e.target.value)
+                                    }
+                                  />
+                                )}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    </div>
+                  );
+                })}
 
                 <div className="verifier-review-bottom-actions">
-                  <div>
-                    {documentDirection ===
-                      "backward" &&
-                      previousDocument ? (
-                      <button
-                        type="button"
-                        className="verifier-ocr-file-btn verifier-document-nav-btn"
-                        onClick={() =>
-                          changeDocument(
-                            previousDocument,
-                            "backward"
-                          )
-                        }
-                      >
-                        <svg
-                          className="verifier-document-nav-icon"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="15 18 9 12 15 6" />
-                        </svg>
-
-                        <span>
-                          Previous:{" "}
-                          {previousDocument.label}
-                        </span>
-                      </button>
-                    ) : nextDocument ? (
-                      <button
-                        type="button"
-                        className="verifier-ocr-file-btn verifier-document-nav-btn"
-                        onClick={() =>
-                          changeDocument(
-                            nextDocument,
-                            "forward"
-                          )
-                        }
-                      >
-                        <span>
-                          Next: {nextDocument.label}
-                        </span>
-
-                        <svg
-                          className="verifier-document-nav-icon"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="9 18 15 12 9 6" />
-                        </svg>
-                      </button>
-                    ) : previousDocument ? (
-                      <button
-                        type="button"
-                        className="verifier-ocr-file-btn verifier-document-nav-btn"
-                        onClick={() =>
-                          changeDocument(
-                            previousDocument,
-                            "backward"
-                          )
-                        }
-                      >
-                        <svg
-                          className="verifier-document-nav-icon"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <polyline points="15 18 9 12 15 6" />
-                        </svg>
-
-                        <span>
-                          Previous:{" "}
-                          {previousDocument.label}
-                        </span>
-                      </button>
-                    ) : null}
-                  </div>
+                  <div></div>
 
                   {[
                     "for_review",
@@ -1809,14 +1605,8 @@ function VerifierApplicationReview() {
                 {refreshingOcr && (
                   <div className="verifier-ocr-refresh-overlay">
                     <div className="verifier-ocr-refresh-loading">
-                      <div
-                        className="spinner-border"
-                        role="status"
-                      ></div>
-
-                      <span>
-                        Refreshing OCR results...
-                      </span>
+                      <div className="spinner-border" role="status"></div>
+                      <span>Refreshing OCR results...</span>
                     </div>
                   </div>
                 )}
@@ -1828,22 +1618,16 @@ function VerifierApplicationReview() {
         {zoomPreview && (
           <div
             className="verifier-preview-modal"
-            onClick={() =>
-              setZoomPreview(null)
-            }
+            onClick={() => setZoomPreview(null)}
           >
             <div
               className="verifier-preview-modal-content"
-              onClick={(e) =>
-                e.stopPropagation()
-              }
+              onClick={(e) => e.stopPropagation()}
             >
               <button
                 type="button"
                 className="verifier-preview-modal-close"
-                onClick={() =>
-                  setZoomPreview(null)
-                }
+                onClick={() => setZoomPreview(null)}
                 aria-label="Close preview"
               >
                 ×
@@ -1856,6 +1640,29 @@ function VerifierApplicationReview() {
               />
             </div>
           </div>
+        )}
+
+        {showScrollTop && (
+          <button
+            type="button"
+            className="verifier-scroll-top-btn"
+            onClick={scrollToTop}
+            aria-label="Back to top"
+            title="Back to top"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M12 19V5" />
+              <path d="m5 12 7-7 7 7" />
+            </svg>
+          </button>
         )}
 
         <PanelFooter />

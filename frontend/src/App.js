@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
+import GuestRoute from "./components/GuestRoute";
 
 import Home from "./public/pages/Home";
 import Requirements from "./public/pages/Requirements";
@@ -45,12 +46,24 @@ function App() {
       <Routes>
 
         {/* Public */}
-        <Route path="/" element={<Home />} />
-        <Route path="/requirements" element={<Requirements />} />
-        <Route path="/announcements" element={<Announcements />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/" element={
+          <GuestRoute><Home /></GuestRoute>
+        } />
+        <Route path="/requirements" element={
+          <GuestRoute><Requirements /></GuestRoute>
+        } />
+        <Route path="/announcements" element={
+          <GuestRoute><Announcements /></GuestRoute>
+        } />
+        <Route path="/events" element={
+          <GuestRoute><Events /></GuestRoute>
+        } />
+        <Route path="/login" element={
+          <GuestRoute><Login /></GuestRoute>
+        } />
+        <Route path="/register" element={
+          <GuestRoute><Register /></GuestRoute>
+        } />
         <Route path="/verify-email/:id/:hash" element={<VerifyEmail />} />
         <Route path="/verify-email-notice" element={<VerifyEmailNotice />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
