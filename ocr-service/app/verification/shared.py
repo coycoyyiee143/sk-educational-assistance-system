@@ -1,6 +1,14 @@
 # app/verification/shared.py
 from app.extraction import extract_name, extract_school
 
+# The category name emitted for a confident name mismatch. Must match
+# whatever config/document_verification.php lists in capped_categories
+# on the Laravel side -- kept as a constant here (used once, below)
+# rather than a shared runtime file between the two services; see
+# AUTO_REUPLOAD_VERIFICATION_RULES.md for why. If you rename this,
+# also update the matching entry in document_verification.php.
+NAME_MISMATCH_CATEGORY = "name_mismatch"
+
 CONFIDENCE_THRESHOLD = 0.75
 
 # Floor for _check_name / _check_school specifically. Both extraction
@@ -92,7 +100,7 @@ def _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, las
 
     if res.method == "label_anchored_no_match" and res.confidence >= CONFIDENT_MISMATCH_THRESHOLD:
         return "auto_reupload", {
-            "category": "name_mismatch",
+            "category": NAME_MISMATCH_CATEGORY,
             "reason": f"The name on this document doesn't match {subject_label}. Please make sure you're uploading the correct document and try again.",
         }
 
