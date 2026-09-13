@@ -300,18 +300,15 @@ class ProcessOcrDocument implements ShouldQueue
         // parallel, limited only by actual worker/OCR-service capacity
         // instead of an unrelated global lock.
         //
-        // IMPORTANT CAVEAT: this alone does not give you real parallel
-        // THROUGHPUT. The OCR Flask service itself (ocr-service/run.py)
-        // runs via `app.run(debug=True)` with no `threaded=True` and no
-        // multi-worker WSGI server -- it can only handle one HTTP
-        // request at a time regardless of what Laravel sends it.
-        // Loosening this lock only helps once the OCR service side is
-        // also given real concurrency (e.g. `threaded=True`, verified
-        // safe for concurrent PaddleOCR inference on one process first,
-        // or a production WSGI server with multiple workers). Without
-        // that, concurrent jobs dispatched from here will simply queue
-        // up at the OCR service's HTTP layer instead -- the bottleneck
-        // moves, it doesn't disappear.
+        // Real concurrency ceiling: min(ocr-service gunicorn worker count,
+        // sk-eas-queue-ocr worker process count). Production runs
+        // ocr-service via gunicorn (systemd unit, run:app) -- NOT the
+        // app.run(debug=True) dev server in run.py, which only fires
+        // under `python run.py` directly and never runs in production.
+        // As of Sept 2026 both sides are set to 2, so up to 2 applicants'
+        // document jobs can genuinely process in parallel; raising either
+        // side alone without the other doesn't increase real throughput,
+        // the bottleneck just moves to whichever side wasn't raised.
         return [(new \Illuminate\Queue\Middleware\WithoutOverlapping("ocr-processing-{$this->application->id}"))->releaseAfter(60)];
     }
 
