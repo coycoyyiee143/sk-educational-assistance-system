@@ -177,6 +177,30 @@ extraction path to `school.py` (a `"school"` entry in
 harmless to leave configured now, it simply won't be produced by
 anything until this extraction work is done.
 
+**Separate bug found and fixed while investigating this:**
+`fuzzy_match_school()` (`ocr-service/app/normalization/text_utils.py`)
+had a genuine false-**positive** — a bare generic institutional word
+with no distinguishing suffix (e.g. OCR extracting just "Pamantasan"
+with nothing else) scored a perfect 100 against "Pamantasan ng
+Cabuyao" via rapidfuzz's `partial_ratio`, since it's a literal
+substring. This isn't a hypothetical edge case: "Pamantasan" is shared
+by several real Philippine universities (Pamantasan ng Lungsod ng
+Maynila, ng Pasig, ng Cabuyao, etc.), so this could pass the
+`institution_match` check for the wrong school entirely, not just fail
+to flag one. A length guard already existed to prevent exactly this
+(extracted text must be at least half of expected's length), but for
+"Pamantasan ng Cabuyao" specifically, 10 characters is *exactly* half
+of its 21-character length — not strictly less than half, so the
+guard didn't trigger for this one school's name. Fixed by tightening
+the guard from 0.5x to 0.75x of expected's length — verified against
+the reported case, a full genuinely-wrong school name, a 1-letter OCR
+typo on the correct name, and a legitimate longer official-name
+variant, all behaving correctly (see `test_school_fuzzy_matching.py`).
+This fix is independent of the `institution_mismatch` auto-reupload
+work above — it corrects the existing `institution_match` check itself
+(which still exists and still routes to verifier on failure), it just
+doesn't add the new auto-reupload category.
+
 **School ID name-matching caveat (separate from the above):** even for
 `name_mismatch`, school IDs are less reliable than reg forms or voter's
 certificates for the same underlying reason — many ID layouts print
