@@ -3,6 +3,7 @@ import api from "../../services/api";
 
 function formatDateTime(dateStr) {
   if (!dateStr) return "—";
+
   return new Date(dateStr).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -24,30 +25,61 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
       onReady?.();
       return;
     }
+
     setLoading(true);
     setError("");
-    api.get("/admin/reports/disbursement", { params: { config_id: selectedConfigId } })
-      .then((res) => setData(res.data))
-      .catch((err) => setError(err.response?.data?.message || "Failed to load disbursement report."))
+
+    api
+      .get("/admin/reports/disbursement", {
+        params: {
+          config_id: selectedConfigId,
+        },
+      })
+      .then((res) => {
+        setData(res.data);
+      })
+      .catch((err) => {
+        setError(
+          err.response?.data?.message ||
+            "Failed to load disbursement report."
+        );
+      })
       .finally(() => {
         setLoading(false);
         onReady?.();
       });
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConfigId]);
 
   async function handleDownloadPdf() {
     setDownloading(true);
+
     try {
-      const res = await api.get("/admin/reports/disbursement/pdf", {
-        params: { config_id: selectedConfigId },
-        responseType: "blob",
-      });
+      const res = await api.get(
+        "/admin/reports/disbursement/pdf",
+        {
+          params: {
+            config_id: selectedConfigId,
+          },
+          responseType: "blob",
+        }
+      );
+
       const url = URL.createObjectURL(res.data);
+
       const a = document.createElement("a");
       a.href = url;
-      a.download = `disbursement-report-${data?.config?.school_year ?? new Date().toISOString().slice(0, 10)}.pdf`;
+
+      a.download = `disbursement-report-${
+        data?.config?.school_year ??
+        new Date().toISOString().slice(0, 10)
+      }.pdf`;
+
+      document.body.appendChild(a);
       a.click();
+      a.remove();
+
       URL.revokeObjectURL(url);
     } catch {
       setError("Failed to download PDF.");
@@ -56,50 +88,213 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
     }
   }
 
+  const entries = data?.entries ?? [];
+  const totalDisbursed = data?.total_disbursed ?? 0;
+  const totalAmount = data?.total_amount ?? 0;
+
   return (
-    <div className="page-card">
-      <div className="d-flex justify-content-between align-items-start flex-wrap gap-2 mb-3">
-        <div>
+    <div className="page-card disbursement-report-card">
+
+      {/* =====================================================
+          HEADER
+      ====================================================== */}
+
+      <div className="disbursement-report-header">
+
+        <div className="disbursement-report-heading">
+
           <h4 className="sub-title mb-1">
             Disbursement Report
-            {data?.config && <span className="text-muted fw-normal" style={{ fontSize: "14px" }}>{" "}— {data.config.school_year}</span>}
+
+            {data?.config?.school_year && (
+              <span className="disbursement-school-year">
+                — {data.config.school_year}
+              </span>
+            )}
           </h4>
+
           <p className="text-muted small mb-0">
-            Final list of applicants who received their educational assistance, along with the
-            verifier who processed the disbursement.
+            Final list of applicants who received their educational
+            assistance, along with the verifier who processed the
+            disbursement.
           </p>
+
         </div>
+
+
         <button
-          className="btn btn-outline-custom btn-sm"
+          type="button"
+          className="btn btn-outline-custom btn-sm disbursement-download-btn"
           onClick={handleDownloadPdf}
-          disabled={downloading || loading || !data?.entries?.length}
+          disabled={
+            downloading ||
+            loading ||
+            entries.length === 0
+          }
         >
-          {downloading ? "Generating..." : "Download PDF"}
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 3v12" />
+            <path d="m7 10 5 5 5-5" />
+            <path d="M5 21h14" />
+          </svg>
+
+          {downloading
+            ? "Generating..."
+            : "Download PDF"}
         </button>
+
       </div>
 
-      {error && <div className="alert alert-danger py-2">{error}</div>}
+
+      {/* =====================================================
+          ERROR
+      ====================================================== */}
+
+      {error && (
+        <div className="alert alert-danger py-2 mb-3">
+          {error}
+        </div>
+      )}
+
+
+      {/* =====================================================
+          LOADING
+      ====================================================== */}
 
       {loading ? (
-        <div className="d-flex justify-content-center py-4">
-          <div className="spinner-border text-danger" role="status" />
+
+        <div className="d-flex justify-content-center py-5">
+          <div
+            className="spinner-border text-danger"
+            role="status"
+          />
         </div>
+
       ) : (
+
         <>
-          {data?.entries?.length > 0 && (
-            <div className="d-flex flex-wrap gap-5 align-items-start mb-3 pb-3" style={{ borderBottom: "1px solid #eee" }}>
-              <div>
-                <span className="text-muted small text-uppercase" style={{ letterSpacing: "0.5px" }}>Total Disbursed</span>
-                <div className="fs-3 fw-bold" style={{ color: "#1a1a1a" }}>{data.total_disbursed} <span className="fs-6 fw-normal text-muted">applicant(s)</span></div>
+
+          {/* =================================================
+              SUMMARY
+          ================================================== */}
+
+          {entries.length > 0 && (
+
+            <div className="disbursement-summary">
+
+              {/* TOTAL DISBURSED */}
+
+              <div className="disbursement-summary-item">
+
+                <div className="disbursement-summary-icon">
+
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M8 6h13" />
+                    <path d="M8 12h13" />
+                    <path d="M8 18h13" />
+                    <path d="M3 6h.01" />
+                    <path d="M3 12h.01" />
+                    <path d="M3 18h.01" />
+                  </svg>
+
+                </div>
+
+                <div>
+
+                  <div className="disbursement-summary-label">
+                    Total Disbursed
+                  </div>
+
+                  <div className="disbursement-summary-value">
+
+                    {totalDisbursed}
+
+                    <span>
+                      {" "}applicant(s)
+                    </span>
+
+                  </div>
+
+                </div>
+
               </div>
-              <div>
-                <span className="text-muted small text-uppercase" style={{ letterSpacing: "0.5px" }}>Total Amount</span>
-                <div className="fs-3 fw-bold" style={{ color: "#b71c1c" }}>₱{Number(data.total_amount).toLocaleString()}</div>
+
+
+              {/* TOTAL AMOUNT */}
+
+              <div className="disbursement-summary-item">
+
+                <div className="disbursement-summary-icon amount">
+
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <rect
+                      x="3"
+                      y="5"
+                      width="18"
+                      height="14"
+                      rx="2"
+                    />
+                    <path d="M3 10h18" />
+                    <path d="M7 15h3" />
+                  </svg>
+
+                </div>
+
+                <div>
+
+                  <div className="disbursement-summary-label">
+                    Total Amount
+                  </div>
+
+                  <div className="disbursement-summary-value amount">
+                    ₱
+                    {Number(totalAmount).toLocaleString()}
+                  </div>
+
+                </div>
+
               </div>
+
             </div>
+
           )}
+
+
+          {/* =================================================
+              TABLE
+          ================================================== */}
+
           <div className="table-responsive table-scroll">
+
             <table className="table table-bordered table-striped align-middle">
+
               <thead>
                 <tr>
                   <th>Control Number</th>
@@ -112,32 +307,80 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
                   <th>Amount</th>
                 </tr>
               </thead>
+
+
               <tbody>
-                {!data?.entries?.length ? (
+
+                {entries.length === 0 ? (
+
                   <tr>
-                    <td colSpan={8} className="text-center text-muted py-3">
+                    <td
+                      colSpan={8}
+                      className="disbursement-empty-state"
+                    >
                       No disbursements recorded for this period.
                     </td>
                   </tr>
+
                 ) : (
-                  data.entries.map((entry, i) => (
-                    <tr key={i}>
-                      <td>{entry.control_number ?? "—"}</td>
-                      <td>{entry.applicant_name}</td>
-                      <td>{entry.school_name}</td>
-                      <td>{entry.lane_name ?? "—"}</td>
-                      <td>{entry.claiming_date ?? "—"}</td>
-                      <td>{entry.verifier_name ?? "—"}</td>
-                      <td>{formatDateTime(entry.verified_at)}</td>
-                      <td>₱{Number(entry.amount).toLocaleString()}</td>
+
+                  entries.map((entry, index) => (
+
+                    <tr key={index}>
+
+                      <td>
+                        {entry.control_number ?? "—"}
+                      </td>
+
+                      <td className="disbursement-applicant-name">
+                        {entry.applicant_name}
+                      </td>
+
+                      <td>
+                        {entry.school_name}
+                      </td>
+
+                      <td>
+                        {entry.lane_name ?? "—"}
+                      </td>
+
+                      <td>
+                        {entry.claiming_date ?? "—"}
+                      </td>
+
+                      <td>
+                        {entry.verifier_name ?? "—"}
+                      </td>
+
+                      <td>
+                        {formatDateTime(
+                          entry.verified_at
+                        )}
+                      </td>
+
+                      <td className="disbursement-amount">
+                        ₱
+                        {Number(
+                          entry.amount ?? 0
+                        ).toLocaleString()}
+                      </td>
+
                     </tr>
+
                   ))
+
                 )}
+
               </tbody>
+
             </table>
+
           </div>
+
         </>
+
       )}
+
     </div>
   );
 }

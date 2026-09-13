@@ -19,6 +19,5 @@ class DatabaseSeeder extends Seeder
         //$this->call(VerifierClaimingUiTestSeeder::class); // for testing VerifierClaiming.jsx layout/UI: multiple lanes, statuses, and grace period sources at once
         //$this->call(OpeningDaySeeder::class); // for testing end to end
         $this->call(MainSeeder::class); // default — full scenario, two verifiers, tests Reviewed By / Disbursed By
-
     }
 }
