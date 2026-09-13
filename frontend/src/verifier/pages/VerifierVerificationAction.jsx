@@ -35,13 +35,9 @@ function getCheckRuleLabel(checkName) {
   );
 }
 
-function getApprovalWarnings(app, incomingFlags) {
-  if (!app) return [];
-
-  const warnings = [];
-
+function getLatestDocsMap(app) {
   const latestDocsMap = {};
-  (app.documents || []).forEach((doc) => {
+  (app?.documents || []).forEach((doc) => {
     if (
       !latestDocsMap[doc.document_type] ||
       doc.id > latestDocsMap[doc.document_type].id
@@ -49,6 +45,82 @@ function getApprovalWarnings(app, incomingFlags) {
       latestDocsMap[doc.document_type] = doc;
     }
   });
+  return latestDocsMap;
+}
+
+// Maps a failed automated check to one of the fixed reason options a
+// verifier would otherwise pick by hand, so a re-upload request can be
+// pre-filled with the same reason the system already flagged.
+function mapCheckToReasonOption(checkName, docType, options) {
+  if (checkName === "identity_match") {
+    return options.find((o) => o.startsWith("Name does not match"));
+  }
+  if (checkName === "residency_geofence" && docType === "voters_certificate") {
+    return options.find((o) => o.startsWith("Not a registered voter"));
+  }
+  if (checkName === "cert_year_match") {
+    if (docType === "voters_certificate") {
+      return options.find((o) => o.startsWith("Not issued within"));
+    }
+    if (docType === "registration_form") {
+      return options.find((o) => o.startsWith("Wrong school year"));
+    }
+  }
+  return null;
+}
+
+// For each document type, collects the failed checks / low-confidence
+// flags on its latest upload so re-upload requests can be pre-checked
+// with the reasons the system already found, instead of the verifier
+// having to re-derive them from the OCR panel.
+function getAutoReuploadFailures(app, reasonsByDocType) {
+  const latestDocsMap = getLatestDocsMap(app);
+  const result = {};
+
+  DOC_TYPES.forEach(({ key: docType }) => {
+    const doc = latestDocsMap[docType];
+    const options = (reasonsByDocType[docType] || []).filter((r) => r !== OTHER);
+    const matchedReasons = [];
+    const unmatchedReasons = [];
+
+    if (!doc) {
+      result[docType] = { matchedReasons, unmatchedReasons };
+      return;
+    }
+
+    if (doc.ocr_result?.is_low_confidence) {
+      const blurry = options.find((o) => o.startsWith("Image blurry"));
+      if (blurry) matchedReasons.push(blurry);
+    }
+
+    (app.verification_checks || [])
+      .filter((c) => c.document_id === doc.id && !c.passed)
+      .forEach((c) => {
+        const matched = mapCheckToReasonOption(c.check_name, docType, options);
+        if (matched) {
+          matchedReasons.push(matched);
+        } else {
+          unmatchedReasons.push(
+            c.flag_reason || `${getCheckRuleLabel(c.check_name)} failed`
+          );
+        }
+      });
+
+    result[docType] = {
+      matchedReasons: [...new Set(matchedReasons)],
+      unmatchedReasons,
+    };
+  });
+
+  return result;
+}
+
+function getApprovalWarnings(app, incomingFlags) {
+  if (!app) return [];
+
+  const warnings = [];
+
+  const latestDocsMap = getLatestDocsMap(app);
 
   const docLabelByType = Object.fromEntries(
     DOC_TYPES.map((d) => [d.key, d.label])
@@ -113,6 +185,14 @@ function VerifierVerificationAction() {
   const [approveNotes, setApproveNotes] = useState("");
   const [approveAck, setApproveAck] = useState(false);
   const approvalWarnings = getApprovalWarnings(app, incomingFlags);
+  const docLabelByType = Object.fromEntries(DOC_TYPES.map((d) => [d.key, d.label]));
+  const autoReuploadFailures = getAutoReuploadFailures(app || {}, reasonsByDocType);
+  const autoReuploadWarnings = DOC_TYPES.flatMap(({ key }) => {
+    const { matchedReasons, unmatchedReasons } = autoReuploadFailures[key] || {};
+    const reasons = [...(matchedReasons || []), ...(unmatchedReasons || [])];
+    if (reasons.length === 0) return [];
+    return [`${docLabelByType[key]}: ${reasons.join(" ")}`];
+  });
   const initialRejectReasons = Object.values(incomingFlags)
     .flatMap((f) => f.reasons.filter((r) => r !== OTHER));
   const [rejectReasons, setRejectReasons] = useState(initialRejectReasons);
@@ -133,6 +213,48 @@ function VerifierVerificationAction() {
     return base;
   });
   const [reuploadNotes, setReuploadNotes] = useState("");
+  const [autoReuploadApplied, setAutoReuploadApplied] = useState(false);
+
+  // Once the application (and its verification checks) has loaded, fold
+  // any system-detected failures into the re-upload selections so they
+  // arrive pre-checked with the matching reason — the verifier no longer
+  // has to manually re-select what the system already flagged as failed.
+  useEffect(() => {
+    if (!app || autoReuploadApplied) return;
+
+    const failures = getAutoReuploadFailures(app, reasonsByDocType);
+    let hasAnyFailure = false;
+
+    setReuploadDocs((prev) => {
+      const next = { ...prev };
+      DOC_TYPES.forEach((d) => {
+        const { matchedReasons, unmatchedReasons } = failures[d.key];
+        if (matchedReasons.length === 0 && unmatchedReasons.length === 0) return;
+
+        hasAnyFailure = true;
+        const current = prev[d.key];
+        const mergedReasons = [...new Set([...current.reasons, ...matchedReasons])];
+        const mergedOtherText = [
+          ...new Set(
+            [current.otherText, ...unmatchedReasons].map((t) => t.trim()).filter(Boolean)
+          ),
+        ].join(" ");
+
+        next[d.key] = {
+          ...current,
+          checked: true,
+          reasons: mergedReasons,
+          otherChecked: current.otherChecked || unmatchedReasons.length > 0,
+          otherText: mergedOtherText,
+        };
+      });
+      return next;
+    });
+
+    if (hasAnyFailure) setAutoReuploadApplied(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [app]);
+
   function openAction(action) {
     setError("");
     if (action === "approve") setApproveAck(false);
@@ -501,6 +623,18 @@ function VerifierVerificationAction() {
             </div>
             <div className="verifier-action-modal-body">
               {error && <div className="alert alert-danger">{error}</div>}
+              {autoReuploadWarnings.length > 0 && (
+                <div className="alert alert-warning">
+                  <p className="mb-2">
+                    <strong>⚠ System-detected failures (pre-checked below):</strong>
+                  </p>
+                  <ul className="mb-0 ps-3">
+                    {autoReuploadWarnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <p className="verifier-action-section-label">SELECT DOCUMENTS REQUIRING RE-UPLOAD</p>
               <div className="verifier-reupload-document-list">
                 {DOC_TYPES.map((doc) => {
