@@ -22,16 +22,27 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'is_active',
+        'privacy_consent_at',
     ];
 
+    // google2fa_secret, verification_token, and verification_code were
+    // missing from this list — meaning every API response that returns
+    // a user object (login, register, /user, etc.) was leaking the
+    // literal TOTP seed and the active setup/reset/email-verification
+    // tokens in plain JSON. Anyone who could see that response could
+    // hijack a pending link or clone someone's 2FA.
     protected $hidden = [
         'password',
         'remember_token',
+        'google2fa_secret',
+        'verification_token',
+        'verification_code',
     ];
 
     protected $casts = [
-        'email_verified_at' => 'datetime',
-        'is_active' => 'boolean',
+        'email_verified_at'  => 'datetime',
+        'is_active'          => 'boolean',
+        'privacy_consent_at' => 'datetime',
     ];
 
     /**
@@ -73,5 +84,10 @@ class User extends Authenticatable implements MustVerifyEmail
     public function applications()
     {
         return $this->hasMany(Application::class);
+    }
+
+    public function faceVerification()
+    {
+        return $this->hasOne(FaceVerification::class);
     }
 }

@@ -31,8 +31,10 @@ class SweepUnclaimedAssignments extends Command
                 // once the grace period ITSELF has ended.
                 ->orWhere(function ($q3) {
                     $q3->whereIn('source', ['waitlist_promotion', 'grace_period_retry'])
-                       ->whereHas('schedule', fn($s) => $s->whereNotNull('grace_period_end_date')
-                           ->where('grace_period_end_date', '<', now()->toDateString()));
+                       ->whereHas('schedule', fn($s) => $s->where(function ($s2) {
+                           $s2->whereNull('grace_period_end_date')
+                              ->orWhere('grace_period_end_date', '<', now()->toDateString());
+                       }));
                 });
             })
             ->get();

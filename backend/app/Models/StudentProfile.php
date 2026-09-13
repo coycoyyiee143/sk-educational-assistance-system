@@ -15,6 +15,7 @@ class StudentProfile extends Model
         'street',
         'purok',
         'purok_type',
+        'subdivision',
         'barangay',
         'city',
         'province',

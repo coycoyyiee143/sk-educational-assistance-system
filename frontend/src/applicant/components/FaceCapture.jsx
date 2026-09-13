@@ -2,14 +2,12 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import Webcam from "react-webcam";
 import * as faceapi from "face-api.js";
 import api from "../../services/api";
-
 const MODEL_URL = "/models";
-
 const STABLE_FRAMES_REQUIRED = 10;
 const DETECTION_INTERVAL_MS = 200;
 const MAX_ID_SIZE_MB = 5;
-
 let modelsLoadPromise = null;
+
 async function loadModels() {
   if (!modelsLoadPromise) {
     modelsLoadPromise = (async () => {
@@ -20,37 +18,165 @@ async function loadModels() {
         await faceapi.tf.setBackend("cpu");
         await faceapi.tf.ready();
       }
+
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
     })();
   }
+
   return modelsLoadPromise;
+}
+
+// ---- Image normalization helper -------------------------------------------
+// Some mobile browsers (Android/Samsung camera especially) report the wrong
+// MIME type on <input type="file"> captures, or hand back HEIC/WEBP bytes
+// even when the filename/type claims .jpg. Re-encoding through a canvas
+// guarantees the bytes we send are actually JPEG, regardless of what the
+// browser claimed the source file was.
+function fileToJpegBlob(file, maxSize = 1600) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+
+    img.onload = () => {
+      let { width, height } = img;
+
+      if (width > maxSize || height > maxSize) {
+        const scale = maxSize / Math.max(width, height);
+        width *= scale;
+        height *= scale;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          URL.revokeObjectURL(url);
+          blob ? resolve(blob) : reject(new Error("Conversion failed"));
+        },
+        "image/jpeg",
+        0.9
+      );
+    };
+
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Invalid image file"));
+    };
+
+    img.src = url;
+  });
 }
 
 // ---- Small inline icons (no extra dependency) -----------------------------
 const IconCheck = (props) => (
-  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="3" {...props}>
-    <path d="M4 12l5 5L20 6" strokeLinecap="round" strokeLinejoin="round" />
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="3"
+    {...props}
+  >
+    <path
+      d="M4 12l5 5L20 6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
+
 const IconAlert = (props) => (
-  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-    <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" strokeLinecap="round" strokeLinejoin="round" />
+  <svg
+    viewBox="0 0 24 24"
+    width="18"
+    height="18"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    {...props}
+  >
+    <path
+      d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
+
 const IconCamera = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-    <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z" strokeLinecap="round" strokeLinejoin="round" />
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    {...props}
+  >
+    <path
+      d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
     <circle cx="12" cy="13" r="4" />
   </svg>
 );
+
 const IconUpload = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" strokeLinecap="round" strokeLinejoin="round" />
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    {...props}
+  >
+    <path
+      d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
+
 const IconRefresh = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-    <path d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    {...props}
+  >
+    <path
+      d="M21 12a9 9 0 1 1-3-6.7M21 4v5h-5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+const IconShield = (props) => (
+  <svg
+    viewBox="0 0 24 24"
+    width="17"
+    height="17"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    {...props}
+  >
+    <path
+      d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
   </svg>
 );
 
@@ -60,7 +186,6 @@ const IconRefresh = (props) => (
  * auto-capture once a face is centered and held steady — instead of just
  * a plain "Capture Photo" button.
  *
-
  * Falls back gracefully to a manual capture button whenever detection
  * can't run (models failed to load, browser incompatibility, etc.).
  *
@@ -76,53 +201,70 @@ function FaceCapture({
   onSubmitCapture,
   submitLabel,
   disabled = false,
+  includeLocalPreview = false,
 }) {
   const webcamRef = useRef(null);
   const detectionTimerRef = useRef(null);
   const stableCountRef = useRef(0);
-
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
   const [idError, setIdError] = useState("");
-
+  const [idProcessing, setIdProcessing] = useState(false);
   const [livePreview, setLivePreview] = useState(null);
   const [liveBlob, setLiveBlob] = useState(null);
+
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [errorKind, setErrorKind] = useState(null);
-
   const [cameraReady, setCameraReady] = useState(false);
   const [modelsReady, setModelsReady] = useState(false);
   const [modelsFailed, setModelsFailed] = useState(false);
-  const [scanStatus, setScanStatus] = useState("loading");
-  // loading | searching | positioning | tooClose | tooFar | holding | captured | manual
-  const [progress, setProgress] = useState(0);
 
+  const [scanStatus, setScanStatus] = useState("loading");
+  const [progress, setProgress] = useState(0);
   const showIdUpload = mode === "registration" && !externalIdImage;
   const effectiveIdImage = externalIdImage || idImage;
 
-  function handleIdChange(e) {
+  async function handleIdChange(e) {
     const file = e.target.files[0];
+
     if (!file) return;
+
     setIdError("");
-    const validTypes = ["image/jpeg", "image/jpg", "image/png"];
-    if (!validTypes.includes(file.type)) {
-      setIdError("Please upload a JPG or PNG image.");
-      e.target.value = "";
-      return;
-    }
+
     if (file.size > MAX_ID_SIZE_MB * 1024 * 1024) {
-      setIdError(`File is too large. Please upload an image under ${MAX_ID_SIZE_MB}MB.`);
+      setIdError(
+        `File is too large. Please upload an image under ${MAX_ID_SIZE_MB}MB.`
+      );
       e.target.value = "";
       return;
     }
-    setIdImage(file);
-    setIdPreview(URL.createObjectURL(file));
+
+    setIdProcessing(true);
+
+    try {
+      // Re-encode through canvas so the bytes we send are always real JPEG,
+      // regardless of what MIME type the browser/camera claimed the file was
+      // (Android camera captures often mislabel HEIC/WEBP as image/jpeg).
+      const jpegBlob = await fileToJpegBlob(file);
+      const converted = new File([jpegBlob], "id_image.jpg", {
+        type: "image/jpeg",
+      });
+
+      setIdImage(converted);
+      setIdPreview(URL.createObjectURL(converted));
+    } catch {
+      setIdError("Please upload a valid JPG or PNG image.");
+      e.target.value = "";
+    } finally {
+      setIdProcessing(false);
+    }
   }
 
   function attemptLoadModels() {
     setModelsFailed(false);
     setScanStatus("loading");
+
     loadModels()
       .then(() => {
         setModelsReady(true);
@@ -132,44 +274,52 @@ function FaceCapture({
         modelsLoadPromise = null;
         setModelsFailed(true);
         setScanStatus("manual");
-        setError("Couldn't load the face scanner. You can still capture manually below.");
+
+        setError(
+          "Couldn't load the face scanner. You can still capture manually below."
+        );
+
         setErrorKind("models");
       });
   }
-
   useEffect(() => {
     attemptLoadModels();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   const doCapture = useCallback(() => {
     if (!webcamRef.current) return;
+
     const screenshot = webcamRef.current.getScreenshot();
+
     if (!screenshot) {
       setError("Couldn't capture a photo. Please try again.");
       setErrorKind("camera");
       return;
     }
+
     setLivePreview(screenshot);
     setScanStatus("captured");
     setProgress(1);
+
     fetch(screenshot)
       .then((res) => res.blob())
       .then((blob) => setLiveBlob(blob));
   }, []);
-
   useEffect(() => {
     if (!modelsReady || !cameraReady || livePreview) return;
-
     detectionTimerRef.current = setInterval(async () => {
       const video = webcamRef.current?.video;
-      if (!video || video.readyState !== 4) return;
 
+      if (!video || video.readyState !== 4) return;
       let detection;
+
       try {
         detection = await faceapi.detectSingleFace(
           video,
-          new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
+          new faceapi.TinyFaceDetectorOptions({
+            inputSize: 224,
+            scoreThreshold: 0.5,
+          })
         );
       } catch (detectErr) {
         if (String(detectErr).includes("context")) {
@@ -180,216 +330,374 @@ function FaceCapture({
             // ignore
           }
         }
+
         return;
       }
-
       if (!detection) {
         stableCountRef.current = 0;
         setProgress(0);
         setScanStatus("searching");
         return;
       }
-
       const box = detection.box;
+
       const videoW = video.videoWidth;
       const videoH = video.videoHeight;
-
       const faceCenterX = box.x + box.width / 2;
       const faceCenterY = box.y + box.height / 2;
       const xOffset = Math.abs(faceCenterX - videoW / 2) / videoW;
       const yOffset = Math.abs(faceCenterY - videoH / 2) / videoH;
       const isCentered = xOffset < 0.15 && yOffset < 0.18;
-
       const faceWidthRatio = box.width / videoW;
       const isGoodSize = faceWidthRatio > 0.22 && faceWidthRatio < 0.62;
-
       if (!(isCentered && isGoodSize)) {
         stableCountRef.current = 0;
         setProgress(0);
-        setScanStatus(faceWidthRatio >= 0.62 ? "tooClose" : faceWidthRatio <= 0.22 ? "tooFar" : "positioning");
+
+        setScanStatus(
+          faceWidthRatio >= 0.62
+            ? "tooClose"
+            : faceWidthRatio <= 0.22
+              ? "tooFar"
+              : "positioning"
+        );
+
         return;
       }
-
       stableCountRef.current += 1;
-      setProgress(Math.min(stableCountRef.current / STABLE_FRAMES_REQUIRED, 1));
+
+      setProgress(
+        Math.min(
+          stableCountRef.current / STABLE_FRAMES_REQUIRED,
+          1
+        )
+      );
+
       setScanStatus("holding");
-      if (stableCountRef.current >= STABLE_FRAMES_REQUIRED) {
+
+      if (
+        stableCountRef.current >=
+        STABLE_FRAMES_REQUIRED
+      ) {
         clearInterval(detectionTimerRef.current);
         doCapture();
       }
     }, DETECTION_INTERVAL_MS);
-
     return () => clearInterval(detectionTimerRef.current);
   }, [modelsReady, cameraReady, livePreview, doCapture]);
-
   function retake() {
     setLivePreview(null);
     setLiveBlob(null);
+
     stableCountRef.current = 0;
+
     setProgress(0);
     setError("");
-    setScanStatus(modelsFailed ? "manual" : "searching");
-  }
 
+    setScanStatus(
+      modelsFailed
+        ? "manual"
+        : "searching"
+    );
+  }
   function handleCameraError(err) {
-    let message = "Could not access your camera. Please check browser permissions.";
-    if (err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError") {
-      message = "Camera access was denied. Please allow camera permission in your browser settings and reload the page.";
-    } else if (err?.name === "NotFoundError" || err?.name === "DevicesNotFoundError") {
-      message = "No camera was found on this device. Please connect a camera and try again.";
-    } else if (err?.name === "NotReadableError") {
-      message = "Your camera is being used by another app. Please close it and try again.";
+    let message =
+      "Could not access your camera. Please check browser permissions.";
+
+    if (
+      err?.name === "NotAllowedError" ||
+      err?.name === "PermissionDeniedError"
+    ) {
+      message =
+        "Camera access was denied. Please allow camera permission in your browser settings and reload the page.";
+    } else if (
+      err?.name === "NotFoundError" ||
+      err?.name === "DevicesNotFoundError"
+    ) {
+      message =
+        "No camera was found on this device. Please connect a camera and try again.";
+    } else if (
+      err?.name === "NotReadableError"
+    ) {
+      message =
+        "Your camera is being used by another app. Please close it and try again.";
     }
+
     setError(message);
     setErrorKind("camera");
   }
-
   async function handleSubmit() {
     setError("");
-    if (mode === "registration" && !effectiveIdImage) {
+
+    if (
+      mode === "registration" &&
+      !effectiveIdImage
+    ) {
       setError("A valid ID is required.");
       setErrorKind("submit");
       return;
     }
+
     if (!liveBlob) {
       setError("Please capture a live photo first.");
       setErrorKind("submit");
       return;
     }
+
     if (onSubmitCapture) {
-      onSubmitCapture({ idImage: effectiveIdImage, liveBlob });
+      onSubmitCapture({
+        idImage: effectiveIdImage,
+        liveBlob,
+      });
+
       return;
     }
+
     setSubmitting(true);
+
     try {
       const formData = new FormData();
-      formData.append("live_photo", liveBlob, "live.jpg");
+
+      formData.append(
+        "live_photo",
+        liveBlob,
+        "live.jpg"
+      );
+
       let res;
+
       if (mode === "registration") {
-        formData.append("id_image", effectiveIdImage);
-        res = await api.post("/face-verification", formData);
+        formData.append(
+          "id_image",
+          effectiveIdImage
+        );
+
+        res = await api.post(
+          "/face-verification",
+          formData
+        );
       } else {
-        res = await api.post(`/verifier/claiming/${applicationId}/verify-face`, formData);
+        res = await api.post(
+          `/verifier/claiming/${applicationId}/verify-face`,
+          formData
+        );
       }
-      onSuccess?.(res.data);
+      onSuccess?.(includeLocalPreview ? { ...res.data, local_photo_url: livePreview } : res.data);
     } catch (err) {
       const message =
         err.response?.data?.message ||
         (err.request && !err.response
           ? "Couldn't reach the server. Please check your connection and try again."
           : "Face verification failed. Please make sure your face is clearly visible and try again.");
+
       setError(message);
       setErrorKind("submit");
+
       onError?.(message);
     } finally {
       setSubmitting(false);
     }
   }
-
   const isBusy = submitting || disabled;
-
   const STATUS_MAP = {
-    loading: { text: "Loading face scanner...", color: "#94a3b8", dashed: true },
-    searching: { text: "Position your face within the frame", color: "#dc3545", dashed: true },
-    positioning: { text: "Center your face in the frame", color: "#f59e0b", dashed: true },
-    tooClose: { text: "Move back a little", color: "#f59e0b", dashed: true },
-    tooFar: { text: "Move a little closer", color: "#f59e0b", dashed: true },
-    holding: { text: "Hold still...", color: "#3b82f6", dashed: false },
-    captured: { text: "Captured!", color: "#22c55e", dashed: false },
-    manual: { text: "Position your face, then tap Capture", color: "#94a3b8", dashed: true },
+    loading: {
+      text: "Loading face scanner...",
+      color: "#94a3b8",
+      dashed: true,
+    },
+
+    searching: {
+      text: "Position your face within the frame",
+      color: "#dc3545",
+      dashed: true,
+    },
+
+    positioning: {
+      text: "Center your face in the frame",
+      color: "#f59e0b",
+      dashed: true,
+    },
+
+    tooClose: {
+      text: "Move back a little",
+      color: "#f59e0b",
+      dashed: true,
+    },
+
+    tooFar: {
+      text: "Move a little closer",
+      color: "#f59e0b",
+      dashed: true,
+    },
+
+    holding: {
+      text: "Hold still...",
+      color: "#3b82f6",
+      dashed: false,
+    },
+
+    captured: {
+      text: "Captured!",
+      color: "#22c55e",
+      dashed: false,
+    },
+
+    manual: {
+      text: "Position your face, then tap Capture",
+      color: "#94a3b8",
+      dashed: true,
+    },
   };
   const status = STATUS_MAP[scanStatus] || STATUS_MAP.searching;
-
   const R = 92;
   const CIRC = 2 * Math.PI * R;
   const dashOffset = CIRC * (1 - progress);
-
   return (
-    <div className="face-capture">
+    <div className="face-capture face-capture-polished">
       {error && (
-        <div className="alert alert-danger d-flex align-items-start gap-2" role="alert">
+        <div
+          className="alert alert-danger d-flex align-items-start gap-2"
+          role="alert"
+        >
           <IconAlert className="flex-shrink-0 mt-1" />
+
           <div className="flex-grow-1">
             <div>{error}</div>
+
             {errorKind === "models" && (
               <button
                 type="button"
                 className="btn btn-sm btn-outline-danger mt-2 d-inline-flex align-items-center gap-1"
                 onClick={attemptLoadModels}
               >
-                <IconRefresh /> Retry scanner
+                <IconRefresh />
+                Retry scanner
               </button>
             )}
           </div>
         </div>
       )}
-
       {showIdUpload && (
         <div className="mb-4">
           <label className="form-label fw-semibold d-flex align-items-center gap-2">
-            <IconUpload /> Valid ID <span className="text-danger">*</span>
+            <IconUpload />
+            Valid ID
+            <span className="text-danger">*</span>
           </label>
+
           <p className="text-muted small mb-2">
             Upload a clear photo of a government-issued or school ID showing your face.
           </p>
+
           <input
             type="file"
-            accept="image/jpeg,image/png,image/jpg"
-            className={`form-control ${idError ? "is-invalid" : ""}`}
+            accept="image/*"
+            className={`form-control ${idError ? "is-invalid" : ""
+              }`}
             onChange={handleIdChange}
-            disabled={isBusy}
+            disabled={isBusy || idProcessing}
           />
-          {idError && <div className="invalid-feedback d-block">{idError}</div>}
+
+          {idProcessing && (
+            <div className="text-muted small mt-2 d-flex align-items-center gap-2">
+              <span
+                className="spinner-border spinner-border-sm"
+                role="status"
+              />
+              Processing image...
+            </div>
+          )}
+
+          {idError && (
+            <div className="invalid-feedback d-block">
+              {idError}
+            </div>
+          )}
+
           {idPreview && (
             <div className="mt-2 d-inline-flex align-items-center gap-2 border rounded p-2 bg-light">
               <img
                 src={idPreview}
                 alt="ID preview"
                 className="rounded"
-                style={{ maxWidth: "140px", maxHeight: "90px", objectFit: "contain" }}
+                style={{
+                  maxWidth: "140px",
+                  maxHeight: "90px",
+                  objectFit: "contain",
+                }}
               />
+
               <span className="text-success small d-flex align-items-center gap-1">
-                <IconCheck /> ID selected
+                <IconCheck />
+                ID selected
               </span>
             </div>
           )}
         </div>
       )}
 
-      <div className="mb-3">
-        <label className="form-label fw-semibold d-flex align-items-center gap-2">
-          <IconCamera />
-          {mode === "registration" ? "Live Photo" : "Capture Applicant's Face"}{" "}
-          <span className="text-danger">*</span>
-        </label>
+      <div className="face-capture-main">
+        <div className="face-capture-label-row">
+          <label className="face-capture-label">
+            <IconCamera />
+
+            <span>
+              {mode === "registration"
+                ? "Live Photo"
+                : "Capture Applicant's Face"}
+            </span>
+
+            <span className="text-danger">
+              *
+            </span>
+          </label>
+        </div>
 
         {!livePreview ? (
-          <div className="d-flex flex-column align-items-center align-items-sm-start">
-            <div
-              className="rounded-4 border overflow-hidden mb-2 position-relative mx-auto mx-sm-0"
-              style={{ width: "100%", maxWidth: "360px", aspectRatio: "4 / 3", background: "#111" }}
-            >
+          <div className="face-capture-stage">
+            <div className="face-capture-camera-frame">
               <Webcam
                 ref={webcamRef}
                 mirrored
                 audio={false}
                 screenshotFormat="image/jpeg"
-                style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                onUserMedia={() => setCameraReady(true)}
-                onUserMediaError={handleCameraError}
+                className="face-capture-webcam"
+                onUserMedia={() =>
+                  setCameraReady(true)
+                }
+                onUserMediaError={
+                  handleCameraError
+                }
               />
-
               <svg
                 viewBox="0 0 320 240"
-                style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}
+                className="face-capture-overlay"
+                aria-hidden="true"
               >
                 <defs>
-                  <mask id="ovalMask">
-                    <rect width="320" height="240" fill="white" />
-                    <ellipse cx="160" cy="118" rx="78" ry="98" fill="black" />
+                  <mask id="faceGuideMask">
+                    <rect
+                      width="320"
+                      height="240"
+                      fill="white"
+                    />
+
+                    <ellipse
+                      cx="160"
+                      cy="118"
+                      rx="78"
+                      ry="98"
+                      fill="black"
+                    />
                   </mask>
                 </defs>
-                <rect width="320" height="240" fill="rgba(0,0,0,0.35)" mask="url(#ovalMask)" />
+
+                <rect
+                  width="320"
+                  height="240"
+                  fill="rgba(0,0,0,0.35)"
+                  mask="url(#faceGuideMask)"
+                />
 
                 <ellipse
                   cx="160"
@@ -399,10 +707,16 @@ function FaceCapture({
                   fill="none"
                   stroke={status.color}
                   strokeWidth="3"
-                  strokeDasharray={status.dashed ? "8 6" : "0"}
-                  style={{ transition: "stroke 0.25s" }}
+                  strokeDasharray={
+                    status.dashed
+                      ? "8 6"
+                      : "0"
+                  }
+                  style={{
+                    transition:
+                      "stroke 0.25s ease",
+                  }}
                 />
-
                 {progress > 0 && (
                   <ellipse
                     cx="160"
@@ -415,99 +729,127 @@ function FaceCapture({
                     strokeLinecap="round"
                     transform="rotate(-90 160 118)"
                     style={{
-                      strokeDasharray: CIRC,
-                      strokeDashoffset: dashOffset,
-                      transition: "stroke-dashoffset 0.25s linear",
+                      strokeDasharray:
+                        CIRC,
+                      strokeDashoffset:
+                        dashOffset,
+                      transition:
+                        "stroke-dashoffset 0.25s linear",
                     }}
                   />
                 )}
               </svg>
-
               {scanStatus === "loading" && (
-                <div className="d-flex align-items-center justify-content-center" style={{ position: "absolute", inset: 0 }}>
-                  <div className="spinner-border text-light" role="status" style={{ width: "2rem", height: "2rem" }}>
-                    <span className="visually-hidden">Loading...</span>
-                  </div>
-                </div>
-              )}
-
-              {scanStatus === "captured" && (
-                <div
-                  className="d-flex align-items-center justify-content-center"
-                  style={{ position: "absolute", inset: 0, background: "rgba(34,197,94,0.25)" }}
-                >
+                <div className="face-capture-loading">
                   <div
-                    className="rounded-circle bg-success d-flex align-items-center justify-content-center text-white"
-                    style={{ width: "48px", height: "48px" }}
+                    className="spinner-border text-light"
+                    role="status"
                   >
-                    <IconCheck width={26} height={26} />
+                    <span className="visually-hidden">
+                      Loading...
+                    </span>
                   </div>
                 </div>
               )}
 
-              <div
-                className="text-center text-white small py-2 fw-medium d-flex align-items-center justify-content-center gap-1"
-                style={{ position: "absolute", bottom: 0, left: 0, right: 0, background: "rgba(0,0,0,0.55)" }}
-              >
+              <div className="face-capture-status-text">
                 {status.text}
               </div>
             </div>
 
-            {(scanStatus === "manual" || modelsFailed) && (
-              <button
-                type="button"
-                className="btn btn-outline-danger d-inline-flex align-items-center gap-2"
-                onClick={doCapture}
-                disabled={!cameraReady || isBusy}
-              >
-                <IconCamera /> Capture Photo
-              </button>
-            )}
+            {(scanStatus === "manual" ||
+              modelsFailed) && (
+                <button
+                  type="button"
+                  className="face-capture-manual-btn"
+                  onClick={doCapture}
+                  disabled={
+                    !cameraReady || isBusy
+                  }
+                >
+                  <IconCamera />
+                  Capture Photo
+                </button>
+              )}
 
-            {!modelsFailed && scanStatus !== "loading" && scanStatus !== "captured" && (
-              <ul className="text-muted small mt-2 mb-0 ps-3">
-                <li>Make sure you're in a well-lit area</li>
-                <li>Remove sunglasses, masks, or anything covering your face</li>
-                <li>Hold your device steady within the oval</li>
-              </ul>
-            )}
+            {!modelsFailed &&
+              scanStatus !== "loading" &&
+              scanStatus !== "captured" && (
+                <div className="face-capture-mini-hint">
+                  Keep your face centered and hold still until the photo is captured automatically.
+                </div>
+              )}
           </div>
         ) : (
-          <div className="d-flex flex-column align-items-center align-items-sm-start">
-            <div className="position-relative mb-2 mx-auto mx-sm-0" style={{ width: "100%", maxWidth: "360px" }}>
+          <div className="face-capture-stage">
+            <div className="face-capture-preview-wrap">
               <img
                 src={livePreview}
                 alt="Captured face"
-                className="rounded-4 border w-100"
-                style={{ aspectRatio: "4 / 3", objectFit: "cover" }}
+                className="face-capture-preview"
               />
-              <span className="position-absolute top-0 end-0 m-2 badge bg-success d-flex align-items-center gap-1">
-                <IconCheck width={12} height={12} /> Captured
+
+              <span className="face-capture-captured-badge">
+                <IconCheck
+                  width={12}
+                  height={12}
+                />
+                Captured
               </span>
             </div>
-            <button
-              type="button"
-              className="btn btn-outline-secondary d-inline-flex align-items-center gap-2"
-              onClick={retake}
-              disabled={isBusy}
-            >
-              <IconRefresh /> Retake
-            </button>
+
+            <div className="face-capture-actions">
+              <button
+                type="button"
+                className="face-capture-retake-btn"
+                onClick={retake}
+                disabled={isBusy}
+              >
+                <IconRefresh />
+                Retake Photo
+              </button>
+
+              <button
+                type="button"
+                className="face-capture-submit-btn"
+                onClick={handleSubmit}
+                disabled={
+                  isBusy ||
+                  !liveBlob ||
+                  (mode === "registration" &&
+                    !effectiveIdImage)
+                }
+              >
+                {submitting ? (
+                  <span
+                    className="spinner-border spinner-border-sm"
+                    role="status"
+                  />
+                ) : (
+                  <IconShield />
+                )}
+
+                <span>
+                  {submitLabel ||
+                    (submitting
+                      ? "Verifying..."
+                      : mode ===
+                        "registration"
+                        ? "Verify & Create Account"
+                        : "Verify Face")}
+                </span>
+
+                {!submitting && (
+                  <span className="face-capture-submit-arrow">
+                    →
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         )}
       </div>
-
-      <button
-        type="button"
-        className="btn btn-submit d-inline-flex align-items-center gap-2"
-        onClick={handleSubmit}
-        disabled={isBusy || !liveBlob || (mode === "registration" && !effectiveIdImage)}
-      >
-        {submitting && <span className="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>}
-        {submitLabel || (submitting ? "Verifying..." : "Verify Face")}
-      </button>
     </div>
   );
 }
-
 export default FaceCapture;

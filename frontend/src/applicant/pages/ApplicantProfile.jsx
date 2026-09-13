@@ -1,10 +1,15 @@
 import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import ApplicantNavigation from "../components/ApplicantNavigation";
+import PanelFooter from "../../components/PanelFooter";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 
 function ApplicantProfile() {
   const { login, token } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const cameFromSubmission = location.state?.from === "submission";
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -14,13 +19,14 @@ function ApplicantProfile() {
     dob: "",
     gender: "",
     civilStatus: "",
-    barangay: "",
-    city: "",
-    province: "",
+    barangay: "Mamatid",
+    city: "Cabuyao",
+    province: "Laguna",
     houseNo: "",
     street: "",
     purokType: "",
     purok: "",
+    subdivision: "",
     guardianFirstName: "",
     guardianMiddleName: "",
     guardianLastName: "",
@@ -30,18 +36,26 @@ function ApplicantProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSavedPopup, setShowSavedPopup] = useState(false);
+  const [savedCountdown, setSavedCountdown] = useState(10);
   const [error, setError] = useState("");
-
-  // Face verification: status + the registration live photo, shown as a
-  // read-only reference so the applicant can confirm what's on file. The
-  // photo endpoint requires auth, so we fetch it as a blob (not a plain
-  // <img src="...">) and turn it into an object URL for display.
-  const [faceStatus, setFaceStatus] = useState(null); // "verified" | "failed" | "not_started" | null (loading)
+  const [faceStatus, setFaceStatus] = useState(null);
   const [facePhotoUrl, setFacePhotoUrl] = useState(null);
   const [facePhotoLoading, setFacePhotoLoading] = useState(true);
 
   useEffect(() => {
-    api.get("/profile")
+    if (error) {
+      const mainEl = document.querySelector(".applicant-main");
+      if (mainEl) {
+        mainEl.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [error]);
+
+  useEffect(() => {
+    api
+      .get("/profile")
       .then((res) => {
         const u = res.data;
         const p = u.profile;
@@ -54,13 +68,13 @@ function ApplicantProfile() {
           dob: p?.birthdate?.split("T")[0] ?? "",
           gender: p?.gender ?? "",
           civilStatus: p?.civil_status ?? "",
-          barangay: p?.barangay ?? "",
-          city: p?.city ?? "",
-          province: p?.province ?? "",
+          barangay: "Mamatid",
+          city: "Cabuyao",
+          province: "Laguna",
           houseNo: p?.house_no ?? "",
-          street: p?.street ?? "",
           purokType: p?.purok_type ?? "",
           purok: p?.purok ?? "",
+          subdivision: p?.subdivision ?? "",
           guardianFirstName: p?.guardian_first_name ?? "",
           guardianMiddleName: p?.guardian_middle_name ?? "",
           guardianLastName: p?.guardian_last_name ?? "",
@@ -68,21 +82,24 @@ function ApplicantProfile() {
           guardianRelationship: p?.guardian_relationship ?? "",
         });
       })
-      .catch(() => setError("Failed to load profile."))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        setError("Failed to load profile.");
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }, []);
 
   useEffect(() => {
     let objectUrl = null;
-
-    api.get("/face-verification")
+    api
+      .get("/face-verification")
       .then((res) => {
         setFaceStatus(res.data.status);
-
         if (res.data.photo_url) {
-          // Authenticated fetch — the interceptor on `api` attaches the
-          // bearer token, which a plain <img src> can't do on its own.
-          return api.get(res.data.photo_url, { responseType: "blob" });
+          return api.get(res.data.photo_url, {
+            responseType: "blob",
+          });
         }
         return null;
       })
@@ -92,305 +109,653 @@ function ApplicantProfile() {
           setFacePhotoUrl(objectUrl);
         }
       })
-      .catch(() => setFaceStatus("not_started"))
-      .finally(() => setFacePhotoLoading(false));
-
-    // Release the blob URL when the component unmounts or refetches.
+      .catch(() => {
+        setFaceStatus("not_started");
+      })
+      .finally(() => {
+        setFacePhotoLoading(false);
+      });
     return () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, []);
 
-  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  useEffect(() => {
+    if (!showSavedPopup) return;
+    setSavedCountdown(10);
+    const tick = setInterval(() => {
+      setSavedCountdown((count) =>
+        count <= 1 ? 0 : count - 1
+      );
+    }, 1000);
+    const dismiss = setTimeout(() => {
+      setShowSavedPopup(false);
+    }, 10000);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(dismiss);
+    };
+  }, [showSavedPopup]);
 
-  function computeAge(dobString) {
-    if (!dobString) return null;
-    const dob = new Date(dobString);
-    if (isNaN(dob)) return null;
-    const today = new Date();
-    let age = today.getFullYear() - dob.getFullYear();
-    const m = today.getMonth() - dob.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-    return age;
+  const set = (key) => (e) => {
+    setForm((prev) => ({
+      ...prev,
+      [key]: e.target.value,
+    }));
+  };
+
+  // Flags likely acronyms (e.g. "BFH", "SGV") so applicants spell out
+  // the full subdivision/village name — needed as a clean, consistent
+  // value for reports.
+  function looksLikeAcronym(value) {
+    const trimmed = value.trim();
+    return (
+      trimmed.length > 0 &&
+      trimmed.length <= 6 &&
+      !trimmed.includes(" ") &&
+      /^[A-Za-z]+$/.test(trimmed) &&
+      trimmed === trimmed.toUpperCase()
+    );
   }
-  const age = computeAge(form.dob);
-  const isMinor = age !== null && age < 18;
+
+  // Normalizes casing so "mabuhay city" / "MABUHAY CITY" / "Mabuhay City"
+  // all end up saved as the same "Mabuhay City" — keeps report grouping
+  // consistent no matter how the applicant typed it.
+  function toTitleCase(value) {
+    return value
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .replace(/\b\w/g, (c) => c.toUpperCase());
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-
-    // Contact number is now required, same as First/Last Name
-    if (!form.firstName.trim() || !form.lastName.trim() || !form.contact.trim()) {
-      setError("First Name, Last Name, and Contact Number cannot be empty.");
+    const requiredValues = [
+      form.firstName,
+      form.lastName,
+      form.contact,
+      form.dob,
+      form.gender,
+      form.civilStatus,
+      form.houseNo,
+      form.purokType,
+      form.purok,
+    ];
+    const hasEmptyRequiredField = requiredValues.some(
+      (value) => !String(value ?? "").trim()
+    );
+    if (hasEmptyRequiredField) {
+      setError(
+        "Please complete all required fields marked with an asterisk (*)."
+      );
       return;
     }
-
+    if (form.purokType === "phase" && !form.subdivision.trim()) {
+      setError(
+        "Please enter the name of your Subdivision/Village."
+      );
+      return;
+    }
+    if (form.purokType === "phase" && looksLikeAcronym(form.subdivision)) {
+      setError(
+        "Please spell out the full Subdivision/Village name instead of an abbreviation (e.g. \"Grand Homes\" instead of \"GH\")."
+      );
+      return;
+    }
     setSaving(true);
     try {
-      // Account info (name, contact) is a separate endpoint from profile info
       const accountRes = await api.put("/user/profile", {
         first_name: form.firstName,
         last_name: form.lastName,
-        middle_name: form.middleName,
+        middle_name: form.middleName || null,
         mobile_number: form.contact,
       });
-
-      // Refresh the cached user in AuthContext so "Welcome back, X" and
-      // other name displays update immediately without needing to re-login
-      login(accountRes.data.user, token)
-
-            // Always send every profile field (with null fallback when empty), so
-      // clearing a field in the form actually clears it in the database too
-      // — previously, an empty field was simply omitted from the payload,
-      // which left the old value untouched server-side.
+      login(accountRes.data.user, token);
       const profilePayload = {
-        birthdate: form.dob || null,
-        gender: form.gender ? form.gender.toLowerCase() : null,
-        civil_status: form.civilStatus ? form.civilStatus.toLowerCase() : null,
-        house_no: form.houseNo || null,
-        street: form.street || null,
-        purok_type: form.purokType || null,
-        purok: form.purok || null,
-        barangay: form.barangay || null,
-        city: form.city || null,
-        province: form.province || null,
-        guardian_first_name: form.guardianFirstName || null,
-        guardian_middle_name: form.guardianMiddleName || null,
-        guardian_last_name: form.guardianLastName || null,
-        guardian_relationship: form.guardianRelationship || null,
-        guardian_contact: form.guardianContact || null,
+        birthdate: form.dob,
+        gender: form.gender.toLowerCase(),
+        civil_status: form.civilStatus
+          ? form.civilStatus.toLowerCase()
+          : null,
+        house_no: form.houseNo,
+        purok_type: form.purokType,
+        purok: form.purok,
+        subdivision:
+          form.purokType === "phase"
+            ? toTitleCase(form.subdivision)
+            : null,
+        barangay: "Mamatid",
+        city: "Cabuyao",
+        province: "Laguna",
+        guardian_first_name:
+          form.guardianFirstName || null,
+        guardian_middle_name:
+          form.guardianMiddleName || null,
+        guardian_last_name:
+          form.guardianLastName || null,
+        guardian_relationship:
+          form.guardianRelationship || null,
+        guardian_contact:
+          form.guardianContact || null,
       };
       await api.put("/profile", profilePayload);
-
-      
-      setShowSavedPopup(true);
-      setTimeout(() => setShowSavedPopup(false), 1500);
+      if (cameFromSubmission) {
+        navigate("/ApplicantSubmission");
+      } else {
+        setShowSavedPopup(true);
+      }
     } catch (err) {
       const errors = err.response?.data?.errors;
       if (errors) {
-        setError(Object.values(errors).flat().join(" "));
+        setError(
+          Object.values(errors)
+            .flat()
+            .join(" ")
+        );
       } else {
-        setError("Failed to save profile.");
+        setError(
+          err.response?.data?.message ||
+            "Failed to save profile."
+        );
       }
     } finally {
       setSaving(false);
     }
   }
 
-  if (loading) {
-    return (
-      <div>
-        <ApplicantNavigation />
-        <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
-          <div className="spinner-border text-danger" role="status" />
-        </div>
-      </div>
-    );
-  }
-
   const FACE_STATUS_LABEL = {
-    verified: { text: "Verified", className: "badge bg-success" },
-    failed: { text: "Verification Failed", className: "badge bg-danger" },
-    pending: { text: "Pending", className: "badge bg-warning text-dark" },
-    not_started: { text: "Not Verified", className: "badge bg-secondary" },
+    verified: {
+      text: "Verified",
+      className: "badge bg-success",
+    },
+    failed: {
+      text: "Verification Failed",
+      className: "badge bg-danger",
+    },
+    pending: {
+      text: "Pending",
+      className: "badge bg-warning text-dark",
+    },
+    not_started: {
+      text: "Not Verified",
+      className: "badge bg-secondary",
+    },
   };
-  const faceStatusInfo = FACE_STATUS_LABEL[faceStatus] || null;
+  const faceStatusInfo =
+    FACE_STATUS_LABEL[faceStatus] || null;
+  const RequiredMark = () => (
+    <span className="required-asterisk">*</span>
+  );
 
   return (
-    <div>
+    <div className="applicant-layout">
       <ApplicantNavigation />
-
-      <section className="profile-section">
-        <div className="container">
-          <div className="row justify-content-center">
-            <div className="col-lg-8">
-              <div className="profile-card">
-
-                <div className="profile-header">
-                  {/* Shows the applicant's own live capture from registration
-                      once it's loaded; falls back to the system logo while
-                      loading or if no photo is on file yet. */}
-                  <img
-                    src={facePhotoUrl || "/logo.png"}
-                    alt={facePhotoUrl ? "Your registered photo" : "Profile Icon"}
-                    className="profile-avatar"
-                    style={facePhotoUrl ? { objectFit: "cover" } : undefined}
-                  />
-                  <h3>Applicant Profile</h3>
-                  <p className="text-muted mb-0">
-                    View and update your personal information for your educational assistance application.
-                  </p>
-                  {faceStatusInfo && (
-                    <span className={`${faceStatusInfo.className} mt-2`}>{faceStatusInfo.text}</span>
-                  )}
-                </div>
-
-                {error && <div className="alert alert-danger">{error}</div>}
-
-                <form onSubmit={handleSubmit}>
-                  <div className="row g-3">
-
-                    <div className="col-md-6">
-                      <label className="form-label">First Name</label>
-                      <input className="form-control" value={form.firstName} onChange={set("firstName")} required />
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Last Name</label>
-                      <input className="form-control" value={form.lastName} onChange={set("lastName")} required />
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Middle Name</label>
-                      <input className="form-control" placeholder="Leave blank if none" value={form.middleName} onChange={set("middleName")} />
-                      <div className="form-text">Optional - leave blank if you don't have a middle name.</div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Email Address</label>
-                      <input type="email" className="form-control" value={form.email} disabled />
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Contact Number</label>
-                      <input className="form-control" value={form.contact} onChange={set("contact")} required />
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Date of Birth</label>
-                      <input type="date" className="form-control" value={form.dob} onChange={set("dob")} />
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Gender</label>
-                      <select className="form-select" value={form.gender} onChange={set("gender")}>
-                        <option value="" disabled>Select gender</option>
-                        <option value="male">Male</option>
-                        <option value="female">Female</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Civil Status</label>
-                      <select className="form-select" value={form.civilStatus} onChange={set("civilStatus")}>
-                        <option value="" disabled>Select civil status</option>
-                        <option value="single">Single</option>
-                        <option value="married">Married</option>
-                        <option value="widowed">Widowed</option>
-                        <option value="separated">Separated</option>
-                      </select>
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label">House No.</label>
-                      <input className="form-control" placeholder="House No." value={form.houseNo} onChange={set("houseNo")} />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label">Street</label>
-                      <input className="form-control" placeholder="Street" value={form.street} onChange={set("street")} />
-                    </div>
-
-                    <div className="col-md-2">
-                      <label className="form-label">Purok/Phase</label>
-                      <select className="form-select" value={form.purokType} onChange={set("purokType")}>
-                        <option value="" disabled>Select</option>
-                        <option value="purok">Purok</option>
-                        <option value="phase">Phase</option>
-                      </select>
-                    </div>
-
-                    <div className="col-md-2">
-                      <label className="form-label">Number</label>
-                      <input className="form-control" placeholder="e.g. 2" value={form.purok} onChange={set("purok")} />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label">Barangay</label>
-                      <input className="form-control" placeholder="Barangay" value={form.barangay} onChange={set("barangay")} />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label">City</label>
-                      <input className="form-control" placeholder="City" value={form.city} onChange={set("city")} />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label">Province</label>
-                      <input className="form-control" placeholder="Province" value={form.province} onChange={set("province")} />
-                    </div>
-
-                    <div className="col-12 mt-2">
-                      <hr />
-                      <h6 className="text-muted">Parent / Guardian Information</h6>
-                      <p className="form-text mb-2">
-                        {isMinor
-                          ? "As a minor applicant, this must be the parent or guardian whose Voter's Certificate you will submit. Enter their name exactly as it appears on that certificate."
-                          : "Only required if you are a minor applicant. If provided, enter the name exactly as it appears on their Voter's Certificate."}
-                      </p>
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label">Guardian First Name</label>
-                      <input className="form-control" placeholder="First Name" value={form.guardianFirstName} onChange={set("guardianFirstName")} />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label">Guardian Middle Name</label>
-                      <input className="form-control" placeholder="Middle Name" value={form.guardianMiddleName} onChange={set("guardianMiddleName")} />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label">Guardian Last Name</label>
-                      <input className="form-control" placeholder="Last Name" value={form.guardianLastName} onChange={set("guardianLastName")} />
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Guardian Relationship</label>
-                      <input className="form-control" placeholder="e.g. Mother" value={form.guardianRelationship} onChange={set("guardianRelationship")} />
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label">Guardian Contact</label>
-                      <input className="form-control" placeholder="Guardian contact" value={form.guardianContact} onChange={set("guardianContact")} />
-                    </div>
-
-                  </div>
-
-                  <div className="mt-4 d-flex gap-2 justify-content-end">
-                    <button type="submit" className="btn btn-save" disabled={saving}>
-                      {saving ? "Saving..." : "Save Changes"}
-                    </button>
-                  </div>
-                </form>
-
-              </div>
-            </div>
+      <div className="applicant-main">
+        <div className="applicant-topbar">
+          <div className="applicant-topbar-user">
+            <div className="applicant-topbar-avatar"></div>
           </div>
         </div>
-      </section>
-
+        <section className="page-section">
+          <div className="container-fluid">
+            <div className="applicant-dashboard-header">
+              <h3 className="applicant-dashboard-title">
+                Applicant Profile
+              </h3>
+              <p className="applicant-dashboard-desc">
+                View and update your personal information for your
+                educational assistance application.
+              </p>
+            </div>
+            <div className="page-card">
+              {loading ? (
+                <div className="d-flex justify-content-center align-items-center py-5">
+                  <div
+                    className="spinner-border text-danger"
+                    role="status"
+                  />
+                </div>
+              ) : (
+                <>
+                  <div
+                    className="d-flex align-items-center gap-3 mb-4 p-3"
+                    style={{
+                      background: "#fff8f8",
+                      borderRadius: "14px",
+                    }}
+                  >
+                    {facePhotoLoading ? (
+                      <div
+                        className="d-flex align-items-center justify-content-center"
+                        style={{
+                          width: "76px",
+                          height: "76px",
+                          borderRadius: "50%",
+                          border: "3px solid #b71c1c",
+                          background: "#fff",
+                          flexShrink: 0,
+                        }}
+                      >
+                        <div
+                          className="spinner-border spinner-border-sm text-danger"
+                          role="status"
+                        />
+                      </div>
+                    ) : (
+                      <img
+                        src={facePhotoUrl || "/logo.png"}
+                        alt={
+                          facePhotoUrl
+                            ? "Your registered photo"
+                            : "Profile Icon"
+                        }
+                        style={{
+                          width: "76px",
+                          height: "76px",
+                          borderRadius: "50%",
+                          objectFit: facePhotoUrl
+                            ? "cover"
+                            : "contain",
+                          border: "3px solid #b71c1c",
+                          padding: facePhotoUrl
+                            ? "0"
+                            : "8px",
+                          background: "#fff",
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                    <div>
+                      <h5
+                        className="mb-1"
+                        style={{
+                          fontWeight: 700,
+                        }}
+                      >
+                        {form.firstName} {form.lastName}
+                      </h5>
+                      {faceStatusInfo && (
+                        <span
+                          className={
+                            faceStatusInfo.className
+                          }
+                        >
+                          {faceStatusInfo.text}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-muted small mb-3">
+                    Fields marked with{" "}
+                    <RequiredMark /> are required.
+                  </p>
+                  {error && (
+                    <div className="error-box">
+                      {error}
+                    </div>
+                  )}
+                  <form onSubmit={handleSubmit}>
+                    <div className="row g-3">
+                      {/* FIRST NAME */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          First Name <RequiredMark />
+                        </label>
+                        <input
+                          className="form-control"
+                          value={form.firstName}
+                          onChange={set("firstName")}
+                          required
+                        />
+                      </div>
+                      {/* LAST NAME */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          Last Name <RequiredMark />
+                        </label>
+                        <input
+                          className="form-control"
+                          value={form.lastName}
+                          onChange={set("lastName")}
+                          required
+                        />
+                      </div>
+                      {/* MIDDLE NAME */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          Middle Name
+                        </label>
+                        <input
+                          className="form-control"
+                          placeholder="Middle Name"
+                          value={form.middleName}
+                          onChange={set("middleName")}
+                        />
+                        <div className="form-text">
+                          Optional — leave blank if you do not have a middle name.
+                        </div>
+                      </div>
+                      {/* EMAIL */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          Email Address
+                        </label>
+                        <input
+                          type="email"
+                          className="form-control"
+                          value={form.email}
+                          disabled
+                        />
+                        <div className="form-text">
+                          Your account email cannot be changed here.
+                        </div>
+                      </div>
+                      {/* CONTACT */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          Contact Number <RequiredMark />
+                        </label>
+                        <input
+                          className="form-control"
+                          value={form.contact}
+                          onChange={set("contact")}
+                          required
+                        />
+                      </div>
+                      {/* DATE OF BIRTH */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          Date of Birth <RequiredMark />
+                        </label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={form.dob}
+                          onChange={set("dob")}
+                          required
+                        />
+                      </div>
+                      {/* GENDER */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          Gender <RequiredMark />
+                        </label>
+                        <select
+                          className="form-select"
+                          value={form.gender}
+                          onChange={set("gender")}
+                          required
+                        >
+                          <option value="" disabled>
+                            Select gender
+                          </option>
+                          <option value="male">
+                            Male
+                          </option>
+                          <option value="female">
+                            Female
+                          </option>
+                          <option value="other">
+                            Other
+                          </option>
+                        </select>
+                      </div>
+                      {/* CIVIL STATUS */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          Civil Status <RequiredMark />
+                        </label>
+                        <select
+                          className="form-select"
+                          value={form.civilStatus}
+                          onChange={set("civilStatus")}
+                          required
+                        >
+                          <option value="" disabled>
+                            Select civil status
+                          </option>
+                          <option value="single">
+                            Single
+                          </option>
+                          <option value="married">
+                            Married
+                          </option>
+                          <option value="widowed">
+                            Widowed
+                          </option>
+                          <option value="separated">
+                            Separated
+                          </option>
+                        </select>
+                      </div>
+                      {/* HOUSE NO */}
+                      <div className="col-md-4">
+                        <label className="form-label">
+                          House No. <RequiredMark />
+                        </label>
+                        <input
+                          className="form-control"
+                          placeholder="House No."
+                          value={form.houseNo}
+                          onChange={set("houseNo")}
+                          required
+                        />
+                      </div>
+                      {/* PUROK / PHASE */}
+                      <div className="col-md-4">
+                        <label className="form-label">
+                          Purok/Phase <RequiredMark />
+                        </label>
+                        <select
+                          className="form-select"
+                          value={form.purokType}
+                          onChange={set("purokType")}
+                          required
+                        >
+                          <option value="" disabled>
+                            Select
+                          </option>
+                          <option value="purok">
+                            Purok
+                          </option>
+                          <option value="phase">
+                            Phase
+                          </option>
+                        </select>
+                      </div>
+                      {/* NUMBER */}
+                      <div className="col-md-2">
+                        <label className="form-label">
+                          Number <RequiredMark />
+                        </label>
+                        <input
+                          className="form-control"
+                          placeholder="e.g. 2"
+                          value={form.purok}
+                          onChange={set("purok")}
+                          required
+                        />
+                      </div>
+                      {/* SUBDIVISION / VILLAGE — only for Phase, hidden for Purok */}
+                      {form.purokType === "phase" && (
+                        <div className="col-md-6">
+                          <label className="form-label">
+                            Subdivision/Village <RequiredMark />
+                          </label>
+                          <input
+                            className="form-control"
+                            placeholder="e.g. Mabuhay City"
+                            value={form.subdivision}
+                            onChange={set("subdivision")}
+                            required
+                          />
+                          <div className="form-text">
+                            Please spell out the full name — avoid abbreviations.
+                          </div>
+                        </div>
+                      )}
+                      {/* BARANGAY */}
+                      <div className="col-md-4">
+                        <label className="form-label">
+                          Barangay
+                        </label>
+                        <input
+                          className="form-control"
+                          value="Mamatid"
+                          readOnly
+                        />
+                      </div>
+                      {/* CITY */}
+                      <div className="col-md-4">
+                        <label className="form-label">
+                          City
+                        </label>
+                        <input
+                          className="form-control"
+                          value="Cabuyao"
+                          readOnly
+                        />
+                      </div>
+                      {/* PROVINCE */}
+                      <div className="col-md-4">
+                        <label className="form-label">
+                          Province
+                        </label>
+                        <input
+                          className="form-control"
+                          value="Laguna"
+                          readOnly
+                        />
+                      </div>
+                      {/* PARENT / GUARDIAN */}
+                      <div className="col-12 mt-2">
+                        <hr />
+                        <h6 className="text-muted">
+                          Parent / Guardian Information
+                        </h6>
+                        <p className="form-text mb-2">
+                          Optional — if provided, please enter the parent or
+                          guardian information exactly as it appears on their
+                          supporting documents.
+                        </p>
+                      </div>
+                      {/* GUARDIAN FIRST NAME */}
+                      <div className="col-md-4">
+                        <label className="form-label">
+                          Guardian First Name
+                        </label>
+                        <input
+                          className="form-control"
+                          placeholder="First Name"
+                          value={form.guardianFirstName}
+                          onChange={set("guardianFirstName")}
+                        />
+                      </div>
+                      {/* GUARDIAN MIDDLE NAME */}
+                      <div className="col-md-4">
+                        <label className="form-label">
+                          Guardian Middle Name
+                        </label>
+                        <input
+                          className="form-control"
+                          placeholder="Middle Name"
+                          value={form.guardianMiddleName}
+                          onChange={set("guardianMiddleName")}
+                        />
+                        <div className="form-text">
+                          Leave blank if the parent or guardian has no middle name.
+                        </div>
+                      </div>
+                      {/* GUARDIAN LAST NAME */}
+                      <div className="col-md-4">
+                        <label className="form-label">
+                          Guardian Last Name
+                        </label>
+                        <input
+                          className="form-control"
+                          placeholder="Last Name"
+                          value={form.guardianLastName}
+                          onChange={set("guardianLastName")}
+                        />
+                      </div>
+                      {/* GUARDIAN RELATIONSHIP */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          Guardian Relationship
+                        </label>
+                        <input
+                          className="form-control"
+                          placeholder="e.g. Mother"
+                          value={form.guardianRelationship}
+                          onChange={set("guardianRelationship")}
+                        />
+                      </div>
+                      {/* GUARDIAN CONTACT */}
+                      <div className="col-md-6">
+                        <label className="form-label">
+                          Guardian Contact
+                        </label>
+                        <input
+                          className="form-control"
+                          placeholder="Guardian contact"
+                          value={form.guardianContact}
+                          onChange={set("guardianContact")}
+                        />
+                      </div>
+                    </div>
+                    <div className="mt-4 d-flex gap-2 justify-content-end">
+                      <button
+                        type="submit"
+                        className="btn btn-save-green"
+                        disabled={saving}
+                      >
+                        {saving
+                          ? "Saving..."
+                          : "Save Changes"}
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+        <PanelFooter />
+      </div>
       {showSavedPopup && (
-        <div
-          className="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
-          style={{ background: "rgba(0,0,0,0.3)", zIndex: 1055 }}
-        >
-          <div
-            className="bg-white rounded shadow px-4 py-3 text-center"
-            style={{ minWidth: "180px" }}
-          >
-            <div className="text-success fw-semibold">Saved!</div>
+        <div className="verifier-password-feedback-backdrop">
+          <div className="verifier-password-feedback verifier-password-feedback-success">
+            <div className="verifier-password-feedback-icon-wrap">
+              <span className="verifier-password-feedback-icon">
+                ✓
+              </span>
+            </div>
+            <h4 className="verifier-password-feedback-title">
+              Profile Updated
+            </h4>
+            <p className="verifier-password-feedback-message">
+              Your profile information has been saved successfully.
+            </p>
+            <button
+              type="button"
+              className="verifier-password-feedback-dismiss"
+              onClick={() => setShowSavedPopup(false)}
+            >
+              <span>Dismiss</span>
+              <span className="verifier-password-feedback-arrow">
+                →
+              </span>
+              <span className="verifier-password-feedback-timer">
+                {savedCountdown}s
+              </span>
+            </button>
           </div>
         </div>
       )}
-
-      <footer>
-        <div className="container">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance Application System</p>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -6,19 +6,117 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\StudentProfile;
 use App\Models\FaceVerification;
+use App\Models\PasswordHistory;
 use App\Notifications\ApplicationStatusNotification;
 use App\Services\FaceMatchingService;
+use App\Services\TwoFactorService;
+use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rules\Password;
 
 class AuthController extends Controller
 {
     protected FaceMatchingService $faceService;
+    protected TwoFactorService $twoFactor;
 
-    public function __construct(FaceMatchingService $faceService)
+    const MAX_FAILED_ATTEMPTS = 3;
+    const LOCKOUT_MINUTES = 15;
+    const PENDING_TOKEN_MINUTES = 10;
+
+    // Shared password rule set: 8 char min, lowercase + number, breach-checked,
+    // blocked against obvious/context-specific weak terms.
+    // Used by register(), checkDuplicate() (pre-check, same rules so a
+    // failure can't surface for the first time only after face capture),
+    // and (reuse-block added) by ProfileController::updatePassword().
+    public static function passwordRules(): array
+    {
+        return [
+            'required',
+            'confirmed',
+            'regex:/^(?=.*[a-z])(?=.*\d).+$/',
+            Password::min(8)->uncompromised(),
+            new NotObviouslyWeakPassword(),
+        ];
+    }
+
+    public function __construct(FaceMatchingService $faceService, TwoFactorService $twoFactor)
     {
         $this->faceService = $faceService;
+        $this->twoFactor = $twoFactor;
+    }
+
+    /**
+     * Shared name+birthdate duplicate lookup, used by both the
+     * pre-face-verification check (checkDuplicate) and the final
+     * register() save. Kept in one place so the two never drift out
+     * of sync with each other.
+     */
+    private function findDuplicateApplicant(string $firstName, string $lastName, string $birthdate)
+    {
+        $normalizedFirstName = strtolower(trim($firstName));
+        $normalizedLastName = strtolower(trim($lastName));
+
+        return User::whereHas('profile', function ($q) use ($birthdate) {
+                $q->where('birthdate', $birthdate);
+            })
+            ->get()
+            ->filter(function ($otherUser) use ($normalizedFirstName, $normalizedLastName) {
+                return strtolower(trim($otherUser->first_name)) === $normalizedFirstName
+                    && strtolower(trim($otherUser->last_name)) === $normalizedLastName;
+            });
+    }
+
+    /**
+     * Pre-check called from the Register form BEFORE the applicant moves
+     * on to face verification. Validates EVERYTHING that register() will
+     * eventually check — email/mobile uniqueness, name+birthdate
+     * duplicate, AND the full password policy — so a doomed registration
+     * fails fast on the account-details form, before the applicant
+     * wastes time on face capture only to be bounced back afterward with
+     * an error that has nothing to do with their face.
+     *
+     * This does NOT reserve the email/mobile/name+birthdate combo — it's
+     * still just a pre-check. register() re-validates everything again
+     * at save time, since another registration could complete in
+     * between the two calls.
+     */
+    public function checkDuplicate(Request $request)
+    {
+        $request->validate([
+            'first_name'    => 'required|string|max:255',
+            'middle_name'   => 'nullable|string|max:255',
+            'last_name'     => 'required|string|max:255',
+            'birthdate'     => 'required|date|before:today',
+            'email'         => 'required|email',
+            'mobile_number' => 'nullable|string|unique:users,mobile_number',
+            'password'      => self::passwordRules(),
+        ]);
+
+        if (User::where('email', $request->email)->exists()) {
+            return response()->json([
+                'errors' => [
+                    'email' => ['This email is already taken.'],
+                ],
+            ], 422);
+        }
+
+        $duplicates = $this->findDuplicateApplicant(
+            $request->first_name,
+            $request->last_name,
+            $request->birthdate
+        );
+
+        if ($duplicates->isNotEmpty()) {
+            return response()->json([
+                'message' => 'An account matching your name and date of birth already exists under a different account. Please contact the SK office if you believe this is an error.',
+            ], 400);
+        }
+
+        return response()->json(['message' => 'OK']);
     }
 
     /**
@@ -32,7 +130,12 @@ class AuthController extends Controller
      * Also runs a name+birthdate duplicate check BEFORE face verification,
      * since it's the cheaper check and should short-circuit first if it's
      * going to fail anyway — no reason to call the face service for a
-     * registration that's getting blocked regardless.
+     * registration that's getting blocked regardless. (The Register form
+     * also calls checkDuplicate() above earlier in the flow, before the
+     * applicant even reaches face capture, now including mobile +
+     * password validation too — this check here is the authoritative
+     * re-check at save time, in case something changed between the two
+     * calls.)
      *
      * A second duplicate check runs AFTER face verification: this one
      * compares the new live-photo embedding against every other verified
@@ -48,11 +151,12 @@ class AuthController extends Controller
             'last_name'     => 'required|string|max:255',
             'email'         => 'required|email|unique:users,email',
             'mobile_number' => 'nullable|string|unique:users,mobile_number',
-            'password'      => 'required|string|min:8|confirmed',
+            'password'      => self::passwordRules(),
             'birthdate'     => 'required|date|before:today',
             'barangay'      => 'required|string|max:255',
-            'id_image'      => 'required|file|mimes:jpg,jpeg,png|max:5120',
-            'live_photo'    => 'required|file|mimes:jpg,jpeg,png|max:5120',
+            'id_image'      => 'required|file|mimes:jpg,jpeg,png,webp,heic,heif|max:5120',
+            'live_photo'    => 'required|file|mimes:jpg,jpeg,png,webp,heic,heif|max:5120',
+            'privacy_consent' => 'required|accepted',
         ]);
 
         // Duplicate-applicant check (registration-time): block a new account
@@ -61,16 +165,11 @@ class AuthController extends Controller
         // submission time, since a determined duplicate could still
         // theoretically slip past this one (e.g. a slight name variation
         // the string match doesn't catch).
-        $normalizedFirstName = strtolower(trim($request->first_name));
-        $normalizedLastName = strtolower(trim($request->last_name));
-        $possibleDuplicates = User::whereHas('profile', function ($q) use ($request) {
-                $q->where('birthdate', $request->birthdate);
-            })
-            ->get()
-            ->filter(function ($otherUser) use ($normalizedFirstName, $normalizedLastName) {
-                return strtolower(trim($otherUser->first_name)) === $normalizedFirstName
-                    && strtolower(trim($otherUser->last_name)) === $normalizedLastName;
-            });
+        $possibleDuplicates = $this->findDuplicateApplicant(
+            $request->first_name,
+            $request->last_name,
+            $request->birthdate
+        );
         if ($possibleDuplicates->isNotEmpty()) {
             return response()->json([
                 'message' => 'An account matching your name and date of birth already exists under a different account. Please contact the SK office if you believe this is an error.',
@@ -133,14 +232,30 @@ class AuthController extends Controller
         // Both duplicate checks passed, face matched — now it's safe to
         // actually create the account.
         $user = User::create([
-            'first_name'    => $request->first_name,
-            'middle_name'   => $request->middle_name,
-            'last_name'     => $request->last_name,
-            'email'         => $request->email,
-            'mobile_number' => $request->mobile_number,
-            'password'      => Hash::make($request->password),
-            'role'          => 'applicant',
+            'first_name'         => $request->first_name,
+            'middle_name'        => $request->middle_name,
+            'last_name'          => $request->last_name,
+            'email'              => $request->email,
+            'mobile_number'      => $request->mobile_number,
+            'password'           => Hash::make($request->password),
+            'role'               => 'applicant',
+            'privacy_consent_at' => now(),
         ]);
+
+        // Seed password history with the initial password, so the very
+        // first change already has something to check reuse against.
+        PasswordHistory::create([
+            'user_id'       => $user->id,
+            'password_hash' => $user->password,
+        ]);
+
+        // Audit trail ng Data Privacy consent — proof kung sino, kailan, at saang IP nag-agree
+        \App\Models\AuditLog::record(
+            'consent',
+            $user,
+            "{$user->first_name} {$user->last_name} agreed to the Data Privacy Notice.",
+            $user
+        );
 
         // Profile starts pre-filled with what Register already collected —
         // is_profile_complete stays false until the applicant fills in the
@@ -177,11 +292,13 @@ class AuthController extends Controller
         // TRIGGER: Automatically dispatches Laravel's email verification link via your Log/Mail system
         $user->sendEmailVerificationNotification();
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        // NOTE: no Sanctum token issued here anymore. Previously registration
+        // logged the applicant straight in; now they still need to verify
+        // their email AND enroll in 2FA before they get a token, both of
+        // which happen through the normal /login flow on their first sign-in.
 
         return response()->json([
-            'message' => 'Registration successful. Please check your email to verify your account.',
-            'token'   => $token,
+            'message' => 'Registration successful. Please check your email to verify your account, then log in.',
             'user'    => $user,
         ], 201);
     }
@@ -192,24 +309,39 @@ class AuthController extends Controller
             'email'    => 'required|email',
             'password' => 'required|string',
         ]);
-
+    
         $user = User::where('email', $request->email)->first();
-
+    
+        // Lockout check — happens before the password check so a locked
+        // account doesn't leak "your password was right" via timing/response
+        // differences, and so we don't waste a Hash::check on it either.
+        if ($user && $user->locked_until && now()->lessThan($user->locked_until)) {
+            $secondsLeft = now()->diffInSeconds($user->locked_until);
+            $minutesLeft = (int) ceil($secondsLeft / 60);
+            return response()->json([
+                'message' => "Too many failed attempts. Try again in {$minutesLeft} minute(s).",
+            ], 429);
+        }
+    
         if (!$user || !Hash::check($request->password, $user->password)) {
+            if ($user) {
+                $this->registerFailedAttempt($user);
+            }
+    
             // Log the failed attempt (useful for spotting brute-force attempts)
             \App\Models\AuditLog::create([
                 'user_id'     => $user->id ?? null,
                 'action'      => 'login_failed',
-                'description' => "Failed login attempt for: {$request->email}",
+                'description' => "An unsuccessful login attempt was made on your account.",
                 'ip_address'  => $request->ip(),
             ]);
-
+    
             throw ValidationException::withMessages([
                 'email' => ['Invalid credentials.'],
             ]);
         }
-
-                if (!$user->is_active) {
+    
+        if (!$user->is_active) {
             return response()->json(['message' => 'Account is deactivated.'], 403);
         }
         // Block login until the applicant has verified their email/OTP —
@@ -222,11 +354,109 @@ class AuthController extends Controller
                 'email'      => $user->email,
             ], 403);
         }
+    
+        // Correct password, account in good standing — reset the failed-attempt counter.
+        $user->forceFill(['failed_login_attempts' => 0, 'locked_until' => null])->save();
+    
+        // 2FA gate. No Sanctum token is issued yet either way — only a
+        // short-lived pending token the frontend must exchange (along with
+        // the 6-digit code) at /2fa/setup/confirm or /2fa/verify.
+        $pendingToken = Str::random(40);
+    
+        if (!$user->google2fa_enabled_at) {
+            // First login ever, or 2FA was never finished being set up —
+            // force enrollment before they can do anything else.
+            $secret = $this->twoFactor->generateSecret();
+    
+            Cache::put("2fa_setup:{$pendingToken}", [
+                'user_id' => $user->id,
+                'secret'  => $secret,
+            ], now()->addMinutes(self::PENDING_TOKEN_MINUTES));
+    
+            return response()->json([
+                'requires_2fa_setup' => true,
+                'pending_token'      => $pendingToken,
+                'qr_code_url'        => $this->twoFactor->getQrCodeUrl($user, $secret),
+                'secret'             => $secret,
+                'email'              => $user->email,
+            ]);
+        }
+    
+        Cache::put("2fa_pending:{$pendingToken}", $user->id, now()->addMinutes(self::PENDING_TOKEN_MINUTES));
+    
+        return response()->json([
+            'requires_2fa'  => true,
+            'pending_token' => $pendingToken,
+        ]);
+    }
+
+    protected function registerFailedAttempt(User $user): void
+    {
+        $attempts = $user->failed_login_attempts + 1;
+
+        $data = ['failed_login_attempts' => $attempts];
+        if ($attempts >= self::MAX_FAILED_ATTEMPTS) {
+            $data['locked_until'] = now()->addMinutes(self::LOCKOUT_MINUTES);
+            $data['failed_login_attempts'] = 0;
+        }
+
+        $user->forceFill($data)->save();
+    }
+
+    // Step 2a: first-time 2FA enrollment. Confirms the code from the
+    // authenticator app actually matches the secret issued at login,
+    // activates 2FA, and only THEN issues the real Sanctum token.
+    public function confirmTwoFactorSetup(Request $request)
+    {
+        $request->validate([
+            'pending_token' => 'required|string',
+            'code'          => 'required|digits:6',
+        ]);
+
+        $payload = Cache::get("2fa_setup:{$request->pending_token}");
+        if (!$payload) {
+            return response()->json(['message' => 'Setup session expired. Please log in again.'], 400);
+        }
+
+        $user = User::findOrFail($payload['user_id']);
+
+        if (!$this->twoFactor->confirmSetup($user, $payload['secret'], $request->code)) {
+            return response()->json(['message' => 'Invalid code. Check your authenticator app and try again.'], 422);
+        }
+
+        Cache::forget("2fa_setup:{$request->pending_token}");
+
+        return $this->issueTokenAfterTwoFactor($user, $request);
+    }
+
+    // Step 2b: normal login 2FA check, once already enrolled.
+    public function verifyTwoFactor(Request $request)
+    {
+        $request->validate([
+            'pending_token' => 'required|string',
+            'code'          => 'required|digits:6',
+        ]);
+
+        $userId = Cache::get("2fa_pending:{$request->pending_token}");
+        if (!$userId) {
+            return response()->json(['message' => 'Login session expired. Please log in again.'], 400);
+        }
+
+        $user = User::findOrFail($userId);
+
+        if (!$this->twoFactor->verify($user, $request->code)) {
+            return response()->json(['message' => 'Invalid code.'], 422);
+        }
+
+        Cache::forget("2fa_pending:{$request->pending_token}");
+
+        return $this->issueTokenAfterTwoFactor($user, $request);
+    }
+
+    private function issueTokenAfterTwoFactor(User $user, Request $request)
+    {
         $token = $user->createToken('auth_token')->plainTextToken;
 
-        $token = $user->createToken('auth_token')->plainTextToken;
-
-        // Log this login for the audit trail
         \App\Models\AuditLog::create([
             'user_id'     => $user->id,
             'action'      => 'login',
@@ -290,6 +520,22 @@ class AuthController extends Controller
         return response()->json(['message' => 'Email verified successfully.']);
     }
 
+        // Progressive cooldown schedule for resend-verification requests, in
+    // seconds — indexed by attempt number (1st, 2nd, 3rd, ...). Modeled on
+    // NIST SP 800-63B Section 5.2.2 (Rate Limiting/Throttling), which
+    // recommends requiring the claimant to wait "30 seconds to an hour"
+    // between attempts, scaling with how close they are to abuse territory.
+    // The last value repeats for any attempt beyond the array length.
+    // Capped at 900s (15 minutes) to match the verification code/link
+    // expiration window — no point making someone wait longer than the
+    // code itself stays valid before letting them request a fresh one.
+    const RESEND_COOLDOWN_SCHEDULE = [30, 60, 120, 300, 900];
+
+    // Window after which the attempt counter resets, so a single burst of
+    // resends today doesn't permanently throttle someone who genuinely
+    // needs a new code next week.
+    const RESEND_WINDOW_HOURS = 2;
+
     public function resendVerification(Request $request)
     {
         $request->validate(['email' => 'required|email']);
@@ -304,10 +550,40 @@ class AuthController extends Controller
             return response()->json(['message' => 'Email already verified.']);
         }
 
-        // TRIGGER: Manually resends verification notification on request
+        $cacheKey = 'resend_verification:' . strtolower($request->email);
+        $state = Cache::get($cacheKey, ['attempts' => 0, 'next_allowed_at' => null]);
+
+        // Still inside the cooldown window from the previous resend — block
+        // and tell the applicant exactly how long they have left, per NIST's
+        // usability guidance (clear feedback on wait time, not a silent block).
+        // next_allowed_at is stored as a plain Unix timestamp (int), not a
+        // Carbon object — cache serialization can silently corrupt Carbon
+        // instances into __PHP_Incomplete_Class on some drivers.
+        if (is_int($state['next_allowed_at'] ?? null) && time() < $state['next_allowed_at']) {
+            $secondsLeft = $state['next_allowed_at'] - time();
+            return response()->json([
+                'message'      => "Please wait before requesting another code.",
+                'retry_after'  => $secondsLeft,
+            ], 429);
+        }
+
+        // Cooldown has passed (or this is the first attempt) — send the
+        // email, then advance the attempt counter and set the next cooldown.
         $user->sendEmailVerificationNotification();
 
-        return response()->json(['message' => 'Verification email resent.']);
+        $nextAttemptNumber = $state['attempts'] + 1;
+        $scheduleIndex = min($nextAttemptNumber - 1, count(self::RESEND_COOLDOWN_SCHEDULE) - 1);
+        $cooldownSeconds = self::RESEND_COOLDOWN_SCHEDULE[$scheduleIndex];
+
+        Cache::put($cacheKey, [
+            'attempts'        => $nextAttemptNumber,
+            'next_allowed_at' => time() + $cooldownSeconds,
+        ], now()->addHours(self::RESEND_WINDOW_HOURS));
+
+        return response()->json([
+            'message'      => 'Verification email resent.',
+            'retry_after'  => $cooldownSeconds,
+        ]);
     }
 
     // Fallback verification path: lets the applicant type the 6-digit code

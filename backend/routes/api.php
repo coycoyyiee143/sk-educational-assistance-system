@@ -13,14 +13,33 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminReportController;
 use App\Http\Controllers\Api\VerifierController;
 use App\Http\Controllers\Api\FaceVerificationController;
+use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\PersonnelSetupController;
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
+Route::post('/register/check', [AuthController::class, 'checkDuplicate']);
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1'); // 10 attempts per minute per IP
 Route::post('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
     ->name('verification.verify');
 Route::post('/email/resend', [AuthController::class, 'resendVerification']);
 Route::post('/email/verify-by-code', [AuthController::class, 'verifyEmailByCode']);
+
+// 2FA — called right after /login returns a "2fa_required" response,
+// using a short-lived pending token instead of a session (stateless API).
+// Both handled inside AuthController — no separate TwoFactorController.
+Route::post('/2fa/setup/confirm', [AuthController::class, 'confirmTwoFactorSetup']); // activates + logs in
+Route::post('/2fa/verify', [AuthController::class, 'verifyTwoFactor']);              // normal login 2FA step
+
+// Forgot Password
+Route::post('/password/forgot', [PasswordResetController::class, 'sendResetCode']);
+Route::post('/password/verify-code', [PasswordResetController::class, 'verifyResetCode']);
+Route::post('/password/reset', [PasswordResetController::class, 'resetPassword']);
+
+// Personnel account setup / admin-initiated reset — public, since the
+// person clicking this link from their email isn't logged in yet.
+Route::get('/personnel/setup/{token}', [PersonnelSetupController::class, 'show']);
+Route::post('/personnel/setup/{token}', [PersonnelSetupController::class, 'store']);
 
 // Public info routes
 Route::get('/announcements', [AnnouncementController::class, 'index']);
@@ -45,14 +64,25 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/admin/users/{id}', [AdminController::class, 'updateUser']);
         Route::patch('/admin/users/{id}/toggle-status', [AdminController::class, 'toggleStatus']);
         Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
+        Route::post('/admin/users/{id}/reset-password', [AdminController::class, 'resetPassword']);
+        // Works for personnel AND applicant accounts — see resetTwoFactor()
+        // docblock in AdminController for why this is admin-only and not
+        // self-service.
+        Route::post('/admin/users/{id}/reset-2fa', [AdminController::class, 'resetTwoFactor']);
         Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
         Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
+        // The ONLY way to change close_date — separate from update()
+        // above, its own auditable action (see ApplicationConfigurationController::extend()).
+        Route::post('/admin/application-configs/{id}/extend', [ApplicationConfigurationController::class, 'extend']);
         Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);
         Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
         Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
         Route::get('/admin/claiming-schedule/lane-assignments', [AdminScheduleController::class, 'laneAssignments']);
-        Route::post('/admin/claiming-schedule/{id}/publish', [AdminScheduleController::class, 'publish']);
-        Route::get('/admin/claiming-schedule/{id}/preview', [AdminScheduleController::class, 'preview']);
+        // CHANGED: publish()/preview() removed — real-time assignment
+        // (ClaimingAssignmentService) means there's nothing left to
+        // preview or bulk-publish. activate() turns a schedule on and
+        // runs a one-time catch-up pass for anyone already approved.
+        Route::post('/admin/claiming-schedule/{id}/activate', [AdminScheduleController::class, 'activate']);
         Route::post('/admin/claiming-schedule/lanes/{laneId}/assign-verifier', [AdminScheduleController::class, 'assignVerifier']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable/pdf', [AdminScheduleController::class, 'printableLanePdf']);
@@ -123,6 +153,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/verifier/applications/{id}/reject', [VerifierController::class, 'reject']);
         Route::post('/verifier/applications/{id}/reupload', [VerifierController::class, 'requestReupload']);
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
+        Route::post('/verifier/documents/{document}/retry-ocr', [VerifierController::class, 'retryOcr']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
         Route::get('/verifier/claiming/lanes', [VerifierController::class, 'claimingLanes']);
         Route::post('/verifier/claiming/lanes/{laneId}/self-assign', [VerifierController::class, 'selfAssignLane']);
@@ -131,6 +162,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/verifier/applications/config/{configId}/promote-all-waitlist', [VerifierController::class, 'promoteAllFromWaitlist']);
         Route::get('/verifier/waitlist', [VerifierController::class, 'waitlist']);
         Route::get('/verifier/activity-log', [VerifierController::class, 'activityLog']);
+        Route::get('/verifier/claiming/{applicationId}/face-verification', [FaceVerificationController::class, 'latestClaimingVerification']);
         Route::post('/verifier/claiming/{applicationId}/verify-face', [FaceVerificationController::class, 'verifyClaiming']);
     });
 

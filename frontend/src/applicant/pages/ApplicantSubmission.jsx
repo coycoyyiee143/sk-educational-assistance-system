@@ -1,29 +1,55 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
+import { usePolling } from "../../hooks/usePolling";
 import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
+import PanelFooter from "../../components/PanelFooter";
 import ReuploadStep from "../components/ReuploadStep";
 import FormStep from "../components/FormStep";
 import DocumentUploadStep from "../components/DocumentUploadStep";
 import DoneStepSummary from "../components/DoneStepSummary";
-import ApplicationHistoryList from "../components/ApplicationHistoryList";
 import FilePreviewModal from "../components/FilePreviewModal";
 import api from "../../services/api";
 import { STATUS_CONFIG } from "../../components/StatusConstants";
 import { getDocFields } from "../constants/schoolsAndCourses";
-import { checkImageResolution, checkImageSharpness } from "../utils/imageChecks";
+import {
+  checkImageResolution,
+  checkImageSharpness,
+} from "../utils/imageChecks";
+import ApplicantTopbarUser from "../components/ApplicantTopbarUser";
 
-const emptyForm = { schoolName: "", course: "", yearLevel: "" };
+const emptyForm = {
+  schoolName: "",
+  course: "",
+  yearLevel: "",
+};
+
 const DRAFT_STORAGE_KEY = "applicant_submission_draft";
 
 function ApplicantSubmission() {
   const [form, setForm] = useState(emptyForm);
-  const [files, setFiles] = useState({ enrollment: null, schoolId: null, voters: null });
-  const [fileErrors, setFileErrors] = useState({ enrollment: "", schoolId: "", voters: "" });
-  const [reuploadFiles, setReuploadFiles] = useState({ enrollment: null, schoolId: null, voters: null });
-  const [reuploadFileErrors, setReuploadFileErrors] = useState({ enrollment: "", schoolId: "", voters: "" });
+  const [files, setFiles] = useState({
+    enrollment: null,
+    schoolId: null,
+    voters: null,
+  });
+  const [fileErrors, setFileErrors] = useState({
+    enrollment: "",
+    schoolId: "",
+    voters: "",
+  });
+  const [reuploadFiles, setReuploadFiles] = useState({
+    enrollment: null,
+    schoolId: null,
+    voters: null,
+  });
+  const [reuploadFileErrors, setReuploadFileErrors] = useState({
+    enrollment: "",
+    schoolId: "",
+    voters: "",
+  });
   const [applicationId, setApplicationId] = useState(null);
   const [existingApp, setExistingApp] = useState(null);
-  const [applicationHistory, setApplicationHistory] = useState([]);
   const [existingDocs, setExistingDocs] = useState([]);
   const [step, setStep] = useState("form");
   const [checkingApp, setCheckingApp] = useState(true);
@@ -37,178 +63,443 @@ function ApplicantSubmission() {
   const [docUrls, setDocUrls] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
   const [profile, setProfile] = useState(null);
-
   const periodStatus = getApplicationPeriodStatus(activeConfig);
 
-  const setFile = (k) => async (e) => {
+  useEffect(() => {
+    if (error) {
+      const mainEl = document.querySelector(".applicant-main");
+      if (mainEl) {
+        mainEl.scrollTo({ top: 0, behavior: "smooth" });
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [error]);
+
+  const setFile = (key) => async (e) => {
     const file = e.target.files[0] ?? null;
     if (!file) {
-      setFiles((f) => ({ ...f, [k]: null }));
-      setFileErrors((fe) => ({ ...fe, [k]: "" }));
+      setFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      setFileErrors((prev) => ({
+        ...prev,
+        [key]: "",
+      }));
+      return;
+    }
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setFileErrors((prev) => ({
+        ...prev,
+        [key]:
+          "This file type is not supported. Please upload a JPG or PNG photo — PDF and other formats are not accepted.",
+      }));
+      setFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setFileErrors((prev) => ({
+        ...prev,
+        [key]: `File size exceeds 5MB (this file is ${(file.size / (1024 * 1024)).toFixed(1)}MB). Please upload a smaller photo.`,
+      }));
+      setFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      e.target.value = "";
       return;
     }
     const result = await checkImageResolution(file);
     if (!result.valid) {
-      setFileErrors((fe) => ({
-        ...fe,
-        [k]: result.unreadable
+      setFileErrors((prev) => ({
+        ...prev,
+        [key]: result.unreadable
           ? "Could not read this file. Please try a different image."
           : `Image resolution too low (${result.width}×${result.height}px). Please retake or rescan at a higher quality.`,
       }));
-      setFiles((f) => ({ ...f, [k]: null }));
+      setFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
       e.target.value = "";
       return;
     }
     const sharpResult = await checkImageSharpness(file);
     if (!sharpResult.valid) {
-      setFileErrors((fe) => ({ ...fe, [k]: "Image appears blurry or unclear. Please retake or rescan with better focus and lighting." }));
-      setFiles((f) => ({ ...f, [k]: null }));
+      setFileErrors((prev) => ({
+        ...prev,
+        [key]:
+          "Image appears blurry or unclear. Please retake or rescan with better focus and lighting.",
+      }));
+      setFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
       e.target.value = "";
       return;
     }
-    setFileErrors((fe) => ({ ...fe, [k]: "" }));
-    setFiles((f) => ({ ...f, [k]: file }));
+    setFileErrors((prev) => ({
+      ...prev,
+      [key]: "",
+    }));
+    setFiles((prev) => ({
+      ...prev,
+      [key]: file,
+    }));
   };
 
-  const setReupload = (k) => async (e) => {
+  const setReupload = (key) => async (e) => {
     const file = e.target.files[0] ?? null;
     if (!file) {
-      setReuploadFiles((f) => ({ ...f, [k]: null }));
-      setReuploadFileErrors((fe) => ({ ...fe, [k]: "" }));
+      setReuploadFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      setReuploadFileErrors((prev) => ({
+        ...prev,
+        [key]: "",
+      }));
+      return;
+    }
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setReuploadFileErrors((prev) => ({
+        ...prev,
+        [key]:
+          "This file type is not supported. Please upload a JPG or PNG photo — PDF and other formats are not accepted.",
+      }));
+      setReuploadFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setReuploadFileErrors((prev) => ({
+        ...prev,
+        [key]: `File size exceeds 5MB (this file is ${(file.size / (1024 * 1024)).toFixed(1)}MB). Please upload a smaller photo.`,
+      }));
+      setReuploadFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
+      e.target.value = "";
       return;
     }
     const result = await checkImageResolution(file);
     if (!result.valid) {
-      setReuploadFileErrors((fe) => ({
-        ...fe,
-        [k]: result.unreadable
+      setReuploadFileErrors((prev) => ({
+        ...prev,
+        [key]: result.unreadable
           ? "Could not read this file. Please try a different image."
           : `Image resolution too low (${result.width}×${result.height}px). Please retake or rescan at a higher quality.`,
       }));
-      setReuploadFiles((f) => ({ ...f, [k]: null }));
+      setReuploadFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
       e.target.value = "";
       return;
     }
     const sharpResult = await checkImageSharpness(file);
     if (!sharpResult.valid) {
-      setReuploadFileErrors((fe) => ({ ...fe, [k]: "Image appears blurry or unclear. Please retake or rescan with better focus and lighting." }));
-      setReuploadFiles((f) => ({ ...f, [k]: null }));
+      setReuploadFileErrors((prev) => ({
+        ...prev,
+        [key]:
+          "Image appears blurry or unclear. Please retake or rescan with better focus and lighting.",
+      }));
+      setReuploadFiles((prev) => ({
+        ...prev,
+        [key]: null,
+      }));
       e.target.value = "";
       return;
     }
-    setReuploadFileErrors((fe) => ({ ...fe, [k]: "" }));
-    setReuploadFiles((f) => ({ ...f, [k]: file }));
+    setReuploadFileErrors((prev) => ({
+      ...prev,
+      [key]: "",
+    }));
+    setReuploadFiles((prev) => ({
+      ...prev,
+      [key]: file,
+    }));
   };
 
   useEffect(() => {
     let createdUrls = [];
     async function loadDocUrls() {
-      const urls = {};
-      for (const doc of existingDocs) {
-        try {
-          const res = await api.get(`/applications/${applicationId}/documents/${doc.id}/file`, { responseType: "blob" });
-          const url = URL.createObjectURL(res.data);
-          urls[doc.id] = url;
-          createdUrls.push(url);
-        } catch { }
-      }
-      setDocUrls(urls);
+      const entries = await Promise.all(
+        existingDocs.map(async (doc) => {
+          try {
+            const res = await api.get(
+              `/applications/${applicationId}/documents/${doc.id}/file`,
+              {
+                responseType: "blob",
+              }
+            );
+            const url = URL.createObjectURL(res.data);
+            createdUrls.push(url);
+            return [
+              doc.id,
+              {
+                url,
+                size: res.data.size,
+              },
+            ];
+          } catch {
+            return null;
+          }
+        })
+      );
+      setDocUrls(
+        Object.fromEntries(
+          entries.filter(Boolean)
+        )
+      );
     }
-    if (applicationId && existingDocs.length > 0) loadDocUrls();
-    return () => createdUrls.forEach((u) => URL.revokeObjectURL(u));
+    if (
+      applicationId &&
+      existingDocs.length > 0
+    ) {
+      loadDocUrls();
+    }
+    return () => {
+      createdUrls.forEach((url) =>
+        URL.revokeObjectURL(url)
+      );
+    };
   }, [existingDocs, applicationId]);
 
-  async function handleViewHistoricalFile(appId, docId) {
+  async function handleViewHistoricalFile(
+    appId,
+    docId
+  ) {
     try {
-      const res = await api.get(`/applications/${appId}/documents/${docId}/file`, { responseType: "blob" });
+      const res = await api.get(
+        `/applications/${appId}/documents/${docId}/file`,
+        {
+          responseType: "blob",
+        }
+      );
       const url = URL.createObjectURL(res.data);
       window.open(url, "_blank");
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 60000);
     } catch {
       alert("Failed to load document.");
     }
   }
 
   async function handleViewFile(docId) {
-    return handleViewHistoricalFile(applicationId, docId);
+    return handleViewHistoricalFile(
+      applicationId,
+      docId
+    );
   }
 
   useEffect(() => {
-    api.get("/application-config/active").then((res) => setActiveConfig(res.data)).catch(() => { });
-  }, []);
-
-  useEffect(() => {
-    Promise.all([api.get("/applications"), api.get("/application-config/active")])
-      .then(async ([applicationsRes, configRes]) => {
-        const applications = applicationsRes.data;
-        const activeConfig = configRes.data;
-        setActiveConfig(activeConfig);
-
-        const currentApp = applications.find((app) => app.config_id === activeConfig.id);
-        setApplicationHistory(applications.filter((app) => app.config_id !== activeConfig.id));
-
-        if (currentApp) {
-          const app = currentApp;
-          setExistingApp(app);
-          setApplicationId(app.id);
-          setForm({
-            schoolName: app.school_name ?? "",
-            course: app.course ?? "",
-            yearLevel: app.year_level ?? "",
-          });
-          const docsRes = await api.get(`/applications/${app.id}/documents`);
-          setExistingDocs(docsRes.data);
-          if (STATUS_CONFIG[app.status]?.showReupload) {
-            setStep("reupload");
-          } else if (docsRes.data.length < 3) {
-            setStep("documents");
+    Promise.all([
+      api.get("/applications"),
+      api.get("/application-config/active"),
+    ])
+      .then(
+        async ([applicationsRes, configRes]) => {
+          const applications =
+            applicationsRes.data;
+          const currentConfig =
+            configRes.data;
+          setActiveConfig(currentConfig);
+          const currentApp =
+            applications.find(
+              (app) =>
+                app.config_id ===
+                currentConfig.id
+            );
+          if (currentApp) {
+            const app = currentApp;
+            setExistingApp(app);
+            setApplicationId(app.id);
+            setForm({
+              schoolName:
+                app.school_name ?? "",
+              course:
+                app.course ?? "",
+              yearLevel:
+                app.year_level ?? "",
+            });
+            const docsRes = await api.get(
+              `/applications/${app.id}/documents`
+            );
+            setExistingDocs(docsRes.data);
+            if (
+              STATUS_CONFIG[app.status]
+                ?.showReupload
+            ) {
+              setStep("reupload");
+            } else if (
+              docsRes.data.length < 3
+            ) {
+              setStep("documents");
+            } else {
+              setStep("done");
+            }
           } else {
-            setStep("done");
-          }
-        } else {
-          const draft = localStorage.getItem(DRAFT_STORAGE_KEY);
-          if (draft) {
-            try { setForm(JSON.parse(draft)); } catch { }
+            const draft =
+              localStorage.getItem(
+                DRAFT_STORAGE_KEY
+              );
+            if (draft) {
+              try {
+                setForm(
+                  JSON.parse(draft)
+                );
+              } catch {
+                // ignore invalid draft
+              }
+            }
           }
         }
-      })
+      )
       .catch(() => { })
-      .finally(() => setCheckingApp(false));
+      .finally(() =>
+        setCheckingApp(false)
+      );
   }, []);
+
+  // Auto-refresh while sitting on the "done" screen waiting for OCR to
+  // finish — this is specifically the moment an applicant just
+  // submitted and needs to see, without manually refreshing, whether
+  // an auto-reupload got flagged. Deliberately narrow in scope:
+  // - Only polls while step === "done" AND the application is still
+  //   "pending_prescreening" (OCR actively processing) — never while
+  //   the applicant is actively filling the documents/reupload forms,
+  //   so an in-progress upload is never disturbed by a background
+  //   refetch.
+  // - Only ever moves step forward to "reupload" if the poll detects
+  //   that's needed — the same one-directional transition the initial
+  //   load effect above already makes, just checked repeatedly instead
+  //   of once. Never moves step backward or touches form state.
+  // - Self-terminating: once the application's status leaves
+  //   "pending_prescreening" (resolved either way), `enabled` below
+  //   recalculates to false and polling stops on its own.
+  const pollForApplicationUpdate = useCallback(async () => {
+    if (!existingApp) return;
+    try {
+      const res = await api.get("/applications");
+      const updated = res.data.find((a) => a.id === existingApp.id);
+      if (!updated) return;
+
+      if (STATUS_CONFIG[updated.status]?.showReupload) {
+        const docsRes = await api.get(
+          `/applications/${updated.id}/documents`
+        );
+        setExistingApp(updated);
+        setExistingDocs(docsRes.data);
+        setStep("reupload");
+      } else if (updated.status !== existingApp.status) {
+        // Status moved forward without needing a reupload (e.g. to
+        // for_review/approved) — keep the stored app in sync so any
+        // read-only status display is accurate, without changing step.
+        setExistingApp(updated);
+      }
+    } catch {
+      // Silent — a failed poll tick just tries again on the next one.
+    }
+  }, [existingApp]);
+
+  usePolling(pollForApplicationUpdate, {
+    intervalMs: 10000,
+    enabled: step === "done" && existingApp?.status === "pending_prescreening",
+  });
 
   useEffect(() => {
-    api.get("/profile").then((res) => setProfile(res.data.profile)).catch(() => { });
+    api
+      .get("/profile")
+      .then((res) =>
+        setProfile(res.data.profile)
+      )
+      .catch(() => { });
   }, []);
 
-  const isMinor = profile?.is_minor ?? false;
-  const DOC_FIELDS = getDocFields(isMinor);
-  const isProfileComplete = profile?.is_profile_complete ?? false;
-  const isAutoReupload = existingApp?.status === "auto_reupload_requested";
-  const reuploadDetails = existingApp?.latest_verifier_action?.reupload_details ?? [];
+  const isMinor =
+    profile?.is_minor ?? false;
+  const DOC_FIELDS =
+    getDocFields(isMinor);
+  const isProfileComplete =
+    profile?.is_profile_complete ??
+    false;
+  const isAutoReupload =
+    existingApp?.status ===
+    "auto_reupload_requested";
+  const reuploadDetails =
+    existingApp
+      ?.latest_verifier_action
+      ?.reupload_details ?? [];
 
   function isFieldFlagged(field) {
-    const doc = existingDocs.find((d) => d.document_type === field.type);
-    if (isAutoReupload) return !!doc?.needs_auto_reupload;
-    return reuploadDetails.some((r) => r.document_type === field.type);
-  }
-  function flaggedReasonFor(field) {
-    const doc = existingDocs.find((d) => d.document_type === field.type);
+    const doc = existingDocs.find(
+      (item) =>
+        item.document_type ===
+        field.type
+    );
     if (isAutoReupload) {
-      return doc?.needs_auto_reupload ? { reason: doc.auto_reupload_reason } : null;
+      return !!doc?.needs_auto_reupload;
     }
-    return reuploadDetails.find((r) => r.document_type === field.type);
+    return reuploadDetails.some(
+      (item) =>
+        item.document_type ===
+        field.type
+    );
   }
 
-  const missingReuploadFields = DOC_FIELDS.filter((field) => {
-    const hasNewFile = !!reuploadFiles[field.key];
-    return isFieldFlagged(field) && !hasNewFile;
-  });
-  const isReuploadDisabled = missingReuploadFields.length > 0;
+  function flaggedReasonFor(field) {
+    const doc = existingDocs.find(
+      (item) =>
+        item.document_type ===
+        field.type
+    );
+    if (isAutoReupload) {
+      return doc?.needs_auto_reupload
+        ? {
+          reason:
+            doc.auto_reupload_reason,
+        }
+        : null;
+    }
+    return reuploadDetails.find(
+      (item) =>
+        item.document_type ===
+        field.type
+    );
+  }
+
+  const missingReuploadFields =
+    DOC_FIELDS.filter((field) => {
+      const hasNewFile =
+        !!reuploadFiles[field.key];
+      return (
+        isFieldFlagged(field) &&
+        !hasNewFile
+      );
+    });
+  const isReuploadDisabled =
+    missingReuploadFields.length > 0;
 
   function handleSaveDraft() {
-    localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(form));
+    localStorage.setItem(
+      DRAFT_STORAGE_KEY,
+      JSON.stringify(form)
+    );
     setDraftSaved(true);
-    setTimeout(() => setDraftSaved(false), 2500);
+    setTimeout(() => {
+      setDraftSaved(false);
+    }, 2500);
   }
 
   async function handleSubmitForm(e) {
@@ -216,18 +507,50 @@ function ApplicantSubmission() {
     setError("");
     setLoading(true);
     try {
-      const payload = { school_name: form.schoolName, course: form.course, year_level: form.yearLevel };
+      const payload = {
+        school_name:
+          form.schoolName,
+        course:
+          form.course,
+        year_level:
+          form.yearLevel,
+      };
       if (applicationId) {
-        await api.put(`/applications/${applicationId}`, payload);
+        await api.put(
+          `/applications/${applicationId}`,
+          payload
+        );
       } else {
-        const res = await api.post("/applications", payload);
-        setApplicationId(res.data.application.id);
+        const res = await api.post(
+          "/applications",
+          payload
+        );
+        setApplicationId(
+          res.data.application.id
+        );
       }
-      setStep(STATUS_CONFIG[existingApp?.status]?.showReupload ? "reupload" : "documents");
-      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      setStep(
+        STATUS_CONFIG[
+          existingApp?.status
+        ]?.showReupload
+          ? "reupload"
+          : "documents"
+      );
+      localStorage.removeItem(
+        DRAFT_STORAGE_KEY
+      );
     } catch (err) {
-      const errors = err.response?.data?.errors;
-      setError(errors ? Object.values(errors).flat().join(" ") : err.response?.data?.message || "Failed to submit application.");
+      const errors =
+        err.response?.data?.errors;
+      setError(
+        errors
+          ? Object.values(errors)
+            .flat()
+            .join(" ")
+          : err.response?.data
+            ?.message ||
+          "Failed to submit application."
+      );
     } finally {
       setLoading(false);
     }
@@ -237,40 +560,94 @@ function ApplicantSubmission() {
     e.preventDefault();
     setError("");
     if (!attestationChecked) {
-      setError("You must certify that your documents are true, accurate, and unaltered before submitting.");
+      setError(
+        "You must certify that your documents are true, accurate, and unaltered before submitting."
+      );
       return;
     }
-    if (!files.enrollment || !files.schoolId || !files.voters) {
-      setError("Please upload all three required documents.");
+    if (
+      !files.enrollment ||
+      !files.schoolId ||
+      !files.voters
+    ) {
+      setError(
+        "Please upload all three required documents."
+      );
       return;
     }
     setLoading(true);
-    const uploadDoc = async (file, documentType, label) => {
-      setUploadProgress(`Uploading ${label}...`);
-      const formData = new FormData();
+    const uploadDoc = async (
+      file,
+      documentType,
+      label
+    ) => {
+      setUploadProgress(
+        `Uploading ${label}...`
+      );
+      const formData =
+        new FormData();
       formData.append("file", file);
-      formData.append("document_type", documentType);
-      await api.post(`/applications/${applicationId}/documents`, formData);
+      formData.append(
+        "document_type",
+        documentType
+      );
+      await api.post(
+        `/applications/${applicationId}/documents`,
+        formData
+      );
     };
     try {
-      await uploadDoc(files.enrollment, "registration_form", "Registration Form");
-      await uploadDoc(files.schoolId, "school_id", "School ID");
-      await uploadDoc(files.voters, "voters_certificate", "Voter's Certificate");
-      await api.put(`/applications/${applicationId}`, {
-        school_name: form.schoolName,
-        course: form.course,
-        year_level: form.yearLevel,
-        attestation_accepted: true,
-      });
-      const docsRes = await api.get(`/applications/${applicationId}/documents`);
+      await uploadDoc(
+        files.enrollment,
+        "registration_form",
+        "Registration Form"
+      );
+      await uploadDoc(
+        files.schoolId,
+        "school_id",
+        "School ID"
+      );
+      await uploadDoc(
+        files.voters,
+        "voters_certificate",
+        "Voter's Certificate"
+      );
+      await api.put(
+        `/applications/${applicationId}`,
+        {
+          school_name:
+            form.schoolName,
+          course:
+            form.course,
+          year_level:
+            form.yearLevel,
+          attestation_accepted: true,
+        }
+      );
+      const docsRes = await api.get(
+        `/applications/${applicationId}/documents`
+      );
       setExistingDocs(docsRes.data);
       setUploadProgress("");
-      setSuccess("Application and documents submitted successfully! Your documents are being processed.");
+      setSuccess(
+        "Application and documents submitted successfully! Your documents are being processed."
+      );
       setStep("done");
     } catch (err) {
       setUploadProgress("");
-      const errors = err.response?.data?.errors;
-      setError(errors ? "Upload failed: " + Object.values(errors).flat().join(" ") : `Upload failed: ${err.response?.data?.message || "Please check your files and try again."}`);
+      const errors =
+        err.response?.data?.errors;
+      setError(
+        errors
+          ? "Upload failed: " +
+          Object.values(errors)
+            .flat()
+            .join(" ")
+          : `Upload failed: ${err.response?.data
+            ?.message ||
+          "Please check your files and try again."
+          }`
+      );
     } finally {
       setLoading(false);
     }
@@ -280,160 +657,337 @@ function ApplicantSubmission() {
     e.preventDefault();
     setError("");
     if (isReuploadDisabled) {
-      const missingLabels = missingReuploadFields.map((f) => f.label).join(", ");
-      setError(`You must upload all documents flagged for corrections. Missing: ${missingLabels}`);
+      const missingLabels =
+        missingReuploadFields
+          .map((field) => field.label)
+          .join(", ");
+      setError(
+        `You must upload all documents flagged for corrections. Missing: ${missingLabels}`
+      );
       return;
     }
     setLoading(true);
-    const reuploadDoc = async (file, docType, label) => {
+    const reuploadDoc = async (
+      file,
+      docType,
+      label
+    ) => {
       if (!file) return;
-      const existingDoc = existingDocs.find((d) => d.document_type === docType);
+      const existingDoc =
+        existingDocs.find(
+          (doc) =>
+            doc.document_type ===
+            docType
+        );
       if (!existingDoc) return;
-      setUploadProgress(`Re-uploading ${label}...`);
-      const formData = new FormData();
+      setUploadProgress(
+        `Re-uploading ${label}...`
+      );
+      const formData =
+        new FormData();
       formData.append("file", file);
-      await api.post(`/applications/${applicationId}/documents/${existingDoc.id}/reupload`, formData);
+      await api.post(
+        `/applications/${applicationId}/documents/${existingDoc.id}/reupload`,
+        formData
+      );
     };
     try {
-      await reuploadDoc(reuploadFiles.enrollment, "registration_form", "Registration Form");
-      await reuploadDoc(reuploadFiles.schoolId, "school_id", "School ID");
-      await reuploadDoc(reuploadFiles.voters, "voters_certificate", "Voter's Certificate");
-      const docsRes = await api.get(`/applications/${applicationId}/documents`);
+      await reuploadDoc(
+        reuploadFiles.enrollment,
+        "registration_form",
+        "Registration Form"
+      );
+      await reuploadDoc(
+        reuploadFiles.schoolId,
+        "school_id",
+        "School ID"
+      );
+      await reuploadDoc(
+        reuploadFiles.voters,
+        "voters_certificate",
+        "Voter's Certificate"
+      );
+      const docsRes = await api.get(
+        `/applications/${applicationId}/documents`
+      );
       setExistingDocs(docsRes.data);
       setUploadProgress("");
-      setSuccess("Documents re-uploaded successfully! Your application is being re-processed.");
+      setSuccess(
+        "Documents re-uploaded successfully! Your application is being re-processed."
+      );
       setStep("done");
     } catch (err) {
       setUploadProgress("");
-      setError(`Re-upload failed: ${err.response?.data?.message || "Please try again."}`);
+      setError(
+        `Re-upload failed: ${err.response?.data
+          ?.message ||
+        "Please try again."
+        }`
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  if (checkingApp) {
-    return (
-      <div>
-        <ApplicantNavigation />
-        <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
-          <div className="spinner-border text-danger" role="status" />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div>
+    <div className="applicant-layout">
       <ApplicantNavigation />
-      <section className="page-section">
-        <div className="container">
-          <div className="page-card">
-            <h3 className="section-title">Application Submission</h3>
-            <p className="text-muted mb-4">
-              Complete the educational information and upload the required supporting documents for verification.
-            </p>
-            {error && <div className="alert alert-danger">{error}</div>}
-            {success && <div className="alert alert-success">{success}</div>}
-
-            {step === "done" && (
-              <DoneStepSummary
-                success={success}
-                existingApp={existingApp}
-                form={form}
-                DOC_FIELDS={DOC_FIELDS}
-                existingDocs={existingDocs}
-                docUrls={docUrls}
-                setPreviewFile={setPreviewFile}
-              />
-            )}
-
-            {step === "reupload" && (
-              <ReuploadStep
-                existingApp={existingApp}
-                existingDocs={existingDocs}
-                DOC_FIELDS={DOC_FIELDS}
-                isAutoReupload={isAutoReupload}
-                reuploadFiles={reuploadFiles}
-                reuploadFileErrors={reuploadFileErrors}
-                setReupload={setReupload}
-                isFieldFlagged={isFieldFlagged}
-                flaggedReasonFor={flaggedReasonFor}
-                isReuploadDisabled={isReuploadDisabled}
-                missingReuploadFields={missingReuploadFields}
-                handleReupload={handleReupload}
-                handleViewFile={handleViewFile}
-                loading={loading}
-                uploadProgress={uploadProgress}
-                activeConfig={activeConfig}
-                isMinor={isMinor}
-                applicationId={applicationId}
-                setStep={setStep}
-              />
-            )}
-
-            {periodStatus === "scheduled" && activeConfig && (
-              <div className="alert alert-warning">
-                <strong>Applications are not open yet.</strong> This application period opens on{" "}
-                {new Date(activeConfig.open_date).toLocaleString("en-PH", {
-                  month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit",
-                })}
-                . You can fill in your information now and use <strong>Save Draft</strong> to keep it on this
-                device — submissions will not be accepted until the period opens.
-              </div>
-            )}
-            {periodStatus === "closed" && activeConfig && (
-              <div className="alert alert-warning">
-                <strong>This application period has closed.</strong> New submissions are no longer being accepted.
-              </div>
-            )}
-
-            {step === "form" && (
-              <FormStep
-                form={form}
-                setForm={setForm}
-                onSubmit={handleSubmitForm}
-                loading={loading}
-                draftSaved={draftSaved}
-                onSaveDraft={handleSaveDraft}
-                applicationId={applicationId}
-                periodStatus={periodStatus}
-                onCancel={STATUS_CONFIG[existingApp?.status]?.showReupload ? () => setStep("reupload") : undefined}
-              />
-            )}
-
-            {step === "documents" && (
-              <DocumentUploadStep
-                isProfileComplete={isProfileComplete}
-                activeConfig={activeConfig}
-                isMinor={isMinor}
-                DOC_FIELDS={DOC_FIELDS}
-                files={files}
-                fileErrors={fileErrors}
-                setFile={setFile}
-                attestationChecked={attestationChecked}
-                setAttestationChecked={setAttestationChecked}
-                uploadProgress={uploadProgress}
-                loading={loading}
-                onBack={() => setStep("form")}
-                onSubmit={handleUploadDocuments}
-              />
-            )}
-
-            <ApplicationHistoryList
-              applicationHistory={applicationHistory}
-              onViewFile={handleViewHistoricalFile}
-            />
+      <div className="applicant-main">
+        <div className="applicant-topbar">
+          <ApplicantTopbarUser />
+        </div>
+        <section className="page-section">
+          <div className="container-fluid">
+            <div className="applicant-dashboard-header">
+              <h3 className="applicant-dashboard-title">
+                Application Submission
+              </h3>
+              <p className="applicant-dashboard-desc">
+                Complete the educational information and upload the required supporting documents for verification.
+              </p>
+            </div>
+            <div className="page-card">
+              {checkingApp ? (
+                <div className="d-flex justify-content-center align-items-center py-5">
+                  <div
+                    className="spinner-border text-danger"
+                    role="status"
+                  />
+                </div>
+              ) : (
+                <>
+                  {error && (
+                    <div className="alert alert-danger">
+                      {error}
+                    </div>
+                  )}
+                  {success && (
+                    <div className="alert alert-success">
+                      {success}
+                    </div>
+                  )}
+                  {step === "done" && (
+                    <DoneStepSummary
+                      success={success}
+                      existingApp={existingApp}
+                      form={form}
+                      DOC_FIELDS={DOC_FIELDS}
+                      existingDocs={existingDocs}
+                      docUrls={docUrls}
+                      setPreviewFile={setPreviewFile}
+                    />
+                  )}
+                  {step === "reupload" && (
+                    <ReuploadStep
+                      existingApp={existingApp}
+                      existingDocs={existingDocs}
+                      DOC_FIELDS={DOC_FIELDS}
+                      isAutoReupload={isAutoReupload}
+                      reuploadFiles={reuploadFiles}
+                      reuploadFileErrors={reuploadFileErrors}
+                      setReupload={setReupload}
+                      isFieldFlagged={isFieldFlagged}
+                      flaggedReasonFor={flaggedReasonFor}
+                      isReuploadDisabled={isReuploadDisabled}
+                      missingReuploadFields={missingReuploadFields}
+                      handleReupload={handleReupload}
+                      handleViewFile={handleViewFile}
+                      loading={loading}
+                      uploadProgress={uploadProgress}
+                      activeConfig={activeConfig}
+                      isMinor={isMinor}
+                      applicationId={applicationId}
+                      setStep={setStep}
+                    />
+                  )}
+                  {periodStatus ===
+                    "scheduled" &&
+                    activeConfig && (
+                      <div className="alert alert-warning">
+                        <strong>
+                          Applications are not
+                          open yet.
+                        </strong>{" "}
+                        This application period
+                        opens on{" "}
+                        {new Date(
+                          activeConfig.open_date
+                        ).toLocaleString(
+                          "en-PH",
+                          {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          }
+                        )}
+                        . You can fill in your
+                        information now and use{" "}
+                        <strong>
+                          Save Draft
+                        </strong>{" "}
+                        to keep it on this device
+                        — submissions will not be
+                        accepted until the period
+                        opens.
+                      </div>
+                    )}
+                  {periodStatus ===
+                    "closed" &&
+                    activeConfig && (
+                      <div className="alert alert-warning">
+                        <strong>
+                          This application period
+                          has closed.
+                        </strong>{" "}
+                        New submissions are no
+                        longer being accepted.
+                      </div>
+                    )}
+                  {step === "form" && (
+                    <FormStep
+                      form={form}
+                      setForm={setForm}
+                      onSubmit={
+                        handleSubmitForm
+                      }
+                      loading={loading}
+                      draftSaved={draftSaved}
+                      onSaveDraft={
+                        handleSaveDraft
+                      }
+                      applicationId={
+                        applicationId
+                      }
+                      periodStatus={
+                        periodStatus
+                      }
+                      onCancel={
+                        STATUS_CONFIG[
+                          existingApp?.status
+                        ]?.showReupload
+                          ? () =>
+                            setStep(
+                              "reupload"
+                            )
+                          : undefined
+                      }
+                    />
+                  )}
+                  {step === "documents" &&
+                    (!isProfileComplete ? (
+                      <div className="profile-completion-card">
+                        <div className="profile-completion-icon">
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+                            <circle
+                              cx="12"
+                              cy="7"
+                              r="4"
+                            />
+                            <path d="M19 8v6" />
+                            <path d="M16 11h6" />
+                          </svg>
+                        </div>
+                        <div className="profile-completion-content">
+                          <div className="profile-completion-heading">
+                            <h4>
+                              Complete Your Profile
+                            </h4>
+                            <span className="profile-completion-badge">
+                              Required
+                            </span>
+                          </div>
+                          <p>
+                            Before uploading your
+                            documents, please
+                            complete your personal
+                            information so your
+                            educational assistance
+                            application can be
+                            processed correctly.
+                          </p>
+                          <div className="profile-completion-details">
+                            <span>
+                              ✓ Address
+                            </span>
+                            <span>
+                              ✓ Gender
+                            </span>
+                            <span>
+                              ✓ Civil Status
+                            </span>
+                            <span>
+                              ✓ Required Personal
+                              Information
+                            </span>
+                          </div>
+                          <Link
+                            to="/ApplicantProfile"
+                            state={{ from: "submission" }}
+                            className="btn profile-completion-btn"
+                          >
+                            Complete Profile
+                            <span>→</span>
+                          </Link>
+                        </div>
+                      </div>
+                    ) : (
+                      <DocumentUploadStep
+                        isProfileComplete={
+                          isProfileComplete
+                        }
+                        activeConfig={
+                          activeConfig
+                        }
+                        isMinor={isMinor}
+                        DOC_FIELDS={
+                          DOC_FIELDS
+                        }
+                        files={files}
+                        fileErrors={
+                          fileErrors
+                        }
+                        setFile={setFile}
+                        attestationChecked={
+                          attestationChecked
+                        }
+                        setAttestationChecked={
+                          setAttestationChecked
+                        }
+                        uploadProgress={
+                          uploadProgress
+                        }
+                        loading={loading}
+                        onBack={() =>
+                          setStep("form")
+                        }
+                        onSubmit={
+                          handleUploadDocuments
+                        }
+                      />
+                    ))}
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
-
-      <FilePreviewModal previewFile={previewFile} onClose={() => setPreviewFile(null)} />
-
-      <footer>
-        <div className="container">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance Application System</p>
-        </div>
-      </footer>
+        </section>
+        <PanelFooter />
+      </div>
+      <FilePreviewModal
+        previewFile={previewFile}
+        onClose={() =>
+          setPreviewFile(null)
+        }
+      />
     </div>
   );
 }

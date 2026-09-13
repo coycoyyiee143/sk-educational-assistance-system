@@ -1,6 +1,7 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
+import GuestRoute from "./components/GuestRoute";
 
 import Home from "./public/pages/Home";
 import Requirements from "./public/pages/Requirements";
@@ -10,6 +11,8 @@ import Login from "./public/pages/Login";
 import Register from "./public/pages/Register";
 import VerifyEmail from "./public/pages/VerifyEmail.jsx";
 import VerifyEmailNotice from "./public/pages/VerifyEmailNotice";
+import ForgotPassword from "./public/pages/ForgotPassword";
+import PersonnelSetup from "./public/pages/PersonnelSetup";
 
 import AdminDashboard from "./admin/pages/AdminDashboard";
 import AdminUsers from "./admin/pages/AdminUsers";
@@ -36,20 +39,35 @@ import ApplicantSubmission from "./applicant/pages/ApplicantSubmission.jsx";
 import ApplicantStatus from "./applicant/pages/ApplicantStatus.jsx";
 import ApplicantClaimingSchedule from "./applicant/pages/ApplicantClaimingSchedule.jsx";
 
+
 function App() {
   return (
     <BrowserRouter>
       <Routes>
 
         {/* Public */}
-        <Route path="/" element={<Home />} />
-        <Route path="/requirements" element={<Requirements />} />
-        <Route path="/announcements" element={<Announcements />} />
-        <Route path="/events" element={<Events />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        <Route path="/" element={
+          <GuestRoute><Home /></GuestRoute>
+        } />
+        <Route path="/requirements" element={
+          <GuestRoute><Requirements /></GuestRoute>
+        } />
+        <Route path="/announcements" element={
+          <GuestRoute><Announcements /></GuestRoute>
+        } />
+        <Route path="/events" element={
+          <GuestRoute><Events /></GuestRoute>
+        } />
+        <Route path="/login" element={
+          <GuestRoute><Login /></GuestRoute>
+        } />
+        <Route path="/register" element={
+          <GuestRoute><Register /></GuestRoute>
+        } />
         <Route path="/verify-email/:id/:hash" element={<VerifyEmail />} />
         <Route path="/verify-email-notice" element={<VerifyEmailNotice />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/personnel/setup/:token" element={<PersonnelSetup />} />
 
         {/* Admin */}
         <Route path="/AdminDashboard" element={

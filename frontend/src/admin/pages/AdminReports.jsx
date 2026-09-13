@@ -5,79 +5,92 @@ import ApplicantProfileSection from "../components/ApplicantProfileSection";
 import VerificationOutcomesSection from "../components/VerificationOutcomesSection";
 import DisbursementReportSection from "../components/DisbursementReportSection";
 import api from "../../services/api";
-
+import PanelFooter from "../../components/PanelFooter";
 function AdminReports() {
   const [periods, setPeriods] = useState([]);
   const [selectedConfigId, setSelectedConfigId] = useState("");
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     api.get("/admin/reports/periods")
       .then((res) => {
         setPeriods(res.data);
         const active = res.data.find((p) => p.is_active);
-        setSelectedConfigId(active ? String(active.id) : (res.data[0] ? String(res.data[0].id) : ""));
+        setSelectedConfigId(active ? String(active.id) : res.data[0] ? String(res.data[0].id) : "");
       })
       .finally(() => setLoading(false));
   }, []);
-
   if (loading) {
     return (
-      <div>
+      <div className="admin-layout">
         <AdminNavigation />
-        <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
-          <div className="spinner-border text-danger" role="status" />
+        <div className="admin-main">
+          <div className="admin-topbar">
+            <div className="admin-topbar-user">
+              <div className="admin-topbar-user-text">
+                <span className="admin-topbar-user-name">Admin User</span>
+                <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
+              </div>
+              <div className="admin-topbar-avatar"></div>
+            </div>
+          </div>
+          <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
+            <div className="spinner-border text-danger" role="status" />
+          </div>
+          <PanelFooter />
         </div>
       </div>
     );
   }
-
   return (
-    <div>
+    <div className="admin-layout">
       <AdminNavigation />
-      <section className="page-section">
-        <div className="container">
-
-          <div className="page-card">
-            <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
-              <div>
-                <h3 className="section-title mb-2">Reports</h3>
-                <p className="text-muted mb-0">
-                  Applicant statistics, verification outcomes, and budget planning tools for the
-                  educational assistance program.
-                </p>
+      <div className="admin-main">
+        <div className="admin-topbar">
+          <div className="admin-topbar-user">
+            <div className="admin-topbar-user-text">
+              <span className="admin-topbar-user-name">Admin User</span>
+              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
+            </div>
+            <div className="admin-topbar-avatar"></div>
+          </div>
+        </div>
+        <section className="page-section">
+          <div className="container-fluid">
+            <div className="page-card">
+              <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                  <h3 className="section-title mb-2">Reports</h3>
+                  <p className="text-muted mb-0">Applicant statistics, verification outcomes, and budget planning tools for the educational assistance program.</p>
+                </div>
+                <div style={{ minWidth: "220px" }}>
+                  <label className="form-label small text-muted mb-1">Viewing Period</label>
+                  <select className="form-select" value={selectedConfigId} onChange={(e) => setSelectedConfigId(e.target.value)}>
+                    {periods.map((p) => (
+                      <option key={p.id} value={p.id}>{p.school_year}{p.is_active ? " (Active)" : ""}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div style={{ minWidth: "220px" }}>
-                <label className="form-label small text-muted mb-1">Viewing Period</label>
-                <select className="form-select" value={selectedConfigId} onChange={(e) => setSelectedConfigId(e.target.value)}>
-                  {periods.map((p) => (
-                    <option key={p.id} value={p.id}>{p.school_year}{p.is_active ? " (Active)" : ""}</option>
-                  ))}
-                </select>
+            </div>
+            <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
+            <div className="report-profile-layout-grid">
+              <ApplicantProfileSection selectedConfigId={selectedConfigId} section="school" />
+              <ApplicantProfileSection selectedConfigId={selectedConfigId} section="age" />
+              <VerificationOutcomesSection selectedConfigId={selectedConfigId} section="issues" />
+              <ApplicantProfileSection selectedConfigId={selectedConfigId} section="purok" />
+            </div>
+            <VerificationOutcomesSection selectedConfigId={selectedConfigId} section="claiming" />
+            <DisbursementReportSection selectedConfigId={selectedConfigId} />
+            <div className="page-card">
+              <div className="d-flex justify-content-end flex-wrap gap-3">
+                <a href="/AdminBudgetPlanning" className="btn btn-custom">Go to Budget Planning →</a>
               </div>
             </div>
           </div>
-
-          <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
-          <ApplicantProfileSection selectedConfigId={selectedConfigId} />
-          <VerificationOutcomesSection selectedConfigId={selectedConfigId} />
-          <DisbursementReportSection selectedConfigId={selectedConfigId} />
-
-          <div className="page-card">
-            <div className="d-flex justify-content-end flex-wrap gap-3">
-              <a href="/AdminBudgetPlanning" className="btn btn-custom">Go to Budget Planning →</a>
-            </div>
-          </div>
-
-        </div>
-      </section>
-      <footer>
-        <div className="container">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Admin Panel</p>
-        </div>
-      </footer>
+        </section>
+        <PanelFooter />
+      </div>
     </div>
   );
 }
-
 export default AdminReports;

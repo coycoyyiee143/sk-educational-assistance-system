@@ -1,118 +1,365 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { getApplicationPeriodStatus } from "../../utils/applicationPeriod";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import AnnouncementsCard from "../components/AnnouncementsCard";
+import PanelFooter from "../../components/PanelFooter";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import { STATUS_CONFIG } from "../../components/StatusConstants";
+import ApplicantTopbarUser from "../components/ApplicantTopbarUser";
+import ApplicationHistoryList from "../components/ApplicationHistoryList";
 
 function ApplicantDashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
   const [application, setApplication] = useState(null);
+  const [applicationHistory, setApplicationHistory] = useState([]);
   const [config, setConfig] = useState(null);
   const [loadingApp, setLoadingApp] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(true);
+
+  // Shown once per login session — remembered via sessionStorage so
+  // navigating between dashboard visits within the same login doesn't
+  // keep re-triggering it, but a fresh login (new tab/session) will.
+  const [showPrivacyModal, setShowPrivacyModal] = useState(
+    () => !sessionStorage.getItem("privacyNoticeShown")
+  );
+
   const periodStatus = getApplicationPeriodStatus(config);
 
+  function handleAgreePrivacy() {
+    sessionStorage.setItem("privacyNoticeShown", "1");
+    setShowPrivacyModal(false);
+  }
+
+  function handleExitPrivacy() {
+    logout();
+    navigate("/login");
+  }
+
   useEffect(() => {
-    Promise.all([api.get("/applications"), api.get("/application-config/active")])
+    Promise.all([
+      api.get("/applications"),
+      api.get("/application-config/active"),
+    ])
       .then(([applicationsRes, configRes]) => {
+        const applications = applicationsRes.data;
         const currentConfig = configRes.data;
+
         setApplication(
-          applicationsRes.data.find((app) => app.config_id === currentConfig.id) ?? null,
+          applications.find(
+            (app) => app.config_id === currentConfig.id
+          ) ?? null
+        );
+        setApplicationHistory(
+          applications.filter(
+            (app) => app.config_id !== currentConfig.id
+          )
         );
       })
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => setLoadingApp(false));
 
-    api.get("/application-config/active")
+    api
+      .get("/application-config/active")
       .then((res) => setConfig(res.data))
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => setLoadingConfig(false));
   }, []);
 
-  const currentStatusConfig = application ? STATUS_CONFIG[application.status] : null;
+  async function handleViewHistoricalFile(appId, docId) {
+    try {
+      const res = await api.get(
+        `/applications/${appId}/documents/${docId}/file`,
+        { responseType: "blob" }
+      );
+      const url = URL.createObjectURL(res.data);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      alert("Failed to load document.");
+    }
+  }
+
+  const currentStatusConfig = application
+    ? STATUS_CONFIG[application.status]
+    : null;
 
   return (
-    <div>
+    <div className="applicant-layout">
       <ApplicantNavigation />
 
-      <section className="dashboard-section">
-        <div className="container">
+      <div className="applicant-main">
+        <div className="applicant-topbar">
+          <ApplicantTopbarUser />
+        </div>
 
-          <div className="welcome-box">
-            <h3 className="section-title mb-2">Applicant Dashboard</h3>
-            <p className="mb-0">Welcome back, {user?.first_name}! Monitor your application status and recent updates.</p>
-          </div>
+        <section className="page-section">
+          <div className="container-fluid">
 
-          <div className="row g-4">
+            <div className="applicant-dashboard-header">
+              <h3 className="applicant-dashboard-title">
+                Applicant Dashboard
+              </h3>
 
-            {/* Application Status */}
-            <div className="col-md-6">
-              <div className="dashboard-card">
-                <h5>Current Application Status</h5>
-                {loadingApp ? (
-                  <div className="spinner-border spinner-border-sm text-danger" />
-                ) : application ? (
-                  <>
-                    <span className={`badge ${currentStatusConfig?.badgeClass ?? "status-pending"} mb-2`}>
-                      {currentStatusConfig?.applicantLabel ?? application.status}
+              <p className="applicant-dashboard-desc">
+                Welcome back, {user?.first_name}! Monitor your application
+                status and recent updates.
+              </p>
+            </div>
+
+            <div className="row g-4">
+
+              <div className="col-md-6">
+                <div className="page-card h-100">
+                  <div className="d-flex justify-content-between align-items-start mb-3">
+                    <h4 className="sub-title sub-title-dark mb-0">
+                      Current Application Status
+                    </h4>
+
+                    <div className="admin-mgmt-icon admin-mgmt-icon-red">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M9 11l3 3L22 4" />
+                        <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {loadingApp ? (
+                    <div className="spinner-border spinner-border-sm text-danger" />
+                  ) : application ? (
+                    <>
+                      <span
+                        className={`badge ${
+                          currentStatusConfig?.badgeClass ?? "status-pending"
+                        } mb-2`}
+                      >
+                        {currentStatusConfig?.applicantLabel ??
+                          application.status}
+                      </span>
+
+                      <p className="mb-0 text-muted">
+                        {currentStatusConfig?.applicantMessage ??
+                          "Your application is currently being processed."}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted mb-0">
+                      You have not submitted an application yet.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="col-md-6">
+                <div className="page-card h-100">
+                  <div className="d-flex justify-content-between align-items-start mb-3">
+                    <h4 className="sub-title sub-title-dark mb-0">
+                      Application Period
+                    </h4>
+
+                    <div className="admin-mgmt-icon admin-mgmt-icon-blue">
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect
+                          x="3"
+                          y="4"
+                          width="18"
+                          height="18"
+                          rx="2"
+                        />
+                        <line x1="16" y1="2" x2="16" y2="6" />
+                        <line x1="8" y1="2" x2="8" y2="6" />
+                        <line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {periodStatus === "open" && (
+                    <span className="badge bg-success mb-2">
+                      Open Now
                     </span>
-                    <p className="mb-0 text-muted">
-                      {currentStatusConfig?.applicantMessage ?? "Your application is currently being processed."}
+                  )}
+
+                  {periodStatus === "scheduled" && (
+                    <span className="badge bg-warning text-dark mb-2">
+                      Not Yet Open
+                    </span>
+                  )}
+
+                  {periodStatus === "closed" && (
+                    <span className="badge bg-secondary mb-2">
+                      Closed
+                    </span>
+                  )}
+
+                  {loadingConfig ? (
+                    <div className="spinner-border spinner-border-sm text-danger" />
+                  ) : config ? (
+                    <>
+                      <p className="mb-1">
+                        <strong>School Year:</strong>{" "}
+                        {config.school_year}
+                      </p>
+
+                      <p className="mb-1">
+                        <strong>Application Period:</strong>{" "}
+                        {new Date(config.open_date).toLocaleDateString(
+                          "en-PH",
+                          {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                          }
+                        )}
+                        {" – "}
+                        {new Date(config.close_date).toLocaleDateString(
+                          "en-PH",
+                          {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                          }
+                        )}
+                      </p>
+
+                      <p className="mb-0">
+                        {config.is_unlimited ? (
+                          <span>
+                            <strong>Slots:</strong> Unlimited — apply anytime
+                            within the period.
+                          </span>
+                        ) : (
+                          <span>
+                            <strong>Slots Available:</strong>{" "}
+                            {config.slot_limit - config.slots_filled} /{" "}
+                            {config.slot_limit}
+                          </span>
+                        )}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted mb-0">
+                      No active application period at this time.
                     </p>
-                  </>
-                ) : (
-                  <p className="text-muted mb-0">You have not submitted an application yet.</p>
-                )}
+                  )}
+                </div>
               </div>
+
+              <div className="col-md-6">
+                <AnnouncementsCard />
+              </div>
+
             </div>
 
-            {/* Active Application Period */}
-            <div className="col-md-6">
-              <div className="dashboard-card">
-                <h5>Application Period</h5>
-                {periodStatus === "open" && <span className="badge bg-success mb-2">Open Now</span>}
-                {periodStatus === "scheduled" && <span className="badge bg-warning text-dark mb-2">Not Yet Open</span>}
-                {periodStatus === "closed" && <span className="badge bg-secondary mb-2">Closed</span>}
-                {loadingConfig ? (
-                  <div className="spinner-border spinner-border-sm text-danger" />
-                ) : config ? (
-                  <>
-                    <p className="mb-1"><strong>School Year:</strong> {config.school_year}</p>
-                    <p className="mb-1">
-                      <strong>Application Period:</strong>{" "}
-                      {new Date(config.open_date).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}
-                      {" – "}
-                      {new Date(config.close_date).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })}
-                    </p>
-                    <p className="mb-0">
-                      {config.is_unlimited ? (
-                        <span><strong>Slots:</strong> Unlimited — apply anytime within the period.</span>
-                      ) : (
-                        <span><strong>Slots Available:</strong> {config.slot_limit - config.slots_filled} / {config.slot_limit}</span>
-                      )}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-muted mb-0">No active application period at this time.</p>
-                )}
-              </div>
-            </div>
+            <ApplicationHistoryList
+              applicationHistory={applicationHistory}
+              onViewFile={handleViewHistoricalFile}
+            />
+          </div>
+        </section>
 
-            {/* Announcements */}
-            <div className="col-md-6">
-              <AnnouncementsCard />
+        <PanelFooter />
+      </div>
+
+      {showPrivacyModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            background: "rgba(17, 24, 39, 0.48)",
+            backdropFilter: "blur(3px)",
+            WebkitBackdropFilter: "blur(3px)",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "580px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "28px 26px",
+              borderRadius: "16px",
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.22)",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <h4 className="text-danger mb-3" style={{ fontWeight: 700 }}>
+              Data Privacy Notice
+            </h4>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              The Sangguniang Kabataan of Barangay Mamatid is committed to
+              protecting your personal data in accordance with the Data
+              Privacy Act of 2012 (RA 10173). Every time you log in to the
+              Educational Assistance System, we ask you to review this
+              notice.
+            </p>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              We collect and process personal information you provide
+              through this system — including your name, birthdate,
+              contact details, uploaded valid ID, and photos — solely to
+              process your application for the Educational Assistance
+              Program, verify your identity, and, where applicable, serve
+              as reference during the claiming of your assistance.
+            </p>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              Your information is accessed only by authorized SK Barangay
+              Mamatid personnel and will not be shared with third parties
+              except when required by law. You may request access,
+              correction, or deletion of your data at any time by
+              contacting the SK office.
+            </p>
+
+            <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
+              By tapping <strong>Agree</strong>, you acknowledge that you
+              have read and understood this notice.
+            </p>
+
+            <div className="d-flex justify-content-end gap-2 mt-3">
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={handleExitPrivacy}
+              >
+                Exit
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleAgreePrivacy}
+              >
+                Agree
+              </button>
             </div>
           </div>
         </div>
-      </section>
-
-      <footer>
-        <div className="container">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance Application System</p>
-        </div>
-      </footer>
+      )}
     </div>
   );
 }

@@ -9,6 +9,7 @@ use App\Models\VerifierAction;
 use App\Models\ClaimingAssignment;
 use App\Models\ClaimingSchedule;
 use App\Models\ClaimingLane;
+use App\Services\ClaimingAssignmentService;
 use App\Traits\GracePeriodEligibility;
 use App\Notifications\ClaimingScheduleNotification;
 use App\Notifications\ApplicationStatusNotification;
@@ -20,35 +21,52 @@ class VerifierController extends Controller
 
     public function stats()
     {
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+
+        if (!$activeConfig) {
+            return response()->json([
+                'pending'  => 0,
+                'review'   => 0,
+                'approved' => 0,
+                'rejected' => 0,
+                'no_active_period' => true,
+            ]);
+        }
+
         return response()->json([
-            'pending'  => Application::whereIn('status', ['pending_prescreening'])->whereHas('documents')->count(),
-            'review'   => Application::where('status', 'for_review')->count(),
-            'approved' => Application::where('status', 'approved')->count(),
-            'rejected' => Application::where('status', 'rejected')->count(),
+            'pending'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening'])->whereHas('documents')->count(),
+            'review'   => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
+            'approved' => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
+            'rejected' => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
+            'no_active_period' => false,
         ]);
     }
 
     public function index(Request $request)
-    {
-        $applications = Application::with(['user', 'verifierActions'])
-            ->whereHas('documents')
-            ->orderBy('updated_at', 'desc')   // CHANGED: was submitted_at — re-uploads now surface by recent activity
-            ->get()
-            ->map(function ($app) {
-                return [
-                    'id'                => $app->id,
-                    'control_number'    => $app->control_number,
-                    'name'              => $app->user->first_name . ' ' . $app->user->last_name,
-                    'submitted_at'      => $app->submitted_at,
-                    'updated_at'        => $app->updated_at,
-                    'status'            => $app->status,
-                    'school_name'       => $app->school_name,
-                    'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
-                ];
-            });
+{
+    $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+    $configId = $request->query('config_id', $activeConfig?->id);
 
-        return response()->json($applications);
-    }
+    $applications = Application::with(['user', 'verifierActions'])
+        ->where('config_id', $configId)
+        ->whereHas('documents')
+        ->orderBy('updated_at', 'desc')   // CHANGED: was submitted_at — re-uploads now surface by recent activity
+        ->get()
+        ->map(function ($app) {
+            return [
+                'id'                => $app->id,
+                'control_number'    => $app->control_number,
+                'name'              => $app->user->first_name . ' ' . $app->user->last_name,
+                'submitted_at'      => $app->submitted_at,
+                'updated_at'        => $app->updated_at,
+                'status'            => $app->status,
+                'school_name'       => $app->school_name,
+                'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
+            ];
+        });
+
+    return response()->json($applications);
+}
 
     public function show($id)
     {
@@ -101,40 +119,73 @@ class VerifierController extends Controller
             "Approved application #{$app->id} ({$app->user->first_name} {$app->user->last_name})"
         );
 
-        // Trigger Approval Notification
-        $app->user->notify(new ApplicationStatusNotification(
-            'Approved',
-            'Congratulations! Your application has been approved. Please wait for announcements regarding the physical document submission and distribution schedule.'
-        ));
+        // Real-time claiming assignment: if the active period already has
+        // an active ClaimingSchedule with room, this applicant is placed
+        // on a lane and notified with their actual claiming date/lane
+        // immediately — no more waiting for a separate bulk "activate"
+        // step to run first. assignToLane() itself sends the
+        // ClaimingScheduleNotification when it succeeds, so we only fall
+        // back to the generic approval notice below when it doesn't (no
+        // active schedule yet, or every lane is currently full — either
+        // way they stay 'approved' and get picked up automatically the
+        // next time a schedule activates or room opens up).
+        $assignment = ClaimingAssignmentService::assignToLane($app);
 
-        return response()->json(['message' => 'Application approved.']);
+        if (!$assignment) {
+            $app->user->notify(new ApplicationStatusNotification(
+                'Approved',
+                'Congratulations! Your application has been approved. Please wait for announcements regarding the physical document submission and distribution schedule.'
+            ));
+        }
+
+        return response()->json([
+            'message'    => 'Application approved.',
+            'assignment' => $assignment,
+        ]);
     }
 
     public function promoteFromWaitlist(Request $request, $configId)
     {
+        $config = ApplicationConfiguration::findOrFail($configId);
+
+        // Promoting from the waitlist only makes sense once the
+        // application period has actually closed — while it's still
+        // open, applicants are still submitting fresh, so a "waitlisted"
+        // applicant hasn't really lost their shot yet. Promoting early
+        // also directly causes a control-number gap: a promoted applicant
+        // consumes the next sequence number but lands on the Grace Period
+        // lane instead of a regular one, splitting what would otherwise
+        // be a clean sequential range for whichever lane was filling at
+        // that moment.
+        if (now()->lt($config->close_date)) {
+            return response()->json([
+                'message' => 'This application period is still open. Waitlist promotion is only available after the Closing Date (' . $config->close_date . ') has passed.',
+            ], 400);
+        }
+
         $outcome = Application::promoteNextFromWaitlist($configId);
-    
+
         if ($outcome['result'] === 'no_waitlist') {
             return response()->json(['message' => 'No waitlisted applicants available to promote.'], 400);
         }
-    
+
         if ($outcome['result'] === 'no_slots') {
             return response()->json(['message' => 'No slots available to promote into.'], 400);
         }
-    
+
         $promoted = $outcome['application'];
-    
+
         \App\Models\AuditLog::record(
             'application_approved',
             $promoted,
             "Promoted application #{$promoted->id} from waitlist ({$promoted->user->first_name} {$promoted->user->last_name})"
         );
-    
+
         $schedule = ClaimingSchedule::where('config_id', $configId)
-            ->where('is_published', true)
+            ->where('is_active', true)
             ->latest()
             ->first();
-    
+
         if ($schedule && $schedule->grace_period_date) {
             $lane = ClaimingLane::firstOrCreate(
                 [
@@ -147,7 +198,7 @@ class VerifierController extends Controller
                     'capacity'      => null,
                 ]
             );
-    
+
             $assignment = ClaimingAssignment::updateOrCreate(
                 ['application_id' => $promoted->id],
                 [
@@ -157,7 +208,7 @@ class VerifierController extends Controller
                     'source'               => 'waitlist_promotion',
                 ]
             );
-    
+
             $promoted->user->notify(new ClaimingScheduleNotification($promoted, $lane, $schedule, $assignment));
         } else {
             $promoted->user->notify(new ApplicationStatusNotification(
@@ -165,38 +216,46 @@ class VerifierController extends Controller
                 'A slot has opened up and your application has now been approved! Please prepare your physical documents for submission.'
             ));
         }
-    
+
         return response()->json(['message' => 'Applicant promoted from waitlist.', 'application' => $promoted]);
     }
-    
+
     public function promoteAllFromWaitlist(Request $request, $configId)
     {
+        $config = ApplicationConfiguration::findOrFail($configId);
+
+        if (now()->lt($config->close_date)) {
+            return response()->json([
+                'message' => 'This application period is still open. Waitlist promotion is only available after the Closing Date (' . $config->close_date . ') has passed.',
+            ], 400);
+        }
+
         $waitlistExists = Application::where('config_id', $configId)
             ->where('status', 'waitlisted')
             ->exists();
-    
+
         if (!$waitlistExists) {
             return response()->json(['message' => 'No waitlisted applicants available to promote.'], 400);
         }
-    
+
         $promotedList = Application::promoteAllFromWaitlist($configId);
-    
+
         if (empty($promotedList)) {
             return response()->json(['message' => 'No slots available to promote into.'], 400);
         }
-    
+
         $schedule = ClaimingSchedule::where('config_id', $configId)
-            ->where('is_published', true)
+            ->where('is_active', true)
             ->latest()
             ->first();
-    
+
         foreach ($promotedList as $promoted) {
             \App\Models\AuditLog::record(
                 'application_approved',
                 $promoted,
                 "Promoted application #{$promoted->id} from waitlist ({$promoted->user->first_name} {$promoted->user->last_name})"
             );
-    
+
             if ($schedule && $schedule->grace_period_date) {
                 $lane = ClaimingLane::firstOrCreate(
                     [
@@ -209,7 +268,7 @@ class VerifierController extends Controller
                         'capacity'      => null,
                     ]
                 );
-    
+
                 $assignment = ClaimingAssignment::updateOrCreate(
                     ['application_id' => $promoted->id],
                     [
@@ -219,7 +278,7 @@ class VerifierController extends Controller
                         'source'               => 'waitlist_promotion',
                     ]
                 );
-    
+
                 $promoted->user->notify(new ClaimingScheduleNotification($promoted, $lane, $schedule, $assignment));
             } else {
                 $promoted->user->notify(new ApplicationStatusNotification(
@@ -228,9 +287,9 @@ class VerifierController extends Controller
                 ));
             }
         }
-    
+
         $count = count($promotedList);
-    
+
         return response()->json([
             'message' => "{$count} applicant(s) promoted from waitlist.",
             'applications' => $promotedList,
@@ -246,11 +305,14 @@ class VerifierController extends Controller
     public function waitlist(Request $request)
     {
         $config = ApplicationConfiguration::where('is_active', true)->first();
-    
+
         if (!$config) {
-            return response()->json(['config_id' => null, 'waitlist' => [], 'not_cleared_count' => 0, 'free_slots' => 0]);
+            return response()->json([
+                'config_id' => null, 'waitlist' => [], 'not_cleared_count' => 0,
+                'free_slots' => 0, 'period_open' => false, 'slots_full' => false,
+            ]);
         }
-    
+
         $waitlisted = Application::with('user')
             ->where('config_id', $config->id)
             ->where('status', 'waitlisted')
@@ -266,23 +328,28 @@ class VerifierController extends Controller
                     'position'      => $index + 1,
                 ];
             });
-    
+
         // Historical count — how many not_cleared outcomes this period has had
         // in total, used only as the denominator for context.
         $notClearedCount = \App\Models\ClaimingAssignment::where('claim_status', 'not_cleared')
             ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
             ->count();
-    
+
         // Live count — slots_filled correctly reflects every promotion
         // (increments) and every not_cleared/unclaimed (decrements), so this
         // is always accurate right now, unlike a static count of past events.
         $freeSlots = $config->is_unlimited ? null : max(0, $config->slot_limit - $config->slots_filled);
-    
+
         return response()->json([
             'config_id'          => $config->id,
             'waitlist'           => $waitlisted,
             'not_cleared_count'  => $notClearedCount,
             'free_slots'         => $freeSlots,
+            // Live-snapshot flags: waitlist position/free-slot numbers
+            // aren't "final" until the period is closed or slots are full
+            // — the frontend uses these to show that caveat.
+            'period_open'        => !$config->closed_at,
+            'slots_full'         => $config->is_unlimited ? false : $config->slots_filled >= $config->slot_limit,
         ]);
     }
 
@@ -360,6 +427,19 @@ class VerifierController extends Controller
         return response()->json(['message' => 'Re-upload requested.']);
     }
 
+    public function retryOcr(\App\Models\ApplicationDocument $document)
+    {
+        $document->update(['status' => 'pending']);
+
+        \App\Jobs\ProcessOcrDocument::dispatch(
+            $document->application,
+            $document,
+            $document->file_path
+        )->onQueue('ocr');
+
+        return response()->json(['message' => 'OCR retry queued.']);
+    }
+
     public function updateClaimStatus(Request $request, $id)
     {
         $request->validate([
@@ -369,7 +449,7 @@ class VerifierController extends Controller
             'verified_documents'    => 'nullable|array',
             'notes'                 => 'nullable|string',
         ]);
-    
+
         $assignment = ClaimingAssignment::where('application_id', $id)->with(['application.configuration', 'latestFaceVerification'])->firstOrFail();
 
         // Grace period claims are unscheduled walk-ins with no lane/time
@@ -421,12 +501,12 @@ class VerifierController extends Controller
         }
 
         $assignment->update($updateData);
-    
+
         $app = Application::with(['user', 'configuration'])->findOrFail($id);
         $previousStatus = $app->status;
-    
+
         $app->update(['status' => $request->claim_status]);
-    
+
         // Only not_cleared actually frees a slot for waitlist promotion —
         // that's the confirmed business rule. unclaimed does NOT decrement
         // slots_filled: the slot stays reserved for that no-show through
@@ -435,13 +515,13 @@ class VerifierController extends Controller
         if ($request->claim_status === 'not_cleared' && $previousStatus !== 'not_cleared') {
             $app->configuration()->decrement('slots_filled');
         }
-    
+
         \App\Models\AuditLog::record(
             'claim_status_updated',
             $app,
             "Marked application #{$app->id} as {$request->claim_status}"
         );
-    
+
         // 'unclaimed' intentionally not a key here — this method's own
         // validation only ever allows 'claimed'/'not_cleared' as input.
         // 'unclaimed' is exclusively set by SweepUnclaimedAssignments,
@@ -454,12 +534,12 @@ class VerifierController extends Controller
             'claimed'     => 'Claimed',
             'not_cleared' => 'Rejected — Document Mismatch at Claiming',
         ];
-    
+
         $app->user->notify(new ApplicationStatusNotification(
             $labels[$request->claim_status],
             $messages[$request->claim_status]
         ));
-    
+
         return response()->json(['message' => 'Claiming status updated.', 'assignment' => $assignment]);
     }
 
@@ -542,7 +622,7 @@ class VerifierController extends Controller
         }
 
         $schedule = \App\Models\ClaimingSchedule::where('config_id', $config->id)
-            ->where('is_published', true)
+            ->where('is_active', true)
             ->latest()
             ->first();
 

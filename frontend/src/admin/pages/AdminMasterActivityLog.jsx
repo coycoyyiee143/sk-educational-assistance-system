@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from "react";
 import AdminNavigation from "../components/AdminNavigation";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
+import PanelFooter from "../../components/PanelFooter";
 
 const ACTION_CONFIG = {
   login: { label: "Logged In", badge: "bg-primary" },
@@ -74,6 +75,8 @@ function AdminMasterActivityLog() {
   const [query, setQuery] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
   const [roleFilter, setRoleFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const perPage = 10;
   const { user: currentUser } = useAuth();
 
   useEffect(() => {
@@ -103,77 +106,127 @@ function AdminMasterActivityLog() {
     });
   }, [logs, query, actionFilter, roleFilter, currentUser]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / perPage));
+  const pageStart = (currentPage - 1) * perPage;
+  const pagedLogs = filteredLogs.slice(pageStart, pageStart + perPage);
+
+  function goToPage(page) {
+    if (page < 1 || page > totalPages) return;
+    setCurrentPage(page);
+  }
+
+  function getPageNumbers() {
+    const pages = [];
+    const maxVisible = 5;
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+      return pages;
+    }
+    pages.push(1);
+    if (currentPage > 3) pages.push("...");
+    const start = Math.max(2, currentPage - 1);
+    const end = Math.min(totalPages - 1, currentPage + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
+  }
+
   return (
-    <div>
+    <div className="admin-layout">
       <AdminNavigation />
-
-      <section className="page-section">
-        <div className="container">
-
-          <div className="page-card">
-            <h3 className="section-title mb-2">System Activity Log</h3>
-            <p className="text-muted mb-0">
-              Combined activity from Admin and Verifier accounts. Applicant activity is tracked separately.
-            </p>
+      <div className="admin-main">
+        <div className="admin-topbar">
+          <div className="admin-topbar-user">
+            <div className="admin-topbar-user-text">
+              <span className="admin-topbar-user-name">Admin User</span>
+              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
+            </div>
+            <div className="admin-topbar-avatar"></div>
           </div>
+        </div>
 
-          {error && <div className="error-box">{error}</div>}
+        <section className="page-section">
+          <div className="container-fluid">
 
-          <div className="search-box mb-4">
-            <div className="row g-3">
-              <div className="col-md-6">
-                <label className="form-label">Search</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Search by name, description, or IP address"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                />
-              </div>
-              <div className="col-md-3">
-                <label className="form-label">Action Type</label>
-                <select
-                  className="form-select"
-                  value={actionFilter}
-                  onChange={(e) => setActionFilter(e.target.value)}
-                >
-                  <option value="all">All Actions</option>
-                  {actionTypes.map((a) => (
-                    <option key={a} value={a}>
-                      {(ACTION_CONFIG[a] || { label: a }).label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="col-md-3">
-                <label className="form-label">Role</label>
-                <select
-                  className="form-select"
-                  value={roleFilter}
-                  onChange={(e) => setRoleFilter(e.target.value)}
-                >
-                  <option value="all">All Roles</option>
-                  <option value="me">Me (Admin)</option>
-                  <option value="sk_admin">Admin</option>
-                  <option value="sk_verifier">Verifier</option>
-                </select>
+            <div className="page-card">
+              <h3 className="section-title mb-2">System Activity Log</h3>
+              <p className="text-muted mb-0">
+                Combined activity from Admin and Verifier accounts. Applicant activity is tracked separately.
+              </p>
+            </div>
+
+            {error && <div className="error-box">{error}</div>}
+
+            <div className="search-box mb-4">
+              <div className="row g-3">
+                <div className="col-md-6">
+                  <label className="form-label">Search</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Search by username, description, or IP address"
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                  />
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label">Action Type</label>
+                  <select
+                    className="form-select"
+                    value={actionFilter}
+                    onChange={(e) => {
+                      setActionFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value="all">All Actions</option>
+                    {actionTypes.map((a) => (
+                      <option key={a} value={a}>
+                        {(ACTION_CONFIG[a] || { label: a }).label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-md-3">
+                  <label className="form-label">Role</label>
+                  <select
+                    className="form-select"
+                    value={roleFilter}
+                    onChange={(e) => {
+                      setRoleFilter(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value="all">All Roles</option>
+                    <option value="me">Me (Admin)</option>
+                    <option value="sk_admin">Admin</option>
+                    <option value="sk_verifier">Verifier</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div className="page-card">
-            {loading ? (
-              <div className="d-flex justify-content-center py-5">
-                <div className="spinner-border text-danger" />
-              </div>
-            ) : (
-              <div className="table-responsive table-scroll">
-                <table className="table table-bordered align-middle mb-0">
+            <div className="page-card">
+              <h4 className="sub-title sub-title-dark">Recent Activity Log</h4>
+
+              <div className="table-responsive">
+                <table className="table table-bordered table-striped align-middle announcement-table">
+                  <colgroup>
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "15%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "31%" }} />
+                    <col style={{ width: "12%" }} />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>Date &amp; Time</th>
-                      <th>User</th>
+                      <th>Username</th>
                       <th>Role</th>
                       <th>Action</th>
                       <th>Description</th>
@@ -181,14 +234,20 @@ function AdminMasterActivityLog() {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredLogs.length === 0 ? (
+                    {loading ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-4">
+                          <div className="spinner-border text-danger" role="status" />
+                        </td>
+                      </tr>
+                    ) : filteredLogs.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="text-center text-muted py-4">
                           No activity found.
                         </td>
                       </tr>
                     ) : (
-                      filteredLogs.map((log) => (
+                      pagedLogs.map((log) => (
                         <tr key={log.id}>
                           <td>{formatTimestamp(log.created_at)}</td>
                           <td>
@@ -208,17 +267,52 @@ function AdminMasterActivityLog() {
                   </tbody>
                 </table>
               </div>
-            )}
+
+              {!loading && filteredLogs.length > 0 && (
+                <div className="table-pagination-bar">
+                  <span className="table-pagination-info">
+                    Showing {pageStart + 1}–{Math.min(pageStart + perPage, filteredLogs.length)} of {filteredLogs.length} activities
+                  </span>
+                  <div className="table-pagination-controls">
+                    <button
+                      className="table-pagination-arrow"
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      aria-label="Previous page"
+                    >
+                      ‹
+                    </button>
+                    {getPageNumbers().map((page, idx) =>
+                      page === "..." ? (
+                        <span key={`ellipsis-${idx}`} className="table-pagination-ellipsis">…</span>
+                      ) : (
+                        <button
+                          key={page}
+                          className={`table-pagination-page ${page === currentPage ? "table-pagination-page-active" : ""}`}
+                          onClick={() => goToPage(page)}
+                        >
+                          {page}
+                        </button>
+                      )
+                    )}
+                    <button
+                      className="table-pagination-arrow"
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      aria-label="Next page"
+                    >
+                      ›
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
+        </section>
 
-        </div>
-      </section>
-
-      <footer>
-        <div className="container">
-          <p className="mb-0">© 2026 Sangguniang Kabataan of Barangay Mamatid | Admin Panel</p>
-        </div>
-      </footer>
+        <PanelFooter />
+      </div>
     </div>
   );
 }

@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import ApplicantNavigation from "../components/ApplicantNavigation";
+import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
 import { STATUS_CONFIG } from "../../components/StatusConstants";
+import ApplicantTopbarUser from "../components/ApplicantTopbarUser";
 
 function ApplicantStatus() {
   const [application, setApplication] = useState(null);
@@ -10,121 +12,124 @@ function ApplicantStatus() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.get("/applications")
-      .then((res) => {
-        if (res.data.length > 0) setApplication(res.data[0]);
+    Promise.all([
+      api.get("/applications"),
+      api.get("/application-config/active"),
+    ])
+      .then(([appsRes, configRes]) => {
+        const currentConfig = configRes.data;
+        const current = appsRes.data.find(
+          (app) => app.config_id === currentConfig.id
+        );
+        setApplication(current ?? null);
       })
       .catch(() => setError("Failed to load application status."))
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return (
-    <div>
-      <ApplicantNavigation />
-      <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
-        <div className="spinner-border text-danger" role="status" />
-      </div>
-    </div>
-  );
 
   const status = application?.status ?? null;
   const config = STATUS_CONFIG[status] ?? STATUS_CONFIG["pending_prescreening"];
 
   return (
-    <div>
+    <div className="applicant-layout">
       <ApplicantNavigation />
+      <div className="applicant-main">
+        <div className="applicant-topbar">
+          <ApplicantTopbarUser />
+        </div>
 
-      <section className="page-section">
-        <div className="container">
-          <div className="page-card">
-            <h3 className="section-title">Application Status</h3>
+        <section className="page-section">
+          <div className="container-fluid">
 
-            {error && <div className="alert alert-danger">{error}</div>}
+            <div className="applicant-dashboard-header">
+              <h3 className="applicant-dashboard-title">Application Status</h3>
+              <p className="applicant-dashboard-desc">Track the current status of your submitted application.</p>
+            </div>
 
-            {!application ? (
-              <div className="alert alert-info">
-                You have not submitted an application yet.
-              </div>
-            ) : (
-              <>
-                <div className={`status-box ${config.boxClass} mb-4`}>
-                  <h5 className="mb-3">Current Status</h5>
-                  <span className={`status-badge ${config.badgeClass}`}>{config.applicantLabel}</span>
-                  <p className="mt-3 mb-0 text-muted">{config.applicantMessage}</p>
+            <div className="page-card">
+              {error && <div className="error-box">{error}</div>}
 
-                  {status !== "approved" && status !== "rejected" && application?.latest_verifier_action?.notes && (
-                    <div className="alert alert-info mt-3 mb-0">
-                      <strong>Verifier Note:</strong> {application.latest_verifier_action.notes}
-                    </div>
-                  )}
-
-                  {status === "reupload_requested" &&
-                    application?.latest_verifier_action?.reupload_details?.length > 0 && (
-                      <div className="mt-3">
-                        <strong>Documents to Re-upload:</strong>
-                        <ul className="mb-0 mt-2">
-                          {application.latest_verifier_action.reupload_details.map((d, i) => (
-                            <li key={i}>
-                              <strong>{d.label}:</strong> {d.reason}
-                            </li>
-                          ))}
-                        </ul>
+              {loading ? (
+                <div className="d-flex justify-content-center align-items-center py-5">
+                  <div className="spinner-border text-danger" role="status" />
+                </div>
+              ) : !application ? (
+                <div className="info-box mb-0">
+                  You have not submitted an application yet.
+                </div>
+              ) : (
+                <>
+                  <div className={`status-box ${config.boxClass} mb-4`}>
+                    <h5 className="mb-3">Current Status</h5>
+                    <span className={`status-badge ${config.badgeClass}`}>{config.applicantLabel}</span>
+                    <p className="mt-3 mb-0 text-muted">{config.applicantMessage}</p>
+                    {status !== "approved" && status !== "rejected" && application?.latest_verifier_action?.notes && (
+                      <div className="info-box mt-3 mb-0">
+                        <strong>Verifier Note:</strong> {application.latest_verifier_action.notes}
                       </div>
                     )}
+                    {status === "reupload_requested" &&
+                      application?.latest_verifier_action?.reupload_details?.length > 0 && (
+                        <div className="mt-3">
+                          <strong>Documents to Re-upload:</strong>
+                          <ul className="mb-0 mt-2">
+                            {application.latest_verifier_action.reupload_details.map((d, i) => (
+                              <li key={i}>
+                                <strong>{d.label}:</strong> {d.reason}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    {application.rejection_reason && status === "rejected" && (
+                      <div className="error-box mt-3 mb-0">
+                        <strong>Reason:</strong> {application.rejection_reason}
+                      </div>
+                    )}
+                    {config.showClaiming && (
+                      <div className="mt-4">
+                        <Link to="/ApplicantClaimingSchedule" className="btn btn-save-green">
+                          View Claiming Schedule
+                        </Link>
+                      </div>
+                    )}
+                    {config.showReupload && (
+                      <div className="mt-4">
+                        <Link to="/ApplicantSubmission" className="btn btn-save-green">
+                          Go to Re-upload Documents
+                        </Link>
+                      </div>
+                    )}
+                  </div>
 
-                  {application.rejection_reason && status === "rejected" && (
-                    <div className="alert alert-danger mt-3 mb-0">
-                      <strong>Reason:</strong> {application.rejection_reason}
-                    </div>
-                  )}
+                  <div className="table-responsive">
+                    <table className="table table-bordered table-striped align-middle announcement-table">
+                      <tbody>
+                        {[
+                          ["Application ID", `APP-${application.id}`],
+                          ["Control Number", application.control_number ?? "Not yet assigned"],
+                          ["School", application.school_name],
+                          ["Course", application.course],
+                          ["Year Level", application.year_level],
+                          ["Submitted", application.submitted_at?.split("T")[0]],
+                        ].map(([label, value]) => (
+                          <tr key={label}>
+                            <th style={{ width: "35%" }}>{label}</th>
+                            <td>{value}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
 
-                  {config.showClaiming && (
-                    <div className="mt-4">
-                      <Link to="/ApplicantClaimingSchedule" className="btn btn-custom">
-                        View Claiming Schedule
-                      </Link>
-                    </div>
-                  )}
-
-                  {config.showReupload && (
-                    <div className="mt-4">
-                      <Link to="/ApplicantSubmission" className="btn btn-custom">
-                        Go to Re-upload Documents
-                      </Link>
-                    </div>
-                  )}
-                </div>
-
-                <table className="table table-bordered info-table">
-                  <tbody>
-                    {[
-                      ["Application ID", `APP-${application.id}`],
-                      ["Control Number", application.control_number ?? "Not yet assigned"],
-                      ["School", application.school_name],
-                      ["Course", application.course],
-                      ["Year Level", application.year_level],
-                      ["Submitted", application.submitted_at?.split("T")[0]],
-                    ].map(([label, value]) => (
-                      <tr key={label}>
-                        <th style={{ width: "35%" }}>{label}</th>
-                        <td>{value}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
           </div>
-        </div>
-      </section>
-
-      <footer>
-        <div className="container">
-          <p className="mb-0">
-            © 2026 Sangguniang Kabataan of Barangay Mamatid | Educational Assistance Application System
-          </p>
-        </div>
-      </footer>
+        </section>
+        <PanelFooter />
+      </div>
     </div>
   );
 }

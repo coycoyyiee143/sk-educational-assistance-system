@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\PasswordHistory;
+use App\Rules\NotRecentlyUsedPassword;
+use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\Rules\Password;
 
 class ProfileController extends Controller
 {
@@ -53,14 +57,25 @@ class ProfileController extends Controller
         // Recompute completeness on every update — a profile becomes
         // "complete" once these core fields are filled in, regardless of
         // whether it was set via store() (first-time setup) or here (later edits).
+        //
+        // civil_status is deliberately NOT part of this check — it's
+        // validated as nullable below and the frontend never marks it
+        // required either. It used to be included here, which silently
+        // forced it to be mandatory in practice (profile could never be
+        // "complete" without it) even though nothing else in the system
+        // treats it as required.
+        //
+        // "street" removed as a completeness requirement — the frontend
+        // no longer collects it (superseded by Subdivision/Village, which
+        // is collected instead, but only required when purok_type is
+        // "phase"; puroks run along streets and have no subdivision).
         $data['is_profile_complete'] = (bool) (
             ($data['birthdate'] ?? null) &&
             ($data['gender'] ?? null) &&
-            ($data['civil_status'] ?? null) &&
             ($data['house_no'] ?? null) &&
-            ($data['street'] ?? null) &&
             ($data['purok_type'] ?? null) &&
             ($data['purok'] ?? null) &&
+            (($data['purok_type'] ?? null) !== 'phase' || ($data['subdivision'] ?? null)) &&
             ($data['barangay'] ?? null) &&
             ($data['city'] ?? null) &&
             ($data['province'] ?? null)
@@ -112,23 +127,43 @@ class ProfileController extends Controller
         return response()->json(['message' => 'Account updated.', 'user' => $user]);
     }
 
+    // Password policy: 8 char min, lowercase + number, breach-checked,
+    // can't reuse any of the last 5 passwords. No expiry.
     public function updatePassword(Request $request)
     {
+        $user = $request->user();
+
         $request->validate([
             'current_password' => 'required|string',
-            'password'         => 'required|string|min:8|confirmed',
+            'password' => [
+                'required',
+                'confirmed',
+                'regex:/^(?=.*[a-z])(?=.*\d).+$/',
+                Password::min(8)->uncompromised(),
+                new NotObviouslyWeakPassword(),
+                new NotRecentlyUsedPassword($user->id, 5),
+            ],
+        ], [
+            'password.regex' => 'Password must include at least one lowercase letter and one number.',
         ]);
 
-        if (!Hash::check($request->current_password, $request->user()->password)) {
+        if (!Hash::check($request->current_password, $user->password)) {
             return response()->json(['message' => 'Current password is incorrect.'], 422);
         }
 
-        $request->user()->update(['password' => Hash::make($request->password)]);
+        $newHash = Hash::make($request->password);
+        $user->update(['password' => $newHash]);
+
+        PasswordHistory::create(['user_id' => $user->id, 'password_hash' => $newHash]);
+
+        // Keep only the last 5 history rows per user.
+        $keepIds = PasswordHistory::where('user_id', $user->id)->latest()->take(5)->pluck('id');
+        PasswordHistory::where('user_id', $user->id)->whereNotIn('id', $keepIds)->delete();
 
         // Log the password change without exposing any password content
         \App\Models\AuditLog::record(
             'password_changed',
-            $request->user(),
+            $user,
             'Password was changed'
         );
 
@@ -145,6 +180,7 @@ class ProfileController extends Controller
             'street'                 => 'nullable|string',
             'purok_type'             => 'nullable|in:purok,phase',
             'purok'                  => 'nullable|string',
+            'subdivision'            => 'nullable|string|required_if:purok_type,phase',
             'barangay'               => 'nullable|string',
             'city'                   => 'nullable|string',
             'province'               => 'nullable|string',
