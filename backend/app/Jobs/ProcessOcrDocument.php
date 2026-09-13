@@ -9,6 +9,7 @@ use App\Models\ApplicationDocument;
 use App\Models\OcrResult;
 use App\Models\VerificationCheck;
 use App\Notifications\ApplicationStatusNotification;
+use App\Services\DocumentReuploadRoutingService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -278,7 +279,40 @@ class ProcessOcrDocument implements ShouldQueue
 
     public function middleware()
     {
-        return [(new \Illuminate\Queue\Middleware\WithoutOverlapping('ocr-processing'))->releaseAfter(60)];
+        // Scoped per-application, NOT a single fixed string. The fixed
+        // key 'ocr-processing' previously used here serializes EVERY
+        // OCR job system-wide -- only one document, for one applicant,
+        // could process at a time, for the entire system, regardless
+        // of how many queue workers are running. Every other job just
+        // sits and retries every 60s.
+        //
+        // The actual protection this middleware exists for is almost
+        // certainly preventing a race in updateApplicationStatus(): all
+        // three of an application's document jobs call it at the end,
+        // and if two finish within moments of each other, both could
+        // read the "still waiting on other documents" state
+        // simultaneously and neither would correctly detect that all
+        // three are done -- or worse, both attempt conflicting writes
+        // to the same Application row's status at once. Scoping the
+        // key to the application id preserves exactly that protection
+        // (this application's 3 document jobs still can't overlap each
+        // other) while letting DIFFERENT applicants process fully in
+        // parallel, limited only by actual worker/OCR-service capacity
+        // instead of an unrelated global lock.
+        //
+        // IMPORTANT CAVEAT: this alone does not give you real parallel
+        // THROUGHPUT. The OCR Flask service itself (ocr-service/run.py)
+        // runs via `app.run(debug=True)` with no `threaded=True` and no
+        // multi-worker WSGI server -- it can only handle one HTTP
+        // request at a time regardless of what Laravel sends it.
+        // Loosening this lock only helps once the OCR service side is
+        // also given real concurrency (e.g. `threaded=True`, verified
+        // safe for concurrent PaddleOCR inference on one process first,
+        // or a production WSGI server with multiple workers). Without
+        // that, concurrent jobs dispatched from here will simply queue
+        // up at the OCR service's HTTP layer instead -- the bottleneck
+        // moves, it doesn't disappear.
+        return [(new \Illuminate\Queue\Middleware\WithoutOverlapping("ocr-processing-{$this->application->id}"))->releaseAfter(60)];
     }
 
 
@@ -312,35 +346,15 @@ class ProcessOcrDocument implements ShouldQueue
 
 
         if ($autoReuploadDocs->isNotEmpty()) {
-            // Categories that count toward the 3-attempt cap. 'low_quality'
-            // deliberately excluded — a repeatedly-blurry upload isn't
-            // necessarily something the applicant can fix faster by trying
-            // again, so it stays uncapped rather than forcing an unhelpful
-            // escalation.
-            $cappedCategories = ['wrong_document_type', 'wrong_cert_year'];
-            $escalated = collect();
+            // Capped-category list and max-attempt count are centralized
+            // in DocumentReuploadRoutingService / config/document_verification.php
+            // instead of hardcoded here — see AUTO_REUPLOAD_VERIFICATION_RULES.md
+            // for the reasoning behind the categories and the attempt cap.
+            $routing = new DocumentReuploadRoutingService();
 
-
-            foreach ($autoReuploadDocs as $doc) {
-                if (!in_array($doc->auto_reupload_category, $cappedCategories)) {
-                    continue;
-                }
-
-
-                // Count every prior version of THIS document type on THIS
-                // application that was ever flagged with a capped category —
-                // each reupload creates a new ApplicationDocument row, so this
-                // walks the full version history, not just the latest row.
-                $priorFlaggedCount = ApplicationDocument::where('application_id', $application->id)
-                    ->where('document_type', $doc->document_type)
-                    ->whereIn('auto_reupload_category', $cappedCategories)
-                    ->count();
-
-
-                if ($priorFlaggedCount > 3) {
-                    $escalated->push($doc);
-                }
-            }
+            $escalated = $autoReuploadDocs->filter(
+                fn($doc) => $routing->shouldEscalate($application, $doc)
+            );
 
 
             if ($escalated->isNotEmpty()) {
@@ -349,16 +363,10 @@ class ProcessOcrDocument implements ShouldQueue
                 // Build a full history so the verifier sees every prior
                 // reason, not just the latest one.
                 foreach ($escalated as $doc) {
-                    $history = ApplicationDocument::where('application_id', $application->id)
-                        ->where('document_type', $doc->document_type)
-                        ->whereIn('auto_reupload_category', $cappedCategories)
-                        ->orderBy('version')
-                        ->pluck('auto_reupload_reason')
-                        ->filter()
-                        ->values();
-
-
-                    $historyText = $history->map(fn($r, $i) => "Attempt " . ($i + 1) . ": {$r}")->implode(' | ');
+                    $history = $routing->attemptHistory($application, $doc);
+                    $historyText = collect($history)
+                        ->map(fn($r, $i) => "Attempt " . ($i + 1) . ": {$r}")
+                        ->implode(' | ');
 
 
                     VerificationCheck::create([
@@ -369,7 +377,7 @@ class ProcessOcrDocument implements ShouldQueue
                         'passed'         => false,
                         'extracted_value'=> null,
                         'expected_value' => null,
-                        'flag_reason'    => "Flagged {$history->count()} times for the same type of issue — escalated for manual review. History: {$historyText}",
+                        'flag_reason'    => "Flagged " . count($history) . " times for the same type of issue — escalated for manual review. History: {$historyText}",
                     ]);
                 }
 
