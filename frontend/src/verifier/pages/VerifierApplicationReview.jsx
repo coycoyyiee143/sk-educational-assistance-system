@@ -246,20 +246,7 @@ function VerifierApplicationReview() {
         <VerifierNavigation />
 
         <div className="verifier-main">
-          <div className="verifier-topbar">
-            <div className="verifier-topbar-user">
-              <div className="verifier-topbar-user-text">
-                <span className="verifier-topbar-user-name">
-                  Verifier User
-                </span>
-                <span className="verifier-topbar-user-role">
-                  Sangguniang Kabataan
-                </span>
-              </div>
-
-              <div className="verifier-topbar-avatar"></div>
-            </div>
-          </div>
+          <VerifierTopbar />
 
           <section className="page-section">
             <div className="container-fluid">
@@ -642,21 +629,7 @@ function VerifierApplicationReview() {
       <VerifierNavigation />
 
       <div className="verifier-main">
-        <div className="verifier-topbar">
-          <div className="verifier-topbar-user">
-            <div className="verifier-topbar-user-text">
-              <span className="verifier-topbar-user-name">
-                Verifier User
-              </span>
-
-              <span className="verifier-topbar-user-role">
-                Sangguniang Kabataan
-              </span>
-            </div>
-
-            <div className="verifier-topbar-avatar"></div>
-          </div>
-        </div>
+        <VerifierTopbar />
 
         <section className="page-section">
           <div className="container-fluid">

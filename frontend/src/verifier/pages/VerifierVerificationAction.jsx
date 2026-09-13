@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
+import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
 import { getVerifierStatusLabel, getVerifierBadgeClass } from "../../components/StatusConstants";
@@ -278,15 +279,7 @@ function VerifierVerificationAction() {
     <div className="verifier-layout">
       <VerifierNavigation />
       <div className="verifier-main">
-        <div className="verifier-topbar">
-          <div className="verifier-topbar-user">
-            <div className="verifier-topbar-user-text">
-              <span className="verifier-topbar-user-name">Verifier User</span>
-              <span className="verifier-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="verifier-topbar-avatar"></div>
-          </div>
-        </div>
+        <VerifierTopbar />
         <section className="page-section">
           <div className="container-fluid">
             <div className="verifier-dashboard-header">
