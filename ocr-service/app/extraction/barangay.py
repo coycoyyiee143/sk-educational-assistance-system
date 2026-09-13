@@ -11,6 +11,13 @@ from app.extraction.blocks import extraction_failed
 # fallback whole-page scan below (see _residency_context_present).
 _RESIDENCY_CONTEXT_WORDS = ("resid", "address", "brgy", "barangay")
 
+# The specific label words that legitimately end up glued directly onto
+# a value with no separator (e.g. "BarangayPULO", "BarangayMamatid") --
+# a real, common OCR artifact on this document type, not a hypothetical.
+# Used only to retry a failed word-boundary check once with the label
+# stripped off the front; see _contains_word.
+_LABEL_PREFIX_RE = re.compile(r'^(?:barangay|brgy\.?)')
+
 
 def _contains_word(text_lower: str, word: str) -> bool:
     """
@@ -21,17 +28,23 @@ def _contains_word(text_lower: str, word: str) -> bool:
     Filipino surnames like "Salazar" and "Salas". Fixed by requiring
     the match to be its own word, not a fragment of one.
 
-    Trade-off worth knowing: this can miss an OCR read that glued two
-    words together with no space (e.g. "BarangayMamatid" as one token)
-    -- \\b won't find a boundary in the middle of an unbroken run of
-    letters. Judged an acceptable trade for the fallback path this is
-    used in: a false SUGGESTED_DISAPPROVAL sends a legitimate
-    applicant's document to a verifier under an accusatory-sounding
-    flag it doesn't deserve, which is a worse outcome than an
-    occasional missed match falling through to "not captured cleanly"
-    (verifier-routed either way, just without the false accusation).
+    One deliberate exception: if the plain word-boundary check fails,
+    retry once with a leading "barangay"/"brgy" label prefix stripped
+    off the text. OCR frequently glues the label directly onto its own
+    value with no space at all (e.g. "BarangayPULO") -- \\b can't find a
+    boundary in the middle of an unbroken run of letters, so a genuine,
+    confidently-labeled value would otherwise fall through to "not
+    captured cleanly" instead of being read at all. This is narrower
+    than reverting to a bare substring check: it only fires right after
+    the label word itself, so it doesn't reopen the "sala" inside
+    "Salazar" false-positive this function exists to prevent.
     """
-    return re.search(rf'\b{re.escape(word)}\b', text_lower) is not None
+    if re.search(rf'\b{re.escape(word)}\b', text_lower):
+        return True
+    stripped = _LABEL_PREFIX_RE.sub('', text_lower, count=1)
+    if stripped != text_lower:
+        return re.search(rf'\b{re.escape(word)}\b', stripped) is not None
+    return False
 
 
 def _residency_context_present(text_lower: str) -> bool:
