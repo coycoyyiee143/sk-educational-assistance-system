@@ -12,9 +12,16 @@ function ApplicantStatus() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    api.get("/applications")
-      .then((res) => {
-        if (res.data.length > 0) setApplication(res.data[0]);
+    Promise.all([
+      api.get("/applications"),
+      api.get("/application-config/active"),
+    ])
+      .then(([appsRes, configRes]) => {
+        const currentConfig = configRes.data;
+        const current = appsRes.data.find(
+          (app) => app.config_id === currentConfig.id
+        );
+        setApplication(current ?? null);
       })
       .catch(() => setError("Failed to load application status."))
       .finally(() => setLoading(false));
