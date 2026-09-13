@@ -49,7 +49,7 @@ def _pass(check_name, extracted=None, raw=None, score=None, context=None, expect
         "extracted": extracted, "raw": raw, "score": score, "context": context, "expected": expected
     }
 
-def _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name):
+def _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name, subject_label="your registered name"):
     """
     Same underlying extraction as _check_name, but distinguishes a
     CONFIDENT mismatch from a genuinely AMBIGUOUS one:
@@ -65,11 +65,17 @@ def _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, las
 
     See AUTO_REUPLOAD_VERIFICATION_RULES.md for the full reasoning.
 
+    subject_label describes WHOSE name is being checked, for the
+    applicant-facing auto_reupload message — e.g. "your registered
+    name" for the applicant's own name check, or "your guardian's name
+    on file" for the guardian-name check on a minor's voter's
+    certificate. Saying "your registered name" on a guardian mismatch
+    would be wrong (it's the guardian's name that didn't match, not
+    the applicant's), so callers checking a guardian name MUST pass
+    the guardian-specific label.
+
     Returns a tuple: ("auto_reupload", {"category": ..., "reason": ...})
     or ("check", check_dict) — callers branch on the first element.
-    Used for both the applicant's own name check and the guardian-name
-    check for minor applicants (voters_cert.py passes guardian names
-    into this same function).
     """
     res = extract_name(blocks, page_w, page_h, first_name, middle_name, last_name)
     expected_name = f"{first_name} {middle_name} {last_name}".strip()
@@ -87,7 +93,7 @@ def _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, las
     if res.method == "label_anchored_no_match" and res.confidence >= CONFIDENT_MISMATCH_THRESHOLD:
         return "auto_reupload", {
             "category": "name_mismatch",
-            "reason": "The name on this document doesn't match the registered name on file. Please make sure you're uploading the correct document and try again.",
+            "reason": f"The name on this document doesn't match {subject_label}. Please make sure you're uploading the correct document and try again.",
         }
 
     return "check", _flag("name_match", res.context, extracted=res.value, raw=res.raw, expected=expected_name)
