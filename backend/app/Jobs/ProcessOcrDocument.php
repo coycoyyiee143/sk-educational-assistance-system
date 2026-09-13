@@ -276,6 +276,12 @@ class ProcessOcrDocument implements ShouldQueue
         }
     }
 
+    public function failed(\Throwable $exception): void
+    {
+        \Log::error("OCR job permanently failed for doc {$this->document->id} after {$this->tries} attempts: " . $exception->getMessage());
+        $this->document->update(['status' => 'failed']);
+    }
+
 
     public function middleware()
     {
