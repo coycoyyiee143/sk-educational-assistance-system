@@ -154,6 +154,33 @@ matches reality:
 
 ---
 
+## Cross-service config sync — deliberately NOT a shared file
+
+An earlier version of this document proposed `shared/document_verification.json`
+as a single file both Laravel and Python would read at runtime, to
+prevent a category-name rename in one codebase silently going
+unnoticed by the other. That was reverted. The problem it solved was
+real, but the fix conflicted with the two principles above: a shared
+runtime file, even with a fallback, still makes each service reach
+outside itself to function — the fallback softens *how* it fails, it
+doesn't remove the dependency.
+
+**What's in place instead:** `config/document_verification.php`
+(Laravel) and `NAME_MISMATCH_CATEGORY` in `shared.py` (Python) each
+hardcode the category name independently, exactly as before this
+document existed. This is a genuine trade-off, not a solved problem:
+if someone renames `"name_mismatch"` in one file and not the other,
+nothing will error — that category will just quietly stop being
+capped. The mitigation is this document: renaming a category name is
+a "check `AUTO_REUPLOAD_VERIFICATION_RULES.md` first" operation, not
+something either codebase enforces on its own. For a single-team,
+single-server capstone project, that's judged an acceptable trade for
+keeping both services genuinely, unconditionally independent —
+worth revisiting if this project ever grows into a larger team where
+that kind of silent drift becomes more likely to actually happen.
+
+---
+
 ## `institution_mismatch` — blocked, not built yet
 
 Unlike name matching, `extract_school()` (`ocr-service/app/extraction/school.py`)
@@ -201,6 +228,77 @@ work above — it corrects the existing `institution_match` check itself
 (which still exists and still routes to verifier on failure), it just
 doesn't add the new auto-reupload category.
 
+**A second, more serious issue found and fixed while auditing the rest
+of the extraction code, in two layers:**
+
+*Layer 1 — accidental substring collisions.* `extract_barangay()`
+(`ocr-service/app/extraction/barangay.py`) used bare substring checks
+(`"sala" in text`) to detect both the correct barangay (Mamatid) and a
+list of other real Laguna barangays, to flag a residency
+"contradiction" (`SUGGESTED_DISAPPROVAL`) when a *different* barangay
+is detected. `"sala"` (Brgy. Sala) is a literal substring of real
+Filipino surnames — **Salazar** and **Salas** — which can appear on an
+all-English COMELEC certificate as the Election Officer's printed
+name, a witness's name, or the voter's own surname. Fixed with
+word-boundary matching.
+
+*Layer 2 — whole-word matches in the wrong kind of field.*
+Word-boundary matching only prevents *accidental* substring collisions
+— it does nothing if a barangay name is a genuine, correctly-matched
+**whole word** sitting in a name or signature block rather than an
+address. Concretely: if the certifying officer's actual surname simply
+*is* one of these barangay names, no amount of word-boundary precision
+helps, since "Salazar" containing "sala" was never the only risk —
+the officer's surname coincidentally being exactly *"Pulo"* or another
+full barangay name would trigger the same false flag, word boundaries
+or not. This is also **systematic, not a rare coincidence**: whichever
+officer is assigned to sign certificates for a given area would
+trigger it on every single certificate they sign, for as long as they
+hold that post.
+
+Fixed by requiring the fallback whole-page scan (used only when no
+"Barangay" label is found anywhere on the page — see below) to find a
+residency-context word (`"resid"`, `"address"`, `"brgy"`,
+`"barangay"`) in the same block before treating a barangay-name match
+there as a contradiction. A positive "Mamatid" match is still allowed
+unconditionally, since the worst case there is a missed match falling
+through to manual review anyway — only the *negative*
+`SUGGESTED_DISAPPROVAL` flag needed this extra guard, since that's the
+direction that actively pushes a legitimate applicant's document
+toward suspicion.
+
+**Correcting the severity of this claim from an earlier version of
+this document:** neither of the above causes an automatic rejection.
+A contradiction flag routes to a human verifier via `eligibility_issues`,
+same as any other failed check — a false positive here means wasted
+verifier time and an alarming-sounding flag on a legitimate document,
+not a final wrongful rejection. Still worth fixing (especially given
+the "same officer, every certificate" pattern above), but it's a
+workflow-efficiency and verifier-trust problem, not a due-process one.
+
+The labeled path (`extract_via_keyword` finding an actual "Barangay:"
+field) is unaffected by Layer 2 — a label match is already
+inherently residency-context by construction, so it doesn't need the
+same extra guard. All scenarios verified in
+`test_barangay_word_boundaries.py`: the corrected Salazar/Salas
+example, a genuine different-barangay mention still correctly
+flagging, Mamatid and multi-word barangays still matching normally,
+and both a whole-word match in a name context (now correctly NOT
+flagged) and the same word in a genuine residency context (still
+correctly flagged).
+
+**Known remaining risk, not fixed here:** `"marinig"` (Brgy. Marinig)
+is a common standalone Filipino word ("to hear") in its own right —
+unlike "sala," this isn't a substring-truncation issue word-boundary
+matching can fix, since "marinig" would appear as a genuine whole word
+in unrelated document text too (e.g. inside a notarization clause). A
+document containing this word anywhere for unrelated reasons could
+still trigger a false contradiction. Flagging this rather than
+silently leaving it undocumented — a real fix would need something
+more structural (e.g. only trusting a barangay match when it appears
+near an address-context anchor), which is a larger change than this
+pass covers.
+
 **School ID name-matching caveat (separate from the above):** even for
 `name_mismatch`, school IDs are less reliable than reg forms or voter's
 certificates for the same underlying reason — many ID layouts print
@@ -212,18 +310,3 @@ it does mean `name_mismatch` will trigger less often on school IDs
 than on the other two document types in practice.
 
 ---
-
-## Known limitation — not yet solved
-
-The auto-reupload thresholds live in the Python OCR microservice
-(`ocr-service/app/verification/shared.py`), while the retry-cap
-categories and escalation logic live in the Laravel backend
-(`ProcessOcrDocument.php`). There's no single config file both
-services read — they're two separate codebases. This document is
-the closest thing to a shared source of truth until/unless a real
-shared config format is introduced between the two services. On the
-Laravel side specifically, the capped-categories list and max-attempt
-count are being pulled out of the hardcoded array into
-`config/document_verification.php` (see accompanying file) so at
-least that half is centralized and referenced from one place instead
-of hardcoded inline.
