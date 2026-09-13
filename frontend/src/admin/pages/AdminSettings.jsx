@@ -223,9 +223,11 @@ function AdminSettings() {
           ? "Superseded"
           : config.closed_at
             ? "Closed"
-            : hasStarted
-              ? "Open"
-              : `Scheduled — opens ${formatDateTime(config.open_date)}`,
+            : hasClosed 
+              ? "Closed — Deadline Passed"
+              : hasStarted
+                ? "Open"
+                : `Scheduled — opens ${formatDateTime(config.open_date)}`,
       ],
       ["Opening Date", formatDateTime(config.open_date)],
       ["Closing Date", formatDateTime(config.close_date)],
@@ -305,7 +307,7 @@ function AdminSettings() {
   function statusBadgeClass(value) {
     if (typeof value !== "string") return "settings-value-badge settings-value-badge-gray";
     if (value === "Open" || value === "Unlimited") return "settings-value-badge settings-value-badge-green";
-    if (value === "Closed" || value === "Limited") return "settings-value-badge settings-value-badge-red";
+    if (value.startsWith("Closed") || value === "Limited") return "settings-value-badge settings-value-badge-red";
     return "settings-value-badge settings-value-badge-gray";
   }
 
@@ -358,6 +360,13 @@ function AdminSettings() {
                   <strong>This application period has already started.</strong>{" "}
                   School Year, Opening Date, Number of Available Slots, Slot Type, and Assistance Amount
                   can no longer be changed to protect data integrity for applicants who have already applied.
+                </div>
+              )}
+
+              {hasClosed && !config?.closed_at && (
+                <div className="alert alert-warning">
+                  <strong>The closing date has passed, but this period is still officially open.</strong>{" "}
+                  Applicants are no longer able to submit new applications, but the closing date can still be extended below to allow new submissions. Once the application period is officially closed, this warning will disappear.
                 </div>
               )}
 
