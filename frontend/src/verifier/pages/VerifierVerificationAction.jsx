@@ -17,6 +17,67 @@ function buildCategories(selected, otherText) {
   }
   return withoutOther;
 }
+
+const CHECK_NAME_LABELS = {
+  image_integrity: "Edited/Tampered Image Detection",
+  document_origin: "Suspicious File Origin (Design Software)",
+  ai_generation_provenance: "AI-Generated or AI-Edited Image",
+  cert_year_match: "Certificate Year",
+  identity_match: "Identity & Legal Name",
+  residency_geofence: "Residency Geofence",
+};
+
+function getCheckRuleLabel(checkName) {
+  return (
+    CHECK_NAME_LABELS[checkName] ||
+    checkName.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  );
+}
+
+function getApprovalWarnings(app, incomingFlags) {
+  if (!app) return [];
+
+  const warnings = [];
+
+  const latestDocsMap = {};
+  (app.documents || []).forEach((doc) => {
+    if (
+      !latestDocsMap[doc.document_type] ||
+      doc.id > latestDocsMap[doc.document_type].id
+    ) {
+      latestDocsMap[doc.document_type] = doc;
+    }
+  });
+
+  const docLabelByType = Object.fromEntries(
+    DOC_TYPES.map((d) => [d.key, d.label])
+  );
+
+  Object.entries(latestDocsMap).forEach(([docType, doc]) => {
+    const docLabel = docLabelByType[docType] || docType;
+
+    if (doc.ocr_result?.is_low_confidence) {
+      warnings.push(`${docLabel}: Low OCR confidence`);
+    }
+
+    const checks = (app.verification_checks || []).filter(
+      (c) => c.document_id === doc.id
+    );
+    checks
+      .filter((c) => !c.passed)
+      .forEach((c) => {
+        warnings.push(`${docLabel}: ${getCheckRuleLabel(c.check_name)} failed`);
+      });
+  });
+
+  Object.entries(incomingFlags || {}).forEach(([docType, f]) => {
+    if (!f.reasons || f.reasons.length === 0) return;
+    const docLabel = docLabelByType[docType] || docType;
+    warnings.push(`${docLabel}: flagged for ${f.reasons.join(", ")}`);
+  });
+
+  return warnings;
+}
 function VerifierVerificationAction() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -48,6 +109,8 @@ function VerifierVerificationAction() {
   }, [successFeedback, feedbackSeconds, navigate]);
   const reasonsByDocType = getReasonsByDocType(app?.configuration?.school_year);
   const [approveNotes, setApproveNotes] = useState("");
+  const [approveAck, setApproveAck] = useState(false);
+  const approvalWarnings = getApprovalWarnings(app, incomingFlags);
   const initialRejectReasons = Object.values(incomingFlags)
     .flatMap((f) => f.reasons.filter((r) => r !== OTHER));
   const [rejectReasons, setRejectReasons] = useState(initialRejectReasons);
@@ -70,6 +133,7 @@ function VerifierVerificationAction() {
   const [reuploadNotes, setReuploadNotes] = useState("");
   function openAction(action) {
     setError("");
+    if (action === "approve") setApproveAck(false);
     setSelectedAction(action);
   }
   function closeAction() {
@@ -123,6 +187,10 @@ function VerifierVerificationAction() {
     }));
   }
   async function handleApprove() {
+    if (approvalWarnings.length > 0 && !approveAck) {
+      setError("Please acknowledge the warnings above before approving.");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -355,6 +423,28 @@ function VerifierVerificationAction() {
             </div>
             <div className="verifier-action-modal-body">
               {error && <div className="alert alert-danger">{error}</div>}
+              {approvalWarnings.length > 0 && (
+                <div className="alert alert-warning">
+                  <p className="mb-2"><strong>⚠ This application has unresolved issues:</strong></p>
+                  <ul className="mb-2 ps-3">
+                    {approvalWarnings.map((w, i) => (
+                      <li key={i}>{w}</li>
+                    ))}
+                  </ul>
+                  <div className="form-check">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      id="approve-ack"
+                      checked={approveAck}
+                      onChange={() => setApproveAck((v) => !v)}
+                    />
+                    <label className="form-check-label" htmlFor="approve-ack">
+                      I have reviewed these issues and still want to approve this application.
+                    </label>
+                  </div>
+                </div>
+              )}
               <div className="verifier-action-field">
                 <label>Notes <span>(optional)</span></label>
                 <textarea
@@ -397,7 +487,7 @@ function VerifierVerificationAction() {
                 type="button"
                 className="verifier-action-btn verifier-action-btn-approve"
                 onClick={handleApprove}
-                disabled={submitting}
+                disabled={submitting || (approvalWarnings.length > 0 && !approveAck)}
               >
                 {submitting ? "Approving..." : "Confirm Approval"}
               </button>
