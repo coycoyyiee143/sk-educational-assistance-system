@@ -84,6 +84,30 @@ def test_guardian_name_uses_same_function_same_rules():
     assert result["category"] == "name_mismatch"
 
 
+def test_default_message_refers_to_applicants_own_name():
+    # Default subject_label is for the applicant's OWN name check --
+    # must not accidentally read as if it's someone else's name.
+    blocks = [make_block("Name: Maria Santos", 0.95)]
+    tag, result = _check_name_or_reupload(blocks, PAGE_W, PAGE_H, "Juan", "", "Dela Cruz")
+    assert tag == "auto_reupload"
+    assert "your registered name" in result["reason"]
+
+
+def test_guardian_message_correctly_refers_to_guardian_not_applicant():
+    # A minor's guardian-name mismatch must NOT say "your registered
+    # name" -- that would incorrectly imply the APPLICANT's own name
+    # didn't match, when it's actually the guardian's. voters_cert.py
+    # passes a guardian-specific subject_label for exactly this reason.
+    blocks = [make_block("Name of Voter: Someone Else", 0.95)]
+    tag, result = _check_name_or_reupload(
+        blocks, PAGE_W, PAGE_H, "Guardian", "", "Name",
+        subject_label="your guardian's name on file",
+    )
+    assert tag == "auto_reupload"
+    assert "guardian" in result["reason"]
+    assert "your registered name" not in result["reason"]
+
+
 def test_typo_level_difference_does_not_auto_reupload():
     # A 1-letter OCR misread ("Juab" instead of "Juan") should still
     # pass via the existing fuzzy-match tolerance (>=85 similarity) --
