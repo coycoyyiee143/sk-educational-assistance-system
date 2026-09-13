@@ -107,7 +107,6 @@ function VerifierApplicationReview() {
   const [zoomPreview, setZoomPreview] = useState(null);
   const [openFlagDocId, setOpenFlagDocId] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
-  const [suggestedRejectDismissed, setSuggestedRejectDismissed] = useState(false);
 
   const [flaggedDocs, setFlaggedDocs] = useState({
     registration_form: { reasons: [], otherText: "" },
@@ -467,16 +466,6 @@ function VerifierApplicationReview() {
       latestDocIds.includes(c.document_id) &&
       c.metadata?.flag === "SUGGESTED_DISAPPROVAL"
   );
-
-  // Only ever fires from the Voter's Certificate residency check (see
-  // extract_barangay() in the OCR service) — no other document type
-  // produces this flag. Shown once per page-load/poll-refresh; a
-  // verifier who dismisses it to review manually shouldn't have it
-  // reappear on the next 10s poll tick for the same visit.
-  const showSuggestedRejectModal =
-    hasSuggestedDisapproval &&
-    !suggestedRejectDismissed &&
-    ["for_review", "pending_prescreening"].includes(app.status);
 
   const showFlagSummary =
     hasLowConfidence || hasFailedCheck;
@@ -1655,86 +1644,6 @@ function VerifierApplicationReview() {
               />
             </div>
           </div>
-        )}
-
-        {showSuggestedRejectModal && (
-          <>
-            <div
-              className="modal-backdrop show"
-              onClick={() => setSuggestedRejectDismissed(true)}
-            ></div>
-
-            <div className="modal show d-block" tabIndex="-1" role="dialog">
-              <div
-                className="modal-dialog modal-dialog-centered"
-                role="document"
-              >
-                <div className="modal-content">
-                  <div className="modal-header">
-                    <h5 className="modal-title">
-                      ⚠ Suggested: Reject — Non-Resident
-                    </h5>
-
-                    <button
-                      type="button"
-                      className="btn-close"
-                      aria-label="Close"
-                      onClick={() => setSuggestedRejectDismissed(true)}
-                    ></button>
-                  </div>
-
-                  <div className="modal-body">
-                    <p className="mb-0">
-                      This applicant's Voter's Certificate indicates a
-                      residency outside Barangay Mamatid. This program is
-                      exclusive to Mamatid residents. This is a system
-                      suggestion only — please view the document yourself
-                      before making a final decision, since a data-entry or
-                      upload mistake is still possible.
-                    </p>
-                  </div>
-
-                  <div className="modal-footer">
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary"
-                      onClick={() =>
-                        handleViewFile(latestDocsMap.voters_certificate?.id)
-                      }
-                      disabled={!latestDocsMap.voters_certificate}
-                    >
-                      View File
-                    </button>
-
-                    <button
-                      type="button"
-                      className="btn btn-secondary-custom"
-                      onClick={() => setSuggestedRejectDismissed(true)}
-                    >
-                      Review Manually
-                    </button>
-
-                    {[
-                      "for_review",
-                      "pending_prescreening",
-                      "reupload_requested",
-                    ].includes(app.status) && (
-                        <button
-                          type="button"
-                          className="verifier-proceed-action-btn"
-                          onClick={() => {
-                            setSuggestedRejectDismissed(true);
-                            handleProceed();
-                          }}
-                        >
-                          Proceed to Verification Action
-                        </button>
-                      )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </>
         )}
 
         {showScrollTop && (
