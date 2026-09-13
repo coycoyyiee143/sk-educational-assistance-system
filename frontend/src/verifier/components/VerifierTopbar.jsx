@@ -1,4 +1,12 @@
+import { useAuth } from "../../context/AuthContext";
+
 function VerifierTopbar({ onMenuOpen }) {
+  const { user } = useAuth();
+
+  const fullName = [user?.first_name, user?.last_name]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <div className="verifier-topbar">
       <button
@@ -23,7 +31,7 @@ function VerifierTopbar({ onMenuOpen }) {
       <div className="verifier-topbar-user">
         <div className="verifier-topbar-user-text">
           <span className="verifier-topbar-user-name">
-            Verifier User
+            {fullName || "Verifier User"}
           </span>
 
           <span className="verifier-topbar-user-role">
