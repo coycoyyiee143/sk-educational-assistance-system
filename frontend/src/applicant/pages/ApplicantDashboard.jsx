@@ -8,12 +8,14 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import { STATUS_CONFIG } from "../../components/StatusConstants";
 import ApplicantTopbarUser from "../components/ApplicantTopbarUser";
+import ApplicationHistoryList from "../components/ApplicationHistoryList";
 
 function ApplicantDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const [application, setApplication] = useState(null);
+  const [applicationHistory, setApplicationHistory] = useState([]);
   const [config, setConfig] = useState(null);
   const [loadingApp, setLoadingApp] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(true);
@@ -43,12 +45,18 @@ function ApplicantDashboard() {
       api.get("/application-config/active"),
     ])
       .then(([applicationsRes, configRes]) => {
+        const applications = applicationsRes.data;
         const currentConfig = configRes.data;
 
         setApplication(
-          applicationsRes.data.find(
+          applications.find(
             (app) => app.config_id === currentConfig.id
           ) ?? null
+        );
+        setApplicationHistory(
+          applications.filter(
+            (app) => app.config_id !== currentConfig.id
+          )
         );
       })
       .catch(() => {})
@@ -60,6 +68,20 @@ function ApplicantDashboard() {
       .catch(() => {})
       .finally(() => setLoadingConfig(false));
   }, []);
+
+  async function handleViewHistoricalFile(appId, docId) {
+    try {
+      const res = await api.get(
+        `/applications/${appId}/documents/${docId}/file`,
+        { responseType: "blob" }
+      );
+      const url = URL.createObjectURL(res.data);
+      window.open(url, "_blank");
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch {
+      alert("Failed to load document.");
+    }
+  }
 
   const currentStatusConfig = application
     ? STATUS_CONFIG[application.status]
@@ -244,6 +266,11 @@ function ApplicantDashboard() {
               </div>
 
             </div>
+
+            <ApplicationHistoryList
+              applicationHistory={applicationHistory}
+              onViewFile={handleViewHistoricalFile}
+            />
           </div>
         </section>
 
