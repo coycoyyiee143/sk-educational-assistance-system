@@ -190,7 +190,14 @@ def _extract_name_impl(blocks: List[OcrBlock], page_w: float, page_h: float,
     # so it tells a verifier whose form this really is.
     if detected_candidate:
         text, conf = detected_candidate
-        return ExtractionResult(value=text, raw=text, method="label_anchored_no_match", confidence=0.0,
+        # IMPORTANT: this confidence is the real OCR confidence of the
+        # label/value block that was found (min of value_block/label_block
+        # confidence), NOT zeroed out. shared.py uses it to distinguish a
+        # CONFIDENT mismatch (a "Name" field was found and read reliably,
+        # but it isn't this applicant — auto-reupload candidate) from a
+        # genuinely ambiguous one (label found but read unreliably —
+        # stays verifier-routed). See AUTO_REUPLOAD_VERIFICATION_RULES.md.
+        return ExtractionResult(value=text, raw=text, method="label_anchored_no_match", confidence=conf,
                                  context='found a name field, but it does not match the applicant', found=False)
 
     # Truly nothing label-anchored was found at all (no "Name" field

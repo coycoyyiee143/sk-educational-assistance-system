@@ -36,6 +36,11 @@ api.interceptors.response.use(
         if (error.response?.status === 401) {
             localStorage.removeItem("token");
             localStorage.removeItem("user");
+            // Also clear the per-session privacy notice flag, so the
+            // Data Privacy Notice shows again on the next login — this
+            // path bypasses AuthContext's logout(), so it has to repeat
+            // that cleanup itself instead of relying on it.
+            sessionStorage.removeItem("privacyNoticeShown");
             window.location.href = "/login";
         }
         return Promise.reject(error);
@@ -44,6 +49,7 @@ api.interceptors.response.use(
 
 window.addEventListener("storage", (e) => {
     if (e.key === "token" && e.newValue === null) {
+        sessionStorage.removeItem("privacyNoticeShown");
         window.location.href = "/login";
     }
 });

@@ -20,13 +20,17 @@ function ApplicantDashboard() {
   const [loadingApp, setLoadingApp] = useState(true);
   const [loadingConfig, setLoadingConfig] = useState(true);
 
-  // Shown every time an applicant reaches the dashboard (i.e. every
-  // login) — not a one-time, remembered acknowledgment.
-  const [showPrivacyModal, setShowPrivacyModal] = useState(true);
+  // Shown once per login session — remembered via sessionStorage so
+  // navigating between dashboard visits within the same login doesn't
+  // keep re-triggering it, but a fresh login (new tab/session) will.
+  const [showPrivacyModal, setShowPrivacyModal] = useState(
+    () => !sessionStorage.getItem("privacyNoticeShown")
+  );
 
   const periodStatus = getApplicationPeriodStatus(config);
 
   function handleAgreePrivacy() {
+    sessionStorage.setItem("privacyNoticeShown", "1");
     setShowPrivacyModal(false);
   }
 
