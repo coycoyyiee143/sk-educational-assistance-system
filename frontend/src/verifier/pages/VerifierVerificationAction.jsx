@@ -66,7 +66,8 @@ function getApprovalWarnings(app, incomingFlags) {
     checks
       .filter((c) => !c.passed)
       .forEach((c) => {
-        warnings.push(`${docLabel}: ${getCheckRuleLabel(c.check_name)} failed`);
+        const reason = c.flag_reason || `${getCheckRuleLabel(c.check_name)} failed`;
+        warnings.push(`${docLabel} — ${getCheckRuleLabel(c.check_name)}: ${reason}`);
       });
   });
 
