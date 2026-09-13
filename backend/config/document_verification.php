@@ -1,10 +1,15 @@
 <?php
 
-// Centralized rules for OCR auto-reupload routing. See
-// AUTO_REUPLOAD_VERIFICATION_RULES.md for the full reasoning behind
-// these values. Read by App\Services\DocumentReuploadRoutingService,
-// not by ProcessOcrDocument.php directly -- the Job calls the service,
-// the service reads this config.
+// Centralized rules for OCR auto-reupload routing, on the Laravel side
+// specifically. Category names here must match whatever
+// ocr-service/app/verification/shared.py emits as auto_reupload_category
+// -- this is a manual-sync contract between two independently deployed
+// services, not a shared runtime file, by design (see
+// AUTO_REUPLOAD_VERIFICATION_RULES.md for why: a shared config file
+// would introduce a cross-service runtime dependency neither side
+// actually needs, just to solve what is really a "remember to update
+// both places" documentation problem). If you rename a category here,
+// also update the matching name in shared.py, and vice versa.
 
 return [
 
