@@ -60,7 +60,61 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
         "identity_match": name_result,
         "institution_match": _check_school(blocks, page_w, page_h, declared_school)
     }
+
     sy_res = extract_school_year(blocks, page_w, page_h, declared_school, configured_school_year)
+
+    # Confident school-year mismatch: short-circuits the same way as
+    # wrong_cert_year on the voter's certificate. Gated to schools whose
+    # per-school extraction regex is self-anchored to an actual
+    # phrase/format, not schools relying on a bare, unanchored number
+    # match.
+    #
+    # IMPORTANT: this is NOT gated on ExtractionResult.method
+    # ("keyword" vs "pattern_scan") -- that was tried first and found to
+    # be wrong. Real PNC OCR reads often produce "Academic Year
+    # 2026-2027" as ONE block with no colon and no separate adjacent
+    # value block, so extract_via_keyword can't parse a label/value
+    # split out of it at all -- it falls through to the blind top_half
+    # scan (method == "pattern_scan") even when the actual label text
+    # genuinely is right there. Gating on method would have silently
+    # excluded this exact real-world case. What actually makes a match
+    # trustworthy here is the PER-SCHOOL REGEX itself:
+    #   - PNC/University of Cabuyao: r"academic\s*year\s*(\d{4})-(\d{4})"
+    #     requires the literal phrase immediately before the numbers.
+    #   - STI College Calamba: r"(\d{2})(\d{2})\s*/\s*([12])t" requires
+    #     the specific term-code format.
+    # Both are self-validating regardless of which OCR block or
+    # detection path found them. SVCC's regex (bare r"\b(20\d{2})\b",
+    # no phrase anchor at all) and PUP/UPHSD's base_strategy fallback
+    # are excluded until independently verified -- see
+    # AUTO_REUPLOAD_VERIFICATION_RULES.md for the school-by-school
+    # reasoning and a separately-found bug in the base_strategy hint
+    # parameter that affects PUP/UPHSD.
+    # PUP added after confirming its real format ("A.Y.: 2025-2026
+    # TERM: First Semester") resolves via method=="keyword" (the colon
+    # after "A.Y." lets extract_via_keyword cleanly split label from
+    # value, unlike PNC's colonless "Academic Year 2026-2027") AND
+    # hits base_strategy's self-anchored two-nearby-years regex --
+    # genuinely trustworthy, not just assumed. See
+    # AUTO_REUPLOAD_VERIFICATION_RULES.md.
+    _SCHOOL_YEAR_AUTO_REUPLOAD_SCHOOLS = {
+        "Pamantasan ng Cabuyao", "University of Cabuyao", "STI College Calamba",
+        "Polytechnic University of the Philippines", "PUP",
+    }
+    if (
+        declared_school in _SCHOOL_YEAR_AUTO_REUPLOAD_SCHOOLS
+        and sy_res.found
+        and sy_res.value != configured_school_year
+        and sy_res.confidence >= 0.9
+    ):
+        return {
+            "document": "registration_form",
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": "wrong_school_year",
+            "auto_reupload_reason": f"The registration form you uploaded shows school year {sy_res.value}, but this cycle requires {configured_school_year}. Please upload a registration form for the correct school year.",
+        }
+
     if sy_res.found and sy_res.value == configured_school_year and sy_res.confidence >= RAW_FIELD_CONFIDENCE_FLOOR:
         checks["school_year_match"] = _pass("school_year_match", extracted=sy_res.raw, raw=sy_res.raw, context=sy_res.context, expected=configured_school_year)
     elif sy_res.found and sy_res.value == configured_school_year:
@@ -74,9 +128,10 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
             extracted=sy_res.raw, raw=sy_res.raw, expected=configured_school_year, context=sy_res.context,
         )
     else:
-        # Same reasoning as cert_year_match — a value mismatch is
-        # genuinely ambiguous (could be an honest mistake), stays
-        # verifier-routed, NOT auto-reupload.
+        # Reachable here for: not found at all, a mismatch on a school
+        # not in the auto-reupload allowlist above, or below the 0.9
+        # confidence bar even on an allowlisted school. Genuinely
+        # ambiguous either way — stays verifier-routed, not auto-reupload.
         reason = "School year not found — possible watermark interference, please verify manually" if not sy_res.found else "School year mismatch"
         checks["school_year_match"] = _flag("school_year_match", reason, extracted=sy_res.raw, raw=sy_res.raw, expected=configured_school_year, context=sy_res.context)
 

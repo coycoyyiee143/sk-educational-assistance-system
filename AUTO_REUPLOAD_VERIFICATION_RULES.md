@@ -47,11 +47,12 @@ of the two principles below.
 | Image blurry / low document-level OCR confidence | **Auto-reupload** (`low_quality`) | Uncapped | Purely mechanical — a bad scan isn't evidence the applicant can't fix, so it never counts against them long-term |
 | Wrong document type uploaded (e.g. school ID submitted where a reg form was expected) | **Auto-reupload** (`wrong_document_type`) | 3 tries | Clear-cut, unambiguous — the system can tell what kind of document it's looking at reliably |
 | Cert year wrong, **high OCR confidence only** (≥0.9) | **Auto-reupload** (`wrong_cert_year`) | 3 tries | Only short-circuits when the read is confident; a low-confidence or not-found year falls through to the ambiguous case below instead |
+| School year wrong, **confident, on an allowlisted school** (Pamantasan ng Cabuyao / University of Cabuyao, STI College Calamba, PUP) | **Auto-reupload** (`wrong_school_year`) — implemented | 3 tries | See "School year auto-reupload" section below — scoped per-school, not a blanket confidence gate |
 | Name on document confidently doesn't match applicant (label found, OCR read reliable, no match anywhere on the page) | **Auto-reupload** (`name_mismatch`) — implemented | 3 tries | Same class of mistake as wrong-document-type: most likely explanation is the applicant mistakenly uploaded someone else's or an old document |
 | School/institution on document confidently doesn't match declared school | **Blocked — see Known Limitations** (`institution_mismatch`) | 3 tries (reserved, unused) | `extract_school()` has no keyword-label anchoring, so there's no way yet to distinguish a confident mismatch from "nothing matched" — see below |
 | Guardian name on voter's certificate confidently doesn't match guardian on file (minor applicants only) | **Auto-reupload** (`name_mismatch`, guardian variant) — implemented | 3 tries | Same identity-mismatch logic, just checked against guardian instead of applicant |
 | Name/school/guardian-name match is ambiguous — no label found at all, OR OCR confidence on the label/value is weak, OR similarity score is borderline | **Verifier** | Uncapped | Genuinely unsure whether it's a real mismatch or just a bad scan of the right document — a human has to make the call |
-| School year / cert year low-confidence or not-found | **Verifier** (existing design) | Uncapped | Documented in code as watermark-interference-prone and format-variant-heavy — deliberately kept manual even before this round of changes |
+| School year not found/low-confidence, or wrong on a non-allowlisted school (SVCC, PUP, UPHSD); cert year low-confidence or not-found | **Verifier** (existing design) | Uncapped | See "School year auto-reupload" section for why these schools aren't allowlisted yet |
 | Residency (barangay ≠ Mamatid) | **Verifier — always** | N/A | This *is* the eligibility determination itself, not a wrong upload |
 | Minor applicant, no guardian info on file, still reaching OCR stage | **Verifier — always** (edge case only, see Guardian/Minor section) | N/A | Data gap on the applicant's profile, not a document problem — reuploading the same file cannot fix it |
 | Template/layout inconsistency | **Verifier — always** | N/A | Inconsistent layout is a possible tampering signal, not just "wrong file" |
@@ -181,7 +182,97 @@ that kind of silent drift becomes more likely to actually happen.
 
 ---
 
-## `institution_mismatch` — blocked, not built yet
+## School year auto-reupload (`wrong_school_year`) — implemented, scoped per-school
+
+This started from a real test case: a confidently-wrong registration
+form school year (Pamantasan ng Cabuyao, OCR confidence 0.91-0.93,
+extracted "First Semester, Academic Year 2026-2027" against a required
+"2025-2026") stayed verifier-routed instead of auto-reuploading, even
+though `wrong_cert_year` gets exactly this treatment on voter's
+certificates. Reasonable question: why the asymmetry?
+
+**First attempt, and why it was wrong.** The first fix gated the
+short-circuit on `ExtractionResult.method == "keyword"` — i.e. only
+trust a confident mismatch when an actual "School Year"/"Academic
+Year" label was found and anchored the read, not the blind top-half
+scan that runs when no such label exists anywhere on the page. This
+sounded right and was even tested — but checking it against the
+*actual* real-world case that motivated the feature showed it was
+wrong: real PNC OCR output often produces "Academic Year 2026-2027" as
+one continuous block with no colon and no separate value block.
+`extract_via_keyword` can only split label from value when there's a
+colon on the same line or the value sits in an adjacent block — with
+neither, it returns nothing, and extraction falls through to the blind
+`pattern_scan` path even though the actual label text is genuinely
+right there. Gating on `method` would have silently excluded the exact
+case this feature was built for. Caught by testing against the real
+extracted string before shipping, not left in.
+
+**What actually determines trustworthiness here** isn't *how* the text
+was located — it's whether that specific school's **per-school regex**
+is self-anchored to an actual phrase or format, independent of which
+path found it:
+
+- **Pamantasan ng Cabuyao / University of Cabuyao:**
+  `academic\s*year\s*(\d{4})\s*-\s*(\d{4})` — requires the literal
+  phrase immediately before the numbers. Self-validating regardless of
+  where in the document it's found.
+- **STI College Calamba:** `(\d{2})(\d{2})\s*/\s*([12])t` — requires
+  the specific term-code format (e.g. "2627/1T"). Same reasoning.
+- **SVCC:** `\b(20\d{2})\b` — a bare, unanchored 4-digit match. Not
+  self-validating; could grab any nearby year-like number regardless
+  of whether it's actually the school year. **Excluded from the
+  allowlist.** A separately-shared documentation reference
+  (`SCHOOL_FORMAT_RULES` in `config.py`, comments-only, not read at
+  runtime) confirms SVCC's real format is indeed "School Year: 20XX"
+  (single start year) — matching what the current strategy already
+  assumes — but doesn't change the underlying extraction-reliability
+  concern, since that bare regex is still only safe when reached via a
+  genuine label, and there's no dependable way to confirm that (see
+  the `method` discussion above).
+- **PUP:** confirmed real format is `"A.Y.: 2025-2026 TERM: First
+  Semester"`. **Included in the allowlist** — verified this resolves
+  via `method == "keyword"` (the colon after "A.Y." lets
+  `extract_via_keyword` cleanly split label from value, unlike PNC's
+  colonless format) AND lands on `BaseSchoolStrategy`'s self-anchored
+  two-nearby-years regex. Both dropdown spellings (`"PUP"` and
+  `"Polytechnic University of the Philippines"`) are in the allowlist.
+- **UPHSD:** no per-school override, falls back to
+  `BaseSchoolStrategy`'s generic patterns, same as PUP was before
+  verification. The same `SCHOOL_FORMAT_RULES` reference documents its
+  real format as `"Sch. Yr." label + YYYY-YYYY`, which — like PUP —
+  would likely resolve via `method == "keyword"` and the same
+  self-anchored two-year regex. **Not yet added to the allowlist**,
+  since this hasn't been independently verified the way PUP's format
+  was (constructing the actual test case and confirming the extraction
+  result). Reasonable next candidate if verified the same way.
+
+**Implementation:** `verify_registration_form` short-circuits to
+`auto_reupload`/`wrong_school_year` when the extracted year doesn't
+match the configured one, confidence is ≥0.9 (same bar as
+`wrong_cert_year`), AND `declared_school` is in an explicit allowlist
+(`Pamantasan ng Cabuyao`, `University of Cabuyao`, `STI College
+Calamba`, `Polytechnic University of the Philippines`, `PUP`).
+Anything else — a non-allowlisted school, low confidence,
+or not found at all — falls through to the existing verifier-routed
+`school_year_match` check unchanged. Verified against the real
+motivating case end-to-end through `verify_registration_form` itself
+(not just the extraction layer) — see
+`test_school_year_mismatch_routing.py`.
+
+**A separate bug found while auditing this, not yet fixed:**
+`school_year.py` passes `configured_year` (e.g. `"2025-2026"`) into
+each strategy's `sy_format_hint` parameter, but `BaseSchoolStrategy`'s
+default implementation only checks that parameter against the literal
+strings `"single_year_as_start"` or `"single_year_as_end"` — never an
+actual year value. This means the single-year fallback branch in
+`BaseSchoolStrategy.extract_school_year` is dead code for any school
+relying on it (currently PUP and UPHSD): it can never trigger as
+written. They still work via the two-nearby-years pattern in the same
+method, just not via that specific branch. Worth fixing separately —
+flagging here so it isn't mistaken for intentional.
+
+
 
 Unlike name matching, `extract_school()` (`ocr-service/app/extraction/school.py`)
 has **no keyword-label search at all** — no equivalent of name's

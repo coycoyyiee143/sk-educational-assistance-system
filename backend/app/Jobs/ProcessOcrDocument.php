@@ -1,6 +1,8 @@
 <?php
 
+
 namespace App\Jobs;
+
 
 use App\Models\Application;
 use App\Models\ApplicationDocument;
@@ -19,19 +21,24 @@ use GuzzleHttp\Client;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\RequestException;
 
+
 class ProcessOcrDocument implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+
     // Allow the job to run up to 4 minutes before Laravel forces a timeout
     public $timeout = 240;
+
 
     // Limit retries so it doesn't slam your Python API if something breaks
     public $tries = 2;
 
+
     protected $application;
     protected $document;
     protected $filePath;
+
 
     public function __construct(Application $application, ApplicationDocument $document, string $filePath)
     {
@@ -272,7 +279,40 @@ class ProcessOcrDocument implements ShouldQueue
 
     public function middleware()
     {
-        return [(new \Illuminate\Queue\Middleware\WithoutOverlapping('ocr-processing'))->releaseAfter(60)];
+        // Scoped per-application, NOT a single fixed string. The fixed
+        // key 'ocr-processing' previously used here serializes EVERY
+        // OCR job system-wide -- only one document, for one applicant,
+        // could process at a time, for the entire system, regardless
+        // of how many queue workers are running. Every other job just
+        // sits and retries every 60s.
+        //
+        // The actual protection this middleware exists for is almost
+        // certainly preventing a race in updateApplicationStatus(): all
+        // three of an application's document jobs call it at the end,
+        // and if two finish within moments of each other, both could
+        // read the "still waiting on other documents" state
+        // simultaneously and neither would correctly detect that all
+        // three are done -- or worse, both attempt conflicting writes
+        // to the same Application row's status at once. Scoping the
+        // key to the application id preserves exactly that protection
+        // (this application's 3 document jobs still can't overlap each
+        // other) while letting DIFFERENT applicants process fully in
+        // parallel, limited only by actual worker/OCR-service capacity
+        // instead of an unrelated global lock.
+        //
+        // IMPORTANT CAVEAT: this alone does not give you real parallel
+        // THROUGHPUT. The OCR Flask service itself (ocr-service/run.py)
+        // runs via `app.run(debug=True)` with no `threaded=True` and no
+        // multi-worker WSGI server -- it can only handle one HTTP
+        // request at a time regardless of what Laravel sends it.
+        // Loosening this lock only helps once the OCR service side is
+        // also given real concurrency (e.g. `threaded=True`, verified
+        // safe for concurrent PaddleOCR inference on one process first,
+        // or a production WSGI server with multiple workers). Without
+        // that, concurrent jobs dispatched from here will simply queue
+        // up at the OCR service's HTTP layer instead -- the bottleneck
+        // moves, it doesn't disappear.
+        return [(new \Illuminate\Queue\Middleware\WithoutOverlapping("ocr-processing-{$this->application->id}"))->releaseAfter(60)];
     }
 
 

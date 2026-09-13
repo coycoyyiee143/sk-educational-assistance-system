@@ -91,4 +91,14 @@ class Config:
             "sy_format": "YYYY-YYYY",
             "sy_keywords": ["sch. yr.", "sch yr"],
         },
+        "Polytechnic University of the Philippines": {
+            # Format: "A.Y.: 20XX-20XX  TERM: First/Second Semester"
+            "sy_format": "YYYY-YYYY",
+            "sy_keywords": ["a.y."],
+        },
+        "PUP": {
+            # Format: "A.Y.: 20XX-20XX  TERM: First/Second Semester"
+            "sy_format": "YYYY-YYYY",
+            "sy_keywords": ["a.y."],
+        },
     }
