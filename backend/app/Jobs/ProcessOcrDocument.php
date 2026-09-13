@@ -309,7 +309,7 @@ class ProcessOcrDocument implements ShouldQueue
         // document jobs can genuinely process in parallel; raising either
         // side alone without the other doesn't increase real throughput,
         // the bottleneck just moves to whichever side wasn't raised.
-        return [(new \Illuminate\Queue\Middleware\WithoutOverlapping("ocr-processing-{$this->application->id}"))->releaseAfter(60)];
+        return [(new \Illuminate\Queue\Middleware\WithoutOverlapping("ocr-processing-{$this->application->id}"))->releaseAfter(250)];
     }
 
 
