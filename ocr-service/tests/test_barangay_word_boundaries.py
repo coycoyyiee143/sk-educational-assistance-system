@@ -116,6 +116,20 @@ def test_whole_word_barangay_match_with_residency_context_still_flags():
     assert "Pulo" in result.context
 
 
+def test_mamatid_matches_even_when_ocr_glues_it_to_adjacent_word():
+    # Regression: the word-boundary fix above (_contains_word) was
+    # briefly applied to the Mamatid POSITIVE match too, which broke
+    # detection whenever OCR read "Barangay" and "Mamatid" as one glued
+    # token with no space -- a real, common OCR artifact on scanned
+    # certs, not a hypothetical. \b can't find a boundary in the middle
+    # of an unbroken run of letters, so genuine residents stopped being
+    # detected. The positive match must stay a plain substring check.
+    blocks = [block("BarangayMamatid, Cabuyao City, Laguna")]
+    result = extract_barangay(blocks)
+    assert result.found is True
+    assert result.value == "Mamatid"
+
+
 def test_san_isidro_multiword_barangay_still_works():
     # Confirms word-boundary matching works correctly for a two-word
     # barangay name too, not just single-word ones.

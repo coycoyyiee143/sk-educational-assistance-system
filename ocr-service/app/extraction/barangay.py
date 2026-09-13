@@ -88,7 +88,14 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
         raw_lower = raw.lower()
         combined_confidence = min(target_block.confidence, label_block.confidence)
 
-        if _contains_word(raw_lower, "mamatid"):
+        # Plain substring check here, NOT _contains_word -- an OCR read
+        # can glue "Barangay" and "Mamatid" into one token with no space
+        # (e.g. "BarangayMamatid"), which a \b word-boundary match can't
+        # see. Safe to stay loose here since this is the POSITIVE match:
+        # worst case of a false hit is a wrong residency pass, not an
+        # accusatory flag -- unlike the contradiction path below, which
+        # still needs the stricter word-boundary check.
+        if "mamatid" in raw_lower:
             return ExtractionResult(value="Mamatid", raw=raw, method="keyword", confidence=combined_confidence, context=f'found {context}')
         
         for brgy in known_laguna_barangays:
@@ -112,7 +119,10 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
     for block in blocks:
         txt_lower = block.text.lower()
 
-        if _contains_word(txt_lower, "mamatid"):
+        # Same reasoning as the anchored-match branch above: stay loose
+        # (plain substring) for the positive Mamatid match so a glued
+        # OCR token like "BarangayMamatid" still counts.
+        if "mamatid" in txt_lower:
             return ExtractionResult(value="Mamatid", raw=block.text, method="pattern_scan", confidence=block.confidence, context=f'found in: "{block.text}"')
 
         if not _residency_context_present(txt_lower):
