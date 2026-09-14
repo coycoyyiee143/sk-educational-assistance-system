@@ -27,35 +27,18 @@ def get_ocr():
     return _ocr
 
 
-def preprocess_image(image_path: str, use_red_channel: bool = False) -> str:
+def preprocess_image(image_path: str) -> str:
     """
     Enhance image to improve OCR on watermark-heavy documents.
     Saves preprocessed image to a temp file and returns its path.
-
-    use_red_channel: SVCC's registration form has a pink/magenta seal
-    printed under the text - that color sits close to the white/cream
-    paper's own red value, so extracting just the red channel flattens
-    the watermark's contrast toward background while black text stays
-    dark. Standard grayscale (BGR2GRAY) keeps more of the watermark's
-    contrast since it factors in green/blue channels too, where pink
-    reads darker. Scoped to SVCC reg forms only, not A/B tested yet
-    against school IDs or voter's certs (which may have blue ink/stamps
-    that red-channel isolation could hurt instead of help).
     """
     import tempfile, os
     img = cv2.imread(image_path)
     if img is None:
         return image_path
 
-    if use_red_channel:
-        _, _, r = cv2.split(img)
-        gray = r
-        clip_limit = 3.0
-    else:
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        clip_limit = 2.0
-
-    clahe = cv2.createCLAHE(clipLimit=clip_limit, tileGridSize=(8, 8))
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
     enhanced = clahe.apply(gray)
     kernel = np.array([[0, -1, 0], [-1, 5, -1], [0, -1, 0]])
     sharpened = cv2.filter2D(enhanced, -1, kernel)
@@ -67,7 +50,7 @@ def preprocess_image(image_path: str, use_red_channel: bool = False) -> str:
         return tmp.name
 
 
-def run_ocr(image_path: str, school_name: str = None, document_type: str = None) -> list:
+def run_ocr(image_path: str) -> list:
     ocr = get_ocr()
 
     results = ocr.ocr(image_path, cls=True)
@@ -85,15 +68,7 @@ def run_ocr(image_path: str, school_name: str = None, document_type: str = None)
     # which the average-only check let through unnoticed).
     if not extracted or avg_conf < 0.85 or min_conf < 0.65:
         print("DEBUG: Enhancement pass TRIGGERED", flush=True)
-
-        use_red_channel = (
-            "VINCENT" in (school_name or "").upper()
-            and document_type == "registration_form"
-        )
-
-        print(f"DEBUG: school_name={school_name!r}, document_type={document_type!r}, use_red_channel={use_red_channel}", flush=True)
-        
-        preprocessed_path = preprocess_image(image_path, use_red_channel=use_red_channel)
+        preprocessed_path = preprocess_image(image_path)
         try:
             results2 = ocr.ocr(preprocessed_path, cls=True)
             extracted2 = parse_results(results2)
