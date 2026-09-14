@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import ClaimingFaceVerify from "../components/ClaimingFaceVerify";
@@ -23,6 +23,11 @@ const NOT_CLEARED_QUICK_NOTES = [
   "Documents did not match.",
   "Requirements incomplete.",
 ];
+
+// Claiming is finalized for these — nothing left for a verifier to do but
+// look back at what happened, so they get a visual break from the
+// actionable queue above them and a "View" instead of "Select".
+const RESOLVED_CLAIM_STATUSES = ["claimed", "not_cleared", "unclaimed"];
 
 function ClaimStatusBadge({ status }) {
   const config = STATUS_CONFIG[status];
@@ -123,6 +128,7 @@ function VerifierClaiming() {
   const [laneRequestMessage, setLaneRequestMessage] = useState("");
   const [pendingRequestLaneId, setPendingRequestLaneId] = useState(null);
   const [lanesLoaded, setLanesLoaded] = useState(false);
+  const [lanesError, setLanesError] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -135,6 +141,8 @@ function VerifierClaiming() {
   );
 
   function fetchLanes() {
+    setLanesError(false);
+
     api
       .get("/verifier/claiming/lanes")
       .then((res) => {
@@ -168,7 +176,10 @@ function VerifierClaiming() {
 
         setLanesLoaded(true);
       })
-      .catch(() => setLanesLoaded(true));
+      .catch(() => {
+        setLanesError(true);
+        setLanesLoaded(true);
+      });
   }
 
   useEffect(() => {
@@ -210,6 +221,8 @@ function VerifierClaiming() {
     const params = {};
     if (gracePeriodMode) {
       params.grace_period = 1;
+      if (controlNo.trim()) params.control_number = controlNo.trim();
+      if (applicantName.trim()) params.name = applicantName.trim();
     } else {
       if (!selectedLaneId && !controlNo.trim() && !applicantName.trim()) return;
       if (selectedLaneId) params.lane_id = selectedLaneId;
@@ -375,6 +388,14 @@ function VerifierClaiming() {
 
       if (gracePeriodMode) {
         params.grace_period = 1;
+
+        if (controlNo.trim()) {
+          params.control_number = controlNo.trim();
+        }
+
+        if (applicantName.trim()) {
+          params.name = applicantName.trim();
+        }
       } else {
         if (selectedLaneId) {
           params.lane_id = selectedLaneId;
@@ -718,11 +739,7 @@ function VerifierClaiming() {
     unreviewedCount > 0 ||
     issueDocs.length > 0;
 
-  const isResolved = [
-    "claimed",
-    "not_cleared",
-    "unclaimed",
-  ].includes(
+  const isResolved = RESOLVED_CLAIM_STATUSES.includes(
     selected?.claiming_assignment?.claim_status
   );
 
@@ -742,6 +759,14 @@ function VerifierClaiming() {
 
       return aPending - bPending;
     }
+  );
+
+  // Where the "already actioned" group starts in the full sorted list —
+  // used to drop a one-time divider row right before it, wherever that
+  // falls once paginated. -1 (nobody resolved) or 0 (everybody resolved)
+  // both correctly render no divider.
+  const firstResolvedIndex = sortedResults.findIndex((r) =>
+    RESOLVED_CLAIM_STATUSES.includes(r.claiming_assignment?.claim_status)
   );
 
   const totalPages = Math.max(
@@ -1359,7 +1384,7 @@ function VerifierClaiming() {
                   >
                     {isResolved ? (
                       <div className="alert alert-secondary mb-0">
-                        This application has already been marked as{" "}
+                        This applicant's claiming status is already finalized as{" "}
                         <ClaimStatusBadge
                           status={
                             selected
@@ -1367,7 +1392,7 @@ function VerifierClaiming() {
                               ?.claim_status
                           }
                         />
-                        . No further action is available here.
+                        {" "}— there's nothing further to do here.
                       </div>
                     ) : (
                       <>
@@ -1522,6 +1547,25 @@ function VerifierClaiming() {
                                   gracePeriodDates.end
                                 )}
                                 )
+                              </span>
+                            </div>
+                          </div>
+                        ) : lanesError ? (
+                          <div className="verifier-claiming-context verifier-claiming-context-neutral">
+                            <span className="verifier-claiming-notice-icon">
+                              <i className="bi bi-exclamation-triangle"></i>
+                            </span>
+
+                            <div className="verifier-claiming-context-content">
+                              <span>
+                                Couldn't load the claiming schedule — this may not mean grace period is unconfigured, the request may have just failed.{" "}
+                                <button
+                                  type="button"
+                                  className="verifier-claiming-retry-link"
+                                  onClick={fetchLanes}
+                                >
+                                  Retry
+                                </button>
                               </span>
                             </div>
                           </div>
@@ -1718,26 +1762,18 @@ function VerifierClaiming() {
 
                     <div className="verifier-claiming-split-col verifier-claiming-split-col-border">
                       <h4 className="verifier-claiming-search-title">
-                        Search Applicant
+                        {gracePeriodMode
+                          ? "Filter Grace Period List"
+                          : "Search Applicant"}
                       </h4>
 
-                      <div
-                        className={`verifier-claiming-search-box ${gracePeriodMode
-                          ? "verifier-claiming-search-disabled"
-                          : ""
-                          }`}
-                      >
+                      <div className="verifier-claiming-search-box">
                         <form
                           onSubmit={
                             handleSearch
                           }
                         >
-                          <fieldset
-                            disabled={
-                              gracePeriodMode
-                            }
-                            className="verifier-claiming-search-fieldset"
-                          >
+                          <fieldset className="verifier-claiming-search-fieldset">
                             <div className="mb-3">
                               <label className="verifier-claiming-label">
                                 Control Number
@@ -1788,21 +1824,21 @@ function VerifierClaiming() {
                               type="submit"
                               className="verifier-claiming-search-btn"
                               disabled={
-                                searching ||
-                                gracePeriodMode
+                                searching
                               }
                             >
-                              {searching &&
-                                !gracePeriodMode
+                              {searching
                                 ? "Searching..."
-                                : "Search"}
+                                : gracePeriodMode
+                                  ? "Filter"
+                                  : "Search"}
                             </button>
                           </fieldset>
                         </form>
 
                         {gracePeriodMode ? (
-                          <p className="verifier-claiming-search-disabled-text">
-                            Search is unavailable while viewing the Grace Period List.
+                          <p className="text-muted small mt-3 mb-0">
+                            Showing everyone currently in the grace period pool. Filter by control number or name above, or leave blank to see everyone.
                           </p>
                         ) : results.length ===
                           0 &&
@@ -2006,86 +2042,128 @@ function VerifierClaiming() {
                                 ) : (
                                   pagedResults.map(
                                     (
-                                      app
-                                    ) => (
-                                      <tr
-                                        key={
-                                          app.id
-                                        }
-                                      >
-                                        <td>
-                                          {
-                                            app.control_number
+                                      app,
+                                      idx
+                                    ) => {
+                                      const isRowResolved =
+                                        RESOLVED_CLAIM_STATUSES.includes(
+                                          app.claiming_assignment
+                                            ?.claim_status
+                                        );
+
+                                      const showDivider =
+                                        firstResolvedIndex > 0 &&
+                                        pageStart + idx ===
+                                        firstResolvedIndex;
+
+                                      return (
+                                        <Fragment
+                                          key={
+                                            app.id
                                           }
-                                        </td>
+                                        >
+                                          {showDivider && (
+                                            <tr className="verifier-claiming-results-divider">
+                                              <td
+                                                colSpan={
+                                                  gracePeriodMode
+                                                    ? 6
+                                                    : 5
+                                                }
+                                              >
+                                                Action Taken
+                                              </td>
+                                            </tr>
+                                          )}
 
-                                        <td>
-                                          {
-                                            app.user
-                                              ?.first_name
-                                          }{" "}
-                                          {
-                                            app.user
-                                              ?.last_name
-                                          }
-                                        </td>
-
-                                        <td>
-                                          {
-                                            app.school_name
-                                          }
-                                        </td>
-
-                                        <td className="verifier-claiming-status-cell">
-                                          <ClaimStatusBadge
-                                            status={
-                                              app.claiming_assignment
-                                                ?.claim_status
-                                            }
-                                          />
-                                        </td>
-
-                                        {gracePeriodMode && (
-                                          <td className="verifier-claiming-type-cell">
-                                            {app
-                                              .claiming_assignment
-                                              ?.source ===
-                                              "waitlist_promotion" && (
-                                                <span className="verifier-claiming-type-badge verifier-claiming-type-promoted">
-                                                  Promoted
-                                                </span>
-                                              )}
-
-                                            {(app
-                                              .claiming_assignment
-                                              ?.source ===
-                                              "grace_period_retry" ||
-                                              app
-                                                .claiming_assignment
-                                                ?.source ===
-                                              "original") && (
-                                                <span className="verifier-claiming-type-badge verifier-claiming-type-retrying">
-                                                  Retrying
-                                                </span>
-                                              )}
-                                          </td>
-                                        )}
-
-                                        <td className="verifier-attention-action">
-                                          <button
-                                            type="button"
-                                            className="btn-save-green"
-                                            onClick={() =>
-                                              selectApplicant(
-                                                app
-                                              )
+                                          <tr
+                                            className={
+                                              isRowResolved
+                                                ? "verifier-claiming-row-resolved"
+                                                : undefined
                                             }
                                           >
-                                            Select
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    )
+                                            <td>
+                                              {
+                                                app.control_number
+                                              }
+                                            </td>
+
+                                            <td>
+                                              {
+                                                app.user
+                                                  ?.first_name
+                                              }{" "}
+                                              {
+                                                app.user
+                                                  ?.last_name
+                                              }
+                                            </td>
+
+                                            <td>
+                                              {
+                                                app.school_name
+                                              }
+                                            </td>
+
+                                            <td className="verifier-claiming-status-cell">
+                                              <ClaimStatusBadge
+                                                status={
+                                                  app.claiming_assignment
+                                                    ?.claim_status
+                                                }
+                                              />
+                                            </td>
+
+                                            {gracePeriodMode && (
+                                              <td className="verifier-claiming-type-cell">
+                                                {app
+                                                  .claiming_assignment
+                                                  ?.source ===
+                                                  "waitlist_promotion" && (
+                                                    <span className="verifier-claiming-type-badge verifier-claiming-type-promoted">
+                                                      Promoted
+                                                    </span>
+                                                  )}
+
+                                                {(app
+                                                  .claiming_assignment
+                                                  ?.source ===
+                                                  "grace_period_retry" ||
+                                                  app
+                                                    .claiming_assignment
+                                                    ?.source ===
+                                                  "original") && (
+                                                    <span className="verifier-claiming-type-badge verifier-claiming-type-retrying">
+                                                      Retrying
+                                                    </span>
+                                                  )}
+                                              </td>
+                                            )}
+
+                                            <td className="verifier-attention-action">
+                                              <button
+                                                type="button"
+                                                className={
+                                                  isRowResolved
+                                                    ? "btn-view-muted"
+                                                    : "btn-save-green"
+                                                }
+                                                onClick={() =>
+                                                  selectApplicant(
+                                                    app
+                                                  )
+                                                }
+                                              >
+                                                {isRowResolved
+                                                  ? "View"
+                                                  : "Select"}
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        </Fragment>
+                                      );
+                                    }
                                   )
                                 )}
                               </tbody>

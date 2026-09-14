@@ -6762,17 +6762,8 @@ a:hover {
   gap: 14px;
 }
 
-.verifier-claiming-split-card {
-  grid-template-columns: 1fr !important;
-}
-
 .verifier-claiming-split-col {
   min-width: 0;
-}
-
-.verifier-claiming-split-col-border {
-  border-left: 0 !important;
-  border-top: 1px solid #e5e7eb;
 }
 
 .verifier-claiming-header-row {
@@ -8436,7 +8427,6 @@ a:hover {
   width: 1px;
   background: #e5e5e5;
   position: relative;
-  left: -20px;
 }
 
 .verifier-review-information-body .verifier-review-info-label {
@@ -15237,18 +15227,12 @@ body {
     gap: 14px;
   }
 
-  /* Claiming */
-  .verifier-claiming-split-card {
-    grid-template-columns: 1fr !important;
-  }
-
+  /* Claiming — column stacking is handled by the single breakpoint
+     further down (".verifier-claiming-split-card" under max-width:700px)
+     so Document Verification and Face Verification stay side by side
+     through tablet/small-laptop widths instead of stacking this early. */
   .verifier-claiming-split-col {
     min-width: 0;
-  }
-
-  .verifier-claiming-split-col-border {
-    border-left: 0 !important;
-    border-top: 1px solid #e5e7eb;
   }
 
   .verifier-claiming-header-row {
@@ -19480,6 +19464,49 @@ button.verifier-claiming-photo-caption-retake:hover {
   vertical-align: middle;
 }
 
+.verifier-claiming-results-divider td {
+  background: #fafbfc;
+  color: #8a94a3;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 6px 16px;
+  border-top: 1px solid #e8edf2;
+}
+
+.verifier-claiming-row-resolved {
+  opacity: 0.7;
+}
+
+.verifier-claiming-retry-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--maroon, #8a1c1c);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.btn-view-muted {
+  background: #eef0f3;
+  color: #4b5563;
+  border: 1px solid #9aa3af;
+  font-weight: 600;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  padding: 8px 17px;
+  border-radius: 8px;
+}
+
+.btn-view-muted:hover {
+  background: #e1e4e9;
+  color: #1f2937;
+  border-color: #6b7280;
+}
+
 /* Action modal (Mark as Claimed / Not Cleared) */
 
 .verifier-claiming-action-modal-backdrop {
@@ -19887,9 +19914,12 @@ button.verifier-claiming-photo-caption-retake:hover {
   background: #ffffff;
 }
 
-/* Responsive: stack split columns on small screens */
+/* Responsive: stack split columns on small screens only — kept side by
+   side down through tablet/small-laptop widths so Document Verification
+   and Face Verification stay next to each other and don't force extra
+   vertical scrolling. */
 
-@media (max-width: 900px) {
+@media (max-width: 700px) {
   .verifier-claiming-split-card {
     grid-template-columns: 1fr;
   }
