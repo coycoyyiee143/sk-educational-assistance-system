@@ -2,36 +2,17 @@ import { useState, useEffect, useCallback } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
+import RelativeTime from "../../components/RelativeTime";
 import api from "../../services/api";
 import { usePolling } from "../../hooks/usePolling";
-
-function formatWaitTime(waitlistedAt) {
-  if (!waitlistedAt) return "—";
-
-  const diffMs = new Date() - new Date(waitlistedAt);
-
-  const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  if (days >= 1) {
-    return `${days} day${days === 1 ? "" : "s"} ago`;
-  }
-
-  const hours = Math.floor(diffMs / (1000 * 60 * 60));
-  if (hours >= 1) {
-    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
-  }
-
-  const mins = Math.floor(diffMs / (1000 * 60));
-  return `${mins} minute${mins === 1 ? "" : "s"} ago`;
-}
 
 function VerifierWaitlist() {
   const [waitlist, setWaitlist] = useState([]);
   const [notClearedCount, setNotClearedCount] = useState(0);
   const [freeSlots, setFreeSlots] = useState(0);
   const [configId, setConfigId] = useState(null);
-  // NEW: drive the "not final yet" banner below.
+  // Drives the "not final yet" banner below.
   const [periodOpen, setPeriodOpen] = useState(false);
-  const [slotsFull, setSlotsFull] = useState(false);
   const [loading, setLoading] = useState(true);
   const [promoting, setPromoting] = useState(false);
   const [promotingAll, setPromotingAll] = useState(false);
@@ -51,7 +32,6 @@ function VerifierWaitlist() {
       setNotClearedCount(res.data.not_cleared_count ?? 0);
       setFreeSlots(res.data.free_slots ?? 0);
       setPeriodOpen(res.data.period_open ?? false);
-      setSlotsFull(res.data.slots_full ?? false);
     } catch {
       setError("Failed to load waitlist.");
     } finally {
@@ -112,6 +92,15 @@ function VerifierWaitlist() {
 
   const nextApplicant = waitlist.find((a) => a.position === 1);
 
+  // slots_full flickers false the instant a not_cleared rejection frees a
+  // slot — exactly the moment "freed slots" becomes relevant — so it's the
+  // wrong thing to gate the summary stats on. Show the stats once the
+  // waitlist mechanism has actually been in play: someone is (or was)
+  // waitlisted, a slot has ever been freed by a rejection, or there's
+  // genuinely zero room left right now.
+  const waitlistActive =
+    waitlist.length > 0 || notClearedCount > 0 || freeSlots === 0;
+
   return (
     <div className="verifier-layout">
       <VerifierNavigation
@@ -135,9 +124,9 @@ function VerifierWaitlist() {
             {/* Live-snapshot notice — only meaningful once data has loaded.
                 Placed here, inside the page container, so it reads as part
                 of the page content rather than a global nav banner. */}
-            {!loading && periodOpen && !slotsFull && (
+            {!loading && periodOpen && waitlistActive && (
               <div className="alert alert-info">
-                Application period still open and slots not yet full — waitlist position may
+                This period hasn't been finalized yet — waitlist position may
                 change as more applicants get processed. Numbers here are a live snapshot, not final.
               </div>
             )}
@@ -149,60 +138,89 @@ function VerifierWaitlist() {
             <div className="page-card verifier-waitlist-summary-card">
               <h4 className="verifier-application-list-title">Waitlist Summary</h4>
 
-              <div className="row g-4">
-                <div className="col-md-4">
-                  <div className="summary-card">
-                    <h5>Applicants Waiting</h5>
+              {!loading && !waitlistActive ? (
+                <div className="alert alert-secondary mb-0">
+                  This period still has {freeSlots === null ? "unlimited" : freeSlots} slot
+                  {freeSlots === 1 ? "" : "s"} open, so no one has been waitlisted yet. Once
+                  every slot is taken, any slot freed by a rejection during physical
+                  verification will show up here for you to backfill — oldest wait first.
+                </div>
+              ) : (
+                <div className="row g-4">
+                  <div className="col-md-3">
+                    <div className="summary-card">
+                      <h5>Applicants Waiting</h5>
 
-                    <div className="summary-number">
-                      {loading ? (
-                        <span className="small text-muted">...</span>
-                      ) : (
-                        waitlist.length
-                      )}
+                      <div className="summary-number">
+                        {loading ? (
+                          <span className="small text-muted">...</span>
+                        ) : (
+                          waitlist.length
+                        )}
+                      </div>
+
+                      <p className="text-muted mb-0">On the waitlist right now</p>
                     </div>
+                  </div>
 
-                    <p className="text-muted mb-0">On the waitlist right now</p>
+                  <div className="col-md-3">
+                    <div className="summary-card">
+                      <h5>Freed Slots</h5>
+
+                      <div className="summary-number">
+                        {loading ? (
+                          <span className="small text-muted">...</span>
+                        ) : freeSlots === null ? (
+                          "Unlimited"
+                        ) : (
+                          freeSlots
+                        )}
+                      </div>
+
+                      <p className="text-muted mb-0">Open now — ready to backfill</p>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3">
+                    <div className="summary-card">
+                      <h5>Not Cleared</h5>
+
+                      <div className="summary-number">
+                        {loading ? (
+                          <span className="small text-muted">...</span>
+                        ) : (
+                          notClearedCount
+                        )}
+                      </div>
+
+                      <p className="text-muted mb-0">
+                        Rejected at physical verification this period
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="col-md-3">
+                    <div className="summary-card">
+                      <h5>Next in Line</h5>
+
+                      <div
+                        className="summary-number"
+                        style={{
+                          fontSize: nextApplicant ? "1.5rem" : undefined,
+                        }}
+                      >
+                        {loading ? (
+                          <span className="small text-muted">...</span>
+                        ) : (
+                          nextApplicant?.name ?? "—"
+                        )}
+                      </div>
+
+                      <p className="text-muted mb-0">First to be promoted</p>
+                    </div>
                   </div>
                 </div>
-
-                <div className="col-md-4">
-                  <div className="summary-card">
-                    <h5>Free Slots</h5>
-
-                    <div className="summary-number">
-                      {loading ? (
-                        <span className="small text-muted">...</span>
-                      ) : (
-                        `${freeSlots} / ${notClearedCount}`
-                      )}
-                    </div>
-
-                    <p className="text-muted mb-0">Available to backfill right now</p>
-                  </div>
-                </div>
-
-                <div className="col-md-4">
-                  <div className="summary-card">
-                    <h5>Next in Line</h5>
-
-                    <div
-                      className="summary-number"
-                      style={{
-                        fontSize: nextApplicant ? "1.5rem" : undefined,
-                      }}
-                    >
-                      {loading ? (
-                        <span className="small text-muted">...</span>
-                      ) : (
-                        nextApplicant?.name ?? "—"
-                      )}
-                    </div>
-
-                    <p className="text-muted mb-0">First to be promoted</p>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
 
             <div className="page-card verifier-attention-card">
@@ -286,7 +304,9 @@ function VerifierWaitlist() {
 
                           <td>{app.school_name}</td>
 
-                          <td>{formatWaitTime(app.waitlisted_at)}</td>
+                          <td>
+                            <RelativeTime value={app.waitlisted_at} />
+                          </td>
                         </tr>
                       ))
                     ) : (

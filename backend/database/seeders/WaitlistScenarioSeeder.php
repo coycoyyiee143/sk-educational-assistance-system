@@ -112,7 +112,7 @@ class WaitlistScenarioSeeder extends Seeder
                 'year_level'        => $this->yearLevels[array_rand($this->yearLevels)],
                 'student_id_number' => '2026-' . str_pad($i, 4, '0', STR_PAD_LEFT),
                 'status'            => 'approved',
-                'control_number'    => 'SK-' . now()->format('Y') . '-' . str_pad($i, 4, '0', STR_PAD_LEFT),
+                'control_number'    => 'SK-WLTEST-' . now()->format('Y') . '-' . str_pad($i, 4, '0', STR_PAD_LEFT),
                 'submitted_at'      => now()->subDays(rand(1, 9)),
             ]);
         }
