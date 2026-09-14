@@ -123,7 +123,7 @@ const Home = () => {
       <section
         className="hero-section"
         style={{
-          backgroundImage: "url(/icons/hero-bg.png)",
+          backgroundImage: "url(/icons/hero-bg.jpg)",
         }}
       >
         <div className="container">
@@ -136,7 +136,7 @@ const Home = () => {
             system.
           </p>
 
-          <div className="mt-4">
+          <div style={{ marginTop: "100px" }}>
             <a
               href="/register"
               className="btn btn-custom-light me-2 mb-2"
@@ -892,7 +892,7 @@ const Home = () => {
             <div className="org-row org-row-1">
               <div className="org-card">
                 <img
-                  src="/officials/chairman.jpg"
+                  src="/officials/chairman.png"
                   alt="SK Chairman"
                   className="org-photo"
                 />
