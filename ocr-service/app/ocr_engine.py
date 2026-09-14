@@ -57,9 +57,16 @@ def run_ocr(image_path: str) -> list:
     extracted = parse_results(results)
 
     avg_conf = get_average_confidence(extracted)
-    print(f"DEBUG: Overall avg confidence = {avg_conf}, threshold = 0.85", flush=True)
+    min_conf = min((item["confidence"] for item in extracted), default=1.0)
+    print(f"DEBUG: Overall avg confidence = {avg_conf}, min line confidence = {min_conf}", flush=True)
 
-    if not extracted or avg_conf < 0.85:
+    # Two trigger conditions: overall average too low (broadly bad read),
+    # OR any single line confidence very low (one blurry/faded section
+    # dragging down accuracy while the rest of the doc reads fine and
+    # keeps the average comfortably high - confirmed via debug logging
+    # that a doc can sit at avg=0.8502 with individual lines at 61%,
+    # which the average-only check let through unnoticed).
+    if not extracted or avg_conf < 0.85 or min_conf < 0.65:
         print("DEBUG: Enhancement pass TRIGGERED", flush=True)
         preprocessed_path = preprocess_image(image_path)
         try:
