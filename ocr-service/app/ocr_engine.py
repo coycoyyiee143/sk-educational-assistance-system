@@ -110,6 +110,8 @@ def run_ocr(image_path: str, school_name: str = None, document_type: str = None)
 
             if improved_avg or improved_min:
                 extracted = extracted2
+
+            print(f"DEBUG: kept enhanced={improved_avg or improved_min}, final avg={get_average_confidence(extracted)}", flush=True)
         finally:
             import os
             if preprocessed_path != image_path and os.path.exists(preprocessed_path):
