@@ -11,17 +11,17 @@ def get_ocr():
             lang='en',
             use_angle_cls=True,
             show_log=False,
-            det_limit_side_len=1600,       # tested at 1280 - accuracy dropped (missed small text), reverted to 1600. Speed issue was the duplicate OCR queue worker (sk-eas-queue-ocr@2), not this value.
+            det_limit_side_len=1600,       # tested at 1280 - accuracy dropped (missed small text like the school year line). Reverted to 1600. The earlier slowness was the duplicate OCR queue worker (sk-eas-queue-ocr@2), not this value - fixed separately by disabling it.
             det_limit_type='max',
-            det_db_box_thresh=0.5,         # lowered from default 0.6 - catches faint/small text boxes (e.g. school year line) that were being dropped
-            det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition
+            det_db_box_thresh=0.5,         # lowered from default 0.6 - catches faint/small text boxes that were being dropped. A/B tested vs default on reg form + ID + voter's cert - all checks still passed, ID accuracy slightly better. Keeping.
+            det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition. Adds some extra duplicate watermark-noise lines on heavily watermarked docs , but the matching logic (fuzzy match + label anchoring) already filters that noise out - no impact on actual verification results in testing.
             det_model_dir=None,            # set below via ocr_version if using PaddleOCR's built-in mobile models
             rec_model_dir=None,
             cls_model_dir=None,
-            ocr_version='PP-OCRv4',        # confirm this matches your installed paddleocr version's supported tags
+            ocr_version='PP-OCRv4',        # confirmed valid for installed paddleocr==2.8.1 (legacy 2.x API)
             use_gpu=False,                 # explicit - server has no GPU, avoids any accidental GPU probe overhead
             enable_mkldnn=True,            # CPU inference speedup on Intel/AMD - safe no-op if unsupported
-            cpu_threads=2,                 # match your 2 vCPU limit - prevents oversubscription across workers
+            cpu_threads=2,                 # match the server's 2 vCPU limit - prevents oversubscription across workers
         )
     return _ocr
 
