@@ -11,7 +11,7 @@ def get_ocr():
             lang='en',
             use_angle_cls=True,
             show_log=False,
-            det_limit_side_len=1600,       # tested at 1280 - accuracy dropped (missed small text like the school year line). Reverted to 1600. The earlier slowness was the duplicate OCR queue worker (sk-eas-queue-ocr@2), not this value - fixed separately by disabling it.
+            det_limit_side_len=1800,       # raised from 1600 - some applicants photograph the whole bond paper (not cropped/scanned), so the text ends up small/distant relative to the full image. A higher resolution cap gives the detector more pixels to work with on that small text. Tested vs 1600 and 1280 - 1280 caused missed small text (school year line), 1600 was the prior baseline. Will watch memory/speed impact after this change.
             det_limit_type='max',
             det_db_box_thresh=0.5,         # lowered from default 0.6 - catches faint/small text boxes that were being dropped. A/B tested vs default on reg form + ID + voter's cert - all checks still passed, ID accuracy slightly better. Keeping.
             det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition. Adds some extra duplicate watermark-noise lines on heavily watermarked docs , but the matching logic (fuzzy match + label anchoring) already filters that noise out - no impact on actual verification results in testing.
