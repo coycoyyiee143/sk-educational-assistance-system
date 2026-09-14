@@ -50,7 +50,8 @@ class VerifierController extends Controller
     $applications = Application::with(['user', 'verifierActions'])
         ->where('config_id', $configId)
         ->whereHas('documents')
-        ->orderBy('updated_at', 'desc')   // CHANGED: was submitted_at — re-uploads now surface by recent activity
+        ->orderBy('submitted_at', 'asc')   // FCFS: earliest submission first
+        ->orderBy('created_at', 'asc')
         ->get()
         ->map(function ($app) {
             return [

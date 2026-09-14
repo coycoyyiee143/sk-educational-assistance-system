@@ -10,6 +10,7 @@ import {
   getVerifierBadgeClass,
 } from "../../components/StatusConstants";
 import PanelFooter from "../../components/PanelFooter";
+import RelativeTime from "../../components/RelativeTime";
 
 function StatusBadge({ app }) {
   return (
@@ -201,15 +202,19 @@ function VerifierApplicationList() {
               <div className="table-responsive verifier-attention-table-wrap">
                 <table className="table table-bordered table-striped align-middle verifier-attention-table">
                   <colgroup>
-                    <col style={{ width: "20%" }} />
-                    <col style={{ width: "25%" }} />
-                    <col style={{ width: "22%" }} />
-                    <col style={{ width: "20%" }} />
-                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "17%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "21%" }} />
+                    <col style={{ width: "19%" }} />
+                    <col style={{ width: "13%" }} />
                   </colgroup>
 
                   <thead>
                     <tr>
+                      <th title="Order by submission time within this filtered list">
+                        #
+                      </th>
                       <th>Application ID</th>
                       <th>Applicant Name</th>
                       <th>Submission Date</th>
@@ -221,7 +226,7 @@ function VerifierApplicationList() {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan="5" className="text-center py-4">
+                        <td colSpan="6" className="text-center py-4">
                           <div
                             className="spinner-border text-danger"
                             role="status"
@@ -229,8 +234,10 @@ function VerifierApplicationList() {
                         </td>
                       </tr>
                     ) : pagedApplications.length > 0 ? (
-                      pagedApplications.map((app) => (
+                      pagedApplications.map((app, idx) => (
                         <tr key={app.id}>
+                          <td>{pageStart + idx + 1}</td>
+
                           <td>
                             {app.control_number ?? `APP-${app.id}`}
                           </td>
@@ -238,7 +245,7 @@ function VerifierApplicationList() {
                           <td>{app.name}</td>
 
                           <td>
-                            {app.submitted_at?.split("T")[0]}
+                            <RelativeTime value={app.submitted_at} />
                           </td>
 
                           <td>
@@ -262,7 +269,7 @@ function VerifierApplicationList() {
                     ) : (
                       <tr>
                         <td
-                          colSpan="5"
+                          colSpan="6"
                           className="text-center text-muted"
                         >
                           No applications found.

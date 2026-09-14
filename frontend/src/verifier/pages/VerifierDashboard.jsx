@@ -10,6 +10,7 @@ import {
   getVerifierBadgeClass,
 } from "../../components/StatusConstants";
 import PanelFooter from "../../components/PanelFooter";
+import RelativeTime from "../../components/RelativeTime";
 
 function StatusBadge({ app }) {
   return (
@@ -321,22 +322,27 @@ function VerifierDashboard() {
                   <colgroup>
                     <col
                       style={{
-                        width: "20%",
+                        width: "8%",
                       }}
                     />
                     <col
                       style={{
-                        width: "25%",
+                        width: "17%",
                       }}
                     />
                     <col
                       style={{
-                        width: "22%",
+                        width: "24%",
                       }}
                     />
                     <col
                       style={{
-                        width: "20%",
+                        width: "21%",
+                      }}
+                    />
+                    <col
+                      style={{
+                        width: "19%",
                       }}
                     />
                     <col
@@ -348,6 +354,9 @@ function VerifierDashboard() {
 
                   <thead>
                     <tr>
+                      <th title="Position in the first-come, first-served queue">
+                        Queue #
+                      </th>
                       <th>
                         Application ID
                       </th>
@@ -366,7 +375,7 @@ function VerifierDashboard() {
                     {loading ? (
                       <tr>
                         <td
-                          colSpan="5"
+                          colSpan="6"
                           className="text-center py-4"
                         >
                           <div
@@ -379,7 +388,7 @@ function VerifierDashboard() {
                       0 ? (
                       <tr>
                         <td
-                          colSpan="5"
+                          colSpan="6"
                           className="text-center text-muted"
                         >
                           No applications requiring attention.
@@ -387,8 +396,12 @@ function VerifierDashboard() {
                       </tr>
                     ) : (
                       pagedApplications.map(
-                        (app) => (
+                        (app, idx) => (
                           <tr key={app.id}>
+                            <td>
+                              {pageStart + idx + 1}
+                            </td>
+
                             <td>
                               {app.control_number ??
                                 `APP-${app.id}`}
@@ -399,10 +412,9 @@ function VerifierDashboard() {
                             </td>
 
                             <td>
-                              {app.submitted_at?.split(
-                                "T"
-                              )[0] ??
-                                "—"}
+                              <RelativeTime
+                                value={app.submitted_at}
+                              />
                             </td>
 
                             <td>
