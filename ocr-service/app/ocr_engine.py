@@ -11,8 +11,10 @@ def get_ocr():
             lang='en',
             use_angle_cls=True,
             show_log=False,
-            det_limit_side_len=1600,       # lowered from 1600 - less memory, still enough for ID/cert photos # made it 1600 again for testing accuracy
+            det_limit_side_len=1600,       # tested at 1280 - accuracy dropped (missed small text), reverted to 1600. Speed issue was the duplicate OCR queue worker (sk-eas-queue-ocr@2), not this value.
             det_limit_type='max',
+            det_db_box_thresh=0.5,         # lowered from default 0.6 - catches faint/small text boxes (e.g. school year line) that were being dropped
+            det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition
             det_model_dir=None,            # set below via ocr_version if using PaddleOCR's built-in mobile models
             rec_model_dir=None,
             cls_model_dir=None,
