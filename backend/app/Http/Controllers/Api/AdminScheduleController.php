@@ -34,7 +34,10 @@ class AdminScheduleController extends Controller
             ->count();
 
         $schedule = ClaimingSchedule::with(['lanes' => function ($q) {
-                $q->withCount('assignments')->with('verifier:id,first_name,last_name')->orderBy('claiming_date')->orderBy('lane_name');
+                $q->withCount('assignments')
+                    ->with('verifier:id,first_name,last_name')
+                    ->with('requestedVerifier:id,first_name,last_name')
+                    ->orderBy('claiming_date')->orderBy('lane_name');
             }])
             ->where('config_id', $config->id)
             ->latest()
@@ -262,12 +265,31 @@ class AdminScheduleController extends Controller
                 ->update(['verifier_id' => null]);
         }
 
-        $lane->update(['verifier_id' => $request->verifier_id]);
+        // Setting it manually here always supersedes any pending
+        // self-assign request on this lane, whether this happens to match
+        // what was requested (i.e. approving it) or not.
+        $lane->update(['verifier_id' => $request->verifier_id, 'requested_verifier_id' => null]);
 
         return response()->json([
             'message' => $request->verifier_id
                 ? 'Verifier assigned to lane.'
                 : 'Verifier unassigned from lane.',
+            'lane' => $lane->load('verifier:id,first_name,last_name'),
+        ]);
+    }
+
+    /**
+     * Admin dismisses a verifier's pending request to take over a lane
+     * (see VerifierController::selfAssignLane()) without assigning
+     * anyone — the lane's current verifier, if any, is left untouched.
+     */
+    public function dismissLaneRequest($laneId)
+    {
+        $lane = ClaimingLane::findOrFail($laneId);
+        $lane->update(['requested_verifier_id' => null]);
+
+        return response()->json([
+            'message' => 'Request dismissed.',
             'lane' => $lane->load('verifier:id,first_name,last_name'),
         ]);
     }

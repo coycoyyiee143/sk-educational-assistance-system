@@ -83,6 +83,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // runs a one-time catch-up pass for anyone already approved.
         Route::post('/admin/claiming-schedule/{id}/activate', [AdminScheduleController::class, 'activate']);
         Route::post('/admin/claiming-schedule/lanes/{laneId}/assign-verifier', [AdminScheduleController::class, 'assignVerifier']);
+        Route::post('/admin/claiming-schedule/lanes/{laneId}/dismiss-request', [AdminScheduleController::class, 'dismissLaneRequest']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable/pdf', [AdminScheduleController::class, 'printableLanePdf']);
         Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);

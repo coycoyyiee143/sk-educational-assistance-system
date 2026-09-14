@@ -277,10 +277,26 @@ function AdminSchedule() {
       });
       setSchedule((prev) => ({
         ...prev,
-        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, verifier_id: res.data.lane.verifier_id, verifier: res.data.lane.verifier } : l)),
+        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, verifier_id: res.data.lane.verifier_id, verifier: res.data.lane.verifier, requested_verifier_id: null, requestedVerifier: null } : l)),
       }));
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update lane assignment.");
+    } finally {
+      setAssigningLaneId(null);
+    }
+  }
+
+  async function handleDismissRequest(laneId) {
+    setAssigningLaneId(laneId);
+    setError("");
+    try {
+      const res = await api.post(`/admin/claiming-schedule/lanes/${laneId}/dismiss-request`);
+      setSchedule((prev) => ({
+        ...prev,
+        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, requested_verifier_id: res.data.lane.requested_verifier_id, requestedVerifier: null } : l)),
+      }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to dismiss request.");
     } finally {
       setAssigningLaneId(null);
     }
@@ -783,6 +799,29 @@ function AdminSchedule() {
                                 </option>
                               ))}
                             </select>
+                            {lane.requested_verifier_id && (
+                              <div className="mt-1 small">
+                                <span className="text-warning">
+                                  Requested by {lane.requestedVerifier ? `${lane.requestedVerifier.first_name} ${lane.requestedVerifier.last_name}` : "a verifier"}
+                                </span>
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm p-0 ms-2"
+                                  disabled={assigningLaneId === lane.id}
+                                  onClick={() => handleAssignVerifier(lane.id, lane.requested_verifier_id)}
+                                >
+                                  Approve
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm p-0 ms-2 text-danger"
+                                  disabled={assigningLaneId === lane.id}
+                                  onClick={() => handleDismissRequest(lane.id)}
+                                >
+                                  Dismiss
+                                </button>
+                              </div>
+                            )}
                           </td>
                           {isActive && (
                             <td>
