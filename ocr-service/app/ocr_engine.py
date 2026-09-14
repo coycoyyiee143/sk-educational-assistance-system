@@ -11,7 +11,7 @@ def get_ocr():
             lang='en',
             use_angle_cls=True,
             show_log=False,
-            det_limit_side_len=1280,       # lowered from 1600 - less memory, still enough for ID/cert photos
+            det_limit_side_len=1600,       # lowered from 1600 - less memory, still enough for ID/cert photos # made it 1600 again for testing accuracy
             det_limit_type='max',
             det_model_dir=None,            # set below via ocr_version if using PaddleOCR's built-in mobile models
             rec_model_dir=None,
