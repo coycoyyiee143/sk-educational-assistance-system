@@ -59,6 +59,7 @@ class DocumentController extends Controller
         // an application isn't meaningfully "submitted" until documents are attached.
         $documentCount = $application->documents()->count();
         if ($documentCount === 3) {
+            $application->update(['status' => 'pending_prescreening']);
             $request->user()->notify(new \App\Notifications\ApplicationStatusNotification(
                 'Pending',
                 'Your educational assistance application has been submitted successfully and queued for document verification.'

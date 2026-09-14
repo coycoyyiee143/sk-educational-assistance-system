@@ -35,6 +35,9 @@ class ApplicationController extends Controller
         if (now()->lt($config->open_date)) {
             return response()->json(['message' => 'This application period has not opened yet.'], 400);
         }
+        if ($config->closed_at) {
+            return response()->json(['message' => 'This application period has closed.'], 400);
+        }
         if (now()->gt($config->close_date)) {
             return response()->json(['message' => 'This application period has closed.'], 400);
         }
@@ -100,7 +103,7 @@ class ApplicationController extends Controller
             'course'            => $request->course,
             'year_level'        => $request->year_level,
             'student_id_number' => $request->student_id_number,
-            'status'            => 'pending_prescreening',
+            'status'            => 'draft_incomplete',
             'submitted_at'      => now(),
         ]);
         \App\Models\AuditLog::record(

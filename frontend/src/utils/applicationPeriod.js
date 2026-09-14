@@ -5,6 +5,7 @@ export function getApplicationPeriodStatus(config) {
     const closes = new Date(config.close_date);
 
     if (!config.is_active) return "inactive";
+    if (config.closed_at) return "closed";
     if (now < opens) return "scheduled";
     if (now > closes) return "closed";
     return "open";

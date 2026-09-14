@@ -43,26 +43,30 @@ class VerifierController extends Controller
     }
 
     public function index(Request $request)
-    {
-        $applications = Application::with(['user', 'verifierActions'])
-            ->whereHas('documents')
-            ->orderBy('updated_at', 'desc')   // CHANGED: was submitted_at — re-uploads now surface by recent activity
-            ->get()
-            ->map(function ($app) {
-                return [
-                    'id'                => $app->id,
-                    'control_number'    => $app->control_number,
-                    'name'              => $app->user->first_name . ' ' . $app->user->last_name,
-                    'submitted_at'      => $app->submitted_at,
-                    'updated_at'        => $app->updated_at,
-                    'status'            => $app->status,
-                    'school_name'       => $app->school_name,
-                    'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
-                ];
-            });
+{
+    $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+    $configId = $request->query('config_id', $activeConfig?->id);
 
-        return response()->json($applications);
-    }
+    $applications = Application::with(['user', 'verifierActions'])
+        ->where('config_id', $configId)
+        ->whereHas('documents')
+        ->orderBy('updated_at', 'desc')   // CHANGED: was submitted_at — re-uploads now surface by recent activity
+        ->get()
+        ->map(function ($app) {
+            return [
+                'id'                => $app->id,
+                'control_number'    => $app->control_number,
+                'name'              => $app->user->first_name . ' ' . $app->user->last_name,
+                'submitted_at'      => $app->submitted_at,
+                'updated_at'        => $app->updated_at,
+                'status'            => $app->status,
+                'school_name'       => $app->school_name,
+                'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
+            ];
+        });
+
+    return response()->json($applications);
+}
 
     public function show($id)
     {

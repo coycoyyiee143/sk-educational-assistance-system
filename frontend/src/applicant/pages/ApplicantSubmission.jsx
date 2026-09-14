@@ -8,7 +8,6 @@ import ReuploadStep from "../components/ReuploadStep";
 import FormStep from "../components/FormStep";
 import DocumentUploadStep from "../components/DocumentUploadStep";
 import DoneStepSummary from "../components/DoneStepSummary";
-import ApplicationHistoryList from "../components/ApplicationHistoryList";
 import FilePreviewModal from "../components/FilePreviewModal";
 import api from "../../services/api";
 import { STATUS_CONFIG } from "../../components/StatusConstants";
@@ -51,7 +50,6 @@ function ApplicantSubmission() {
   });
   const [applicationId, setApplicationId] = useState(null);
   const [existingApp, setExistingApp] = useState(null);
-  const [applicationHistory, setApplicationHistory] = useState([]);
   const [existingDocs, setExistingDocs] = useState([]);
   const [step, setStep] = useState("form");
   const [checkingApp, setCheckingApp] = useState(true);
@@ -323,13 +321,6 @@ function ApplicantSubmission() {
                 app.config_id ===
                 currentConfig.id
             );
-          setApplicationHistory(
-            applications.filter(
-              (app) =>
-                app.config_id !==
-                currentConfig.id
-            )
-          );
           if (currentApp) {
             const app = currentApp;
             setExistingApp(app);
@@ -984,14 +975,6 @@ function ApplicantSubmission() {
                         }
                       />
                     ))}
-                  <ApplicationHistoryList
-                    applicationHistory={
-                      applicationHistory
-                    }
-                    onViewFile={
-                      handleViewHistoricalFile
-                    }
-                  />
                 </>
               )}
             </div>

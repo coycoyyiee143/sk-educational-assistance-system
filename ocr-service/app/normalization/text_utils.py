@@ -122,7 +122,19 @@ def fuzzy_match_school(extracted: str, expected: str, threshold: int = 85) -> di
         return {"score": 0, "passed": False}
     e1 = normalize_name(extracted)
     e2 = normalize_name(expected)
-    if len(extracted) < max(4, len(expected) // 2):
+    # A school's full name has no legitimate shortened form the way a
+    # person's name can have a nickname or be missing a middle name --
+    # a genuine read should capture nearly the whole name. This guard
+    # used to be len(extracted) < half of expected, which let a bare
+    # generic institutional word through (e.g. "Pamantasan" alone
+    # scored a perfect 100 via partial_ratio against "Pamantasan ng
+    # Cabuyao", since it's a literal substring -- and "Pamantasan" is
+    # shared by several actual Philippine universities: Pamantasan ng
+    # Lungsod ng Maynila, ng Pasig, ng Cabuyao, etc. -- so this was a
+    # real false-positive risk, not a hypothetical one). 0.75 blocks
+    # that while still passing a 1-letter OCR typo on the full name and
+    # a legitimate longer official-name variant.
+    if len(e1) < 0.75 * len(e2):
         return {"score": 0, "passed": False}
     score = max(fuzz.token_sort_ratio(e1, e2), fuzz.partial_ratio(e1, e2))
     return {"score": score, "passed": score >= threshold}
