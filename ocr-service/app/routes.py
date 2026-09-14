@@ -134,7 +134,7 @@ def process_registration_form():
         first_name, middle_name, last_name = get_name_fields(request.form)
         declared_school = request.form.get("declared_school", "")
         configured_school_year = request.form.get("school_year", "")
-        ocr_result = run_ocr(tmp_path)
+        ocr_result = run_ocr(tmp_path, school_name=declared_school, document_type="registration_form")
         avg_confidence = get_average_confidence(ocr_result)
         verification = verify_registration_form(
             ocr_result, avg_confidence,
