@@ -77,7 +77,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);
         Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
         Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
-        Route::get('/admin/claiming-schedule/lane-assignments', [AdminScheduleController::class, 'laneAssignments']);
         // CHANGED: publish()/preview() removed — real-time assignment
         // (ClaimingAssignmentService) means there's nothing left to
         // preview or bulk-publish. activate() turns a schedule on and

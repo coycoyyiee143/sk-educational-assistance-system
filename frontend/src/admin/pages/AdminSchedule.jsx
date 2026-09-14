@@ -13,7 +13,7 @@ const emptyForm = {
   grace_period_end_date: "",
 };
 
-const emptySessionLane = () => ({ lane_name: "", capacity: "" });
+const emptySessionLane = () => ({ lane_name: "", capacity: "", verifier_id: "" });
 const emptyDay = () => ({
   date: "",
   morning: { enabled: true, lanes: [emptySessionLane()] },
@@ -37,6 +37,7 @@ function groupLanesIntoDays(lanesArr) {
       map[l.claiming_date][l.batch].lanes.push({
         lane_name: l.lane_name,
         capacity: l.capacity ?? "",
+        verifier_id: l.verifier_id ?? "",
       });
     });
   const days = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
@@ -59,6 +60,7 @@ function serializeLanes(days) {
           capacity: lane.capacity ? Number(lane.capacity) : 1,
           batch: session,
           claiming_date: day.date,
+          verifier_id: lane.verifier_id || null,
         });
       });
     });
@@ -84,6 +86,8 @@ function AdminSchedule() {
   const [approvedCount, setApprovedCount] = useState(0);
   const [unassignedApprovedCount, setUnassignedApprovedCount] = useState(0);
   const [schedule, setSchedule] = useState(null);
+  const [verifiers, setVerifiers] = useState([]);
+  const [assigningLaneId, setAssigningLaneId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [days, setDays] = useState([emptyDay()]);
   const [loading, setLoading] = useState(true);
@@ -116,6 +120,7 @@ function AdminSchedule() {
         setConfig(res.data.config);
         setApprovedCount(res.data.approved_count);
         setUnassignedApprovedCount(res.data.unassigned_approved_count ?? 0);
+        setVerifiers(res.data.verifiers ?? []);
         const sched = res.data.schedule;
         setSchedule(sched);
         if (sched) {
@@ -260,6 +265,24 @@ function AdminSchedule() {
       setError(err.response?.data?.message || "Failed to activate schedule.");
     } finally {
       setActivating(false);
+    }
+  }
+
+  async function handleAssignVerifier(laneId, verifierId) {
+    setAssigningLaneId(laneId);
+    setError("");
+    try {
+      const res = await api.post(`/admin/claiming-schedule/lanes/${laneId}/assign-verifier`, {
+        verifier_id: verifierId || null,
+      });
+      setSchedule((prev) => ({
+        ...prev,
+        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, verifier_id: res.data.lane.verifier_id, verifier: res.data.lane.verifier } : l)),
+      }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update lane assignment.");
+    } finally {
+      setAssigningLaneId(null);
     }
   }
 
@@ -548,6 +571,7 @@ function AdminSchedule() {
                                       <tr>
                                         <th>Lane / Station Name (optional)</th>
                                         <th style={{ width: "220px" }}>Capacity *</th>
+                                        <th style={{ width: "220px" }}>Assigned Verifier</th>
                                         {!isActive && <th style={{ width: "90px" }}></th>}
                                       </tr>
                                     </thead>
@@ -573,6 +597,20 @@ function AdminSchedule() {
                                               onChange={(e) => setLaneField(dayIdx, session, laneIdx, "capacity", e.target.value)}
                                               required
                                             />
+                                          </td>
+                                          <td>
+                                            <select
+                                              className="form-select form-select-sm"
+                                              value={lane.verifier_id}
+                                              onChange={(e) => setLaneField(dayIdx, session, laneIdx, "verifier_id", e.target.value)}
+                                            >
+                                              <option value="">Unassigned</option>
+                                              {verifiers.map((v) => (
+                                                <option key={v.id} value={v.id}>
+                                                  {v.first_name} {v.last_name}
+                                                </option>
+                                              ))}
+                                            </select>
                                           </td>
                                           {!isActive && (
                                             <td>
@@ -696,13 +734,14 @@ function AdminSchedule() {
                 <div className="table-responsive mt-3">
                   <table className="table table-bordered table-striped align-middle announcement-table" style={{ tableLayout: "fixed" }}>
                     <colgroup>
-                      <col style={{ width: "16%" }} />
-                      <col style={{ width: "12%" }} />
                       <col style={{ width: "14%" }} />
                       <col style={{ width: "10%" }} />
-                      <col style={{ width: "22%" }} />
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "8%" }} />
+                      <col style={{ width: "18%" }} />
+                      <col style={{ width: "14%" }} />
                       <col style={{ width: "16%" }} />
-                      {isActive && <col style={{ width: "10%" }} />}
+                      {isActive && <col style={{ width: "8%" }} />}
                     </colgroup>
 
                     <thead>
@@ -713,6 +752,7 @@ function AdminSchedule() {
                         <th>Capacity</th>
                         <th>Control Number Range</th>
                         <th>Assigned Applicants</th>
+                        <th>Assigned Verifier</th>
                         {isActive && <th>Print</th>}
                       </tr>
                     </thead>
@@ -728,6 +768,21 @@ function AdminSchedule() {
                           <td>
                             {lane.assignments_count ?? 0}
                             {lane.capacity ? ` / ${lane.capacity}` : ""}
+                          </td>
+                          <td>
+                            <select
+                              className="form-select form-select-sm"
+                              value={lane.verifier_id ?? ""}
+                              onChange={(e) => handleAssignVerifier(lane.id, e.target.value)}
+                              disabled={assigningLaneId === lane.id}
+                            >
+                              <option value="">Unassigned</option>
+                              {verifiers.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.first_name} {v.last_name}
+                                </option>
+                              ))}
+                            </select>
                           </td>
                           {isActive && (
                             <td>
@@ -749,7 +804,7 @@ function AdminSchedule() {
                       ))}
                       {pagedLanes.length === 0 && (
                         <tr>
-                          <td colSpan={isActive ? 7 : 6} className="text-muted">
+                          <td colSpan={isActive ? 8 : 7} className="text-muted">
                             No lanes configured yet.
                           </td>
                         </tr>
