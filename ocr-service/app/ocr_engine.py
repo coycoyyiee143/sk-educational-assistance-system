@@ -87,10 +87,12 @@ def run_ocr(image_path: str, school_name: str = None, document_type: str = None)
         print("DEBUG: Enhancement pass TRIGGERED", flush=True)
 
         use_red_channel = (
-            (school_name or "").strip().upper() == "SVCC"
+            "VINCENT" in (school_name or "").upper()
             and document_type == "registration_form"
         )
 
+        print(f"DEBUG: school_name={school_name!r}, document_type={document_type!r}, use_red_channel={use_red_channel}", flush=True)
+        
         preprocessed_path = preprocess_image(image_path, use_red_channel=use_red_channel)
         try:
             results2 = ocr.ocr(preprocessed_path, cls=True)
