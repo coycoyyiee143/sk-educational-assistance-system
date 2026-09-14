@@ -15,7 +15,7 @@ def get_ocr():
             det_limit_type='max',
             det_db_box_thresh=0.5,         # lowered from default 0.6 - catches faint/small text boxes that were being dropped. A/B tested vs default on reg form + ID + voter's cert - all checks still passed, ID accuracy slightly better. Keeping.
             det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition. Adds some extra duplicate watermark-noise lines on heavily watermarked docs, but the matching logic (fuzzy match + label anchoring) already filters that noise out - no impact on actual verification results in testing.
-            use_dilation=False,             # testing - thickens detected text strokes, may help on blurry/unscanned photos where strokes are thin/broken (different mechanism than resolution cap - worth trying on genuinely blurred source images specifically)
+            use_dilation=True,             # A/B tested against False on a real SVCC form - True gave both higher avg (0.8502 vs 0.8400) and higher min-line (0.5237 vs 0.5126) confidence. Keeping.
             det_model_dir=None,            # set below via ocr_version if using PaddleOCR's built-in mobile models
             rec_model_dir=None,
             cls_model_dir=None,
@@ -58,7 +58,6 @@ def run_ocr(image_path: str) -> list:
 
     avg_conf = get_average_confidence(extracted)
     min_conf = min((item["confidence"] for item in extracted), default=1.0)
-    print(f"DEBUG: Overall avg confidence = {avg_conf}, min line confidence = {min_conf}", flush=True)
 
     # Two trigger conditions: overall average too low (broadly bad read),
     # OR any single line confidence very low (one blurry/faded section
@@ -67,7 +66,6 @@ def run_ocr(image_path: str) -> list:
     # that a doc can sit at avg=0.8502 with individual lines at 61%,
     # which the average-only check let through unnoticed).
     if not extracted or avg_conf < 0.85 or min_conf < 0.65:
-        print("DEBUG: Enhancement pass TRIGGERED", flush=True)
         preprocessed_path = preprocess_image(image_path)
         try:
             results2 = ocr.ocr(preprocessed_path, cls=True)
@@ -85,14 +83,10 @@ def run_ocr(image_path: str) -> list:
 
             if improved_avg or improved_min:
                 extracted = extracted2
-
-            print(f"DEBUG: kept enhanced={improved_avg or improved_min}, final avg={get_average_confidence(extracted)}", flush=True)
         finally:
             import os
             if preprocessed_path != image_path and os.path.exists(preprocessed_path):
                 os.unlink(preprocessed_path)
-    else:
-        print("DEBUG: Enhancement pass SKIPPED", flush=True)
 
     return extracted
 
