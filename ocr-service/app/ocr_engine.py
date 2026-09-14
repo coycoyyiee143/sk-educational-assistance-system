@@ -11,10 +11,11 @@ def get_ocr():
             lang='en',
             use_angle_cls=True,
             show_log=False,
-            det_limit_side_len=1800,       # raised from 1600 - some applicants photograph the whole bond paper (not cropped/scanned), so the text ends up small/distant relative to the full image. A higher resolution cap gives the detector more pixels to work with on that small text. Tested vs 1600 and 1280 - 1280 caused missed small text (school year line), 1600 was the prior baseline. Will watch memory/speed impact after this change.
+            det_limit_side_len=1600,       # tested 1280 (accuracy dropped, missed small text) and 1800 (no improvement on genuinely blurred/unscanned photos - resolution cap can't recover detail that isn't in the source image). Back to 1600 as the settled baseline
             det_limit_type='max',
             det_db_box_thresh=0.5,         # lowered from default 0.6 - catches faint/small text boxes that were being dropped. A/B tested vs default on reg form + ID + voter's cert - all checks still passed, ID accuracy slightly better. Keeping.
-            det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition. Adds some extra duplicate watermark-noise lines on heavily watermarked docs , but the matching logic (fuzzy match + label anchoring) already filters that noise out - no impact on actual verification results in testing.
+            det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition. Adds some extra duplicate watermark-noise lines on heavily watermarked docs, but the matching logic (fuzzy match + label anchoring) already filters that noise out - no impact on actual verification results in testing.
+            use_dilation=True,             # testing - thickens detected text strokes, may help on blurry/unscanned photos where strokes are thin/broken (different mechanism than resolution cap - worth trying on genuinely blurred source images specifically)
             det_model_dir=None,            # set below via ocr_version if using PaddleOCR's built-in mobile models
             rec_model_dir=None,
             cls_model_dir=None,
@@ -55,7 +56,11 @@ def run_ocr(image_path: str) -> list:
     results = ocr.ocr(image_path, cls=True)
     extracted = parse_results(results)
 
-    if not extracted or get_average_confidence(extracted) < 0.75:
+    avg_conf = get_average_confidence(extracted)
+    print(f"DEBUG: Overall avg confidence = {avg_conf}, threshold = 0.85")
+
+    if not extracted or avg_conf < 0.85:
+        print("DEBUG: Enhancement pass TRIGGERED")
         preprocessed_path = preprocess_image(image_path)
         try:
             results2 = ocr.ocr(preprocessed_path, cls=True)
@@ -66,6 +71,8 @@ def run_ocr(image_path: str) -> list:
             import os
             if preprocessed_path != image_path and os.path.exists(preprocessed_path):
                 os.unlink(preprocessed_path)
+    else:
+        print("DEBUG: Enhancement pass SKIPPED")
 
     return extracted
 
