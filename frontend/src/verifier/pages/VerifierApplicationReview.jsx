@@ -26,10 +26,6 @@ const CHECK_NAME_LABELS = {
   ai_generation_provenance: "AI-Generated or AI-Edited Image",
 };
 
-// Content-extraction checks (name, school year, geofence, etc.) are shown
-// first — verifiers care about those results most. Integrity/AI/template
-// checks are technical background signals, so they're pushed to the end
-// of the list instead of competing for attention at the top.
 const LATE_DISPLAY_CHECK_NAMES = [
   "image_integrity",
   "document_origin",
@@ -100,7 +96,7 @@ function VerifierApplicationReview() {
   const [error, setError] = useState("");
   const [activeRawDocId, setActiveRawDocId] = useState(null);
   const [activeDocumentType, setActiveDocumentType] = useState(
-    "voters_certificate"
+    "registration_form"
   );
   const [checkpointFilters, setCheckpointFilters] = useState({
     voters_certificate: "all",
@@ -111,6 +107,13 @@ function VerifierApplicationReview() {
   const [zoomPreview, setZoomPreview] = useState(null);
   const [openFlagDocId, setOpenFlagDocId] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Measured heights of the sticky topbar and sticky document tabs bar,
+  // so both the tabs' sticky offset and each card's scroll-margin can be
+  // computed from the REAL rendered height instead of a guessed pixel
+  // value that breaks the moment either element's content/height changes.
+  const [topbarHeight, setTopbarHeight] = useState(0);
+  const [tabsHeight, setTabsHeight] = useState(0);
 
   const [flaggedDocs, setFlaggedDocs] = useState({
     registration_form: { reasons: [], otherText: "" },
@@ -211,6 +214,60 @@ function VerifierApplicationReview() {
       createdUrls.forEach((url) => URL.revokeObjectURL(url));
     };
   }, [app]);
+
+  // Measures the actual rendered height of the topbar and the sticky
+  // document-tabs bar, so the tabs' sticky "top" offset and each card's
+  // scroll-margin can be computed from the real height instead of a
+  // guessed pixel value. Re-runs once `app` loads (the tabs bar doesn't
+  // exist in the DOM yet during the initial loading state) and on
+  // resize, since either element may wrap or resize at smaller widths.
+  useEffect(() => {
+    function measureHeights() {
+      const topbar = document.querySelector(".verifier-topbar");
+      const tabs = document.querySelector(".verifier-ocr-document-tabs");
+      setTopbarHeight(topbar ? topbar.getBoundingClientRect().height : 0);
+      setTabsHeight(tabs ? tabs.getBoundingClientRect().height : 0);
+    }
+    measureHeights();
+    window.addEventListener("resize", measureHeights);
+    return () => window.removeEventListener("resize", measureHeights);
+  }, [app]);
+
+  // Scroll-spy: while scrolling (not just clicking a tab), keeps the
+  // active document tab in sync with whichever document card is
+  // currently under the sticky topbar+tabs bar. Walks all three
+  // sections and keeps updating `current` to the last one whose top
+  // has scrolled past the offset — so the section actually in view
+  // (not the next one down) stays highlighted.
+  useEffect(() => {
+    function handleScrollSpy() {
+      const offset = topbarHeight + tabsHeight + 16;
+
+      let current = DOCUMENT_TABS[0].type;
+
+      for (const tab of DOCUMENT_TABS) {
+        const el = document.getElementById(`verifier-document-${tab.type}`);
+        if (!el) continue;
+
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= offset) {
+          current = tab.type;
+        }
+      }
+
+      setActiveDocumentType(current);
+    }
+
+    const scrollContainer = document.querySelector(".verifier-main");
+    scrollContainer?.addEventListener("scroll", handleScrollSpy, { passive: true });
+    window.addEventListener("scroll", handleScrollSpy, { passive: true });
+    handleScrollSpy();
+
+    return () => {
+      scrollContainer?.removeEventListener("scroll", handleScrollSpy);
+      window.removeEventListener("scroll", handleScrollSpy);
+    };
+  }, [topbarHeight, tabsHeight, app]);
 
   useEffect(() => {
     const scrollContainer = document.querySelector(".verifier-main");
@@ -933,7 +990,11 @@ function VerifierApplicationReview() {
                   </div>
                 )}
 
-              <div className="verifier-ocr-document-tabs" role="tablist">
+              <div
+                className="verifier-ocr-document-tabs"
+                role="tablist"
+                style={{ position: "sticky", top: `${topbarHeight}px`, zIndex: 10, background: "#ffffff" }}
+              >
                 {DOCUMENT_TABS.map((tab) => {
                   const tabStatus = getDocumentTabStatus(tab.type);
 
@@ -979,6 +1040,7 @@ function VerifierApplicationReview() {
                         className="verifier-ocr-review-card mb-4"
                         key={tab.type}
                         id={`verifier-document-${tab.type}`}
+                        style={{ scrollMarginTop: `${topbarHeight + tabsHeight + 8}px` }}
                       >
                         <div className="verifier-ocr-review-header">
                           <div className="verifier-ocr-review-header-left">
@@ -1062,6 +1124,7 @@ function VerifierApplicationReview() {
                       className="verifier-ocr-review-card mb-4"
                       key={doc.id}
                       id={`verifier-document-${tab.type}`}
+                      style={{ scrollMarginTop: `${topbarHeight + tabsHeight + 8}px` }}
                     >
                       <div className="verifier-ocr-review-header">
                         <div className="verifier-ocr-review-header-left">
@@ -1235,11 +1298,10 @@ function VerifierApplicationReview() {
 
                               {previewIntegrityChecks.map((check) => (
                                 <div
-                                  className={`verifier-preview-extraction-check ${
-                                    check.passed
-                                      ? "verifier-preview-extraction-check-passed"
-                                      : "verifier-preview-extraction-check-failed"
-                                  }`}
+                                  className={`verifier-preview-extraction-check ${check.passed
+                                    ? "verifier-preview-extraction-check-passed"
+                                    : "verifier-preview-extraction-check-failed"
+                                    }`}
                                   key={check.id}
                                 >
                                   <strong className="verifier-preview-extraction-label">
@@ -1364,9 +1426,8 @@ function VerifierApplicationReview() {
                                         EXTRACTED VALUE
                                       </div>
                                       <div
-                                        className={`verifier-ocr-check-value-pair-value ${
-                                          !check.passed ? "verifier-ocr-check-value-pair-value-mismatch" : ""
-                                        }`}
+                                        className={`verifier-ocr-check-value-pair-value ${!check.passed ? "verifier-ocr-check-value-pair-value-mismatch" : ""
+                                          }`}
                                       >
                                         {check.extracted_value || "not extracted"}
                                       </div>
