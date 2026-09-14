@@ -122,7 +122,8 @@ class AuthController extends Controller
     /**
      * Registration is now ATOMIC with face verification: the account,
      * profile, and email-verification notice are only created/sent if the
-     * uploaded ID photo matches the live cam capture. If the match fails,
+     * uploaded reference photo (a recent 2x2) matches the live cam capture.
+     * If the match fails,
      * NOTHING is saved — no orphaned "half-registered" account is left
      * behind, so the applicant can just retake the photo and resubmit
      * without ever hitting an "email already taken" wall.
@@ -179,9 +180,10 @@ class AuthController extends Controller
         $idImage = $request->file('id_image');
         $livePhoto = $request->file('live_photo');
 
-        // Compare BEFORE creating any database records. getRealPath() reads
-        // straight from PHP's temp upload location — no need to store the
-        // files anywhere first just to run the comparison.
+        // Compare the 2x2 reference photo against the live capture BEFORE
+        // creating any database records. getRealPath() reads straight from
+        // PHP's temp upload location — no need to store the files anywhere
+        // first just to run the comparison.
         $result = $this->faceService->compareImages(
             $idImage->getRealPath(),
             $livePhoto->getRealPath(),
@@ -192,15 +194,15 @@ class AuthController extends Controller
         if (isset($result['error'])) {
             // "Face service unavailable/unreachable" = something's wrong on
             // our end (503). Anything else is the service rejecting the
-            // image itself (bad ID shape, no face found) — that's the
-            // applicant's to fix, so 422.
+            // image itself (no face found) — that's the applicant's to
+            // fix, so 422.
             $isServiceDown = str_contains($result['error'], 'unavailable') || str_contains($result['error'], 'unreachable');
             return response()->json(['message' => $result['error']], $isServiceDown ? 503 : 422);
         }
 
         if (!$result['match']) {
             return response()->json([
-                'message' => 'The live photo does not match the uploaded ID. Please retake the photo with better lighting and try again.',
+                'message' => 'The live photo does not match your uploaded 2x2 photo. Please retake the photo with better lighting and try again.',
                 'score'   => $result['score'],
             ], 422);
         }

@@ -190,6 +190,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/applications/{id}/documents/{docId}/file', [DocumentController::class, 'show']);
     Route::get('/claiming/face-verifications/{id}/photo', [FaceVerificationController::class, 'showClaimingPhoto'])->name('claiming.face-photo');
     Route::get('/claiming/applications/{applicationId}/registration-photo', [FaceVerificationController::class, 'registrationPhoto']);
+    Route::get('/users/{userId}/profile-photo', [FaceVerificationController::class, 'profilePhoto']);
 
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);

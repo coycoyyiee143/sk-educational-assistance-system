@@ -173,7 +173,7 @@ const Register = () => {
     }
 
     if (!idImage) {
-      setGeneralError("Please upload a valid ID.");
+      setGeneralError("Please upload your latest 2x2 photo.");
       return;
     }
 
@@ -978,18 +978,17 @@ const Register = () => {
 
                   <div className="mb-3">
                     <label className="form-label">
-                      Valid ID{" "}
+                      Latest 2x2 Photo{" "}
                       <span className="text-danger">
                         *
                       </span>
                     </label>
 
                     <p className="text-muted small mb-2">
-                      Upload a clear photo of a
-                      government-issued or school ID
-                      showing your face. We'll ask you
-                      to take a live photo next to
-                      confirm it's really you.
+                      Upload a clear, recent 2x2 photo of
+                      yourself showing your face. We'll
+                      ask you to take a live photo next
+                      to confirm it's really you.
                     </p>
 
                     <input
@@ -1021,7 +1020,7 @@ const Register = () => {
                     {idPreview && (
                       <img
                         src={idPreview}
-                        alt="ID preview"
+                        alt="2x2 preview"
                         className="mt-2 rounded border"
                         style={{
                           maxWidth: "260px",
@@ -1243,9 +1242,9 @@ const Register = () => {
             <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
               In accordance with the Data Privacy Act of 2012 (RA 10173),
               SK Barangay Mamatid collects your personal information
-              (name, birthdate, contact details, valid ID, and photo)
+              (name, birthdate, contact details, and photos)
               solely for the purpose of processing your application for
-              the Educational Assistance Program. Your uploaded ID and
+              the Educational Assistance Program. Your uploaded 2x2 and
               live photo will be used strictly for identity verification
               and may be referenced by SK staff during claiming.
             </p>

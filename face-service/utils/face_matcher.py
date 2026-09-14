@@ -4,36 +4,10 @@ logic can be tested/swapped independently of the Flask wiring.
 """
 import face_recognition
 import numpy as np
-from PIL import Image
 
 
 # Lower = stricter match. 0.6 is face_recognition's own recommended default.
 DEFAULT_TOLERANCE = 0.5
-
-# Most valid IDs (national ID, school ID, driver's license, etc.) are
-# card-shaped: noticeably wider/taller on one side than the other, but not
-# extremely so. This rejects obviously-wrong uploads (square selfies,
-# wide landscape photos, screenshots of documents, memes, etc.) before we
-# even bother running face detection on them.
-ID_MIN_ASPECT_RATIO = 1.2   # e.g. a nearly-square image gets rejected
-ID_MAX_ASPECT_RATIO = 2.4   # e.g. a wide banner/landscape photo gets rejected
-
-
-def looks_like_id_shape(image_path: str) -> bool:
-    """
-    Cheap sanity check that the uploaded image is at least card-shaped,
-    before we spend time running face detection on it.
-    """
-    with Image.open(image_path) as img:
-        width, height = img.size
-
-    long_side = max(width, height)
-    short_side = min(width, height)
-    if short_side == 0:
-        return False
-
-    ratio = long_side / short_side
-    return ID_MIN_ASPECT_RATIO <= ratio <= ID_MAX_ASPECT_RATIO
 
 
 def get_face_encoding(image_path: str):

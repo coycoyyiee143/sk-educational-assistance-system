@@ -4,6 +4,7 @@ import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
+import { useUserPhoto } from "../../hooks/useUserPhoto";
 import { getVerifierStatusLabel, getVerifierBadgeClass } from "../../components/StatusConstants";
 import {
   DOC_TYPES,
@@ -158,6 +159,9 @@ function VerifierVerificationAction() {
   const location = useLocation();
   const incomingFlags = location.state?.flaggedDocs || {};
   const [app, setApp] = useState(null);
+  const { url: profilePhotoUrl, status: profilePhotoStatus } = useUserPhoto(
+    app?.user?.id
+  );
   const [loadingApp, setLoadingApp] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -445,10 +449,18 @@ function VerifierVerificationAction() {
                 <>
                   <div className="verifier-review-profile-area">
                     <div className="verifier-review-profile-main">
-                      <div className="verifier-review-profile-avatar">
-                        {app.user?.first_name?.charAt(0)}
-                        {app.user?.last_name?.charAt(0)}
-                      </div>
+                      {profilePhotoStatus === "ready" ? (
+                        <img
+                          src={profilePhotoUrl}
+                          alt="Applicant"
+                          className="verifier-review-profile-avatar verifier-review-profile-photo"
+                        />
+                      ) : (
+                        <div className="verifier-review-profile-avatar">
+                          {app.user?.first_name?.charAt(0)}
+                          {app.user?.last_name?.charAt(0)}
+                        </div>
+                      )}
                       <div className="verifier-review-profile-content">
                         <h5 className="verifier-review-profile-name">
                           {app.user?.first_name} {app.user?.last_name}

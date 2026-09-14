@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { usePolling } from "../../hooks/usePolling";
+import { useUserPhoto } from "../../hooks/useUserPhoto";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
@@ -91,6 +92,9 @@ function VerifierApplicationReview() {
   const navigate = useNavigate();
 
   const [app, setApp] = useState(null);
+  const { url: profilePhotoUrl, status: profilePhotoStatus } = useUserPhoto(
+    app?.user?.id
+  );
   const [loading, setLoading] = useState(true);
   const [refreshingOcr, setRefreshingOcr] = useState(false);
   const [error, setError] = useState("");
@@ -741,10 +745,18 @@ function VerifierApplicationReview() {
 
               <div className="verifier-review-profile-area">
                 <div className="verifier-review-profile-main">
-                  <div className="verifier-review-profile-avatar">
-                    {user?.first_name?.charAt(0)}
-                    {user?.last_name?.charAt(0)}
-                  </div>
+                  {profilePhotoStatus === "ready" ? (
+                    <img
+                      src={profilePhotoUrl}
+                      alt="Applicant"
+                      className="verifier-review-profile-avatar verifier-review-profile-photo"
+                    />
+                  ) : (
+                    <div className="verifier-review-profile-avatar">
+                      {user?.first_name?.charAt(0)}
+                      {user?.last_name?.charAt(0)}
+                    </div>
+                  )}
 
                   <div className="verifier-review-profile-content">
                     <h5 className="verifier-review-profile-name">

@@ -7153,6 +7153,15 @@ a:hover {
   flex-shrink: 0;
 }
 
+.applicant-topbar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
 .verifier-panel-footer {
   background: #7f0000;
   color: #ffffff;
@@ -8381,6 +8390,10 @@ a:hover {
   font-weight: 600;
   color: #31506f;
   flex-shrink: 0;
+}
+
+.verifier-review-profile-avatar.verifier-review-profile-photo {
+  object-fit: cover;
 }
 
 .verifier-review-profile-content {
