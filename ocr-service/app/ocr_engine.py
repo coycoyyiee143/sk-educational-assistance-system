@@ -15,7 +15,7 @@ def get_ocr():
             det_limit_type='max',
             det_db_box_thresh=0.5,         # lowered from default 0.6 - catches faint/small text boxes that were being dropped. A/B tested vs default on reg form + ID + voter's cert - all checks still passed, ID accuracy slightly better. Keeping.
             det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition. Adds some extra duplicate watermark-noise lines on heavily watermarked docs, but the matching logic (fuzzy match + label anchoring) already filters that noise out - no impact on actual verification results in testing.
-            use_dilation=True,             # testing - thickens detected text strokes, may help on blurry/unscanned photos where strokes are thin/broken (different mechanism than resolution cap - worth trying on genuinely blurred source images specifically)
+            use_dilation=False,             # testing - thickens detected text strokes, may help on blurry/unscanned photos where strokes are thin/broken (different mechanism than resolution cap - worth trying on genuinely blurred source images specifically)
             det_model_dir=None,            # set below via ocr_version if using PaddleOCR's built-in mobile models
             rec_model_dir=None,
             cls_model_dir=None,
