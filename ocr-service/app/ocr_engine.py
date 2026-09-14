@@ -57,10 +57,10 @@ def run_ocr(image_path: str) -> list:
     extracted = parse_results(results)
 
     avg_conf = get_average_confidence(extracted)
-    print(f"DEBUG: Overall avg confidence = {avg_conf}, threshold = 0.85")
+    print(f"DEBUG: Overall avg confidence = {avg_conf}, threshold = 0.85", flush=True)
 
     if not extracted or avg_conf < 0.85:
-        print("DEBUG: Enhancement pass TRIGGERED")
+        print("DEBUG: Enhancement pass TRIGGERED", flush=True)
         preprocessed_path = preprocess_image(image_path)
         try:
             results2 = ocr.ocr(preprocessed_path, cls=True)
@@ -72,7 +72,7 @@ def run_ocr(image_path: str) -> list:
             if preprocessed_path != image_path and os.path.exists(preprocessed_path):
                 os.unlink(preprocessed_path)
     else:
-        print("DEBUG: Enhancement pass SKIPPED")
+        print("DEBUG: Enhancement pass SKIPPED", flush=True)
 
     return extracted
 
