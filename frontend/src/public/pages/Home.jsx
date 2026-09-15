@@ -912,7 +912,7 @@ const Home = () => {
             <div className="org-row org-row-4">
               <div className="org-card">
                 <img
-                  src="/officials/member1.jpg"
+                  src="/officials/member1.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -930,7 +930,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member2.jpg"
+                  src="/officials/member2.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -948,7 +948,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member3.jpg"
+                  src="/officials/member3.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -966,7 +966,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member4.jpg"
+                  src="/officials/member4.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -986,7 +986,7 @@ const Home = () => {
             <div className="org-row org-row-3">
               <div className="org-card">
                 <img
-                  src="/officials/member5.jpg"
+                  src="/officials/member5.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -1004,7 +1004,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member6.jpg"
+                  src="/officials/member6.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -1022,7 +1022,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member7.jpg"
+                  src="/officials/member7.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -1042,7 +1042,7 @@ const Home = () => {
             <div className="org-row org-row-2">
               <div className="org-card">
                 <img
-                  src="/officials/secretary.jpg"
+                  src="/officials/secretary.png"
                   alt="SK Secretary"
                   className="org-photo"
                 />
@@ -1060,7 +1060,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/treasurer.jpg"
+                  src="/officials/treasurer.png"
                   alt="SK Treasurer"
                   className="org-photo"
                 />

@@ -57,19 +57,22 @@ function AdminReports() {
         <section className="page-section">
           <div className="container-fluid">
             <div className="page-card">
-              <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
-                <div>
+              <div className="reports-header-layout">
+                <div className="reports-header-content">
                   <h3 className="section-title mb-2">Reports</h3>
                   <p className="text-muted mb-0">Applicant statistics, verification outcomes, and budget planning tools for the educational assistance program.</p>
+                  <div className="reports-period-field">
+                    <label className="form-label small text-muted mb-1">Viewing Period</label>
+                    <select className="form-select" value={selectedConfigId} onChange={(e) => setSelectedConfigId(e.target.value)}>
+                      {periods.map((p) => (
+                        <option key={p.id} value={p.id}>{p.school_year}{p.is_active ? " (Active)" : ""}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div style={{ minWidth: "220px" }}>
-                  <label className="form-label small text-muted mb-1">Viewing Period</label>
-                  <select className="form-select" value={selectedConfigId} onChange={(e) => setSelectedConfigId(e.target.value)}>
-                    {periods.map((p) => (
-                      <option key={p.id} value={p.id}>{p.school_year}{p.is_active ? " (Active)" : ""}</option>
-                    ))}
-                  </select>
-                </div>
+                <a href="/AdminBudgetPlanning" className="report-records-preview-btn reports-budget-btn">
+                  Go to Budget Planning
+                </a>
               </div>
             </div>
             <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
@@ -81,11 +84,6 @@ function AdminReports() {
             </div>
             <VerificationOutcomesSection selectedConfigId={selectedConfigId} section="claiming" />
             <DisbursementReportSection selectedConfigId={selectedConfigId} />
-            <div className="page-card">
-              <div className="d-flex justify-content-end flex-wrap gap-3">
-                <a href="/AdminBudgetPlanning" className="btn btn-custom">Go to Budget Planning →</a>
-              </div>
-            </div>
           </div>
         </section>
         <PanelFooter />

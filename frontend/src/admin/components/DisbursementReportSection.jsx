@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
-
 function formatDateTime(dateStr) {
   if (!dateStr) return "—";
-
   return new Date(dateStr).toLocaleString("en-US", {
     month: "short",
     day: "numeric",
@@ -12,23 +10,38 @@ function formatDateTime(dateStr) {
     minute: "2-digit",
   });
 }
-
+function getPageNumbers(currentPage, totalPages) {
+  const pages = [];
+  const maxVisible = 5;
+  if (totalPages <= maxVisible) {
+    for (let i = 1; i <= totalPages; i++) pages.push(i);
+    return pages;
+  }
+  pages.push(1);
+  if (currentPage > 3) pages.push("...");
+  const start = Math.max(2, currentPage - 1);
+  const end = Math.min(totalPages - 1, currentPage + 1);
+  for (let i = start; i <= end; i++) pages.push(i);
+  if (currentPage < totalPages - 2) pages.push("...");
+  pages.push(totalPages);
+  return pages;
+}
 function DisbursementReportSection({ selectedConfigId, onReady }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [downloading, setDownloading] = useState(false);
-
+  const [currentPage, setCurrentPage] = useState(1);
+  const perPage = 10;
   useEffect(() => {
+    setCurrentPage(1);
     if (!selectedConfigId) {
       setLoading(false);
       onReady?.();
       return;
     }
-
     setLoading(true);
     setError("");
-
     api
       .get("/admin/reports/disbursement", {
         params: {
@@ -48,13 +61,10 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
         setLoading(false);
         onReady?.();
       });
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConfigId]);
-
   async function handleDownloadPdf() {
     setDownloading(true);
-
     try {
       const res = await api.get(
         "/admin/reports/disbursement/pdf",
@@ -65,21 +75,16 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
           responseType: "blob",
         }
       );
-
       const url = URL.createObjectURL(res.data);
-
       const a = document.createElement("a");
       a.href = url;
-
       a.download = `disbursement-report-${
         data?.config?.school_year ??
         new Date().toISOString().slice(0, 10)
       }.pdf`;
-
       document.body.appendChild(a);
       a.click();
       a.remove();
-
       URL.revokeObjectURL(url);
     } catch {
       setError("Failed to download PDF.");
@@ -87,50 +92,31 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
       setDownloading(false);
     }
   }
-
   const entries = data?.entries ?? [];
   const totalDisbursed = data?.total_disbursed ?? 0;
   const totalAmount = data?.total_amount ?? 0;
-
+  const totalPages = Math.max(1, Math.ceil(entries.length / perPage));
+  const pageStart = (currentPage - 1) * perPage;
+  const pagedEntries = entries.slice(pageStart, pageStart + perPage);
   return (
     <div className="page-card disbursement-report-card">
-
-      {/* =====================================================
-          HEADER
-      ====================================================== */}
-
       <div className="disbursement-report-header">
-
         <div className="disbursement-report-heading">
-
-          <h4 className="sub-title mb-1">
-            Disbursement Report
-
+          <h4 className="disbursement-report-title mb-1">
+            <span className="disbursement-report-title-text">Disbursement Report</span>
             {data?.config?.school_year && (
-              <span className="disbursement-school-year">
-                — {data.config.school_year}
-              </span>
+              <span className="disbursement-school-year"> — {data.config.school_year}</span>
             )}
           </h4>
-
-          <p className="text-muted small mb-0">
-            Final list of applicants who received their educational
-            assistance, along with the verifier who processed the
-            disbursement.
+          <p className="disbursement-report-description mb-0">
+            Final list of applicants who received their educational assistance, along with the verifier who processed the disbursement.
           </p>
-
         </div>
-
-
         <button
           type="button"
-          className="btn btn-outline-custom btn-sm disbursement-download-btn"
+          className="report-records-export-btn disbursement-download-btn"
           onClick={handleDownloadPdf}
-          disabled={
-            downloading ||
-            loading ||
-            entries.length === 0
-          }
+          disabled={downloading || loading || entries.length === 0}
         >
           <svg
             width="15"
@@ -141,62 +127,30 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
+            aria-hidden="true"
           >
             <path d="M12 3v12" />
             <path d="m7 10 5 5 5-5" />
             <path d="M5 21h14" />
           </svg>
-
-          {downloading
-            ? "Generating..."
-            : "Download PDF"}
+          {downloading ? "Generating..." : "Download PDF"}
         </button>
-
       </div>
-
-
-      {/* =====================================================
-          ERROR
-      ====================================================== */}
-
       {error && (
         <div className="alert alert-danger py-2 mb-3">
           {error}
         </div>
       )}
-
-
-      {/* =====================================================
-          LOADING
-      ====================================================== */}
-
       {loading ? (
-
         <div className="d-flex justify-content-center py-5">
-          <div
-            className="spinner-border text-danger"
-            role="status"
-          />
+          <div className="spinner-border text-danger" role="status" />
         </div>
-
       ) : (
-
         <>
-
-          {/* =================================================
-              SUMMARY
-          ================================================== */}
-
           {entries.length > 0 && (
-
             <div className="disbursement-summary">
-
-              {/* TOTAL DISBURSED */}
-
               <div className="disbursement-summary-item">
-
                 <div className="disbursement-summary-icon">
-
                   <svg
                     width="18"
                     height="18"
@@ -206,6 +160,7 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    aria-hidden="true"
                   >
                     <path d="M8 6h13" />
                     <path d="M8 12h13" />
@@ -214,36 +169,19 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
                     <path d="M3 12h.01" />
                     <path d="M3 18h.01" />
                   </svg>
-
                 </div>
-
                 <div>
-
                   <div className="disbursement-summary-label">
                     Total Disbursed
                   </div>
-
                   <div className="disbursement-summary-value">
-
                     {totalDisbursed}
-
-                    <span>
-                      {" "}applicant(s)
-                    </span>
-
+                    <span>{" "}applicant(s)</span>
                   </div>
-
                 </div>
-
               </div>
-
-
-              {/* TOTAL AMOUNT */}
-
               <div className="disbursement-summary-item">
-
                 <div className="disbursement-summary-icon amount">
-
                   <svg
                     width="18"
                     height="18"
@@ -253,6 +191,7 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
                     strokeWidth="2"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    aria-hidden="true"
                   >
                     <rect
                       x="3"
@@ -264,37 +203,30 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
                     <path d="M3 10h18" />
                     <path d="M7 15h3" />
                   </svg>
-
                 </div>
-
                 <div>
-
                   <div className="disbursement-summary-label">
                     Total Amount
                   </div>
-
                   <div className="disbursement-summary-value amount">
-                    ₱
-                    {Number(totalAmount).toLocaleString()}
+                    ₱{Number(totalAmount).toLocaleString()}
                   </div>
-
                 </div>
-
               </div>
-
             </div>
-
           )}
-
-
-          {/* =================================================
-              TABLE
-          ================================================== */}
-
-          <div className="table-responsive table-scroll">
-
-            <table className="table table-bordered table-striped align-middle">
-
+          <div className="table-responsive table-scroll disbursement-table-wrap">
+            <table className="table table-bordered table-striped align-middle disbursement-report-table">
+              <colgroup>
+                <col style={{ width: "15%" }} />
+                <col style={{ width: "17%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "8%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "13%" }} />
+                <col style={{ width: "8%" }} />
+              </colgroup>
               <thead>
                 <tr>
                   <th>Control Number</th>
@@ -307,82 +239,93 @@ function DisbursementReportSection({ selectedConfigId, onReady }) {
                   <th>Amount</th>
                 </tr>
               </thead>
-
-
               <tbody>
-
                 {entries.length === 0 ? (
-
                   <tr>
-                    <td
-                      colSpan={8}
-                      className="disbursement-empty-state"
-                    >
+                    <td colSpan={8} className="disbursement-empty-state">
                       No disbursements recorded for this period.
                     </td>
                   </tr>
-
                 ) : (
-
-                  entries.map((entry, index) => (
-
-                    <tr key={index}>
-
-                      <td>
-                        {entry.control_number ?? "—"}
-                      </td>
-
+                  pagedEntries.map((entry, index) => (
+                    <tr key={entry.id ?? `${pageStart}-${index}`}>
+                      <td>{entry.control_number ?? "—"}</td>
                       <td className="disbursement-applicant-name">
                         {entry.applicant_name}
                       </td>
-
-                      <td>
-                        {entry.school_name}
-                      </td>
-
-                      <td>
-                        {entry.lane_name ?? "—"}
-                      </td>
-
-                      <td>
-                        {entry.claiming_date ?? "—"}
-                      </td>
-
-                      <td>
-                        {entry.verifier_name ?? "—"}
-                      </td>
-
-                      <td>
-                        {formatDateTime(
-                          entry.verified_at
-                        )}
-                      </td>
-
+                      <td>{entry.school_name}</td>
+                      <td>{entry.lane_name ?? "—"}</td>
+                      <td>{entry.claiming_date ?? "—"}</td>
+                      <td>{entry.verifier_name ?? "—"}</td>
+                      <td>{formatDateTime(entry.verified_at)}</td>
                       <td className="disbursement-amount">
-                        ₱
-                        {Number(
-                          entry.amount ?? 0
-                        ).toLocaleString()}
+                        ₱{Number(entry.amount ?? 0).toLocaleString()}
                       </td>
-
                     </tr>
-
                   ))
-
                 )}
-
               </tbody>
-
             </table>
-
           </div>
-
+          {entries.length > 0 && (
+            <div className="table-pagination-bar">
+              <span className="table-pagination-info">
+                Showing {pageStart + 1}–
+                {Math.min(pageStart + perPage, entries.length)} of{" "}
+                {entries.length} records
+              </span>
+              <div className="table-pagination-controls">
+                <button
+                  type="button"
+                  className="table-pagination-arrow"
+                  onClick={() =>
+                    setCurrentPage((page) => Math.max(1, page - 1))
+                  }
+                  disabled={currentPage === 1}
+                >
+                  ‹
+                </button>
+                {getPageNumbers(currentPage, totalPages).map((page, index) =>
+                  page === "..." ? (
+                    <span
+                      key={`disbursement-ellipsis-${index}`}
+                      className="table-pagination-ellipsis"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      key={page}
+                      className={`table-pagination-page ${
+                        page === currentPage
+                          ? "table-pagination-page-active"
+                          : ""
+                      }`}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </button>
+                  )
+                )}
+                <button
+                  type="button"
+                  className="table-pagination-arrow"
+                  onClick={() =>
+                    setCurrentPage((page) =>
+                      Math.min(totalPages, page + 1)
+                    )
+                  }
+                  disabled={currentPage === totalPages}
+                >
+                  ›
+                </button>
+              </div>
+            </div>
+          )}
         </>
-
       )}
-
     </div>
   );
 }
-
 export default DisbursementReportSection;
