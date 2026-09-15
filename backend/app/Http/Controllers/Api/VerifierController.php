@@ -49,7 +49,10 @@ class VerifierController extends Controller
 
     $applications = Application::with(['user', 'verifierActions'])
         ->where('config_id', $configId)
-        ->whereHas('documents')
+        ->where(function ($query) {
+            $query->where('status', '!=', 'pending_prescreening')
+                ->orWhereHas('documents');
+        })
         ->orderBy('submitted_at', 'asc')   // FCFS: earliest submission first
         ->orderBy('created_at', 'asc')
         ->get()
