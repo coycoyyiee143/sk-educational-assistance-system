@@ -634,7 +634,7 @@ class VerifierController extends Controller
             ->where('lane_name', '!=', 'Grace Period Claiming')
             ->orderBy('claiming_date')
             ->orderBy('lane_name')
-            ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id']);
+            ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id', 'requested_verifier_id']);
 
         $assignedLane = $allLanes->firstWhere('verifier_id', $request->user()->id);
 
@@ -650,25 +650,45 @@ class VerifierController extends Controller
     }
 
     /**
-     * Verifier self-assigns to a lane — the default, day-of mechanism.
-     * Clears them from any OTHER lane in the same schedule first, since
-     * a verifier can only physically be at one lane at a time. An admin
-     * assignment (via AdminScheduleController::assignVerifier()) can
-     * always override this later, and vice versa — whichever was set
-     * most recently wins, since it's the same column.
+     * Verifier picks a lane. If nobody's currently on it, this assigns it
+     * to them immediately — same one-lane-per-verifier swap as before,
+     * clearing them off any other lane in this schedule first. There's no
+     * one to displace, so no approval is needed.
+     *
+     * If the lane already has a DIFFERENT verifier, this used to reassign
+     * it immediately anyway — which let one verifier silently bump another
+     * off their lane with no warning (two people clicking this on the same
+     * station within seconds of each other would just keep stealing it
+     * back and forth). In that case it now only records a REQUEST; an
+     * admin has to approve it via AdminScheduleController::assignVerifier()
+     * before it actually takes effect, so taking over an already-staffed
+     * lane stays a deliberate, visible decision.
      */
     public function selfAssignLane(Request $request, $laneId)
     {
         $lane = \App\Models\ClaimingLane::findOrFail($laneId);
 
-        \App\Models\ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
-            ->where('verifier_id', $request->user()->id)
-            ->update(['verifier_id' => null]);
+        if ($lane->verifier_id === $request->user()->id) {
+            return response()->json(['message' => "You're already assigned to {$lane->lane_name}."], 400);
+        }
 
-        $lane->update(['verifier_id' => $request->user()->id]);
+        if ($lane->verifier_id === null) {
+            \App\Models\ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
+                ->where('verifier_id', $request->user()->id)
+                ->update(['verifier_id' => null]);
+
+            $lane->update(['verifier_id' => $request->user()->id, 'requested_verifier_id' => null]);
+
+            return response()->json([
+                'message' => "You're now assigned to {$lane->lane_name}.",
+                'lane'    => $lane,
+            ]);
+        }
+
+        $lane->update(['requested_verifier_id' => $request->user()->id]);
 
         return response()->json([
-            'message' => "You're now assigned to {$lane->lane_name}.",
+            'message' => "{$lane->lane_name} already has a verifier. Request sent — an admin needs to approve it before it becomes your lane.",
             'lane'    => $lane,
         ]);
     }

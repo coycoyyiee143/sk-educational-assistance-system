@@ -11,10 +11,11 @@ def get_ocr():
             lang='en',
             use_angle_cls=True,
             show_log=False,
-            det_limit_side_len=1600,       # tested at 1280 - accuracy dropped (missed small text like the school year line). Reverted to 1600. The earlier slowness was the duplicate OCR queue worker (sk-eas-queue-ocr@2), not this value - fixed separately by disabling it.
+            det_limit_side_len=1600,       # tested 1280 (accuracy dropped, missed small text) and 1800 (no improvement on genuinely blurred/unscanned photos - resolution cap can't recover detail that isn't in the source image). Back to 1600 as the settled baseline
             det_limit_type='max',
             det_db_box_thresh=0.5,         # lowered from default 0.6 - catches faint/small text boxes that were being dropped. A/B tested vs default on reg form + ID + voter's cert - all checks still passed, ID accuracy slightly better. Keeping.
-            det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition. Adds some extra duplicate watermark-noise lines on heavily watermarked docs , but the matching logic (fuzzy match + label anchoring) already filters that noise out - no impact on actual verification results in testing.
+            det_db_unclip_ratio=1.8,       # raised from default 1.5 - expands detected boxes so small text isn't clipped before recognition. Adds some extra duplicate watermark-noise lines on heavily watermarked docs, but the matching logic (fuzzy match + label anchoring) already filters that noise out - no impact on actual verification results in testing.
+            use_dilation=True,             # A/B tested against False on a real SVCC form - True gave both higher avg (0.8502 vs 0.8400) and higher min-line (0.5237 vs 0.5126) confidence. Keeping.
             det_model_dir=None,            # set below via ocr_version if using PaddleOCR's built-in mobile models
             rec_model_dir=None,
             cls_model_dir=None,
@@ -55,12 +56,32 @@ def run_ocr(image_path: str) -> list:
     results = ocr.ocr(image_path, cls=True)
     extracted = parse_results(results)
 
-    if not extracted or get_average_confidence(extracted) < 0.75:
+    avg_conf = get_average_confidence(extracted)
+    min_conf = min((item["confidence"] for item in extracted), default=1.0)
+
+    # Two trigger conditions: overall average too low (broadly bad read),
+    # OR any single line confidence very low (one blurry/faded section
+    # dragging down accuracy while the rest of the doc reads fine and
+    # keeps the average comfortably high - confirmed via debug logging
+    # that a doc can sit at avg=0.8502 with individual lines at 61%,
+    # which the average-only check let through unnoticed).
+    if not extracted or avg_conf < 0.85 or min_conf < 0.65:
         preprocessed_path = preprocess_image(image_path)
         try:
             results2 = ocr.ocr(preprocessed_path, cls=True)
             extracted2 = parse_results(results2)
-            if get_average_confidence(extracted2) > get_average_confidence(extracted):
+
+            avg2 = get_average_confidence(extracted2)
+            min2 = min((item["confidence"] for item in extracted2), default=1.0)
+
+            # Accept the enhanced pass if it improves whichever metric
+            # triggered the retry — not just the average, since a
+            # global-threshold enhancement can rescue one bad line
+            # while slightly lowering others.
+            improved_avg = avg_conf < 0.85 and avg2 > avg_conf
+            improved_min = min_conf < 0.65 and min2 > min_conf
+
+            if improved_avg or improved_min:
                 extracted = extracted2
         finally:
             import os

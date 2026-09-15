@@ -13,6 +13,7 @@ class ClaimingLane extends Model
         'batch',
         'claiming_date',
         'verifier_id',
+        'requested_verifier_id',
     ];
 
     public function schedule()
@@ -28,5 +29,10 @@ class ClaimingLane extends Model
     public function verifier()
     {
         return $this->belongsTo(User::class, 'verifier_id');
+    }
+
+    public function requestedVerifier()
+    {
+        return $this->belongsTo(User::class, 'requested_verifier_id');
     }
 }

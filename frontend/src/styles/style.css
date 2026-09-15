@@ -7183,6 +7183,15 @@ a:hover {
   flex-shrink: 0;
 }
 
+.applicant-topbar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: #f0f0f0;
+  flex-shrink: 0;
+  object-fit: cover;
+}
+
 .verifier-panel-footer {
   background: #7f0000;
   color: #ffffff;
@@ -8413,6 +8422,10 @@ a:hover {
   flex-shrink: 0;
 }
 
+.verifier-review-profile-avatar.verifier-review-profile-photo {
+  object-fit: cover;
+}
+
 .verifier-review-profile-content {
   display: flex;
   flex-direction: column;
@@ -8744,7 +8757,8 @@ a:hover {
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
   margin-top: 0;
-  margin-bottom: 35px;
+  margin-bottom: 25px;
+  padding-top: 7px;
 }
 
 @media (max-width: 700px) {
@@ -16100,15 +16114,18 @@ body {
 .report-records-management {
   font-family: 'Inter', Arial, sans-serif;
 }
+
 .report-approved-card {
   padding: 26px 28px;
 }
+
 .report-approved-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 28px;
 }
+
 .report-approved-copy {
   flex: 1;
   min-width: 0;
@@ -16154,7 +16171,7 @@ body {
   font-weight: 500;
 }
 
-.report-approved-features > span {
+.report-approved-features>span {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -16178,6 +16195,7 @@ body {
   height: 12px;
   display: block;
 }
+
 .report-approved-actions {
   display: flex;
   align-items: center;
@@ -16187,16 +16205,19 @@ body {
   gap: 8px;
   margin: 0;
 }
+
 .report-approved-actions .btn {
   min-height: 36px;
   padding: 7px 14px;
   font-size: 12px;
   font-weight: 600;
 }
+
 .report-records-management {
   padding: 25px;
   overflow: visible;
 }
+
 .report-records-header {
   display: flex;
   align-items: flex-start;
@@ -16206,6 +16227,7 @@ body {
   margin-bottom: 20px;
   border-bottom: none;
 }
+
 .report-records-header-actions {
   display: flex;
   align-items: center;
@@ -16214,19 +16236,23 @@ body {
   flex-shrink: 0;
   gap: 8px;
 }
+
 #applicant-records-filter-form {
   padding: 0;
   margin-bottom: 20px;
   background: #ffffff;
 }
+
 .report-records-filter-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 16px 14px;
 }
+
 .report-records-filter-field {
   min-width: 0;
 }
+
 .report-records-management .form-label {
   display: block;
   margin-bottom: 6px;
@@ -16243,6 +16269,7 @@ body {
   font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
 }
+
 .report-records-preview-header {
   display: flex;
   align-items: center;
@@ -16253,18 +16280,21 @@ body {
   background: transparent;
   border: none;
 }
-.report-records-preview-header > div {
+
+.report-records-preview-header>div {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 10px;
 }
+
 .report-records-preview-label {
   color: #4c555f;
   font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
   font-weight: 700;
 }
+
 .report-records-result-count {
   display: inline-flex;
   align-items: center;
@@ -16281,20 +16311,25 @@ body {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
 @media (max-width: 900px) {
+
   .report-approved-content,
   .report-records-header {
     flex-direction: column;
     align-items: stretch;
   }
+
   .report-approved-actions,
   .report-records-header-actions {
     justify-content: flex-start;
   }
+
   .report-records-filter-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
 @media (max-width: 575.98px) {
   .report-approved-card {
     padding: 19px 16px;
@@ -16350,6 +16385,7 @@ body {
     margin-bottom: 12px;
   }
 }
+
 .report-approved-download-btn,
 .report-approved-facebook-btn {
   min-height: 42px;
@@ -16366,6 +16402,7 @@ body {
   cursor: pointer;
   transition: background-color .2s ease, border-color .2s ease, color .2s ease;
 }
+
 .report-approved-download-btn {
   border: 1px solid #b71c1c;
   background: #b71c1c;
@@ -16384,11 +16421,13 @@ body {
   border-color: #941515;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
+
 .report-approved-download-btn svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
 }
+
 .report-approved-facebook-btn {
   border: 1px solid #d2d7dd;
   background: #f5f5f5;
@@ -16409,6 +16448,7 @@ body {
   color: #244b73;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
+
 .report-approved-facebook-icon {
   width: 20px;
   height: 20px;
@@ -16416,6 +16456,7 @@ body {
   flex-shrink: 0;
   object-fit: contain;
 }
+
 .report-records-title {
   margin: 0;
   color: #1a1a1a;
@@ -16423,6 +16464,7 @@ body {
   font-size: 23px;
   font-weight: 700;
 }
+
 .report-records-preview-btn,
 .report-records-export-btn {
   min-height: 34px;
@@ -16488,12 +16530,14 @@ body {
   opacity: 0.65;
   cursor: not-allowed;
 }
+
 /* ============================================
    SUBMISSION & APPROVAL HISTORY
    ============================================ */
 .report-history-card {
   font-family: 'Inter', Arial, sans-serif;
 }
+
 .report-history-title {
   margin: 0;
   color: #1a1a1a;
@@ -16560,6 +16604,7 @@ body {
   font-size: 14px;
   vertical-align: middle;
 }
+
 .report-history-table thead th:nth-child(2) {
   padding-left: 29px;
 }
@@ -16586,6 +16631,7 @@ body {
 .report-history-distribution-col {
   width: 68%;
 }
+
 .report-history-status {
   display: inline-flex;
   align-items: center;
@@ -16658,7 +16704,7 @@ body {
   background: #e9ecef;
 }
 
-.report-history-bar > span {
+.report-history-bar>span {
   display: block;
   height: 100%;
   flex-shrink: 0;
@@ -16717,6 +16763,7 @@ body {
 .report-history-view-link:active {
   color: #7f1111;
 }
+
 .report-history-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -16818,6 +16865,7 @@ body {
 .report-history-modal-close:active {
   color: #343a40;
 }
+
 .report-history-modal-body,
 .report-history-modal-footer,
 .report-history-modal .report-history-table {
@@ -17119,22 +17167,22 @@ body {
     padding: 14px 16px;
   }
 
-.report-history-modal-toolbar {
-  width: fit-content;
-  max-width: 100%;
-  gap: 18px;
-  margin-left: 0;
-  padding: 0 4px;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
+  .report-history-modal-toolbar {
+    width: fit-content;
+    max-width: 100%;
+    gap: 18px;
+    margin-left: 0;
+    padding: 0 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
 
-.report-history-filter-btn {
-  min-height: 34px;
-  padding: 0 3px 9px;
-  font-size: 11px;
-  flex-shrink: 0;
-}
+  .report-history-filter-btn {
+    min-height: 34px;
+    padding: 0 3px 9px;
+    font-size: 11px;
+    flex-shrink: 0;
+  }
 
   .report-history-modal-footer {
     align-items: flex-start;
@@ -17147,6 +17195,7 @@ body {
     justify-content: flex-end;
   }
 }
+
 /* ============================================
    APPLICANT PROFILE CARDS
    ============================================ */
@@ -17158,12 +17207,12 @@ body {
   margin-bottom: 25px;
 }
 
-.report-profile-layout-grid > * {
+.report-profile-layout-grid>* {
   min-width: 0;
   height: 100%;
 }
 
-.report-profile-layout-grid > .page-card {
+.report-profile-layout-grid>.page-card {
   margin-bottom: 0;
 }
 
@@ -17174,7 +17223,7 @@ body {
   border: 1px solid #dde2e7;
   border-radius: 12px;
   background: #fff;
-  box-shadow: 0 4px 12px rgba(0,0,0,.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .08);
   display: flex;
   flex-direction: column;
 }
@@ -17188,7 +17237,7 @@ body {
   border-bottom: 1px solid #e5e8eb;
 }
 
-.applicant-profile-card-header > div {
+.applicant-profile-card-header>div {
   min-width: 0;
 }
 
@@ -17238,6 +17287,7 @@ body {
   font-weight: 500;
   line-height: 1.25;
 }
+
 .school-program-card {
   display: flex;
   flex-direction: column;
@@ -17289,6 +17339,7 @@ body {
   flex: 1;
   padding: 26px 16px 16px;
 }
+
 .applicant-profile-card-footer {
   margin-top: auto;
   display: flex;
@@ -17308,7 +17359,7 @@ body {
 
 
 
-.applicant-profile-section + .applicant-profile-section {
+.applicant-profile-section+.applicant-profile-section {
   margin-top: 30px;
 }
 
@@ -17342,12 +17393,12 @@ body {
   line-height: 1.35;
 }
 
-.profile-category-row > span:first-child {
+.profile-category-row>span:first-child {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.profile-category-row > span:last-child {
+.profile-category-row>span:last-child {
   flex-shrink: 0;
   color: #6f7780;
   font-size: 13px;
@@ -17435,6 +17486,7 @@ body {
 }
 
 @media (max-width: 575.98px) {
+
   .applicant-profile-card-header,
   .applicant-profile-card-body {
     padding-left: 14px;
@@ -17445,47 +17497,51 @@ body {
     gap: 9px;
   }
 
- .applicant-profile-header-icon {
-  width: 33px;
-  height: 33px;
-}
+  .applicant-profile-header-icon {
+    width: 33px;
+    height: 33px;
+  }
 
-.applicant-profile-header-icon svg {
-  width: 17px;
-  height: 17px;
-}
+  .applicant-profile-header-icon svg {
+    width: 17px;
+    height: 17px;
+  }
 
-.applicant-profile-card-title {
-  font-size: 15px;
-}
+  .applicant-profile-card-title {
+    font-size: 15px;
+  }
 
-.applicant-profile-cycle {
-  font-size: 11.5px;
-}
-.applicant-profile-card {
-  min-height: auto;
-}
-.applicant-profile-export-btn {
-  width: 30px;
-  height: 30px;
-}
+  .applicant-profile-cycle {
+    font-size: 11.5px;
+  }
+
+  .applicant-profile-card {
+    min-height: auto;
+  }
+
+  .applicant-profile-export-btn {
+    width: 30px;
+    height: 30px;
+  }
 
 
 
   .applicant-profile-age-grid,
   .applicant-profile-age-grid-three {
-   grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
   .applicant-profile-export-btn {
-  width: 32px;
-  height: 32px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .applicant-profile-export-btn svg {
+    width: 20px;
+    height: 20px;
+  }
 }
 
-.applicant-profile-export-btn svg {
-  width: 20px;
-  height: 20px;
-}
-}
 .applicant-profile-year-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -17512,6 +17568,7 @@ body {
   background: #fff8e1;
   font-family: 'Inter', Arial, sans-serif;
 }
+
 .purok-residency-note-top {
   display: flex;
   align-items: center;
@@ -17523,6 +17580,7 @@ body {
   font-size: 13px;
   font-weight: 700;
 }
+
 .purok-residency-check {
   width: 41px;
   height: 41px;
@@ -17535,11 +17593,13 @@ body {
   background: #fff1c7;
   color: #f59e0b;
 }
+
 .purok-residency-check svg {
   width: 25px;
   height: 25px;
   display: block;
 }
+
 .purok-residency-badge {
   margin-left: auto;
   padding: 4px 8px;
@@ -17550,6 +17610,7 @@ body {
   font-weight: 600;
   white-space: nowrap;
 }
+
 .purok-residency-note p {
   margin: 6px 0 0 52px;
   color: #4f4a3e;
@@ -17557,9 +17618,11 @@ body {
   font-weight: 400;
   line-height: 1.6;
 }
+
 .purok-phase-footer {
   margin-top: auto;
 }
+
 @media (max-width: 575.98px) {
   .purok-residency-note-top {
     flex-wrap: wrap;
@@ -17574,6 +17637,7 @@ body {
     width: 20px;
     height: 20px;
   }
+
   .purok-residency-badge {
     margin-left: auto;
   }
@@ -17722,6 +17786,7 @@ body {
     padding: 14px 16px;
   }
 }
+
 .year-age-modal-header-actions {
   display: flex;
   align-items: center;
@@ -17760,6 +17825,7 @@ body {
 .year-age-modal-done-btn:hover {
   background: #171b22;
 }
+
 .report-modal-footer {
   background: #fff;
   font-family: 'Inter', Arial, sans-serif;
@@ -18126,7 +18192,7 @@ body {
   gap: 12px;
 }
 
-.claiming-reason-top > span {
+.claiming-reason-top>span {
   color: #374151;
   font-size: 12.5px;
 }
@@ -18145,7 +18211,7 @@ body {
   font-weight: 700;
 }
 
-.claiming-reason-values > span {
+.claiming-reason-values>span {
   min-width: 42px;
 
   color: #7b8794;
@@ -20191,6 +20257,7 @@ button.verifier-claiming-photo-caption-retake:hover {
   flex-direction: column;
   gap: 10px;
 }
+
 .application-history-doc-top {
   display: flex;
   justify-content: space-between;
@@ -20421,7 +20488,7 @@ button.verifier-claiming-photo-caption-retake:hover {
   vertical-align: middle;
 }
 
-.verification-history-table tbody tr + tr td {
+.verification-history-table tbody tr+tr td {
   border-top: 1px solid #e1e4e8;
 }
 

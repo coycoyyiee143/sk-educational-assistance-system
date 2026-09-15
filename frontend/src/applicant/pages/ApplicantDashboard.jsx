@@ -321,7 +321,7 @@ function ApplicantDashboard() {
             <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
               We collect and process personal information you provide
               through this system — including your name, birthdate,
-              contact details, uploaded valid ID, and photos — solely to
+              contact details, uploaded 2x2 photo, and live photos — solely to
               process your application for the Educational Assistance
               Program, verify your identity, and, where applicable, serve
               as reference during the claiming of your assistance.

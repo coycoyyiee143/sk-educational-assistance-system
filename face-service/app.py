@@ -6,8 +6,9 @@ Two endpoints, matching what backend/app/Services/FaceMatchingService.php calls:
   POST /verify-face
     multipart/form-data: id_image, live_photo
     -> { match, score, embedding }
-    Used at REGISTRATION: compares the uploaded valid ID photo against
-    the live cam capture, and returns the embedding to store for later.
+    Used at REGISTRATION: compares the uploaded reference photo (a recent
+    2x2) against the live cam capture, and returns the embedding to store
+    for later.
 
   POST /verify-against-embedding
     multipart/form-data: live_photo
@@ -32,7 +33,6 @@ from utils.face_matcher import (
     compare_encodings,
     encoding_to_list,
     encoding_from_list,
-    looks_like_id_shape,
 )
 
 app = Flask(__name__)
@@ -74,14 +74,9 @@ def verify_face():
     live_photo_path = save_temp_file(live_photo)
 
     try:
-        if not looks_like_id_shape(id_image_path):
-            return jsonify({
-                "error": "This doesn't look like a valid ID photo. Please upload a clear photo of your ID (not a screenshot, selfie, or unrelated image)."
-            }), 422
-
         id_encoding = get_face_encoding(id_image_path)
         if id_encoding is None:
-            return jsonify({"error": "No face detected in the ID image. Please make sure your photo on the ID is clearly visible."}), 422
+            return jsonify({"error": "No face detected in the uploaded photo. Please make sure your face is clearly visible."}), 422
 
         live_encoding = get_face_encoding(live_photo_path)
         if live_encoding is None:

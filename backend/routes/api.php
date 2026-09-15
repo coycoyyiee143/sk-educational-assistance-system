@@ -77,13 +77,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/admin/application-configs/{id}/close', [AdminScheduleController::class, 'closePeriod']);
         Route::get('/admin/claiming-schedule', [AdminScheduleController::class, 'show']);
         Route::post('/admin/claiming-schedule', [AdminScheduleController::class, 'store']);
-        Route::get('/admin/claiming-schedule/lane-assignments', [AdminScheduleController::class, 'laneAssignments']);
         // CHANGED: publish()/preview() removed — real-time assignment
         // (ClaimingAssignmentService) means there's nothing left to
         // preview or bulk-publish. activate() turns a schedule on and
         // runs a one-time catch-up pass for anyone already approved.
         Route::post('/admin/claiming-schedule/{id}/activate', [AdminScheduleController::class, 'activate']);
         Route::post('/admin/claiming-schedule/lanes/{laneId}/assign-verifier', [AdminScheduleController::class, 'assignVerifier']);
+        Route::post('/admin/claiming-schedule/lanes/{laneId}/dismiss-request', [AdminScheduleController::class, 'dismissLaneRequest']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable/pdf', [AdminScheduleController::class, 'printableLanePdf']);
         Route::post('/application-config', [ApplicationConfigurationController::class, 'store']);
@@ -190,6 +190,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/applications/{id}/documents/{docId}/file', [DocumentController::class, 'show']);
     Route::get('/claiming/face-verifications/{id}/photo', [FaceVerificationController::class, 'showClaimingPhoto'])->name('claiming.face-photo');
     Route::get('/claiming/applications/{applicationId}/registration-photo', [FaceVerificationController::class, 'registrationPhoto']);
+    Route::get('/users/{userId}/profile-photo', [FaceVerificationController::class, 'profilePhoto']);
 
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);

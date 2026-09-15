@@ -20,7 +20,7 @@ class FaceVerificationController extends Controller
 
     /**
      * REGISTRATION STEP
-     * Applicant uploads a valid ID + a live cam capture. We compare them,
+     * Applicant uploads a recent 2x2 photo + a live cam capture. We compare them,
      * and if they match, store the resulting face embedding for later use
      * on claiming day. Called right after /register, using the auth token
      * that /register already returned.
@@ -85,7 +85,7 @@ class FaceVerificationController extends Controller
 
         if (!$result['match']) {
             return response()->json([
-                'message' => 'The live photo does not match the uploaded ID. Please try again with better lighting and a clear photo of your ID.',
+                'message' => 'The live photo does not match your uploaded 2x2 photo. Please try again with better lighting and a clear, recent photo of yourself.',
                 'score'   => $result['score'],
             ], 422);
         }
@@ -215,6 +215,40 @@ class FaceVerificationController extends Controller
         return Storage::disk('local')->response(
             $verification->live_photo_path,
             basename($verification->live_photo_path)
+        );
+    }
+
+    /**
+     * Applicant's profile picture — the 2x2 reference photo uploaded at
+     * REGISTRATION, shown as an avatar on the applicant's own topbar/profile
+     * page and on verifier review screens. Unlike registrationPhoto() above
+     * (which is application-scoped and shows the live selfie for face
+     * comparison), this is user-scoped and shows the 2x2 photo itself.
+     */
+    public function profilePhoto(Request $request, $userId)
+    {
+        $user = $request->user();
+        $isOwner    = (int) $user->id === (int) $userId;
+        $isVerifier = $user->role === 'sk_verifier';
+        $isAdmin    = $user->role === 'sk_admin';
+
+        if (!$isOwner && !$isVerifier && !$isAdmin) {
+            abort(403, 'You are not authorized to view this photo.');
+        }
+
+        $verification = FaceVerification::where('user_id', $userId)->first();
+
+        if (!$verification || !$verification->id_image_path) {
+            abort(404, 'No profile photo on file for this applicant.');
+        }
+
+        if (!Storage::disk('local')->exists($verification->id_image_path)) {
+            abort(404, 'File not found.');
+        }
+
+        return Storage::disk('local')->response(
+            $verification->id_image_path,
+            basename($verification->id_image_path)
         );
     }
 

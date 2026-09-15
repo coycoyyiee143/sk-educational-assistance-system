@@ -433,7 +433,7 @@ function FaceCapture({
       mode === "registration" &&
       !effectiveIdImage
     ) {
-      setError("A valid ID is required.");
+      setError("A recent 2x2 photo is required.");
       setErrorKind("submit");
       return;
     }
@@ -581,12 +581,12 @@ function FaceCapture({
         <div className="mb-4">
           <label className="form-label fw-semibold d-flex align-items-center gap-2">
             <IconUpload />
-            Valid ID
+            Latest 2x2 Photo
             <span className="text-danger">*</span>
           </label>
 
           <p className="text-muted small mb-2">
-            Upload a clear photo of a government-issued or school ID showing your face.
+            Upload a clear, recent 2x2 photo of yourself showing your face.
           </p>
 
           <input

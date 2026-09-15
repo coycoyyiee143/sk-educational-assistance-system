@@ -120,6 +120,8 @@ function VerifierClaiming() {
   const [selectedLaneId, setSelectedLaneId] = useState("");
   const [gracePeriodMode, setGracePeriodMode] = useState(false);
   const [assigningLane, setAssigningLane] = useState(false);
+  const [laneRequestMessage, setLaneRequestMessage] = useState("");
+  const [pendingRequestLaneId, setPendingRequestLaneId] = useState(null);
   const [lanesLoaded, setLanesLoaded] = useState(false);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -318,22 +320,27 @@ function VerifierClaiming() {
     setClaimSuccess("");
   }
 
-  async function handleSelfAssign(laneId) {
+  async function handleRequestLane(laneId) {
     setAssigningLane(true);
     setSearchError("");
+    setLaneRequestMessage("");
 
     try {
-      await api.post(
+      const res = await api.post(
         `/verifier/claiming/lanes/${laneId}/self-assign`
       );
 
       fetchLanes();
 
       setSelectedLaneId(String(laneId));
+      setLaneRequestMessage(res.data.message);
+      // The lane was empty, so the backend assigned it immediately instead
+      // of just recording a request — nothing left pending on it.
+      setPendingRequestLaneId(res.data.lane?.requested_verifier_id ? String(laneId) : null);
     } catch (err) {
       setSearchError(
         err.response?.data?.message ||
-        "Failed to self-assign lane."
+        "Failed to request lane."
       );
     } finally {
       setAssigningLane(false);
@@ -1667,6 +1674,9 @@ function VerifierClaiming() {
                                       assignedLane?.id
                                       ? " (assigned to another verifier)"
                                       : ""}
+                                    {lane.requested_verifier_id
+                                      ? " (request pending)"
+                                      : ""}
                                   </option>
                                 )
                               )}
@@ -1678,22 +1688,28 @@ function VerifierClaiming() {
                                   assignedLane.id
                                 ) !==
                                 selectedLaneId) && (
-                                <button
-                                  type="button"
-                                  className="verifier-waitlist-action-btn mt-2"
-                                  onClick={() =>
-                                    handleSelfAssign(
-                                      selectedLaneId
-                                    )
-                                  }
-                                  disabled={
-                                    assigningLane
-                                  }
-                                >
-                                  {assigningLane
-                                    ? "Assigning..."
-                                    : "Make this my lane"}
-                                </button>
+                                pendingRequestLaneId === selectedLaneId ? (
+                                  <p className="text-muted small mt-2 mb-0">
+                                    {laneRequestMessage || "Request sent — waiting for an admin to approve it."}
+                                  </p>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="verifier-waitlist-action-btn mt-2"
+                                    onClick={() =>
+                                      handleRequestLane(
+                                        selectedLaneId
+                                      )
+                                    }
+                                    disabled={
+                                      assigningLane
+                                    }
+                                  >
+                                    {assigningLane
+                                      ? "Requesting..."
+                                      : "Request this lane"}
+                                  </button>
+                                )
                               )}
                           </div>
                         </>

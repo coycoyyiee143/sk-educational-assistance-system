@@ -3,10 +3,12 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ApplicantNavigation from "../components/ApplicantNavigation";
 import PanelFooter from "../../components/PanelFooter";
 import { useAuth } from "../../context/AuthContext";
+import { useUserPhoto } from "../../hooks/useUserPhoto";
 import api from "../../services/api";
 
 function ApplicantProfile() {
-  const { login, token } = useAuth();
+  const { login, token, user } = useAuth();
+  const { url: profilePhotoUrl, status: profilePhotoStatus } = useUserPhoto(user?.id);
   const location = useLocation();
   const navigate = useNavigate();
   const cameFromSubmission = location.state?.from === "submission";
@@ -297,7 +299,15 @@ function ApplicantProfile() {
       <div className="applicant-main">
         <div className="applicant-topbar">
           <div className="applicant-topbar-user">
-            <div className="applicant-topbar-avatar"></div>
+            {profilePhotoStatus === "ready" ? (
+              <img
+                src={profilePhotoUrl}
+                alt="Profile"
+                className="applicant-topbar-avatar"
+              />
+            ) : (
+              <div className="applicant-topbar-avatar"></div>
+            )}
           </div>
         </div>
         <section className="page-section">
