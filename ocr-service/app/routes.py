@@ -6,7 +6,6 @@ from app.verification import (
     verify_school_id
 )
 from app.forgery.ela import compute_ela, describe_ela_score
-from app.forgery.pdf_metadata import check_pdf_metadata, describe_pdf_metadata_score
 from app.forgery.image_metadata import check_image_metadata, describe_image_metadata_score
 import tempfile
 import os
@@ -79,21 +78,6 @@ def process_voters_certificate():
                 verification["flagged"] = True
                 verification["flag_reason"] = "eligibility_issues"
 
-            applicant_full_name = f"{first_name} {last_name}".strip()
-            pdf_meta_result = check_pdf_metadata(tmp_path, applicant_full_name)
-            pdf_meta_check = {
-                "check": "document_origin",
-                "passed": pdf_meta_result.passed,
-                "flagged": not pdf_meta_result.passed,
-                "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
-                "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
-                "score": pdf_meta_result.score,
-            }
-            verification["checks"]["document_origin"] = pdf_meta_check
-            if not pdf_meta_result.passed:
-                verification["flagged"] = True
-                verification["flag_reason"] = "eligibility_issues"
-
             img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
             img_meta_check = {
                 "check": "ai_generation_provenance",
@@ -159,20 +143,6 @@ def process_registration_form():
                 verification["flagged"] = True
                 verification["flag_reason"] = "eligibility_issues"
 
-            pdf_meta_result = check_pdf_metadata(tmp_path)
-            pdf_meta_check = {
-                "check": "document_origin",
-                "passed": pdf_meta_result.passed,
-                "flagged": not pdf_meta_result.passed,
-                "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
-                "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
-                "score": pdf_meta_result.score,
-            }
-            verification["checks"]["document_origin"] = pdf_meta_check
-            if not pdf_meta_result.passed:
-                verification["flagged"] = True
-                verification["flag_reason"] = "eligibility_issues"
-
             img_meta_result = check_image_metadata(tmp_path, uploaded_file.filename)
             img_meta_check = {
                 "check": "ai_generation_provenance",
@@ -235,20 +205,6 @@ def process_school_id():
             }
             verification["checks"]["image_integrity"] = forgery_check
             if not ela_result.passed:
-                verification["flagged"] = True
-                verification["flag_reason"] = "eligibility_issues"
-
-            pdf_meta_result = check_pdf_metadata(tmp_path)
-            pdf_meta_check = {
-                "check": "document_origin",
-                "passed": pdf_meta_result.passed,
-                "flagged": not pdf_meta_result.passed,
-                "extracted": describe_pdf_metadata_score(pdf_meta_result.score),
-                "reason": "; ".join(pdf_meta_result.flags) if pdf_meta_result.flags else None,
-                "score": pdf_meta_result.score,
-            }
-            verification["checks"]["document_origin"] = pdf_meta_check
-            if not pdf_meta_result.passed:
                 verification["flagged"] = True
                 verification["flag_reason"] = "eligibility_issues"
 

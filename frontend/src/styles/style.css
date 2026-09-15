@@ -9049,6 +9049,15 @@ a:hover {
   color: #dc3545;
 }
 
+.verifier-preview-extraction-check-minor {
+  border-left-color: #fd7e14;
+  background: #fff8f0;
+}
+
+.verifier-preview-extraction-check-minor .verifier-preview-extraction-label {
+  color: #fd7e14;
+}
+
 .verifier-preview-extraction-label,
 .verifier-preview-extraction-value {
   display: block;

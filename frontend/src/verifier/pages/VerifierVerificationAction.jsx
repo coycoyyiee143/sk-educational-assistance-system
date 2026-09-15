@@ -22,7 +22,6 @@ function buildCategories(selected, otherText) {
 
 const CHECK_NAME_LABELS = {
   image_integrity: "Edited/Tampered Image Detection",
-  document_origin: "Suspicious File Origin (Design Software)",
   ai_generation_provenance: "AI-Generated or AI-Edited Image",
   cert_year_match: "Certificate Year",
   identity_match: "Identity & Legal Name",

@@ -12,7 +12,33 @@ import {
   getVerifierBadgeClass,
 } from "../../components/StatusConstants";
 
-function OcrBadge({ passed }) {
+// ELA (image_integrity) reports its softest, most ambiguous tier as
+// "Minor Compression Irregularities Detected" — one of two possible
+// flags tripped, not both (see ela.py's describe_ela_score). This is
+// common on legitimate screenshots/re-saved images and isn't as
+// concerning as a genuine "Failed" (moderate/significant) result, so
+// it gets its own warning color instead of blending in with red.
+function isMinorElaFlag(check) {
+  return (
+    !check.passed &&
+    check.check_name === "image_integrity" &&
+    check.extracted_value === "Minor Compression Irregularities Detected"
+  );
+}
+
+function OcrBadge({ passed, checkName, extractedValue }) {
+  if (
+    !passed &&
+    checkName === "image_integrity" &&
+    extractedValue === "Minor Compression Irregularities Detected"
+  ) {
+    return (
+      <span className="badge bg-warning text-dark verifier-ocr-badge">
+        Minor
+      </span>
+    );
+  }
+
   return passed ? (
     <span className="badge bg-success verifier-ocr-badge">Passed</span>
   ) : (
@@ -22,19 +48,16 @@ function OcrBadge({ passed }) {
 
 const CHECK_NAME_LABELS = {
   image_integrity: "Edited/Tampered Image Detection",
-  document_origin: "Suspicious File Origin (Design Software)",
   ai_generation_provenance: "AI-Generated or AI-Edited Image",
 };
 
 const LATE_DISPLAY_CHECK_NAMES = [
   "image_integrity",
-  "document_origin",
   "ai_generation_provenance",
 ];
 
 const PREVIEW_INTEGRITY_CHECK_NAMES = [
   "image_integrity",
-  "document_origin",
   "ai_generation_provenance",
 ];
 
@@ -1300,7 +1323,9 @@ function VerifierApplicationReview() {
                                 <div
                                   className={`verifier-preview-extraction-check ${check.passed
                                     ? "verifier-preview-extraction-check-passed"
-                                    : "verifier-preview-extraction-check-failed"
+                                    : isMinorElaFlag(check)
+                                      ? "verifier-preview-extraction-check-minor"
+                                      : "verifier-preview-extraction-check-failed"
                                     }`}
                                   key={check.id}
                                 >
@@ -1417,7 +1442,11 @@ function VerifierApplicationReview() {
                                         )}
                                     </div>
 
-                                    <OcrBadge passed={check.passed} />
+                                    <OcrBadge
+                                      passed={check.passed}
+                                      checkName={check.check_name}
+                                      extractedValue={check.extracted_value}
+                                    />
                                   </div>
 
                                   <div className="verifier-ocr-check-value-pair">
