@@ -34,7 +34,7 @@ class VerifierController extends Controller
         }
 
         return response()->json([
-            'pending'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening'])->whereHas('documents')->count(),
+            'pending'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening', 'auto_reupload_requested', 'reupload_requested'])->whereHas('documents')->count(),
             'review'   => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
             'approved' => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
             'rejected' => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
