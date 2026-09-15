@@ -57,7 +57,7 @@ class ClaimingDayTestSeeder extends Seeder
 
     private array $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 
-    private const SCHOOL_YEAR = '2026-2027 (Claiming Day Test)';
+    public const SCHOOL_YEAR = '2026-2027 (Claiming Day Test)';
 
     public function run(): void
     {

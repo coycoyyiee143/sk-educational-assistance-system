@@ -47,7 +47,7 @@ class WaitlistScenarioSeeder extends Seeder
 
     private ?User $verifier = null;
 
-    private const SCHOOL_YEAR = '2026-2027 (Test)';
+    public const SCHOOL_YEAR = '2026-2027 (Test)';
 
     public function run(): void
     {
