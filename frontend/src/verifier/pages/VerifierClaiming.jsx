@@ -791,6 +791,233 @@ function VerifierClaiming() {
     results.length > 0 ||
     searchError;
 
+  // Grace period walk-ins have no lane/schedule structure backing up who
+  // they are, so identity comes first: Face Verification renders as Step
+  // 1 and Document Verification as Step 2 there. Regular claiming has no
+  // Face Verification step at all (see the docblock further down), so
+  // Document Verification renders alone with no step badge and takes the
+  // full width instead.
+  const documentVerificationPanel = (
+    <div
+      className={`verifier-claiming-split-col verifier-claiming-verification-col ${gracePeriodMode
+        ? "verifier-claiming-split-col-border"
+        : ""
+        }`}
+    >
+      <div className="verifier-claiming-step-heading">
+        <h4 className="verifier-claiming-search-title">
+          Document Verification
+        </h4>
+
+        {gracePeriodMode && (
+          <span className="verifier-claiming-step-badge">
+            Step 2
+          </span>
+        )}
+      </div>
+
+      <div className="verifier-waitlist-notice">
+        <span className="verifier-waitlist-notice-icon">
+          !
+        </span>
+
+        <div className="verifier-waitlist-notice-body">
+          <p className="verifier-waitlist-notice-text">
+            {gracePeriodMode
+              ? "Confirm the physical documents match the approved record after identity has been verified."
+              : "Confirm the physical documents match the approved record."}
+          </p>
+        </div>
+      </div>
+
+      <div className="verifier-claiming-doc-list">
+        {DOC_TYPES.map(
+          (doc) => {
+            const uploadedDoc =
+              filteredDocs.find(
+                (d) =>
+                  d.document_type ===
+                  doc.key
+              );
+
+            const status =
+              docStatus[
+              doc.key
+              ];
+
+            return (
+              <div
+                className="verifier-claiming-doc-card"
+                key={
+                  doc.key
+                }
+              >
+                <div className="verifier-claiming-doc-top">
+                  <div className="verifier-claiming-doc-heading">
+                    <span className="verifier-claiming-doc-icon">
+                      <i
+                        className={
+                          doc.key ===
+                            "registration_form"
+                            ? "bi bi-file-earmark-text"
+                            : doc.key ===
+                              "school_id"
+                              ? "bi bi-mortarboard"
+                              : "bi bi-patch-check"
+                        }
+                      ></i>
+                    </span>
+
+                    <div className="verifier-claiming-doc-copy">
+                      <h6>
+                        {
+                          doc.label
+                        }
+                      </h6>
+
+                      {uploadedDoc ? (
+                        <button
+                          type="button"
+                          className="verifier-claiming-doc-file"
+                          onClick={() =>
+                            handleViewFile(
+                              uploadedDoc.id,
+                              uploadedDoc.file_name
+                            )
+                          }
+                        >
+                          {
+                            uploadedDoc.file_name
+                          }
+                        </button>
+                      ) : (
+                        <p>
+                          No uploaded copy available.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <span
+                    className={`verifier-claiming-doc-status ${status ===
+                      "matched"
+                      ? "verifier-claiming-doc-status-matched"
+                      : status ===
+                        "issue"
+                        ? "verifier-claiming-doc-status-issue"
+                        : "verifier-claiming-doc-status-unreviewed"
+                      }`}
+                  >
+                    {status ===
+                      "matched"
+                      ? "Matched"
+                      : status ===
+                        "issue"
+                        ? "Issue Found"
+                        : "Not Reviewed"}
+                  </span>
+                </div>
+
+                <div className="verifier-claiming-doc-actions">
+                  <button
+                    type="button"
+                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-match ${status ===
+                      "matched"
+                      ? "verifier-claiming-doc-action-active-match"
+                      : ""
+                      }`}
+                    onClick={() =>
+                      setDocStatus(
+                        doc.key,
+                        "matched"
+                      )
+                    }
+                  >
+                    <i className="bi bi-check-lg"></i>
+                    <span>
+                      Matched
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-issue ${status ===
+                      "issue"
+                      ? "verifier-claiming-doc-action-active-issue"
+                      : ""
+                      }`}
+                    onClick={() =>
+                      setDocStatus(
+                        doc.key,
+                        "issue"
+                      )
+                    }
+                  >
+                    <i className="bi bi-exclamation-circle"></i>
+                    <span>
+                      Issue Found
+                    </span>
+                  </button>
+                </div>
+              </div>
+            );
+          }
+        )}
+      </div>
+
+      <p className="verifier-claiming-step-note">
+        Physical copies required for auditing
+      </p>
+    </div>
+  );
+
+  const faceVerificationPanel = gracePeriodMode && selected && (
+    <div className="verifier-claiming-split-col verifier-claiming-verification-col">
+      <div className="verifier-claiming-step-heading">
+        <h4 className="verifier-claiming-mode-title">
+          Face Verification
+        </h4>
+
+        <span className="verifier-claiming-step-badge">
+          Step 1
+        </span>
+      </div>
+
+      <div className="verifier-waitlist-notice">
+        <span className="verifier-waitlist-notice-icon">
+          !
+        </span>
+
+        <div className="verifier-waitlist-notice-body">
+          <p className="verifier-waitlist-notice-text">
+            Verify the applicant’s identity using the registered photo first.
+          </p>
+        </div>
+      </div>
+
+      <div className="verifier-claiming-face-panel">
+        <ClaimingFaceVerify
+          applicationId={
+            selected?.id
+          }
+          required={
+            gracePeriodMode
+          }
+          registrationPhotoUrl={
+            registrationPhotoUrl
+          }
+          registrationPhotoStatus={
+            registrationPhotoStatus
+          }
+        />
+      </div>
+
+      <p className="verifier-claiming-step-note">
+        Confirm identity before reviewing documents
+      </p>
+    </div>
+  );
+
   return (
     <div className="verifier-layout">
       <VerifierNavigation
@@ -1154,226 +1381,30 @@ function VerifierClaiming() {
                     Verification Process
                   </h4>
 
-                  <div className="verifier-claiming-split-card">
-                    <div className="verifier-claiming-split-col verifier-claiming-verification-col">
-                      <div className="verifier-claiming-step-heading">
-                        <h4 className="verifier-claiming-search-title">
-                          Document Verification
-                        </h4>
-
-                        <span className="verifier-claiming-step-badge">
-                          Step 1
-                        </span>
-                      </div>
-
-                      <div className="verifier-waitlist-notice">
-                        <span className="verifier-waitlist-notice-icon">
-                          !
-                        </span>
-
-                        <div className="verifier-waitlist-notice-body">
-                          <p className="verifier-waitlist-notice-text">
-                            Confirm the physical documents match the approved record before identity verification.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="verifier-claiming-doc-list">
-                        {DOC_TYPES.map(
-                          (doc) => {
-                            const uploadedDoc =
-                              filteredDocs.find(
-                                (d) =>
-                                  d.document_type ===
-                                  doc.key
-                              );
-
-                            const status =
-                              docStatus[
-                              doc.key
-                              ];
-
-                            return (
-                              <div
-                                className="verifier-claiming-doc-card"
-                                key={
-                                  doc.key
-                                }
-                              >
-                                <div className="verifier-claiming-doc-top">
-                                  <div className="verifier-claiming-doc-heading">
-                                    <span className="verifier-claiming-doc-icon">
-                                      <i
-                                        className={
-                                          doc.key ===
-                                            "registration_form"
-                                            ? "bi bi-file-earmark-text"
-                                            : doc.key ===
-                                              "school_id"
-                                              ? "bi bi-mortarboard"
-                                              : "bi bi-patch-check"
-                                        }
-                                      ></i>
-                                    </span>
-
-                                    <div className="verifier-claiming-doc-copy">
-                                      <h6>
-                                        {
-                                          doc.label
-                                        }
-                                      </h6>
-
-                                      {uploadedDoc ? (
-                                        <button
-                                          type="button"
-                                          className="verifier-claiming-doc-file"
-                                          onClick={() =>
-                                            handleViewFile(
-                                              uploadedDoc.id,
-                                              uploadedDoc.file_name
-                                            )
-                                          }
-                                        >
-                                          {
-                                            uploadedDoc.file_name
-                                          }
-                                        </button>
-                                      ) : (
-                                        <p>
-                                          No uploaded copy available.
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <span
-                                    className={`verifier-claiming-doc-status ${status ===
-                                      "matched"
-                                      ? "verifier-claiming-doc-status-matched"
-                                      : status ===
-                                        "issue"
-                                        ? "verifier-claiming-doc-status-issue"
-                                        : "verifier-claiming-doc-status-unreviewed"
-                                      }`}
-                                  >
-                                    {status ===
-                                      "matched"
-                                      ? "Matched"
-                                      : status ===
-                                        "issue"
-                                        ? "Issue Found"
-                                        : "Not Reviewed"}
-                                  </span>
-                                </div>
-
-                                <div className="verifier-claiming-doc-actions">
-                                  <button
-                                    type="button"
-                                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-match ${status ===
-                                      "matched"
-                                      ? "verifier-claiming-doc-action-active-match"
-                                      : ""
-                                      }`}
-                                    onClick={() =>
-                                      setDocStatus(
-                                        doc.key,
-                                        "matched"
-                                      )
-                                    }
-                                  >
-                                    <i className="bi bi-check-lg"></i>
-                                    <span>
-                                      Matched
-                                    </span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-issue ${status ===
-                                      "issue"
-                                      ? "verifier-claiming-doc-action-active-issue"
-                                      : ""
-                                      }`}
-                                    onClick={() =>
-                                      setDocStatus(
-                                        doc.key,
-                                        "issue"
-                                      )
-                                    }
-                                  >
-                                    <i className="bi bi-exclamation-circle"></i>
-                                    <span>
-                                      Issue Found
-                                    </span>
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          }
-                        )}
-                      </div>
-
-                      <p className="verifier-claiming-step-note">
-                        Physical copies required for auditing
-                      </p>
-                    </div>
-
-                    {/* Face verification is proof-of-identity for
-                       unscheduled grace-period walk-ins, where there's
-                       no lane/time structure backing up who this is.
-                       Regular claiming already has that structure (a
-                       scheduled lane, a control number, a verifier who
-                       selected them off that lane's own list), so this
-                       step is skipped entirely there rather than shown
-                       as merely optional — matches the backend, which
-                       already only enforces a passed face verification
-                       for grace-period 'claimed' actions (see
-                       VerifierController::updateClaimStatus). */}
-                    {gracePeriodMode && (
-                      <div className="verifier-claiming-split-col verifier-claiming-split-col-border verifier-claiming-verification-col">
-                        <div className="verifier-claiming-step-heading">
-                          <h4 className="verifier-claiming-mode-title">
-                            Face Verification
-                          </h4>
-
-                          <span className="verifier-claiming-step-badge">
-                            Step 2
-                          </span>
-                        </div>
-
-                        <div className="verifier-waitlist-notice">
-                          <span className="verifier-waitlist-notice-icon">
-                            !
-                          </span>
-
-                          <div className="verifier-waitlist-notice-body">
-                            <p className="verifier-waitlist-notice-text">
-                              Verify the applicant’s identity using the registered photo before updating the final claiming status.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="verifier-claiming-face-panel">
-                          <ClaimingFaceVerify
-                            applicationId={
-                              selected.id
-                            }
-                            required={
-                              gracePeriodMode
-                            }
-                            registrationPhotoUrl={
-                              registrationPhotoUrl
-                            }
-                            registrationPhotoStatus={
-                              registrationPhotoStatus
-                            }
-                          />
-                        </div>
-
-                        <p className="verifier-claiming-step-note">
-                          Final identity confirmation before claiming
-                        </p>
-                      </div>
+                  {/* Grace period walk-ins have no lane/schedule
+                     structure backing up who they are, so identity comes
+                     first — Face Verification renders as Step 1 and
+                     Document Verification as Step 2. Regular claiming has
+                     that structure already (a scheduled lane, a control
+                     number, a verifier who selected them off that lane's
+                     own list), so Face Verification is skipped entirely
+                     there rather than shown as merely optional — matches
+                     the backend, which already only enforces a passed
+                     face verification for grace-period 'claimed' actions
+                     (see VerifierController::updateClaimStatus). */}
+                  <div
+                    className={`verifier-claiming-split-card ${!gracePeriodMode
+                      ? "verifier-claiming-split-card-single"
+                      : ""
+                      }`}
+                  >
+                    {gracePeriodMode ? (
+                      <>
+                        {faceVerificationPanel}
+                        {documentVerificationPanel}
+                      </>
+                    ) : (
+                      documentVerificationPanel
                     )}
                   </div>
 

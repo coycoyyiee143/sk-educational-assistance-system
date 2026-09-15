@@ -18893,6 +18893,13 @@ body {
   overflow: hidden;
 }
 
+/* Regular claiming has no Face Verification step, so Document
+   Verification gets the full width instead of leaving the right half
+   of the grid empty. */
+.verifier-claiming-split-card-single {
+  grid-template-columns: 1fr;
+}
+
 .verifier-claiming-split-col {
   padding: 22px;
 }

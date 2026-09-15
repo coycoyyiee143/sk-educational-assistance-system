@@ -47,15 +47,11 @@ class WaitlistScenarioSeeder extends Seeder
 
     private ?User $verifier = null;
 
-    // Makes every seeded email unique per run (not just per applicant),
-    // so this seeder can be re-run repeatedly without needing a fresh
-    // migration first — makeApplicant() used to restart its counter at 1
-    // every run and collide with the previous run's users.
-    private string $runToken = '';
+    private const SCHOOL_YEAR = '2026-2027 (Test)';
 
     public function run(): void
     {
-        $this->runToken = substr(uniqid(), -6);
+        $this->cleanupPreviousRun();
 
         $this->verifier = User::where('role', 'sk_verifier')->first();
         if (!$this->verifier) {
@@ -69,7 +65,7 @@ class WaitlistScenarioSeeder extends Seeder
             ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
 
             $config = ApplicationConfiguration::create([
-                'school_year'        => '2026-2027 (Test)',
+                'school_year'        => self::SCHOOL_YEAR,
                 'open_date'          => now()->subDays(10)->startOfDay(),
                 'close_date'         => now()->subDays(3)->endOfDay(),
                 'slot_limit'         => 30,
@@ -132,6 +128,39 @@ class WaitlistScenarioSeeder extends Seeder
         $this->command->info('Waitlist scenario seeded: period at capacity (30/30, back to 30/30 after 4 promotions absorb the freed slots), 2 still waitlisted, 4 not_cleared total (3 original + 1 cascaded from a promoted applicant), grace period pool has 2 unswept no-shows, 2 swept retries, 1 pending promotion (no face verification), 1 pending promotion (failed face verification on record), 1 resolved not_cleared promotion, and 1 resolved claimed promotion.');
     }
 
+    /**
+     * Wipes out this seeder's own previous run (matched by school_year)
+     * before creating a fresh one, so control numbers/emails can stay
+     * clean and sequential instead of needing a per-run uniqueness
+     * token. Deleting the demo applicant users cascades (FK onDelete:
+     * cascade) through their applications, application_documents,
+     * claiming_assignments and claiming_face_verifications — only the
+     * schedule/lanes/config need deleting explicitly afterward. Never
+     * touches your real admin/verifier accounts, since only applicant-
+     * role users tied to this scenario's config are deleted.
+     */
+    private function cleanupPreviousRun(): void
+    {
+        // ALL matching configs, not just the first — earlier versions of
+        // this seeder (before cleanup existed) could leave more than one
+        // behind under the same school_year, and cleaning only one while
+        // leaving another's demo users in place is exactly what caused
+        // the fresh run to collide with those stragglers' emails.
+        $oldConfigIds = ApplicationConfiguration::where('school_year', self::SCHOOL_YEAR)->pluck('id');
+        if ($oldConfigIds->isEmpty()) {
+            return;
+        }
+
+        $userIds = Application::whereIn('config_id', $oldConfigIds)->pluck('user_id');
+        User::whereIn('id', $userIds)->where('role', 'applicant')->delete();
+
+        $scheduleIds = ClaimingSchedule::whereIn('config_id', $oldConfigIds)->pluck('id');
+        ClaimingLane::whereIn('claiming_schedule_id', $scheduleIds)->delete();
+        ClaimingSchedule::whereIn('id', $scheduleIds)->delete();
+
+        ApplicationConfiguration::whereIn('id', $oldConfigIds)->delete();
+    }
+
     private function seedApprovedApplicants(ApplicationConfiguration $config, int $count): void
     {
         for ($i = 1; $i <= $count; $i++) {
@@ -144,7 +173,7 @@ class WaitlistScenarioSeeder extends Seeder
                 'year_level'        => $this->yearLevels[array_rand($this->yearLevels)],
                 'student_id_number' => '2026-' . str_pad($i, 4, '0', STR_PAD_LEFT),
                 'status'            => 'approved',
-                'control_number'    => 'SK-WLTEST-' . $this->runToken . '-' . now()->format('Y') . '-' . str_pad($i, 4, '0', STR_PAD_LEFT),
+                'control_number'    => 'SK-WLTEST-' . now()->format('Y') . '-' . str_pad($i, 4, '0', STR_PAD_LEFT),
                 'submitted_at'      => now()->subDays(rand(1, 9)),
             ]);
         }
@@ -323,7 +352,7 @@ class WaitlistScenarioSeeder extends Seeder
         foreach ($apps as $app) {
             $app->update([
                 'status'         => 'approved',
-                'control_number' => 'SK-WLTEST-' . $this->runToken . '-' . now()->format('Y') . '-' . str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT),
+                'control_number' => 'SK-WLTEST-' . now()->format('Y') . '-' . str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT),
             ]);
             $nextSequence++;
 
@@ -412,7 +441,7 @@ class WaitlistScenarioSeeder extends Seeder
             'first_name'        => 'Waitlist',
             'middle_name'       => 'Demo',
             'last_name'         => 'Applicant' . $counter,
-            'email'             => "waitlist.demo{$counter}.{$this->runToken}@test.com",
+            'email'             => "waitlist.demo{$counter}@test.com",
             'mobile_number'     => '09' . str_pad((string) rand(0, 999999999), 9, '0', STR_PAD_LEFT),
             'password'          => Hash::make('applicant123'),
             'role'              => 'applicant',
