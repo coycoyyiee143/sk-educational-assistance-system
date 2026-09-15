@@ -21,6 +21,7 @@ return [
         'wrong_cert_year',
         'wrong_school_year',
         'name_mismatch',
+        'name_not_detected',
         'institution_mismatch',
     ],
 

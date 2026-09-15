@@ -24,6 +24,25 @@ NAME_SCHOOL_CONFIDENCE_FLOOR = 0.65
 # here (not a no-op like it would be for the name/school floor above).
 RAW_FIELD_CONFIDENCE_FLOOR = 0.5
 
+# The category name emitted for a confident name mismatch. Must match
+# whatever config/document_verification.php lists in capped_categories
+# on the Laravel side -- kept as a constant here (used once, below)
+# rather than a shared runtime file between the two services; see
+# AUTO_REUPLOAD_VERIFICATION_RULES.md for why. If you rename this,
+# also update the matching entry in document_verification.php.
+NAME_MISMATCH_CATEGORY = "name_mismatch"
+
+# Threshold for treating a "found a Name field, but it doesn't match
+# this applicant" read as confident enough to auto-reupload rather
+# than route to a verifier. Deliberately reuses CONFIDENCE_THRESHOLD
+# rather than introducing a new number — this is already the bar the
+# system uses elsewhere to decide "this OCR read is reliable enough to
+# act on automatically." Below this, the label/value itself wasn't
+# read reliably enough to trust the mismatch, so it stays
+# verifier-routed instead (could be a bad scan of the right document,
+# not proof of the wrong one). See AUTO_REUPLOAD_VERIFICATION_RULES.md.
+CONFIDENT_MISMATCH_THRESHOLD = CONFIDENCE_THRESHOLD
+
 def _flag(check_name, reason, extracted=None, raw=None, expected=None, context=None, score=None, metadata=None):
     return {
         "check": check_name, "passed": False, "flagged": True,
@@ -38,30 +57,48 @@ def _pass(check_name, extracted=None, raw=None, score=None, context=None, expect
         "extracted": extracted, "raw": raw, "score": score, "context": context, "expected": expected
     }
 
-def _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name):
+def _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name, subject_label="your registered name"):
     """
-    Same extraction as _check_name below, but distinguishes "literally no
-    name text found anywhere on the document" from "found something, but
-    it doesn't match this applicant". The former routes to auto_reupload
-    (treated as a bad/wrong upload — the applicant likely uploaded the
-    wrong file, or the shot is cropped/covering the name), instead of
-    for_review (a real eligibility judgment call that needs a verifier's
-    eyes). Only appropriate where a totally-missing name is itself a
-    strong signal something is wrong with the upload — see school_id.py
-    for why School ID specifically gets this treatment and other
-    document types don't (yet).
+    Same underlying extraction as _check_name, but splits out TWO
+    distinct auto_reupload-eligible tiers from the genuinely ambiguous
+    "route to verifier" case:
 
-    Returns a ("auto_reupload", {category, reason}) tuple when nothing
-    was found at all, or ("checked", <normal _pass/_flag dict>) for
-    every other outcome (matched, mismatched, or low-confidence match).
+    - NOT DETECTED: literally no name text found anywhere on the
+      document at all (extract_name's own final fallback returns
+      value=None only when truly nothing scored high enough anywhere on
+      the page). Strong signal something is wrong with the upload itself
+      (wrong file, cropped, obscured) rather than a genuine eligibility
+      question — see school_id.py for why School ID specifically leans
+      on this.
+    - CONFIDENT MISMATCH: a "Name" field WAS found and read reliably
+      (method == "label_anchored_no_match", confidence >=
+      CONFIDENT_MISMATCH_THRESHOLD), but it simply isn't this applicant.
+      Most likely an honest mistaken upload (wrong file, someone else's
+      document).
+    - AMBIGUOUS (everything else): no name label found reliably enough,
+      or the label/value itself was read too unreliably to trust either
+      way. Could be a bad scan of the actually-correct document — stays
+      verifier-routed.
+
+    See AUTO_REUPLOAD_VERIFICATION_RULES.md for the full reasoning.
+
+    subject_label describes WHOSE name is being checked, for the
+    confident-mismatch applicant-facing message — e.g. "your registered
+    name" for the applicant's own name check, or "your guardian's name
+    on file" for the guardian-name check on a minor's voter's
+    certificate. Callers checking a guardian name MUST pass the
+    guardian-specific label, or the message would wrongly imply the
+    applicant's own name didn't match.
+
+    Returns a tuple: ("auto_reupload", {"category": ..., "reason": ...})
+    or ("check", check_dict) — callers branch on the first element.
+    Used for both the applicant's own name check and the guardian-name
+    check for minor applicants (voters_cert.py passes guardian names
+    into this same function).
     """
     res = extract_name(blocks, page_w, page_h, first_name, middle_name, last_name)
     expected_name = f"{first_name} {middle_name} {last_name}".strip()
 
-    # extract_name's own final fallback returns value=None only when
-    # truly nothing scored high enough anywhere on the page — a mismatch
-    # (wrong name found) still carries a non-None value, so this check
-    # only fires on the "nothing detected at all" case.
     if not res.value:
         return "auto_reupload", {
             "category": "name_not_detected",
@@ -69,14 +106,22 @@ def _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, las
         }
 
     if res.found and res.confidence < NAME_SCHOOL_CONFIDENCE_FLOOR:
-        return "checked", _flag(
+        return "check", _flag(
             "name_match",
             f"Name text matched, but the OCR read itself was low-confidence ({res.confidence:.2f}) — please verify manually.",
             extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=expected_name,
         )
+
     if res.found:
-        return "checked", _pass("name_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=expected_name)
-    return "checked", _flag("name_match", res.context, extracted=res.value, raw=res.raw, expected=expected_name)
+        return "check", _pass("name_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=expected_name)
+
+    if res.method == "label_anchored_no_match" and res.confidence >= CONFIDENT_MISMATCH_THRESHOLD:
+        return "auto_reupload", {
+            "category": NAME_MISMATCH_CATEGORY,
+            "reason": f"The name on this document doesn't match {subject_label}. Please make sure you're uploading the correct document and try again.",
+        }
+
+    return "check", _flag("name_match", res.context, extracted=res.value, raw=res.raw, expected=expected_name)
 
 
 def _check_name(blocks, page_w, page_h, first_name, middle_name, last_name):

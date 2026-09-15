@@ -57,14 +57,19 @@ def test_low_confidence_label_mismatch_stays_ambiguous():
     assert result["passed"] is False
 
 
-def test_no_name_label_at_all_stays_ambiguous():
-    # No "Name" field anywhere on the document -- genuinely nothing to
-    # be confident about either way.
+def test_no_name_label_at_all_triggers_not_detected_auto_reupload():
+    # No "Name" field anywhere on the document, and extract_name's blind
+    # fallback scan finds nothing plausible either -- this is the
+    # separate "name_not_detected" tier (added alongside this
+    # confident-mismatch tier), not the ambiguous/verifier-routed case:
+    # a true zero-match anywhere on the page is itself a strong signal
+    # something is wrong with the upload, distinct from "found something
+    # that doesn't match" or "found something read too weakly to trust".
     blocks = [make_block("Republic of the Philippines", 0.95),
               make_block("Some unrelated form text", 0.9)]
     tag, result = _check_name_or_reupload(blocks, PAGE_W, PAGE_H, "Juan", "", "Dela Cruz")
-    assert tag == "check"
-    assert result["passed"] is False
+    assert tag == "auto_reupload"
+    assert result["category"] == "name_not_detected"
 
 
 def test_confident_mismatch_threshold_is_inclusive_boundary():

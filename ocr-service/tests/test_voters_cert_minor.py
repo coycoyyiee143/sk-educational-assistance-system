@@ -93,12 +93,15 @@ def test_minor_with_guardian_info_and_matching_name_passes(monkeypatch):
 def test_minor_with_guardian_info_but_cert_shows_applicants_own_name(monkeypatch):
     """
     Minor applicant, complete guardian info on file, but the uploaded
-    certificate shows the APPLICANT's own name instead of the
-    guardian's (e.g. they mistakenly uploaded their own Voter's Cert,
-    or don't have one yet and grabbed the wrong document). Something
-    WAS extracted, it just doesn't match — this is a real eligibility
-    question for a verifier, so it should stay for_review, not
-    auto_reupload.
+    certificate confidently shows the APPLICANT's own name instead of
+    the guardian's (e.g. they mistakenly uploaded their own Voter's
+    Cert instead of their guardian's). A "Name:" label was found and
+    read reliably, it just isn't the guardian -- this is the same
+    confident-mismatch tier as name_mismatch on any other document,
+    just checked against the guardian instead of the applicant (see
+    AUTO_REUPLOAD_VERIFICATION_RULES.md's guardian variant). Most
+    likely an honest wrong-document mistake, fixable by reuploading --
+    auto_reupload, not verifier.
     """
     blocks = base_cert_blocks("Name: Miguel Ramos Santos")
     monkeypatch.setattr(voters_cert_module, "parse_ocr_blocks", lambda ocr_result: blocks)
@@ -111,8 +114,9 @@ def test_minor_with_guardian_info_but_cert_shows_applicants_own_name(monkeypatch
         guardian_first_name="Elena", guardian_middle_name="Marie", guardian_last_name="Santos",
         declared_school=None,
     )
-    assert result["flag_reason"] != "auto_reupload"
-    assert result["checks"]["identity_match"]["passed"] is False
+    assert result["flag_reason"] == "auto_reupload"
+    assert result["auto_reupload_category"] == "name_mismatch"
+    assert "guardian" in result["auto_reupload_reason"]
 
 
 def test_minor_with_guardian_info_but_no_name_detected_at_all_triggers_auto_reupload(monkeypatch):

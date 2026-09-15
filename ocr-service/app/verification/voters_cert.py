@@ -88,7 +88,8 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
         else:
             name_tag, name_result = _check_name_or_reupload(
                 blocks, page_w, page_h,
-                guardian_first_name, guardian_middle_name or "", guardian_last_name
+                guardian_first_name, guardian_middle_name or "", guardian_last_name,
+                subject_label="your guardian's name on file",
             )
             if name_tag == "auto_reupload":
                 return {
