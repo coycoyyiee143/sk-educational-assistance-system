@@ -145,6 +145,22 @@ class AuthController extends Controller
      */
     public function register(Request $request)
     {
+        // An unverified registration permanently occupies its email/mobile
+        // slot under the unique validation below, with no way back in once
+        // its verification code/link expires (can't verify, can't
+        // re-register). Since an unverified account has no real data worth
+        // keeping, clear out any stale one matching this email or mobile
+        // before validating, so a genuine re-registration attempt isn't
+        // blocked by an abandoned account of the user's own.
+        User::where('email_verified_at', null)
+            ->where(function ($query) use ($request) {
+                $query->where('email', $request->input('email'));
+                if ($request->filled('mobile_number')) {
+                    $query->orWhere('mobile_number', $request->input('mobile_number'));
+                }
+            })
+            ->delete();
+
         $request->validate([
             'first_name'    => 'required|string|max:255',
             'middle_name'   => 'nullable|string|max:255',
