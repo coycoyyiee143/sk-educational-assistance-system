@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
-
 function CategoryBar({ label, count, percentage, max }) {
   const pct = max > 0 ? Math.round((count / max) * 100) : 0;
   return (
@@ -51,9 +50,11 @@ function PdfExportIcon() {
 }
 function CheckIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M8 12.5l2.5 2.5L16 9.5" strokeLinecap="round" strokeLinejoin="round" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+      <path d="M20 11.5a7.8 7.8 0 0 1-8 7.5 8.7 8.7 0 0 1-3.7-.8L4 20l1.4-3.7A7.2 7.2 0 0 1 4 12a7.8 7.8 0 0 1 8-7.5 7.8 7.8 0 0 1 8 7Z" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="8.5" cy="11.7" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="11.7" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15.5" cy="11.7" r="1" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -78,7 +79,6 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
   const [purokPhasePage, setPurokPhasePage] = useState(1);
   const schoolProgramPerPage = 5;
   const purokPhasePerPage = 5;
-
   useEffect(() => {
     setSectionLoading(true);
     const params = selectedConfigId ? { config_id: selectedConfigId } : {};
@@ -87,14 +87,12 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
       api.get("/admin/reports/age-distribution", { params }).then((res) => setAgeDistribution(res.data)).catch(() => {})
     ]).finally(() => setSectionLoading(false));
   }, [selectedConfigId]);
-
   useEffect(() => {
     setSchoolProgramPage(1);
     setPurokPhasePage(1);
     setYearAgeModalOpen(false);
     setPurokPhaseModalOpen(false);
   }, [selectedConfigId]);
-
   async function handlePdfExport(endpoint, filenamePrefix) {
     try {
       const params = selectedConfigId ? { config_id: selectedConfigId } : {};
@@ -109,7 +107,6 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
       window.URL.revokeObjectURL(url);
     } catch {}
   }
-
   const bySchool = distribution?.by_school ?? [];
   const byCourse = distribution?.by_course ?? [];
   const byYearLevel = distribution?.by_year_level ?? [];
@@ -148,9 +145,7 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
     { key: "minor", value: ageCounts.minor ?? 0, label: `Minor (${ageRates.minor_rate ?? 0}%)` },
     { key: "adult", value: ageCounts.adult ?? 0, label: `Adult (${ageRates.adult_rate ?? 0}%)` }
   ];
-
   if (ageCounts.unknown > 0) ageCards.push({ key: "unknown", value: ageCounts.unknown, label: `Unknown (${ageRates.unknown_rate ?? 0}%)` });
-
   function formatPurokLabel(row) {
     if (row.purok_type === "unspecified") return "Unspecified";
     return `${row.purok_type.charAt(0).toUpperCase() + row.purok_type.slice(1)} ${row.purok}`;
@@ -175,7 +170,6 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
   function closePurokPhaseModal() {
     setPurokPhaseModalOpen(false);
   }
-
   if (sectionLoading) {
     return (
       <div className="applicant-profile-card applicant-profile-card-loading">
@@ -185,7 +179,6 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
       </div>
     );
   }
-
   if (section === "school") {
     return (
       <>
@@ -268,7 +261,6 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
       </>
     );
   }
-
   if (section === "age") {
     return (
       <>
@@ -358,7 +350,6 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
       </>
     );
   }
-
   if (section === "purok") {
     return (
       <>
@@ -443,5 +434,4 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
   }
   return null;
 }
-
 export default ApplicantProfileSection;

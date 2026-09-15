@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
-
 const reportTypes = ["All Applications", "Pending Prescreening", "For Review", "Reupload Requested", "Approved", "Waitlisted", "Claimed", "Not Cleared", "Unclaimed", "Not Selected", "Rejected"];
 const applicantTypes = ["All Applicants", "Minor", "Adult"];
 const yearLevelOptions = ["All Year Levels", "1st Year", "2nd Year", "3rd Year", "4th Year"];
-
 const emptyFilter = {
   type: "All Applications",
   from: "",
@@ -15,11 +13,9 @@ const emptyFilter = {
   applicant_type: "All Applicants",
   reviewed_by: "",
 };
-
 const SUCCESS_SET = ["approved", "claimed"];
 const ATTENTION_SET = ["pending_prescreening", "for_review", "reupload_requested", "waitlisted", "unclaimed"];
 const UNSUCCESSFUL_SET = ["rejected", "not_cleared", "not_selected"];
-
 function StatusBadge({ status }) {
   let cls = "badge-review";
   if (UNSUCCESSFUL_SET.includes(status)) cls = "badge-rejected";
@@ -27,7 +23,6 @@ function StatusBadge({ status }) {
   else if (ATTENTION_SET.includes(status)) cls = "badge-review";
   return <span className={cls}>{status.replace(/_/g, " ")}</span>;
 }
-
 function formatDate(dateStr) {
   if (!dateStr) return "—";
   return new Date(dateStr).toLocaleDateString("en-US", {
@@ -36,30 +31,22 @@ function formatDate(dateStr) {
     year: "numeric",
   });
 }
-
 function getPageNumbers(currentPage, totalPages) {
   const pages = [];
   const maxVisible = 5;
-
   if (totalPages <= maxVisible) {
     for (let i = 1; i <= totalPages; i++) pages.push(i);
     return pages;
   }
-
   pages.push(1);
   if (currentPage > 3) pages.push("...");
-
   const start = Math.max(2, currentPage - 1);
   const end = Math.min(totalPages - 1, currentPage + 1);
-
   for (let i = start; i <= end; i++) pages.push(i);
-
   if (currentPage < totalPages - 2) pages.push("...");
   pages.push(totalPages);
-
   return pages;
 }
-
 function ApplicantRecordsSection({ selectedConfigId }) {
   const [summary, setSummary] = useState(null);
   const [filterOptions, setFilterOptions] = useState({
@@ -79,26 +66,21 @@ function ApplicantRecordsSection({ selectedConfigId }) {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [historyFilter, setHistoryFilter] = useState("all");
   const [historyPage, setHistoryPage] = useState(1);
-
   const perPage = 10;
   const historyPerPage = 10;
-
   useEffect(() => {
     api
       .get("/admin/reports/filter-options")
       .then((res) => setFilterOptions(res.data))
       .catch(() => {});
   }, []);
-
   useEffect(() => {
     setSectionLoading(true);
     setPreviewPage(1);
     setShowHistoryModal(false);
     setHistoryFilter("all");
     setHistoryPage(1);
-
     const params = selectedConfigId ? { config_id: selectedConfigId } : {};
-
     Promise.all([
       api
         .get("/admin/reports/summary", { params })
@@ -114,59 +96,46 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         .catch(() => {}),
     ]).finally(() => setSectionLoading(false));
   }, [selectedConfigId]);
-
   useEffect(() => {
     if (!showHistoryModal) return;
-
     const handleKeyDown = (e) => {
       if (e.key === "Escape") setShowHistoryModal(false);
     };
-
     document.addEventListener("keydown", handleKeyDown);
     document.body.style.overflow = "hidden";
-
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
   }, [showHistoryModal]);
-
   const set = (key) => (e) => {
     setFilter((prev) => ({ ...prev, [key]: e.target.value }));
     setPreviewPage(1);
   };
-
   function buildParams() {
     const params = {};
-
     if (filter.type !== "All Applications") params.type = filter.type;
     if (filter.from) params.from = filter.from;
     if (filter.to) params.to = filter.to;
     if (filter.school_name !== "All Schools") params.school_name = filter.school_name;
     if (filter.course !== "All Courses") params.course = filter.course;
     if (filter.year_level !== "All Year Levels") params.year_level = filter.year_level;
-
     if (filter.applicant_type !== "All Applicants") {
       params.applicant_type = filter.applicant_type.toLowerCase();
     }
-
     if (filter.reviewed_by) params.reviewed_by = filter.reviewed_by;
     if (selectedConfigId) params.config_id = selectedConfigId;
-
     return params;
   }
-
   async function handlePreview(e) {
     e.preventDefault();
     setError("");
     setPreviewing(true);
     setPreviewPage(1);
-
     try {
       const res = await api.get("/admin/reports/applications", {
         params: buildParams(),
       });
-
       setPreview(res.data);
     } catch {
       setError("Failed to generate preview.");
@@ -174,30 +143,24 @@ function ApplicantRecordsSection({ selectedConfigId }) {
       setPreviewing(false);
     }
   }
-
   async function handleExport() {
     setError("");
     setExporting(true);
-
     try {
       const res = await api.get("/admin/reports/export", {
         params: buildParams(),
         responseType: "blob",
       });
-
       const url = window.URL.createObjectURL(new Blob([res.data]));
       const link = document.createElement("a");
-
       link.href = url;
       link.setAttribute(
         "download",
         `applicant-records-${new Date().toISOString().slice(0, 10)}.csv`
       );
-
       document.body.appendChild(link);
       link.click();
       link.remove();
-
       window.URL.revokeObjectURL(url);
     } catch {
       setError("Failed to export report.");
@@ -205,7 +168,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
       setExporting(false);
     }
   }
-
   async function handlePdfExport(endpoint, filenamePrefix) {
     try {
       const res = await api.get(endpoint, { responseType: "blob" });
@@ -213,38 +175,30 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         new Blob([res.data], { type: "application/pdf" })
       );
       const link = document.createElement("a");
-
       link.href = url;
       link.setAttribute(
         "download",
         `${filenamePrefix}-${new Date().toISOString().slice(0, 10)}.pdf`
       );
-
       document.body.appendChild(link);
       link.click();
       link.remove();
-
       window.URL.revokeObjectURL(url);
     } catch {}
   }
-
   async function handleApprovedListExport() {
     try {
       const params = selectedConfigId
         ? { config_id: selectedConfigId }
         : {};
-
       const res = await api.get("/admin/reports/approved-applicants/pdf", {
         params,
         responseType: "blob",
       });
-
       const url = window.URL.createObjectURL(
         new Blob([res.data], { type: "application/pdf" })
       );
-
       const link = document.createElement("a");
-
       link.href = url;
       link.setAttribute(
         "download",
@@ -252,27 +206,22 @@ function ApplicantRecordsSection({ selectedConfigId }) {
           .toISOString()
           .slice(0, 10)}.pdf`
       );
-
       document.body.appendChild(link);
       link.click();
       link.remove();
-
       window.URL.revokeObjectURL(url);
     } catch {
       setError("Failed to export approved applicants list.");
     }
   }
-
   async function handleApprovedListImageExport() {
     try {
       const params = selectedConfigId
         ? { config_id: selectedConfigId }
         : {};
-
       const res = await api.get("/admin/reports/approved-applicants/html", {
         params,
       });
-
       const html = `
         <html>
           <head>
@@ -294,7 +243,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             <div id="capture-root">${res.data}</div>
             <script>
               const chunks = Array.from(document.querySelectorAll('.page-chunk'));
-
               function downloadPage(chunk, idx) {
                 return html2canvas(chunk, {
                   scale: 2,
@@ -306,21 +254,17 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   link.click();
                 });
               }
-
               chunks.forEach(function(chunk, idx) {
                 const controls = document.createElement('div');
                 controls.className = 'page-controls';
-
                 const btn = document.createElement('button');
                 btn.textContent = 'Download Page ' + (idx + 1);
                 btn.addEventListener('click', function() {
                   downloadPage(chunk, idx);
                 });
-
                 controls.appendChild(btn);
                 chunk.parentNode.insertBefore(controls, chunk);
               });
-
               document.getElementById('download-all-btn').addEventListener('click', function() {
                 chunks.reduce(function(chain, chunk, idx) {
                   return chain.then(function() {
@@ -336,7 +280,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
           </body>
         </html>
       `;
-
       const win = window.open("", "_blank");
       win.document.write(html);
       win.document.close();
@@ -344,120 +287,94 @@ function ApplicantRecordsSection({ selectedConfigId }) {
       setError("Failed to generate approved applicants image preview.");
     }
   }
-
   function openHistoryModal() {
     setHistoryFilter("all");
     setHistoryPage(1);
     setShowHistoryModal(true);
   }
-
   function changeHistoryFilter(value) {
     setHistoryFilter(value);
     setHistoryPage(1);
   }
-
   const filteredPreview = preview.filter((record) => {
     if (!recordSearch.trim()) return true;
-
     const q = recordSearch.trim().toLowerCase();
-
     return (
       record.name?.toLowerCase().includes(q) ||
       record.control_number?.toLowerCase().includes(q)
     );
   });
-
   const stats = summary?.summary ?? {};
   const rates = summary?.rates ?? {};
-
   const totalApplicants = Number(stats.total_applicants) || 0;
   const approvedApplications = Number(stats.approved_applications) || 0;
   const rejectedApplications = Number(stats.rejected_applications) || 0;
   const pendingApplications = Number(stats.pending_applications) || 0;
-
   const statusApprovalRate =
     totalApplicants > 0
       ? (approvedApplications / totalApplicants) * 100
       : 0;
-
   const statusRejectionRate =
     totalApplicants > 0
       ? (rejectedApplications / totalApplicants) * 100
       : 0;
-
   const statusPendingRate =
     totalApplicants > 0
       ? (pendingApplications / totalApplicants) * 100
       : 0;
-
   const approvalRate = Math.max(
     0,
     Math.min(100, Number(rates.approval_rate) || 0)
   );
-
   const rejectionRate = Math.max(
     0,
     Math.min(100, Number(rates.rejection_rate) || 0)
   );
-
   const pendingRate = Math.max(
     0,
     Math.min(100, Number(rates.under_review_rate) || 0)
   );
-
   const statusApprovedEnd = statusApprovalRate * 3.6;
   const statusRejectedEnd =
     statusApprovedEnd + statusRejectionRate * 3.6;
   const statusPendingEnd =
     statusRejectedEnd + statusPendingRate * 3.6;
-
   const statusDonutStyle = {
     "--report-approved-end": `${statusApprovedEnd}deg`,
     "--report-rejected-end": `${statusRejectedEnd}deg`,
     "--report-pending-end": `${statusPendingEnd}deg`,
   };
-
   const previewTotalPages = Math.max(
     1,
     Math.ceil(filteredPreview.length / perPage)
   );
-
   const previewStart = (previewPage - 1) * perPage;
-
   const pagedPreview = filteredPreview.slice(
     previewStart,
     previewStart + perPage
   );
-
   const historyRows = submissionVsApproval?.trend ?? [];
   const visibleHistoryRows = historyRows.slice(0, 3);
-
   const historyActiveCount = historyRows.filter(
     (row) => row.is_active
   ).length;
-
   const historyArchivedCount = historyRows.filter(
     (row) => !row.is_active
   ).length;
-
   const filteredHistoryRows = historyRows.filter((row) => {
     if (historyFilter === "active") return row.is_active;
     if (historyFilter === "archived") return !row.is_active;
     return true;
   });
-
   const historyTotalPages = Math.max(
     1,
     Math.ceil(filteredHistoryRows.length / historyPerPage)
   );
-
   const historyStart = (historyPage - 1) * historyPerPage;
-
   const pagedHistoryRows = filteredHistoryRows.slice(
     historyStart,
     historyStart + historyPerPage
   );
-
   if (sectionLoading) {
     return (
       <div className="page-card">
@@ -468,7 +385,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
       </div>
     );
   }
-
   const renderHistoryRows = (rows) =>
     rows.map((row) => (
       <tr key={row.config_id}>
@@ -519,19 +435,21 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         </td>
       </tr>
     ));
-
   return (
     <>
       {error && <div className="alert alert-danger">{error}</div>}
-
       <div className="page-card report-overview-combined">
         {summary?.config && (
-          <h4 className="report-overview-block-title">
-            Application Overview{" "}
-            <span>— {summary.config.school_year}</span>
-          </h4>
+          <div className="report-overview-block-heading">
+            <h4 className="report-overview-block-title">
+              Application Overview{" "}
+              <span>— {summary.config.school_year}</span>
+            </h4>
+            <p className="report-overview-block-description">
+              Overview of applicant status distribution and application outcome rates for the selected period.
+            </p>
+          </div>
         )}
-
         {!summary?.config ? (
           <div className="alert alert-info mb-0">
             No data for the selected period.
@@ -543,7 +461,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 <div className="report-overview-main-heading">
                   <span>Application Status Distribution</span>
                 </div>
-
                 <div className="report-overview-main-content">
                   <div className="report-overview-donut-wrap">
                     <div
@@ -556,7 +473,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                       </div>
                     </div>
                   </div>
-
                   <div className="report-overview-legend">
                     <div className="report-overview-legend-row">
                       <div className="report-overview-legend-label">
@@ -568,7 +484,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                         <small> ({statusApprovalRate.toFixed(1)}%)</small>
                       </strong>
                     </div>
-
                     <div className="report-overview-legend-row">
                       <div className="report-overview-legend-label">
                         <span className="report-overview-dot report-overview-dot-red" />
@@ -579,7 +494,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                         <small> ({statusRejectionRate.toFixed(1)}%)</small>
                       </strong>
                     </div>
-
                     <div className="report-overview-legend-row">
                       <div className="report-overview-legend-label">
                         <span className="report-overview-dot report-overview-dot-gray" />
@@ -594,7 +508,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 </div>
               </div>
             </div>
-
             <div className="report-overview-rate-panel">
               <div className="report-overview-metrics">
                 <div className="report-overview-metric-card">
@@ -605,7 +518,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                       {approvedApplications} approved applications
                     </small>
                   </div>
-
                   <div
                     className="report-overview-mini-ring report-overview-mini-ring-green"
                     style={{
@@ -628,7 +540,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </div>
                   </div>
                 </div>
-
                 <div className="report-overview-metric-card">
                   <div className="report-overview-metric-text">
                     <span>Rejection Rate</span>
@@ -637,7 +548,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                       {rejectedApplications} rejected applications
                     </small>
                   </div>
-
                   <div
                     className="report-overview-mini-ring report-overview-mini-ring-red"
                     style={{
@@ -670,7 +580,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     </div>
                   </div>
                 </div>
-
                 <div className="report-overview-metric-card">
                   <div className="report-overview-metric-text">
                     <span>Pending Rate</span>
@@ -679,7 +588,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                       {pendingApplications} pending applications
                     </small>
                   </div>
-
                   <div
                     className="report-overview-mini-ring report-overview-mini-ring-gray"
                     style={{
@@ -711,14 +619,12 @@ function ApplicantRecordsSection({ selectedConfigId }) {
           </div>
         )}
       </div>
-
       <div className="page-card report-approved-card">
         <div className="report-approved-content">
           <div className="report-approved-copy">
             <h4 className="report-approved-title">
               Approved Applicants List &amp; Batch Reports
             </h4>
-
             <p className="report-approved-description">
               Generates the official list of approved applicants for{" "}
               {selectedConfigId
@@ -728,7 +634,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               board, and images sized for posting straight to the SK's
               Facebook page.
             </p>
-
             <div className="report-approved-features">
               <span>
                 <span className="report-approved-feature-check">
@@ -747,7 +652,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 </span>
                 Printable PDF
               </span>
-
               <span>
                 <span className="report-approved-feature-check">
                   <svg
@@ -765,7 +669,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 </span>
                 Social Media Format
               </span>
-
               <span>
                 <span className="report-approved-feature-check">
                   <svg
@@ -785,7 +688,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               </span>
             </div>
           </div>
-
           <div className="report-approved-actions">
             <button
               type="button"
@@ -812,7 +714,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               </svg>
               <span>Download PDF</span>
             </button>
-
             <button
               type="button"
               className="report-approved-facebook-btn"
@@ -828,7 +729,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
           </div>
         </div>
       </div>
-
       <div className="page-card report-records-management">
         <div className="report-records-header">
           <div>
@@ -840,7 +740,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               documentation and record-keeping purposes.
             </p>
           </div>
-
           <div className="report-records-header-actions">
             <button
               type="submit"
@@ -850,7 +749,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             >
               {previewing ? "Loading..." : "Preview"}
             </button>
-
             <button
               type="button"
               className="report-records-export-btn"
@@ -861,7 +759,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             </button>
           </div>
         </div>
-
         <form
           id="applicant-records-filter-form"
           onSubmit={handlePreview}
@@ -879,7 +776,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 ))}
               </select>
             </div>
-
             <div className="report-records-filter-field">
               <label className="form-label">School</label>
               <select
@@ -893,7 +789,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 ))}
               </select>
             </div>
-
             <div className="report-records-filter-field">
               <label className="form-label">
                 Course / Program
@@ -909,7 +804,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 ))}
               </select>
             </div>
-
             <div className="report-records-filter-field">
               <label className="form-label">Year Level</label>
               <select
@@ -922,7 +816,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 ))}
               </select>
             </div>
-
             <div className="report-records-filter-field">
               <label className="form-label">
                 Applicant Type
@@ -937,7 +830,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 ))}
               </select>
             </div>
-
             <div className="report-records-filter-field">
               <label className="form-label">Reviewed By</label>
               <select
@@ -954,7 +846,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 ))}
               </select>
             </div>
-
             <div className="report-records-filter-field report-records-date-field">
               <label className="form-label">From Date</label>
               <input
@@ -964,7 +855,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 onChange={set("from")}
               />
             </div>
-
             <div className="report-records-filter-field report-records-date-field">
               <label className="form-label">To Date</label>
               <input
@@ -976,7 +866,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             </div>
           </div>
         </form>
-
         <div className="report-records-preview-header">
           <div>
             <span className="report-records-preview-label">
@@ -989,7 +878,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 : "records"}
             </span>
           </div>
-
           <input
             type="text"
             className="form-control"
@@ -1002,7 +890,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             }}
           />
         </div>
-
         <div className="table-responsive">
           <table className="table table-bordered table-striped align-middle announcement-table">
             <colgroup>
@@ -1016,7 +903,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               <col style={{ width: "10%" }} />
               <col style={{ width: "6%" }} />
             </colgroup>
-
             <thead>
               <tr>
                 <th>Application ID</th>
@@ -1030,7 +916,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 <th>Year Level</th>
               </tr>
             </thead>
-
             <tbody>
               {pagedPreview.map((record) => (
                 <tr key={record.id}>
@@ -1047,7 +932,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   <td>{record.year_level}</td>
                 </tr>
               ))}
-
               {pagedPreview.length === 0 && (
                 <tr>
                   <td
@@ -1061,7 +945,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             </tbody>
           </table>
         </div>
-
         {filteredPreview.length > 0 && (
           <div className="table-pagination-bar">
             <span className="table-pagination-info">
@@ -1072,7 +955,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               )}{" "}
               of {filteredPreview.length} records
             </span>
-
             <div className="table-pagination-controls">
               <button
                 type="button"
@@ -1086,7 +968,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               >
                 ‹
               </button>
-
               {getPageNumbers(
                 previewPage,
                 previewTotalPages
@@ -1113,7 +994,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   </button>
                 )
               )}
-
               <button
                 type="button"
                 className="table-pagination-arrow"
@@ -1135,21 +1015,18 @@ function ApplicantRecordsSection({ selectedConfigId }) {
           </div>
         )}
       </div>
-
       <div className="page-card report-history-card">
         <div className="report-history-header">
           <div>
             <h4 className="report-history-title">
               Submission &amp; Approval History
             </h4>
-
             <p className="report-history-description">
               Approved vs. rejected vs. pending outcomes per period,
               shown against total submitted — across all cycles, not
               just the one selected above.
             </p>
           </div>
-
           <button
             type="button"
             className="report-records-export-btn"
@@ -1163,7 +1040,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             Export PDF
           </button>
         </div>
-
         {!historyRows.length ? (
           <div className="alert alert-info mb-0">
             No application period data available yet.
@@ -1177,7 +1053,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   <col className="report-history-status-col" />
                   <col className="report-history-distribution-col" />
                 </colgroup>
-
                 <thead>
                   <tr>
                     <th>Academic Cycle</th>
@@ -1185,19 +1060,16 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     <th>Distribution</th>
                   </tr>
                 </thead>
-
                 <tbody>
                   {renderHistoryRows(visibleHistoryRows)}
                 </tbody>
               </table>
             </div>
-
             <div className="report-history-footer">
               <span>
                 Showing {visibleHistoryRows.length} of{" "}
                 {historyRows.length} application cycles
               </span>
-
               <button
                 type="button"
                 className="report-history-view-link"
@@ -1221,7 +1093,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
           </>
         )}
       </div>
-
       {showHistoryModal && (
         <div
           className="report-history-modal-backdrop"
@@ -1253,7 +1124,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     <path d="M22 19V3" strokeLinecap="round" />
                   </svg>
                 </span>
-
                 <div>
                   <h4 id="report-history-modal-title">
                     Submission &amp; Approval History
@@ -1264,7 +1134,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   </p>
                 </div>
               </div>
-
               <button
                 type="button"
                 className="report-history-modal-close"
@@ -1274,7 +1143,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 ×
               </button>
             </div>
-
             <div className="report-history-modal-body">
               <div className="report-history-modal-toolbar">
                 <button
@@ -1291,7 +1159,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     {historyRows.length}
                   </span>
                 </button>
-
                 <button
                   type="button"
                   className={`report-history-filter-btn ${
@@ -1306,7 +1173,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     {historyActiveCount}
                   </span>
                 </button>
-
                 <button
                   type="button"
                   className={`report-history-filter-btn ${
@@ -1324,7 +1190,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   </span>
                 </button>
               </div>
-
               <div className="table-responsive report-history-table-wrap report-history-modal-table-wrap">
                 <table className="report-history-table">
                   <colgroup>
@@ -1332,7 +1197,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     <col className="report-history-status-col" />
                     <col className="report-history-distribution-col" />
                   </colgroup>
-
                   <thead>
                     <tr>
                       <th>Academic Cycle</th>
@@ -1340,7 +1204,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                       <th>Distribution</th>
                     </tr>
                   </thead>
-
                   <tbody>
                     {pagedHistoryRows.length > 0 ? (
                       renderHistoryRows(pagedHistoryRows)
@@ -1358,7 +1221,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                 </table>
               </div>
             </div>
-
             <div className="report-modal-footer">
               <div className="report-modal-footer-top">
                 <span className="report-history-pagination-info">
@@ -1371,7 +1233,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                       } application cycles`
                     : "Showing 0 of 0 application cycles"}
                 </span>
-
                 {filteredHistoryRows.length > 0 && (
                   <div className="report-history-pagination-controls">
                     <button
@@ -1386,7 +1247,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     >
                       ‹
                     </button>
-
                     {getPageNumbers(
                       historyPage,
                       historyTotalPages
@@ -1415,7 +1275,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                         </button>
                       )
                     )}
-
                     <button
                       type="button"
                       className="report-history-pagination-arrow"
@@ -1436,7 +1295,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   </div>
                 )}
               </div>
-
               <div className="report-modal-footer-bottom">
                 <button
                   type="button"
@@ -1453,5 +1311,4 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     </>
   );
 }
-
 export default ApplicantRecordsSection;

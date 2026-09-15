@@ -34,12 +34,13 @@ function PdfExportIcon() {
     </svg>
   );
 }
-function InfoNoticeIcon() {
+function MessageIcon() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M12 10.5v6" strokeLinecap="round" />
-      <circle cx="12" cy="7.5" r="1" fill="currentColor" stroke="none" />
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+      <path d="M20 11.5a7.8 7.8 0 0 1-8 7.5 8.7 8.7 0 0 1-3.7-.8L4 20l1.4-3.7A7.2 7.2 0 0 1 4 12a7.8 7.8 0 0 1 8-7.5 7.8 7.8 0 0 1 8 7Z" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="8.5" cy="11.7" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="11.7" r="1" fill="currentColor" stroke="none" />
+      <circle cx="15.5" cy="11.7" r="1" fill="currentColor" stroke="none" />
     </svg>
   );
 }
@@ -137,7 +138,7 @@ function VerificationOutcomesSection({ selectedConfigId, section }) {
           </div>
           <div className="applicant-profile-card-body verification-issues-body">
             <div className="verification-notice">
-              <span className="verification-notice-icon"><InfoNoticeIcon /></span>
+              <span className="verification-notice-icon"><MessageIcon /></span>
               <p>Which document most often causes a re-upload request, and which automated checks fail most often per document type.</p>
             </div>
             {Object.keys(reuploadFlagCounts).length === 0 && automatedFailureRows.length === 0 ? (
@@ -312,7 +313,9 @@ function VerificationOutcomesSection({ selectedConfigId, section }) {
           <div className="claiming-status-grid">
             <div className="claiming-status-card">
               <div className="claiming-status-icon claimed-icon">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="m5 12 4 4L19 6" /></svg>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m5 12 4 4L19 6" />
+                </svg>
               </div>
               <div className="claiming-status-info">
                 <div className="claiming-status-name">Claimed</div>
@@ -322,7 +325,10 @@ function VerificationOutcomesSection({ selectedConfigId, section }) {
             </div>
             <div className="claiming-status-card">
               <div className="claiming-status-icon not-cleared-icon">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 6l12 12" /><path d="M18 6 6 18" /></svg>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M6 6l12 12" />
+                  <path d="M18 6 6 18" />
+                </svg>
               </div>
               <div className="claiming-status-info">
                 <div className="claiming-status-name">Not Cleared</div>
@@ -332,7 +338,9 @@ function VerificationOutcomesSection({ selectedConfigId, section }) {
             </div>
             <div className="claiming-status-card">
               <div className="claiming-status-icon unclaimed-icon">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14" /></svg>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12h14" />
+                </svg>
               </div>
               <div className="claiming-status-info">
                 <div className="claiming-status-name">Unclaimed</div>
@@ -342,7 +350,10 @@ function VerificationOutcomesSection({ selectedConfigId, section }) {
             </div>
             <div className="claiming-status-card">
               <div className="claiming-status-icon awaiting-icon">
-                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2.5 2" /></svg>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="8" />
+                  <path d="M12 8v4l2.5 2" />
+                </svg>
               </div>
               <div className="claiming-status-info">
                 <div className="claiming-status-name">Awaiting Claiming</div>
@@ -360,9 +371,14 @@ function VerificationOutcomesSection({ selectedConfigId, section }) {
                     <div className="claiming-reason-content">
                       <div className="claiming-reason-top">
                         <span>{reason}</span>
-                        <div className="claiming-reason-values"><strong>{count}</strong><span>{percentage}%</span></div>
+                        <div className="claiming-reason-values">
+                          <strong>{count}</strong>
+                          <span>{percentage}%</span>
+                        </div>
                       </div>
-                      <div className="claiming-reason-line"><div className="claiming-reason-line-fill" style={{ width: `${percentage}%` }} /></div>
+                      <div className="claiming-reason-line">
+                        <div className="claiming-reason-line-fill" style={{ width: `${percentage}%` }} />
+                      </div>
                     </div>
                   </div>
                 );
