@@ -1,7 +1,9 @@
 import { useAuth } from "../../context/AuthContext";
+import { useAvatarPhoto } from "../../hooks/useAvatarPhoto";
 
 function VerifierTopbar({ onMenuOpen }) {
   const { user } = useAuth();
+  const avatarUrl = useAvatarPhoto(user?.avatar_url);
 
   const fullName = [user?.first_name, user?.last_name]
     .filter(Boolean)
@@ -39,7 +41,15 @@ function VerifierTopbar({ onMenuOpen }) {
           </span>
         </div>
 
-        <div className="verifier-topbar-avatar"></div>
+        <div className="verifier-topbar-avatar">
+          {avatarUrl && (
+            <img
+              src={avatarUrl}
+              alt=""
+              className="verifier-topbar-avatar-img"
+            />
+          )}
+        </div>
       </div>
     </div>
   );

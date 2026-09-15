@@ -8,6 +8,7 @@ use App\Rules\NotRecentlyUsedPassword;
 use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 
 class ProfileController extends Controller
@@ -125,6 +126,71 @@ class ProfileController extends Controller
         }
 
         return response()->json(['message' => 'Account updated.', 'user' => $user]);
+    }
+
+    /**
+     * Any authenticated role can set their own avatar (topbar photo) —
+     * used first for verifiers, since they don't go through the
+     * applicant's registration face-verification flow and so have no
+     * other photo on file. Old file is removed so re-uploading doesn't
+     * pile up orphaned files on the private disk.
+     */
+    public function uploadAvatar(Request $request)
+    {
+        $request->validate([
+            'avatar' => 'required|file|mimes:jpg,jpeg,png|max:5120',
+        ]);
+
+        $user = $request->user();
+
+        if ($user->avatar_path && Storage::disk('local')->exists($user->avatar_path)) {
+            Storage::disk('local')->delete($user->avatar_path);
+        }
+
+        $file = $request->file('avatar');
+        $path = $file->storeAs(
+            "avatars/{$user->id}",
+            'avatar_' . time() . '.' . $file->getClientOriginalExtension(),
+            'local'
+        );
+
+        $user->update(['avatar_path' => $path]);
+
+        \App\Models\AuditLog::record(
+            'account_updated',
+            $user,
+            'You updated your profile photo'
+        );
+
+        return response()->json(['message' => 'Profile photo updated.', 'user' => $user->fresh()]);
+    }
+
+    /**
+     * Streams the avatar for the given user — owner, any sk_verifier, or
+     * any sk_admin can view it, same access rule as the applicant
+     * profile-photo route (FaceVerificationController::profilePhoto).
+     */
+    public function avatarPhoto(Request $request, $userId)
+    {
+        $viewer = $request->user();
+        $isOwner    = (int) $viewer->id === (int) $userId;
+        $isVerifier = $viewer->role === 'sk_verifier';
+        $isAdmin    = $viewer->role === 'sk_admin';
+
+        if (!$isOwner && !$isVerifier && !$isAdmin) {
+            abort(403, 'You are not authorized to view this photo.');
+        }
+
+        $user = \App\Models\User::findOrFail($userId);
+
+        if (!$user->avatar_path || !Storage::disk('local')->exists($user->avatar_path)) {
+            abort(404, 'No profile photo on file.');
+        }
+
+        return Storage::disk('local')->response(
+            $user->avatar_path,
+            basename($user->avatar_path)
+        );
     }
 
     // Password policy: 8 char min, lowercase + number, breach-checked,

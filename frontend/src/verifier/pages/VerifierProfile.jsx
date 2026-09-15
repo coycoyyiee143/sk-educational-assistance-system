@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import { useAuth } from "../../context/AuthContext";
+import { useAvatarPhoto } from "../../hooks/useAvatarPhoto";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 
 function VerifierProfile() {
   const { user, login, token } = useAuth();
+  const avatarUrl = useAvatarPhoto(user?.avatar_url);
+  const fileInputRef = useRef(null);
 
   const [form, setForm] = useState({
     first_name: "",
@@ -15,6 +18,7 @@ function VerifierProfile() {
   });
 
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState(10);
@@ -55,6 +59,32 @@ function VerifierProfile() {
       ...f,
       [k]: e.target.value,
     }));
+
+  async function handleAvatarChange(e) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setError("");
+    setSuccess("");
+    setUploadingAvatar(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("avatar", file);
+
+      const res = await api.post("/user/avatar", formData);
+
+      login(res.data.user, token);
+      setSuccess("Profile photo updated successfully.");
+    } catch (err) {
+      setError(
+        err.response?.data?.message || "Failed to update profile photo."
+      );
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -107,6 +137,42 @@ function VerifierProfile() {
               <h4 className="verifier-profile-title">
                 Profile Information
               </h4>
+
+              <div className="verifier-profile-avatar-row">
+                <div className="verifier-profile-avatar-preview">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt="" />
+                  ) : (
+                    <span className="verifier-profile-avatar-fallback">
+                      {(user?.first_name?.[0] || "") +
+                        (user?.last_name?.[0] || "")}
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    ref={fileInputRef}
+                    onChange={handleAvatarChange}
+                    hidden
+                  />
+
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary btn-sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingAvatar}
+                  >
+                    {uploadingAvatar ? "Uploading..." : "Change Photo"}
+                  </button>
+
+                  <p className="verifier-profile-avatar-hint">
+                    JPG or PNG, up to 5MB.
+                  </p>
+                </div>
+              </div>
 
               <form onSubmit={handleSubmit}>
                 <div className="row g-3">

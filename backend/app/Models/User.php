@@ -23,6 +23,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'role',
         'is_active',
         'privacy_consent_at',
+        'avatar_path',
     ];
 
     // google2fa_secret, verification_token, and verification_code were
@@ -37,13 +38,32 @@ class User extends Authenticatable implements MustVerifyEmail
         'google2fa_secret',
         'verification_token',
         'verification_code',
+        'avatar_path',
     ];
+
+    protected $appends = ['avatar_url'];
 
     protected $casts = [
         'email_verified_at'  => 'datetime',
         'is_active'          => 'boolean',
         'privacy_consent_at' => 'datetime',
     ];
+
+    /**
+     * Never expose the raw storage path — only a streamable, auth-checked
+     * URL (avatar_path lives on the private 'local' disk, same as
+     * face-verification photos). Cache-busted with updated_at so the
+     * frontend's blob-fetch hook automatically refetches after a new
+     * upload instead of showing a stale cached image.
+     */
+    public function getAvatarUrlAttribute(): ?string
+    {
+        if (!$this->avatar_path) {
+            return null;
+        }
+
+        return route('user.avatar-photo', $this->id) . '?v=' . ($this->updated_at?->timestamp ?? 0);
+    }
 
     /**
      * Override the default method to send a frontend-friendly verification link.

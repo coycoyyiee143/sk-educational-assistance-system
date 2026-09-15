@@ -187,6 +187,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // ── Shared routes (any authenticated role) ─────────────────────
     Route::put('/user/profile', [ProfileController::class, 'updateAccount']);
     Route::put('/user/password', [ProfileController::class, 'updatePassword']);
+    Route::post('/user/avatar', [ProfileController::class, 'uploadAvatar']);
+    Route::get('/users/{userId}/avatar', [ProfileController::class, 'avatarPhoto'])->name('user.avatar-photo');
     Route::get('/applications/{id}/documents/{docId}/file', [DocumentController::class, 'show']);
     Route::get('/claiming/face-verifications/{id}/photo', [FaceVerificationController::class, 'showClaimingPhoto'])->name('claiming.face-photo');
     Route::get('/claiming/applications/{applicationId}/registration-photo', [FaceVerificationController::class, 'registrationPhoto']);
