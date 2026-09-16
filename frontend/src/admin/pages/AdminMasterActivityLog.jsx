@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import PanelFooter from "../../components/PanelFooter";
@@ -23,6 +24,8 @@ const ACTION_CONFIG = {
 const ROLE_LABELS = {
   sk_admin: "Admin",
   sk_verifier: "Verifier",
+  superadmin: "Superadmin",
+  it_support: "IT Support",
 };
 
 function ActionBadge({ action }) {
@@ -31,7 +34,7 @@ function ActionBadge({ action }) {
 }
 
 function RoleBadge({ role }) {
-  const className = role === "sk_admin" ? "role-admin" : "role-verifier";
+  const className = role === "sk_verifier" ? "role-verifier" : "role-admin";
   return <span className={className}>{ROLE_LABELS[role] || role}</span>;
 }
 
@@ -101,7 +104,9 @@ function AdminMasterActivityLog() {
         roleFilter === "all" ||
         (roleFilter === "me" && log.user?.id === currentUser?.id) ||
         (roleFilter === "sk_admin" && log.user?.role === "sk_admin" && log.user?.id !== currentUser?.id) ||
-        (roleFilter === "sk_verifier" && log.user?.role === "sk_verifier");
+        (roleFilter === "sk_verifier" && log.user?.role === "sk_verifier") ||
+        (roleFilter === "superadmin" && log.user?.role === "superadmin" && log.user?.id !== currentUser?.id) ||
+        (roleFilter === "it_support" && log.user?.role === "it_support");
       return matchesQuery && matchesAction && matchesRole;
     });
   }, [logs, query, actionFilter, roleFilter, currentUser]);
@@ -137,13 +142,7 @@ function AdminMasterActivityLog() {
       <AdminNavigation />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser />
         </div>
 
         <section className="page-section">
@@ -152,7 +151,7 @@ function AdminMasterActivityLog() {
             <div className="page-card">
               <h3 className="section-title mb-2">System Activity Log</h3>
               <p className="text-muted mb-0">
-                Combined activity from Admin and Verifier accounts. Applicant activity is tracked separately.
+                Combined activity from Admin, Verifier, Superadmin, and IT Support accounts. Applicant activity is tracked separately.
               </p>
             </div>
 
@@ -202,9 +201,11 @@ function AdminMasterActivityLog() {
                     }}
                   >
                     <option value="all">All Roles</option>
-                    <option value="me">Me (Admin)</option>
+                    <option value="me">Me (Superadmin)</option>
                     <option value="sk_admin">Admin</option>
                     <option value="sk_verifier">Verifier</option>
+                    <option value="superadmin">Superadmin</option>
+                    <option value="it_support">IT Support</option>
                   </select>
                 </div>
               </div>

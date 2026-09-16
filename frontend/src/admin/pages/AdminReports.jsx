@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import ApplicantRecordsSection from "../components/ApplicantRecordsSection";
 import ApplicantProfileSection from "../components/ApplicantProfileSection";
 import VerificationOutcomesSection from "../components/VerificationOutcomesSection";
 import DisbursementReportSection from "../components/DisbursementReportSection";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
+import { useAuth } from "../../context/AuthContext";
 function AdminReports() {
+  const { user } = useAuth();
   const [periods, setPeriods] = useState([]);
   const [selectedConfigId, setSelectedConfigId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -25,13 +28,7 @@ function AdminReports() {
         <AdminNavigation />
         <div className="admin-main">
           <div className="admin-topbar">
-            <div className="admin-topbar-user">
-              <div className="admin-topbar-user-text">
-                <span className="admin-topbar-user-name">Admin User</span>
-                <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-              </div>
-              <div className="admin-topbar-avatar"></div>
-            </div>
+            <AdminTopbarUser />
           </div>
           <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
             <div className="spinner-border text-danger" role="status" />
@@ -46,13 +43,7 @@ function AdminReports() {
       <AdminNavigation />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser />
         </div>
         <section className="page-section">
           <div className="container-fluid">
@@ -70,9 +61,11 @@ function AdminReports() {
                     </select>
                   </div>
                 </div>
-                <a href="/AdminBudgetPlanning" className="report-records-preview-btn reports-budget-btn">
-                  Go to Budget Planning
-                </a>
+                {user?.role === "superadmin" && (
+                  <a href="/AdminBudgetPlanning" className="report-records-preview-btn reports-budget-btn">
+                    Go to Budget Planning
+                  </a>
+                )}
               </div>
             </div>
             <ApplicantRecordsSection selectedConfigId={selectedConfigId} />

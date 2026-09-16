@@ -52,6 +52,30 @@ class OpeningDaySeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
+        User::create([
+            'first_name'        => 'SK Superadmin',
+            'middle_name'       => 'Mamatid',
+            'last_name'         => 'Official',
+            'email'             => 'superadmin@skmamatid.com',
+            'mobile_number'     => '09111111111',
+            'password'          => Hash::make('superadmin123'),
+            'role'              => 'superadmin',
+            'is_active'         => true,
+            'email_verified_at' => now(),
+        ]);
+
+        User::create([
+            'first_name'        => 'SK IT Support',
+            'middle_name'       => 'Mamatid',
+            'last_name'         => 'Official',
+            'email'             => 'itsupport@skmamatid.com',
+            'mobile_number'     => '09222222222',
+            'password'          => Hash::make('itsupport123'),
+            'role'              => 'it_support',
+            'is_active'         => true,
+            'email_verified_at' => now(),
+        ]);
+
         ApplicationConfiguration::create([
             'school_year'  => '2025-2026',
             'open_date'    => now()->subHours(1),

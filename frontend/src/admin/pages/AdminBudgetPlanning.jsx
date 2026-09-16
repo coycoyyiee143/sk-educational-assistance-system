@@ -1,4 +1,5 @@
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import BudgetPlanningSection from "../components/BudgetPlanningSection";
 import PanelFooter from "../../components/PanelFooter";
 
@@ -9,19 +10,7 @@ function AdminBudgetPlanning() {
 
             <div className="admin-main">
                 <div className="admin-topbar">
-                    <div className="admin-topbar-user">
-                        <div className="admin-topbar-user-text">
-                            <span className="admin-topbar-user-name">
-                                Admin User
-                            </span>
-
-                            <span className="admin-topbar-user-role">
-                                Sangguniang Kabataan
-                            </span>
-                        </div>
-
-                        <div className="admin-topbar-avatar"></div>
-                    </div>
+                    <AdminTopbarUser />
                 </div>
 
                 <section className="page-section">

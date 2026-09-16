@@ -19,7 +19,8 @@ const GuestRoute = ({ children }) => {
     }
 
     if (user) {
-        if (user.role === "sk_admin") return <Navigate to="/AdminDashboard" replace />;
+        if (user.role === "sk_admin" || user.role === "superadmin") return <Navigate to="/AdminDashboard" replace />;
+        if (user.role === "it_support") return <Navigate to="/AdminUsers" replace />;
         if (user.role === "sk_verifier") return <Navigate to="/VerifierDashboard" replace />;
         return <Navigate to="/ApplicantDashboard" replace />;
     }

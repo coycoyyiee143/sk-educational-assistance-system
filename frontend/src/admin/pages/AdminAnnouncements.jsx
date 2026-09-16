@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 
@@ -239,13 +240,7 @@ function AdminAnnouncements() {
       <AdminNavigation />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser />
         </div>
 
         <section className="page-section">

@@ -23,6 +23,7 @@ import AdminEvents from "./admin/pages/AdminEvents.jsx";
 import AdminReports from "./admin/pages/AdminReports.jsx";
 import AdminBudgetPlanning from "./admin/pages/AdminBudgetPlanning.jsx";
 import AdminMasterActivityLog from "./admin/pages/AdminMasterActivityLog";
+import AdminSystemMaintenance from "./admin/pages/AdminSystemMaintenance.jsx";
 
 import VerifierDashboard from "./verifier/pages/VerifierDashboard.jsx";
 import VerifierApplicationList from "./verifier/pages/VerifierApplicationList.jsx";
@@ -70,49 +71,55 @@ function App() {
 
         {/* Admin */}
         <Route path="/AdminDashboard" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminDashboard />
           </ProtectedRoute>
         } />
         <Route path="/AdminUsers" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "it_support"]}>
             <AdminUsers />
           </ProtectedRoute>
         } />
         <Route path="/AdminSettings" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminSettings />
           </ProtectedRoute>
         } />
         <Route path="/AdminSchedule" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminSchedule />
           </ProtectedRoute>
         } />
         <Route path="/AdminAnnouncements" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminAnnouncements />
           </ProtectedRoute>
         } />
         <Route path="/AdminEvents" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminEvents />
           </ProtectedRoute>
         } />
         <Route path="/AdminReports" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminReports />
           </ProtectedRoute>
         } />
         <Route path="/AdminBudgetPlanning" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin"]}>
             <AdminBudgetPlanning />
           </ProtectedRoute>
         } />
 
         <Route path="/AdminMasterActivityLog" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin"]}>
             <AdminMasterActivityLog />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/AdminSystemMaintenance" element={
+          <ProtectedRoute allowedRoles={["superadmin", "it_support"]}>
+            <AdminSystemMaintenance />
           </ProtectedRoute>
         } />
 

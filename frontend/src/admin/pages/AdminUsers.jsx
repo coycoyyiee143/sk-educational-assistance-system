@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 import { useAuth } from "../../context/AuthContext";
@@ -7,8 +8,8 @@ function StatusBadge({ active }) {
   return <span className={active ? "status-badge status-active" : "status-badge status-inactive"}>{active ? "Active" : "Inactive"}</span>;
 }
 function RoleBadge({ role }) {
-  const map = { applicant: "role-applicant", sk_verifier: "role-verifier", sk_admin: "role-admin" };
-  const labels = { applicant: "Applicant", sk_verifier: "Verifier", sk_admin: "Admin" };
+  const map = { applicant: "role-applicant", sk_verifier: "role-verifier", sk_admin: "role-admin", superadmin: "role-admin", it_support: "role-admin" };
+  const labels = { applicant: "Applicant", sk_verifier: "Verifier", sk_admin: "Admin", superadmin: "Superadmin", it_support: "IT Support" };
   return <span className={map[role] ?? "role-applicant"}>{labels[role] ?? role}</span>;
 }
 // Shown alongside StatusBadge for personnel — distinguishes "active
@@ -200,11 +201,14 @@ function ViewApplicantModal({ applicant, onClose }) {
 // placeholder password and a one-time setup link emailed to them
 // instead. Neither this form nor the admin submitting it ever sees or
 // chooses the account's real password.
-function AddPersonnelModal({ onClose, onSave }) {
+function AddPersonnelModal({ onClose, onSave, actingRole }) {
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "", is_active: true });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const roleOptions = actingRole === "it_support"
+    ? [["sk_verifier", "Verifier"], ["sk_admin", "Admin"], ["it_support", "IT Support"]]
+    : [["sk_verifier", "Verifier"], ["sk_admin", "Admin"], ["superadmin", "Superadmin"], ["it_support", "IT Support"]];
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -252,8 +256,9 @@ function AddPersonnelModal({ onClose, onSave }) {
                   <label className="form-label">Role</label>
                   <select className="form-select" value={form.role} onChange={set("role")} required>
                     <option value="" disabled>Select role</option>
-                    <option value="sk_verifier">Verifier</option>
-                    <option value="sk_admin">Admin</option>
+                    {roleOptions.map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -395,13 +400,7 @@ function AdminUsers() {
       <AdminNavigation />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser />
         </div>
         <section className="page-section">
           <div className="container-fluid">
@@ -424,6 +423,8 @@ function AdminUsers() {
                         <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter(""); setPersonnelPage(1); setShowRoleMenu(false); }}>All Roles</button>
                         <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter("sk_admin"); setPersonnelPage(1); setShowRoleMenu(false); }}>Admin</button>
                         <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter("sk_verifier"); setPersonnelPage(1); setShowRoleMenu(false); }}>Verifier</button>
+                        <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter("superadmin"); setPersonnelPage(1); setShowRoleMenu(false); }}>Superadmin</button>
+                        <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter("it_support"); setPersonnelPage(1); setShowRoleMenu(false); }}>IT Support</button>
                       </div>
                     )}
                   </div>
@@ -453,7 +454,9 @@ function AdminUsers() {
                     ) : pagedPersonnel.length === 0 ? (
                       <tr><td colSpan={6} className="text-center text-muted py-4">No personnel accounts found.</td></tr>
                     ) : (
-                      pagedPersonnel.map((p) => (
+                      pagedPersonnel.map((p) => {
+                        const isLocked = currentUser?.role === "it_support" && p.role === "superadmin";
+                        return (
                         <tr key={p.id}>
                           <td>{p.id}</td>
                           <td>{p.first_name} {p.last_name}</td>
@@ -464,6 +467,9 @@ function AdminUsers() {
                             <SetupPendingBadge emailVerifiedAt={p.email_verified_at} />
                           </td>
                           <td>
+                            {isLocked ? (
+                              <span className="text-muted" style={{ fontSize: "13px" }}>View only</span>
+                            ) : (
                             <div className="user-action-group">
                               <button className={`user-action-btn ${p.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(p.id)}>{p.is_active ? "Deactivate" : "Activate"}</button>
                               <button
@@ -484,9 +490,11 @@ function AdminUsers() {
                               </button>
                               <button className="user-action-btn user-action-delete" onClick={() => deleteUser(p.id)}>Delete</button>
                             </div>
+                            )}
                           </td>
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -579,7 +587,7 @@ function AdminUsers() {
         <PanelFooter />
       </div>
       {viewApplicant && <ViewApplicantModal applicant={viewApplicant} onClose={() => setViewApplicant(null)} />}
-      {showAdd && <AddPersonnelModal onClose={() => setShowAdd(false)} onSave={savePersonnel} />}
+      {showAdd && <AddPersonnelModal onClose={() => setShowAdd(false)} onSave={savePersonnel} actingRole={currentUser?.role} />}
 
       {resetTarget && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>

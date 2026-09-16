@@ -57,8 +57,10 @@ Route::get('/application-config/active', [ApplicationConfigurationController::cl
 
 Route::middleware(['auth:sanctum'])->group(function () {
     // ── Admin routes ────────────────────────────────────────────────
-    Route::middleware(['role:sk_admin'])->group(function () {
-        Route::get('/admin/stats', [AdminController::class, 'stats']);
+    // Account/personnel management — superadmin (full) + it_support
+    // (restricted to sk_verifier/sk_admin/it_support targets, enforced
+    // in AdminController via assertCanManageTarget()).
+    Route::middleware(['role:superadmin,it_support'])->group(function () {
         Route::get('/admin/users', [AdminController::class, 'users']);
         Route::post('/admin/users/personnel', [AdminController::class, 'createPersonnel']);
         Route::put('/admin/users/{id}', [AdminController::class, 'updateUser']);
@@ -69,6 +71,25 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // docblock in AdminController for why this is admin-only and not
         // self-service.
         Route::post('/admin/users/{id}/reset-2fa', [AdminController::class, 'resetTwoFactor']);
+    });
+
+    // View-only system status (failed jobs, DB connectivity, storage) —
+    // available to superadmin and it_support, not sk_admin.
+    Route::middleware(['role:superadmin,it_support'])->group(function () {
+        Route::get('/admin/system-status', [AdminReportController::class, 'systemStatus']);
+    });
+
+    // Master activity log and budget forecasting — superadmin only.
+    Route::middleware(['role:superadmin'])->group(function () {
+        Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
+        Route::get('/admin/reports/budget-estimation', [AdminReportController::class, 'budgetEstimation']);
+        Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
+        Route::get('/admin/reports/unmet-demand', [AdminReportController::class, 'unmetDemand']);
+        Route::get('/admin/reports/last-cycle-actuals', [AdminReportController::class, 'lastCycleActuals']);
+    });
+
+    Route::middleware(['role:superadmin,sk_admin'])->group(function () {
+        Route::get('/admin/stats', [AdminController::class, 'stats']);
         Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
         Route::put('/admin/application-configs/{id}', [ApplicationConfigurationController::class, 'update']);
         // The ONLY way to change close_date — separate from update()
@@ -120,13 +141,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/grace-period-claiming-list', [AdminReportController::class, 'gracePeriodClaimingList']);
         Route::get('/admin/reports/disbursement', [AdminReportController::class, 'disbursementReport']);
         Route::get('/admin/reports/disbursement/pdf', [AdminReportController::class, 'disbursementReportPdf']);
-        Route::get('/admin/reports/budget-estimation', [AdminReportController::class, 'budgetEstimation']);
-        Route::get('/admin/reports/budget-forecast', [AdminReportController::class, 'budgetForecast']);
-        Route::get('/admin/reports/unmet-demand', [AdminReportController::class, 'unmetDemand']);
-        Route::get('/admin/reports/last-cycle-actuals', [AdminReportController::class, 'lastCycleActuals']);
         Route::get('/admin/reports/ocr-queue-health', [AdminReportController::class, 'ocrQueueHealth']);
         Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
-        Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
 
     });
 

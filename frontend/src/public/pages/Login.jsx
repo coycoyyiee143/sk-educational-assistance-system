@@ -25,7 +25,8 @@ const Login = () => {
   const [code, setCode] = useState("");
 
   function goToRoleHome(user) {
-    if (user.role === "sk_admin") navigate("/AdminDashboard");
+    if (user.role === "sk_admin" || user.role === "superadmin") navigate("/AdminDashboard");
+    else if (user.role === "it_support") navigate("/AdminUsers");
     else if (user.role === "sk_verifier") navigate("/VerifierDashboard");
     else navigate("/ApplicantDashboard");
   }
@@ -108,7 +109,8 @@ const Login = () => {
   }
 
   if (user) {
-    if (user.role === "sk_admin") return <Navigate to="/AdminDashboard" replace />;
+    if (user.role === "sk_admin" || user.role === "superadmin") return <Navigate to="/AdminDashboard" replace />;
+    if (user.role === "it_support") return <Navigate to="/AdminUsers" replace />;
     if (user.role === "sk_verifier") return <Navigate to="/VerifierDashboard" replace />;
     return <Navigate to="/ApplicantDashboard" replace />;
   }

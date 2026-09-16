@@ -8,11 +8,14 @@ function AdminNavigation({
   mobileOpen = false,
   onMobileClose = () => {},
 }) {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   const [showChangePassword, setShowChangePassword] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+
+  const isItSupport = user?.role === "it_support";
+  const isSuperadmin = user?.role === "superadmin";
 
   const handleLogout = async () => {
     try {
@@ -93,7 +96,7 @@ function AdminNavigation({
         {/* Brand */}
         <NavLink
           className="admin-sidebar-brand"
-          to="/AdminDashboard"
+          to={isItSupport ? "/AdminUsers" : "/AdminDashboard"}
           onClick={closeMobileMenu}
         >
           <img src="/icons/sk-logo.jpg" alt="logo" />
@@ -106,6 +109,7 @@ function AdminNavigation({
 
         <nav className="admin-sidebar-nav">
           {/* Dashboard */}
+          {!isItSupport && (
           <NavLink
             to="/AdminDashboard"
             onClick={closeMobileMenu}
@@ -131,8 +135,10 @@ function AdminNavigation({
               Dashboard
             </span>
           </NavLink>
+          )}
 
           {/* Users */}
+          {(isSuperadmin || isItSupport) && (
           <NavLink
             to="/AdminUsers"
             onClick={closeMobileMenu}
@@ -158,8 +164,10 @@ function AdminNavigation({
               Users
             </span>
           </NavLink>
+          )}
 
           {/* Schedules */}
+          {!isItSupport && (
           <NavLink
             to="/AdminSchedule"
             onClick={closeMobileMenu}
@@ -185,8 +193,10 @@ function AdminNavigation({
               Schedules
             </span>
           </NavLink>
+          )}
 
           {/* Announcements */}
+          {!isItSupport && (
           <NavLink
             to="/AdminAnnouncements"
             onClick={closeMobileMenu}
@@ -210,8 +220,10 @@ function AdminNavigation({
               Announcements
             </span>
           </NavLink>
+          )}
 
           {/* Events */}
+          {!isItSupport && (
           <NavLink
             to="/AdminEvents"
             onClick={closeMobileMenu}
@@ -238,8 +250,10 @@ function AdminNavigation({
               Events
             </span>
           </NavLink>
+          )}
 
           {/* Reports */}
+          {!isItSupport && (
           <NavLink
             to="/AdminReports"
             onClick={closeMobileMenu}
@@ -265,8 +279,10 @@ function AdminNavigation({
               Reports
             </span>
           </NavLink>
+          )}
 
           {/* Settings */}
+          {!isItSupport && (
           <NavLink
             to="/AdminSettings"
             onClick={closeMobileMenu}
@@ -290,10 +306,12 @@ function AdminNavigation({
               Application Settings
             </span>
           </NavLink>
+          )}
 
-          <div className="admin-sidebar-divider"></div>
+          {(isSuperadmin || isItSupport) && <div className="admin-sidebar-divider"></div>}
 
           {/* Activity Log */}
+          {isSuperadmin && (
           <NavLink
             to="/AdminMasterActivityLog"
             onClick={closeMobileMenu}
@@ -317,6 +335,33 @@ function AdminNavigation({
               System Activity Log
             </span>
           </NavLink>
+          )}
+
+          {/* System Maintenance */}
+          {(isSuperadmin || isItSupport) && (
+          <NavLink
+            to="/AdminSystemMaintenance"
+            onClick={closeMobileMenu}
+            className={({ isActive }) =>
+              isActive
+                ? "admin-sidebar-link active"
+                : "admin-sidebar-link"
+            }
+          >
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" />
+            </svg>
+
+            <span className="admin-sidebar-label">
+              System Maintenance
+            </span>
+          </NavLink>
+          )}
 
           {/* Change Password */}
           <button

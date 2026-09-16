@@ -295,10 +295,19 @@ const Register = () => {
   ======================================== */
 
   if (user) {
-    if (user.role === "sk_admin") {
+    if (user.role === "sk_admin" || user.role === "superadmin") {
       return (
         <Navigate
           to="/AdminDashboard"
+          replace
+        />
+      );
+    }
+
+    if (user.role === "it_support") {
+      return (
+        <Navigate
+          to="/AdminUsers"
           replace
         />
       );

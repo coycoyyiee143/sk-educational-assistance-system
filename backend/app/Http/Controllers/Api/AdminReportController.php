@@ -998,4 +998,55 @@ class AdminReportController extends Controller
             'recent_failures' => $recentFailures,
         ]);
     }
+
+    /**
+     * SYSTEM STATUS — view-only health snapshot for IT Support/superadmin.
+     * Generalizes ocrQueueHealth() to all queues, plus DB connectivity
+     * and storage disk usage. No actions taken here, purely informational.
+     */
+    public function systemStatus()
+    {
+        $failedCount = DB::table('failed_jobs')->count();
+        $recentFailures = DB::table('failed_jobs')
+            ->orderByDesc('failed_at')
+            ->limit(20)
+            ->get(['id', 'uuid', 'queue', 'exception', 'failed_at'])
+            ->map(function ($job) {
+                $firstLine = strtok($job->exception, "\n");
+                return [
+                    'id'                => $job->id,
+                    'uuid'              => $job->uuid,
+                    'queue'             => $job->queue,
+                    'failed_at'         => $job->failed_at,
+                    'exception_summary' => mb_strimwidth($firstLine, 0, 200, '...'),
+                ];
+            });
+
+        $dbConnected = true;
+        try {
+            DB::connection()->getPdo();
+        } catch (\Throwable $e) {
+            $dbConnected = false;
+        }
+
+        $storagePath = storage_path();
+        $totalBytes = @disk_total_space($storagePath) ?: 0;
+        $freeBytes = @disk_free_space($storagePath) ?: 0;
+
+        return response()->json([
+            'failed_jobs' => [
+                'failed_count'    => $failedCount,
+                'recent_failures' => $recentFailures,
+            ],
+            'database' => [
+                'connected' => $dbConnected,
+            ],
+            'storage' => [
+                'disk'        => config('filesystems.default'),
+                'total_bytes' => $totalBytes,
+                'free_bytes'  => $freeBytes,
+                'used_bytes'  => $totalBytes - $freeBytes,
+            ],
+        ]);
+    }
 }

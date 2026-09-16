@@ -14,9 +14,28 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Rules\Rule;
 
 class AdminController extends Controller
 {
+    // Roles an it_support account is allowed to create/edit/deactivate/
+    // delete/reset — deliberately excludes 'superadmin', so it_support
+    // can never touch (or elevate itself to) that role.
+    private const IT_SUPPORT_MANAGEABLE_ROLES = ['sk_verifier', 'sk_admin', 'it_support'];
+
+    // All personnel roles — what a superadmin can manage.
+    private const ALL_PERSONNEL_ROLES = ['sk_verifier', 'sk_admin', 'superadmin', 'it_support'];
+
+    // Blocks it_support from acting on a superadmin account. superadmin
+    // itself has no restriction. sk_admin never reaches these methods at
+    // all — the route middleware already excludes it.
+    private function assertCanManageTarget(Request $request, User $target): void
+    {
+        if ($request->user()->role === 'it_support' && $target->role === 'superadmin') {
+            abort(403, 'IT Support cannot manage superadmin accounts.');
+        }
+    }
+
     public function stats()
     {
         $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
@@ -49,7 +68,7 @@ class AdminController extends Controller
             ->with(['faceVerification:id,user_id,status,registration_match_score,verified_at'])
             ->get();
 
-        $personnel = User::whereIn('role', ['sk_verifier', 'sk_admin'])
+        $personnel = User::whereIn('role', self::ALL_PERSONNEL_ROLES)
             ->select('id', 'first_name', 'last_name', 'email', 'role', 'is_active', 'created_at', 'email_verified_at')
             ->get();
 
@@ -70,11 +89,15 @@ class AdminController extends Controller
      */
     public function createPersonnel(Request $request)
     {
+        $allowedRoles = $request->user()->role === 'it_support'
+            ? self::IT_SUPPORT_MANAGEABLE_ROLES
+            : self::ALL_PERSONNEL_ROLES;
+
         $request->validate([
             'first_name' => 'required|string',
             'last_name'  => 'required|string',
             'email'      => 'required|email|unique:users,email',
-            'role'       => 'required|in:sk_verifier,sk_admin',
+            'role'       => ['required', Rule::in($allowedRoles)],
             'is_active'  => 'boolean',
         ]);
 
@@ -144,12 +167,17 @@ class AdminController extends Controller
     public function updateUser(Request $request, $id)
     {
         $user = User::findOrFail($id);
+        $this->assertCanManageTarget($request, $user);
+
+        $allowedRoles = $request->user()->role === 'it_support'
+            ? self::IT_SUPPORT_MANAGEABLE_ROLES
+            : self::ALL_PERSONNEL_ROLES;
 
         $data = $request->validate([
             'first_name' => 'sometimes|string',
             'last_name'  => 'sometimes|string',
             'email'      => 'sometimes|email|unique:users,email,' . $id,
-            'role'       => 'sometimes|in:sk_verifier,sk_admin',
+            'role'       => ['sometimes', Rule::in($allowedRoles)],
             'is_active'  => 'sometimes|boolean',
         ]);
 
@@ -200,11 +228,13 @@ class AdminController extends Controller
             ], 422);
         }
 
-        if (!in_array($user->role, ['sk_verifier', 'sk_admin'])) {
+        if (!in_array($user->role, self::ALL_PERSONNEL_ROLES)) {
             return response()->json([
-                'message' => 'This action is only available for verifier and admin accounts.',
+                'message' => 'This action is only available for personnel accounts.',
             ], 422);
         }
+
+        $this->assertCanManageTarget($request, $user);
 
         $token = Str::random(64);
 
@@ -287,6 +317,8 @@ class AdminController extends Controller
             ], 422);
         }
 
+        $this->assertCanManageTarget($request, $user);
+
         $user->forceFill([
             'google2fa_secret'      => null,
             'google2fa_enabled_at'  => null,
@@ -303,9 +335,10 @@ class AdminController extends Controller
         ]);
     }
 
-    public function toggleStatus($id)
+    public function toggleStatus(Request $request, $id)
     {
         $user = User::findOrFail($id);
+        $this->assertCanManageTarget($request, $user);
         $user->update(['is_active' => !$user->is_active]);
 
         $statusLabel = $user->is_active ? 'activated' : 'deactivated';
@@ -321,9 +354,10 @@ class AdminController extends Controller
         ]);
     }
 
-    public function deleteUser($id)
+    public function deleteUser(Request $request, $id)
     {
         $user = User::findOrFail($id);
+        $this->assertCanManageTarget($request, $user);
         $name = "{$user->first_name} {$user->last_name}";
         $email = $user->email;
 
@@ -365,16 +399,19 @@ class AdminController extends Controller
         return response()->json($logs);
     }
 
-    // Returns ALL activity logs from Admin and Verifier accounts only.
-    // Applicant logs are intentionally excluded from this view.
+    // Returns ALL activity logs from personnel accounts only (verifier,
+    // admin, superadmin, it_support). Applicant logs are intentionally
+    // excluded from this view. Route is superadmin-only, so this is the
+    // one place superadmin can audit everyone else, including it_support's
+    // own account-management actions.
     public function masterActivityLog(Request $request)
     {
         $query = \App\Models\AuditLog::whereHas('user', function ($q) {
-            $q->whereIn('role', ['sk_admin', 'sk_verifier']);
+            $q->whereIn('role', self::ALL_PERSONNEL_ROLES);
         })->with('user:id,first_name,last_name,email,role');
 
-        // Optional filter: ?role=sk_verifier or ?role=sk_admin
-        if ($request->has('role') && in_array($request->role, ['sk_admin', 'sk_verifier'])) {
+        // Optional filter: ?role=sk_verifier, sk_admin, superadmin, or it_support
+        if ($request->has('role') && in_array($request->role, self::ALL_PERSONNEL_ROLES)) {
             $query->whereHas('user', function ($q) use ($request) {
                 $q->where('role', $request->role);
             });
