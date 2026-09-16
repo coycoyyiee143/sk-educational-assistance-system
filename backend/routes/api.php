@@ -192,6 +192,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/user/avatar', [ProfileController::class, 'uploadAvatar']);
     Route::get('/users/{userId}/avatar', [ProfileController::class, 'avatarPhoto'])->name('user.avatar-photo');
     Route::get('/applications/{id}/documents/{docId}/file', [DocumentController::class, 'show']);
+    Route::get('/applications/{id}/appeal-document', [ApplicationController::class, 'appealDocument']);
     Route::get('/claiming/face-verifications/{id}/photo', [FaceVerificationController::class, 'showClaimingPhoto'])->name('claiming.face-photo');
     Route::get('/claiming/applications/{applicationId}/registration-photo', [FaceVerificationController::class, 'registrationPhoto']);
     Route::get('/users/{userId}/profile-photo', [FaceVerificationController::class, 'profilePhoto']);

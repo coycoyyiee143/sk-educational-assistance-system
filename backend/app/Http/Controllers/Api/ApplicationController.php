@@ -239,6 +239,33 @@ class ApplicationController extends Controller
         ]);
     }
 
+    /**
+     * Authenticated appeal-document streaming, same access rule as
+     * DocumentController::show(): owning applicant, sk_verifier, or
+     * sk_admin.
+     */
+    public function appealDocument(Request $request, $id)
+    {
+        $application = Application::findOrFail($id);
+
+        $user = $request->user();
+        $isOwner    = $user->id === $application->user_id;
+        $isVerifier = $user->role === 'sk_verifier';
+        $isAdmin    = $user->role === 'sk_admin';
+
+        if (!$isOwner && !$isVerifier && !$isAdmin) {
+            abort(403, 'You are not authorized to view this document.');
+        }
+
+        if (!$application->appeal_document_path || !\Illuminate\Support\Facades\Storage::disk('local')->exists($application->appeal_document_path)) {
+            abort(404, 'File not found.');
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('local')->response(
+            $application->appeal_document_path
+        );
+    }
+
     public function claimingSchedule(Request $request)
     {
         $application = Application::where('user_id', $request->user()->id)

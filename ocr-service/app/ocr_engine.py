@@ -31,7 +31,7 @@ def get_ocr():
             ocr_version='PP-OCRv4',        # confirmed valid for installed paddleocr==2.8.1 (legacy 2.x API)
             use_gpu=False,                 # explicit - server has no GPU, avoids any accidental GPU probe overhead
             enable_mkldnn=True,            # CPU inference speedup on Intel/AMD - safe no-op if unsupported
-            cpu_threads=2,                 # match the server's 2 vCPU limit - prevents oversubscription across workers
+            cpu_threads=int(os.getenv("OCR_CPU_THREADS", "2")),  # prod default of 2 matches the server's 2 vCPU limit (prevents oversubscription across workers) - override via OCR_CPU_THREADS in .env for local dev boxes with more cores
         )
     return _ocr
 

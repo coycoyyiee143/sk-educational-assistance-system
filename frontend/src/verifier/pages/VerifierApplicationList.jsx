@@ -26,6 +26,7 @@ const STATUS_TABS = [
   { key: "pending_prescreening", label: "Pending" },
   { key: "approved", label: "Approved" },
   { key: "rejected", label: "Rejected" },
+  { key: "appeal_requested", label: "Appeal Requested" },
 ];
 
 function VerifierApplicationList() {
@@ -69,6 +70,9 @@ function VerifierApplicationList() {
     ).length,
     approved: applications.filter((a) => a.status === "approved").length,
     rejected: applications.filter((a) => a.status === "rejected").length,
+    appeal_requested: applications.filter(
+      (a) => a.status === "appeal_requested"
+    ).length,
   };
 
   const filtered = applications

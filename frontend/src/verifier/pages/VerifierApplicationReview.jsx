@@ -814,6 +814,40 @@ function VerifierApplicationReview() {
                     )}
                   </div>
                 )}
+
+              {app.appeal_reason && (
+                <div className="alert alert-warning small mt-3 mb-0">
+                  <strong>Appeal Reason:</strong> {app.appeal_reason}
+                  {app.appeal_document_path && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="btn btn-link p-0 align-baseline"
+                        onClick={() => {
+                          api
+                            .get(
+                              `/applications/${app.id}/appeal-document`,
+                              { responseType: "blob" }
+                            )
+                            .then((res) => {
+                              const url = URL.createObjectURL(res.data);
+                              window.open(url, "_blank");
+                            });
+                        }}
+                      >
+                        View supporting document
+                      </button>
+                    </>
+                  )}
+                  {app.appeal_decision_notes && (
+                    <div className="mt-2">
+                      <strong>Decision Notes:</strong>{" "}
+                      {app.appeal_decision_notes}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="page-card verifier-review-info-card">

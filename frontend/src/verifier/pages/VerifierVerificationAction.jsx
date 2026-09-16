@@ -271,6 +271,10 @@ function VerifierVerificationAction() {
   const [reuploadNotes, setReuploadNotes] = useState("");
   const [autoReuploadApplied, setAutoReuploadApplied] = useState(false);
 
+  // --- Appeal decision state ---
+  const [appealDecision, setAppealDecision] = useState("approved");
+  const [appealNotes, setAppealNotes] = useState("");
+
   // Once the application (and its verification checks) has loaded, fold
   // any system-detected failures into the re-upload selections so they
   // arrive pre-checked with the matching reason — the verifier no longer
@@ -573,6 +577,30 @@ function VerifierVerificationAction() {
       setSubmitting(false);
     }
   }
+  async function handleAppealDecision() {
+    setError("");
+    if (!appealNotes.trim()) {
+      setError("Please explain your decision.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.post(`/verifier/applications/${id}/appeal-decision`, {
+        decision: appealDecision,
+        notes: appealNotes,
+      });
+      showSuccess(
+        appealDecision === "approved" ? "Appeal Approved" : "Appeal Denied",
+        appealDecision === "approved"
+          ? "The application has been sent back for review."
+          : "The rejection has been upheld."
+      );
+    } catch (err) {
+      setError(err.response?.data?.message || "Action failed.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   // Whether a document type has anything worth showing a reason group for
   // in the Reject modal (either manually flagged on the Review page, or
@@ -744,29 +772,41 @@ function VerifierVerificationAction() {
                     </div>
                   </div>
                   <div className="verifier-action-footer">
-                    <div className="verifier-action-buttons">
-                      <button
-                        type="button"
-                        className="verifier-action-btn verifier-action-btn-approve"
-                        onClick={() => openAction("approve")}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        className="verifier-action-btn verifier-action-btn-reupload"
-                        onClick={() => openAction("reupload")}
-                      >
-                        Request Re-upload
-                      </button>
-                      <button
-                        type="button"
-                        className="verifier-action-btn verifier-action-btn-reject"
-                        onClick={() => openAction("reject")}
-                      >
-                        Reject
-                      </button>
-                    </div>
+                    {app.status === "appeal_requested" ? (
+                      <div className="verifier-action-buttons">
+                        <button
+                          type="button"
+                          className="verifier-action-btn verifier-action-btn-approve"
+                          onClick={() => openAction("appeal")}
+                        >
+                          Resolve Appeal
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="verifier-action-buttons">
+                        <button
+                          type="button"
+                          className="verifier-action-btn verifier-action-btn-approve"
+                          onClick={() => openAction("approve")}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          type="button"
+                          className="verifier-action-btn verifier-action-btn-reupload"
+                          onClick={() => openAction("reupload")}
+                        >
+                          Request Re-upload
+                        </button>
+                        <button
+                          type="button"
+                          className="verifier-action-btn verifier-action-btn-reject"
+                          onClick={() => openAction("reject")}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </>
               ) : null}
@@ -1208,6 +1248,79 @@ function VerifierVerificationAction() {
                 disabled={submitting}
               >
                 {submitting ? "Rejecting..." : "Confirm Rejection"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {selectedAction === "appeal" && (
+        <div className="verifier-action-modal-backdrop" onClick={closeAction}>
+          <div className="verifier-action-modal verifier-action-modal-small" onClick={(e) => e.stopPropagation()}>
+            <div className="verifier-action-modal-header">
+              <div className="verifier-action-modal-heading">
+                <div className="verifier-action-modal-icon verifier-action-modal-icon-approve">!</div>
+                <h5>Resolve Appeal</h5>
+              </div>
+              <button type="button" className="verifier-action-modal-close" onClick={closeAction} disabled={submitting}>×</button>
+            </div>
+            <div className="verifier-action-modal-body">
+              {error && <div className="alert alert-danger">{error}</div>}
+              {app.appeal_reason && (
+                <div className="alert alert-secondary mb-3">
+                  <strong>Applicant's appeal reason:</strong> {app.appeal_reason}
+                </div>
+              )}
+              <p className="verifier-action-section-label">DECISION</p>
+              <div className="verifier-reject-option">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  id="appeal-decision-approved"
+                  name="appeal-decision"
+                  checked={appealDecision === "approved"}
+                  onChange={() => setAppealDecision("approved")}
+                />
+                <label htmlFor="appeal-decision-approved">
+                  Approve — send back to review
+                </label>
+              </div>
+              <div className="verifier-reject-option">
+                <input
+                  className="form-check-input"
+                  type="radio"
+                  id="appeal-decision-denied"
+                  name="appeal-decision"
+                  checked={appealDecision === "denied"}
+                  onChange={() => setAppealDecision("denied")}
+                />
+                <label htmlFor="appeal-decision-denied">
+                  Deny — uphold rejection
+                </label>
+              </div>
+              <textarea
+                className="form-control mt-3"
+                rows={3}
+                placeholder="Explain your decision (this will be shown to the applicant)..."
+                value={appealNotes}
+                onChange={(e) => setAppealNotes(e.target.value)}
+              />
+            </div>
+            <div className="verifier-action-modal-footer">
+              <button
+                type="button"
+                className="verifier-action-btn verifier-action-btn-cancel"
+                onClick={closeAction}
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="verifier-action-btn verifier-action-btn-approve"
+                onClick={handleAppealDecision}
+                disabled={submitting}
+              >
+                {submitting ? "Submitting..." : "Submit Decision"}
               </button>
             </div>
           </div>
