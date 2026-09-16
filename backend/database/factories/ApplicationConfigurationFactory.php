@@ -14,6 +14,7 @@ class ApplicationConfigurationFactory extends Factory
             'close_date'   => now()->addDays(13)->endOfDay(),
             'slot_limit'   => 100,
             'slots_filled' => 0,
+            'assistance_amount' => 2000,
             'is_unlimited' => false,
             'is_active'    => true,
             'created_by'   => User::factory()->create(['role' => 'sk_admin'])->id,
