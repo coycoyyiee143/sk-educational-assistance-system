@@ -239,7 +239,7 @@ function VerifierApplicationList() {
                           <td>{pageStart + idx + 1}</td>
 
                           <td>
-                            {app.control_number ?? `APP-${app.id}`}
+                            {`APP-${app.id}`}
                           </td>
 
                           <td>{app.name}</td>
