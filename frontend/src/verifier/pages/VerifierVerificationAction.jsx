@@ -1100,43 +1100,47 @@ function VerifierVerificationAction() {
                         </label>
                       </div>
                     ))}
-                    {(additional.length > 0 || state.dynamicReasons.length > 0) && (
-                      <>
-                        <div className="verifier-action-subsection-label">Additional reasons</div>
-                        {additional.map((reason) => (
-                          <div className="verifier-reject-option" key={reason.id}>
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id={`reject-${d.key}-${reason.id}`}
-                              checked={state.reasonIds.includes(reason.id)}
-                              onChange={() => toggleRejectReasonId(d.key, reason.id)}
-                            />
-                            <label htmlFor={`reject-${d.key}-${reason.id}`}>
-                              {reason.verifierLabel}
-                              {matchedIds.includes(reason.id) && (
-                                <span className="badge bg-primary ms-2">Detected</span>
-                              )}
-                            </label>
-                          </div>
-                        ))}
-                        {state.dynamicReasons.map((reason) => (
-                          <div className="verifier-reject-option" key={reason.key}>
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id={`reject-${d.key}-${reason.key}`}
-                              checked={reason.checked}
-                              onChange={() => toggleRejectDynamicReason(d.key, reason.key)}
-                            />
-                            <label htmlFor={`reject-${d.key}-${reason.key}`}>
-                              {reason.text}
-                              <span className="badge bg-primary ms-2">Detected</span>
-                            </label>
-                          </div>
-                        ))}
-                      </>
-                    )}
+                    {/* Unlike Re-upload, Reject doesn't show the full "Additional
+                        reasons" picklist — those are situational/specific reasons
+                        (wrong school year, not a Mamatid voter, etc.) that only
+                        matter here if the system actually detected them. An
+                        undetected one has no reason to be offered under a
+                        document the verifier is already rejecting for other
+                        grounds, so only detected fixed reasons — plus any
+                        dynamic ones, which are always system-detected — show
+                        up, directly under the document heading, no subheading. */}
+                    {additional
+                      .filter((reason) => matchedIds.includes(reason.id))
+                      .map((reason) => (
+                        <div className="verifier-reject-option" key={reason.id}>
+                          <input
+                            className="form-check-input"
+                            type="checkbox"
+                            id={`reject-${d.key}-${reason.id}`}
+                            checked={state.reasonIds.includes(reason.id)}
+                            onChange={() => toggleRejectReasonId(d.key, reason.id)}
+                          />
+                          <label htmlFor={`reject-${d.key}-${reason.id}`}>
+                            {reason.verifierLabel}
+                            <span className="badge bg-primary ms-2">Detected</span>
+                          </label>
+                        </div>
+                      ))}
+                    {state.dynamicReasons.map((reason) => (
+                      <div className="verifier-reject-option" key={reason.key}>
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id={`reject-${d.key}-${reason.key}`}
+                          checked={reason.checked}
+                          onChange={() => toggleRejectDynamicReason(d.key, reason.key)}
+                        />
+                        <label htmlFor={`reject-${d.key}-${reason.key}`}>
+                          {reason.text}
+                          <span className="badge bg-primary ms-2">Detected</span>
+                        </label>
+                      </div>
+                    ))}
                     <div className="verifier-reject-option">
                       <input
                         className="form-check-input"
