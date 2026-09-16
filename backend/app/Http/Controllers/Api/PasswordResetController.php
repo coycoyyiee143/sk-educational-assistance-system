@@ -123,7 +123,7 @@ class PasswordResetController extends Controller
          */
         if (
             !$resetRecord->created_at ||
-            now()->diffInMinutes($resetRecord->created_at) > 15
+            \Carbon\Carbon::parse($resetRecord->created_at)->addMinutes(15)->isPast()
         ) {
             DB::table('password_reset_tokens')
                 ->where('email', $user->email)
@@ -209,7 +209,7 @@ class PasswordResetController extends Controller
          */
         if (
             !$resetRecord->created_at ||
-            now()->diffInMinutes($resetRecord->created_at) > 15
+            \Carbon\Carbon::parse($resetRecord->created_at)->addMinutes(15)->isPast()
         ) {
             DB::table('password_reset_tokens')
                 ->where('email', $user->email)
