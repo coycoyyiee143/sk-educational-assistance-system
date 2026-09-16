@@ -80,7 +80,11 @@ class VerifierController extends Controller
             'verificationChecks',
             'configuration',
             'verifierActions' => function($q) {
-                $q->latest()->limit(1);
+                // Full history (not just the latest) so the frontend can
+                // correlate past reupload_requested actions with the
+                // specific document version they superseded, for the
+                // per-document "Previous versions" history view.
+                $q->latest();
             },
         ])->findOrFail($id);
 

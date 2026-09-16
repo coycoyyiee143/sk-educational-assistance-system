@@ -6,7 +6,13 @@ import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
-import { getReasonsByDocType, OTHER } from "../constants/verificationReasons";
+import {
+  getReasonsByDocType,
+  getFlatReasons,
+  OTHER,
+  getCheckDisplayLabel,
+  translateFlagReason,
+} from "../constants/verificationReasons";
 import {
   getVerifierStatusLabel,
   getVerifierBadgeClass,
@@ -46,11 +52,6 @@ function OcrBadge({ passed, checkName, extractedValue }) {
   );
 }
 
-const CHECK_NAME_LABELS = {
-  image_integrity: "Edited/Tampered Image Detection",
-  ai_generation_provenance: "AI-Generated or AI-Edited Image",
-};
-
 const LATE_DISPLAY_CHECK_NAMES = [
   "image_integrity",
   "ai_generation_provenance",
@@ -65,8 +66,32 @@ function sortChecksForDisplay(checks) {
   return [...checks].sort((a, b) => {
     const aLate = LATE_DISPLAY_CHECK_NAMES.includes(a.check_name) ? 1 : 0;
     const bLate = LATE_DISPLAY_CHECK_NAMES.includes(b.check_name) ? 1 : 0;
-    return aLate - bLate;
+    if (aLate !== bLate) return aLate - bLate;
+
+    // Certificate Year reads naturally as a follow-up to Residency
+    // Geofence (both come from the same barangay/cert extraction pass),
+    // so it should always display after it regardless of which order
+    // the checks happened to arrive from the API in.
+    if (a.check_name === "cert_year_match" && b.check_name === "residency_geofence") return 1;
+    if (a.check_name === "residency_geofence" && b.check_name === "cert_year_match") return -1;
+
+    return 0;
   });
+}
+
+// Some checks don't extract a value FROM the document at all — they
+// compute an assessment (a layout/tamper/AI-generation verdict) and
+// report that as their "extracted" field. Labeling that "EXTRACTED
+// VALUE" implies it came off the document like a name or a date, which
+// is misleading, so these get a different column header.
+const ASSESSMENT_CHECK_NAMES = [
+  "template_consistency",
+  "image_integrity",
+  "ai_generation_provenance",
+];
+
+function getValueColumnLabel(checkName) {
+  return ASSESSMENT_CHECK_NAMES.includes(checkName) ? "ASSESSMENT" : "EXTRACTED VALUE";
 }
 
 const DOCUMENT_TABS = [
@@ -92,13 +117,17 @@ function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
   }
 
   latestAction.reupload_details.forEach((d) => {
-    const options = reasonsByDocType[d.document_type] || [];
+    const flat = getFlatReasons(
+      reasonsByDocType[d.document_type] || { primary: [], additional: [] }
+    );
     const stored = d.reason_categories || [];
-    const known = stored.filter((c) => options.includes(c));
-    const custom = stored.filter((c) => !options.includes(c));
+    const knownIds = stored
+      .map((c) => flat.find((r) => r.verifierLabel === c)?.id)
+      .filter(Boolean);
+    const custom = stored.filter((c) => !flat.some((r) => r.verifierLabel === c));
 
     base[d.document_type] = {
-      reasons: custom.length > 0 ? [...known, OTHER] : known,
+      reasons: custom.length > 0 ? [...knownIds, OTHER] : knownIds,
       otherText: custom.join(" "),
     };
   });
@@ -445,24 +474,7 @@ function VerifierApplicationReview() {
       : { text: "Processed", class: "bg-success" };
   };
 
-  const getCheckRuleLabel = (checkName) => {
-    if (CHECK_NAME_LABELS[checkName]) {
-      return CHECK_NAME_LABELS[checkName];
-    }
-
-    const labels = {
-      cert_year_match: "Certificate Year",
-      identity_match: "Identity & Legal Name",
-      residency_geofence: "Residency Geofence",
-    };
-
-    return (
-      labels[checkName] ||
-      checkName
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-    );
-  };
+  const getCheckRuleLabel = (checkName) => getCheckDisplayLabel(checkName);
 
   const getPassedCheckMessage = (checkName) => {
     const messages = {
@@ -474,27 +486,52 @@ function VerifierApplicationReview() {
     return messages[checkName] || "Verification rule matched";
   };
 
-  const getFlagReasonLabel = (reason) => {
-    const labels = {
-      "Image blurry or unreadable.":
-        "Blurry or unreadable document",
-      "File uploaded is not the correct document type.":
-        "Incorrect document type",
-      "Not issued within the current year.":
-        "Not issued this year",
-      "Not a registered voter in Barangay Mamatid.":
-        "Not a registered Mamatid voter",
-      "Parent's/guardian's Voter's Certificate could not be validated.":
-        "Parent/guardian voter record invalid",
-      "Applicant is not a minor; parent's/guardian's Voter's Certificate not allowed.":
-        "Parent/guardian document not applicable",
-      "Name does not match other submitted documents.":
-        "Name mismatch",
-      "Other (please specify)": "Other (please specify)",
-    };
+  // Older uploads for a document type are never deleted (see
+  // ApplicationDocument.version) — the UI just showed the latest one. This
+  // reconstructs, for each superseded version, whether it was replaced
+  // because the system auto-flagged it or because a verifier manually
+  // requested a re-upload, by matching each version's upload window
+  // against `needs_auto_reupload`/`auto_reupload_reason` on the row itself,
+  // or against a `reupload_requested` VerifierAction whose timestamp falls
+  // inside that version's active window.
+  function getPreviousVersions(docType, currentDoc) {
+    const olderVersions = (app.documents || [])
+      .filter((d) => d.document_type === docType && d.id !== currentDoc.id)
+      .sort((a, b) => b.id - a.id);
 
-    return labels[reason] || reason;
-  };
+    if (olderVersions.length === 0) return [];
+
+    const orderedAsc = (app.documents || [])
+      .filter((d) => d.document_type === docType)
+      .sort((a, b) => a.id - b.id);
+
+    const reuploadActions = (app.verifier_actions || [])
+      .filter((a) => a.action === "reupload_requested" && a.reupload_details)
+      .flatMap((a) =>
+        a.reupload_details
+          .filter((d) => d.document_type === docType)
+          .map((d) => ({ createdAt: new Date(a.created_at), reason: d.reason }))
+      );
+
+    return olderVersions.map((v) => {
+      const idx = orderedAsc.findIndex((d) => d.id === v.id);
+      const nextDoc = orderedAsc[idx + 1];
+      const windowStart = new Date(v.created_at);
+      const windowEnd = nextDoc ? new Date(nextDoc.created_at) : new Date();
+
+      let source = null;
+      if (v.needs_auto_reupload || v.auto_reupload_reason) {
+        source = { type: "auto", reason: v.auto_reupload_reason };
+      } else {
+        const match = reuploadActions.find(
+          (a) => a.createdAt >= windowStart && a.createdAt <= windowEnd
+        );
+        if (match) source = { type: "verifier", reason: match.reason };
+      }
+
+      return { doc: v, source };
+    });
+  }
 
   const latestDocsMap = {};
 
@@ -1135,7 +1172,7 @@ function VerifierApplicationReview() {
                   );
 
                   const flagState = flaggedDocs[tab.type];
-                  const reasonOptions = reasonsByDocType[tab.type] || [];
+                  const docReasonGroups = reasonsByDocType[tab.type] || { primary: [], additional: [] };
                   const previewFile = previewFiles[doc.id];
 
                   const confidence = doc.ocr_result?.confidence_score
@@ -1231,6 +1268,47 @@ function VerifierApplicationReview() {
                           )}
                         </div>
                       </div>
+
+                      {(() => {
+                        const previousVersions = getPreviousVersions(tab.type, doc);
+                        if (previousVersions.length === 0) return null;
+                        return (
+                          <details className="verifier-doc-version-history">
+                            <summary>
+                              Previous versions ({previousVersions.length})
+                            </summary>
+                            <div className="verifier-doc-version-list">
+                              {previousVersions.map(({ doc: v, source }) => (
+                                <div key={v.id} className="verifier-doc-version-item">
+                                  <div className="verifier-doc-version-item-head">
+                                    <span>Version {v.version ?? "—"}</span>
+                                    <span className="verifier-doc-version-date">
+                                      {v.created_at
+                                        ? new Date(v.created_at).toLocaleString()
+                                        : "—"}
+                                    </span>
+                                    {source?.type === "auto" && (
+                                      <span className="badge bg-secondary verifier-ocr-badge">
+                                        System auto-flagged
+                                      </span>
+                                    )}
+                                    {source?.type === "verifier" && (
+                                      <span className="badge bg-warning text-dark verifier-ocr-badge">
+                                        Verifier requested
+                                      </span>
+                                    )}
+                                  </div>
+                                  {source?.reason && (
+                                    <div className="verifier-doc-version-reason">
+                                      {source.reason}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        );
+                      })()}
 
                       <div className="verifier-ocr-review-layout">
                         <div className="verifier-ocr-preview-column">
@@ -1449,10 +1527,13 @@ function VerifierApplicationReview() {
                                     />
                                   </div>
 
-                                  <div className="verifier-ocr-check-value-pair">
+                                  <div
+                                    className={`verifier-ocr-check-value-pair ${check.expected_value == null ? "verifier-ocr-check-value-pair--single" : ""
+                                      }`}
+                                  >
                                     <div className="verifier-ocr-check-value-col">
                                       <div className="verifier-ocr-check-value-pair-label">
-                                        EXTRACTED VALUE
+                                        {getValueColumnLabel(check.check_name)}
                                       </div>
                                       <div
                                         className={`verifier-ocr-check-value-pair-value ${!check.passed ? "verifier-ocr-check-value-pair-value-mismatch" : ""
@@ -1462,14 +1543,16 @@ function VerifierApplicationReview() {
                                       </div>
                                     </div>
 
-                                    <div className="verifier-ocr-check-value-col">
-                                      <div className="verifier-ocr-check-value-pair-label">
-                                        EXPECTED VALUE
+                                    {check.expected_value != null && (
+                                      <div className="verifier-ocr-check-value-col">
+                                        <div className="verifier-ocr-check-value-pair-label">
+                                          EXPECTED VALUE
+                                        </div>
+                                        <div className="verifier-ocr-check-value-pair-value">
+                                          {check.expected_value}
+                                        </div>
                                       </div>
-                                      <div className="verifier-ocr-check-value-pair-value">
-                                        {check.expected_value ?? "—"}
-                                      </div>
-                                    </div>
+                                    )}
                                   </div>
                                   {check.passed ? (
                                     <div className="verifier-ocr-check-reason-row">
@@ -1483,17 +1566,29 @@ function VerifierApplicationReview() {
                                         · {getPassedCheckMessage(check.check_name)}
                                       </span>
                                     </div>
-                                  ) : (
-                                    <div className="verifier-ocr-check-reason-row">
-                                      <span className="verifier-ocr-check-reason-label">
-                                        Flag Reason:
-                                      </span>
-                                      <span className="verifier-ocr-check-reason-value-fail">
-                                        <span className="verifier-ocr-check-reason-icon">!</span>
-                                        {check.flag_reason ?? "—"}
-                                      </span>
-                                    </div>
-                                  )}
+                                  ) : (() => {
+                                    const translated = translateFlagReason(check.check_name, check.flag_reason);
+                                    const showTechnical =
+                                      check.flag_reason && check.flag_reason !== translated;
+                                    return (
+                                      <div className="verifier-ocr-check-reason-row verifier-ocr-check-reason-row-stacked">
+                                        <div>
+                                          <span className="verifier-ocr-check-reason-label">
+                                            Flag Reason:
+                                          </span>
+                                          <span className="verifier-ocr-check-reason-value-fail">
+                                            <span className="verifier-ocr-check-reason-icon">!</span>
+                                            {translated}
+                                          </span>
+                                        </div>
+                                        {showTechnical && (
+                                          <div className="verifier-ocr-check-reason-technical">
+                                            Technical detail: {check.flag_reason}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               ))}
                             </div>
@@ -1624,39 +1719,82 @@ function VerifierApplicationReview() {
                         </summary>
 
                         <div className="verifier-ocr-flag-options">
-                          {reasonOptions.map((reason) => (
+                          {docReasonGroups.primary.map((reason) => (
                             <div
                               className="form-check verifier-ocr-flag-option"
-                              key={reason}
+                              key={reason.id}
                             >
                               <input
                                 className="form-check-input"
                                 type="checkbox"
-                                id={`flag-${tab.type}-${reason}`}
-                                checked={flagState.reasons.includes(reason)}
-                                onChange={() => toggleReason(tab.type, reason)}
+                                id={`flag-${tab.type}-${reason.id}`}
+                                checked={flagState.reasons.includes(reason.id)}
+                                onChange={() => toggleReason(tab.type, reason.id)}
                               />
 
                               <label
                                 className="form-check-label small verifier-ocr-check-label"
-                                htmlFor={`flag-${tab.type}-${reason}`}
+                                htmlFor={`flag-${tab.type}-${reason.id}`}
                               >
-                                {getFlagReasonLabel(reason)}
+                                {reason.verifierLabel}
                               </label>
-
-                              {reason === OTHER &&
-                                flagState.reasons.includes(OTHER) && (
-                                  <input
-                                    className="form-control form-control-sm verifier-ocr-other-input verifier-ocr-other-inline"
-                                    placeholder="Specify the issue..."
-                                    value={flagState.otherText}
-                                    onChange={(e) =>
-                                      setOtherText(tab.type, e.target.value)
-                                    }
-                                  />
-                                )}
                             </div>
                           ))}
+
+                          {docReasonGroups.additional.length > 0 && (
+                            <>
+                              <div className="verifier-action-subsection-label">Additional reasons</div>
+                              {docReasonGroups.additional.map((reason) => (
+                                <div
+                                  className="form-check verifier-ocr-flag-option"
+                                  key={reason.id}
+                                >
+                                  <input
+                                    className="form-check-input"
+                                    type="checkbox"
+                                    id={`flag-${tab.type}-${reason.id}`}
+                                    checked={flagState.reasons.includes(reason.id)}
+                                    onChange={() => toggleReason(tab.type, reason.id)}
+                                  />
+
+                                  <label
+                                    className="form-check-label small verifier-ocr-check-label"
+                                    htmlFor={`flag-${tab.type}-${reason.id}`}
+                                  >
+                                    {reason.verifierLabel}
+                                  </label>
+                                </div>
+                              ))}
+                            </>
+                          )}
+
+                          <div className="form-check verifier-ocr-flag-option">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id={`flag-${tab.type}-other`}
+                              checked={flagState.reasons.includes(OTHER)}
+                              onChange={() => toggleReason(tab.type, OTHER)}
+                            />
+
+                            <label
+                              className="form-check-label small verifier-ocr-check-label"
+                              htmlFor={`flag-${tab.type}-other`}
+                            >
+                              {OTHER}
+                            </label>
+
+                            {flagState.reasons.includes(OTHER) && (
+                              <input
+                                className="form-control form-control-sm verifier-ocr-other-input verifier-ocr-other-inline"
+                                placeholder="Specify the issue..."
+                                value={flagState.otherText}
+                                onChange={(e) =>
+                                  setOtherText(tab.type, e.target.value)
+                                }
+                              />
+                            )}
+                          </div>
                         </div>
                       </details>
                     </div>

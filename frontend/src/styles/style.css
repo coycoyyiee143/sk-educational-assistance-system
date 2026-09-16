@@ -10164,6 +10164,65 @@ a:hover {
   margin-bottom: 20px;
 }
 
+.verifier-doc-version-history {
+  margin: 10px 0 0;
+  padding: 10px 14px;
+  border: 1px solid #e4e9ee;
+  border-radius: 8px;
+  background: #fafbfc;
+}
+
+.verifier-doc-version-history summary {
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #4f5f6f;
+}
+
+.verifier-doc-version-list {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.verifier-doc-version-item {
+  padding: 8px 10px;
+  border: 1px solid #eef1f4;
+  border-radius: 6px;
+  background: #ffffff;
+  font-size: 0.78rem;
+}
+
+.verifier-doc-version-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  color: #38434d;
+}
+
+.verifier-doc-version-date {
+  font-weight: 400;
+  color: #8a95a1;
+}
+
+.verifier-doc-version-reason {
+  margin-top: 4px;
+  color: #667788;
+}
+
+.verifier-action-subsection-label {
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #8a95a1;
+  margin: 10px 0 6px;
+}
+
 .verifier-reject-option {
   display: flex;
   align-items: flex-start;
@@ -20067,6 +20126,14 @@ button.verifier-claiming-photo-caption-retake:hover {
   margin-top: 8px;
 }
 
+.verifier-ocr-check-value-pair--single {
+  grid-template-columns: 1fr;
+}
+
+.verifier-ocr-check-value-pair--single .verifier-ocr-check-value-col {
+  padding-left: 0;
+}
+
 .verifier-ocr-check-value-col {
   min-width: 0;
   padding-right: 16px;
@@ -20183,6 +20250,18 @@ button.verifier-claiming-photo-caption-retake:hover {
   font-size: 10px;
   font-weight: 700;
   line-height: 1;
+}
+
+.verifier-ocr-check-reason-row-stacked {
+  flex-direction: column;
+}
+
+.verifier-ocr-check-reason-technical {
+  color: #9aa5b1;
+  font-size: 0.72rem;
+  font-style: italic;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
 }
 
 .verifier-ocr-check-reason-message {
