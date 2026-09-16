@@ -1842,6 +1842,7 @@ function VerifierApplicationReview() {
                     "for_review",
                     "pending_prescreening",
                     "reupload_requested",
+                    "appeal_requested",
                   ].includes(app.status) && (
                       <button
                         type="button"
