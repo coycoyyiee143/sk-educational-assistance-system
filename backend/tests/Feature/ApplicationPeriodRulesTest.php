@@ -21,12 +21,13 @@ class ApplicationPeriodRulesTest extends TestCase
 
         $response = $this->actingAs($admin, 'sanctum')
             ->putJson("/api/admin/application-configs/{$config->id}", [
-                'school_year'  => '2026-2027',
-                'open_date'    => now()->addDays(5)->format('Y-m-d'),
-                'close_date'   => $config->close_date->format('Y-m-d'),
-                'slot_limit'   => 500,
-                'is_unlimited' => false,
-                'is_active'    => true,
+                'school_year'       => '2026-2027',
+                'open_date'         => now()->addDays(5)->format('Y-m-d'),
+                'close_date'        => $config->close_date->format('Y-m-d H:i:s'),
+                'slot_limit'        => 500,
+                'is_unlimited'      => false,
+                'is_active'         => true,
+                'assistance_amount' => $config->assistance_amount,
             ]);
 
         $response->assertOk();
@@ -42,34 +43,44 @@ class ApplicationPeriodRulesTest extends TestCase
 
         $response = $this->actingAs($admin, 'sanctum')
             ->putJson("/api/admin/application-configs/{$config->id}", [
-                'school_year'  => '2026-2027', // attempting to change a locked field
-                'open_date'    => $config->open_date->format('Y-m-d'),
-                'close_date'   => $config->close_date->format('Y-m-d'),
-                'slot_limit'   => $config->slot_limit,
-                'is_unlimited' => false,
-                'is_active'    => true,
+                'school_year'       => '2026-2027', // attempting to change a locked field
+                'open_date'         => $config->open_date->format('Y-m-d'),
+                'close_date'        => $config->close_date->format('Y-m-d H:i:s'),
+                'slot_limit'        => $config->slot_limit,
+                'is_unlimited'      => false,
+                'is_active'         => true,
+                'assistance_amount' => $config->assistance_amount,
             ]);
 
         $response->assertStatus(400);
         $this->assertEquals('2025-2026', $config->fresh()->school_year); // unchanged
     }
 
-    public function test_can_still_edit_close_date_and_active_after_period_starts()
+    // NOTE: close_date is NOT editable through this general-purpose update()
+    // endpoint at all, regardless of whether the period has started — see
+    // ApplicationConfigurationController::update()'s docblock. Extending the
+    // deadline is a separate, deliberate action (extend()), covered by
+    // ApplicationConfigurationControllerTest::test_admin_can_extend_the_closing_date().
+    // This test instead verifies that is_active CAN still be toggled after
+    // the period has started, since that field isn't in the locked set.
+    public function test_can_still_edit_active_flag_after_period_starts()
     {
         $admin = User::factory()->create(['role' => 'sk_admin']);
         $config = ApplicationConfiguration::factory()->alreadyStarted()->create();
 
         $response = $this->actingAs($admin, 'sanctum')
             ->putJson("/api/admin/application-configs/{$config->id}", [
-                'school_year'  => $config->school_year,
-                'open_date'    => $config->open_date->format('Y-m-d'),
-                'close_date'   => now()->addDays(30)->format('Y-m-d'), // extending deadline
-                'slot_limit'   => $config->slot_limit,
-                'is_unlimited' => false,
-                'is_active'    => false,
+                'school_year'       => $config->school_year,
+                'open_date'         => $config->open_date->format('Y-m-d'),
+                'close_date'        => $config->close_date->format('Y-m-d H:i:s'),
+                'slot_limit'        => $config->slot_limit,
+                'is_unlimited'      => false,
+                'is_active'         => false,
+                'assistance_amount' => $config->assistance_amount,
             ]);
 
         $response->assertOk();
+        $this->assertFalse((bool) $config->fresh()->is_active);
     }
 
     // Close Date on Uploads
@@ -124,7 +135,10 @@ class ApplicationPeriodRulesTest extends TestCase
         $this->assertEquals(10, $config->fresh()->slots_filled);
     }
 
-    public function test_approve_rejected_when_at_capacity()
+    // Approving at capacity no longer hard-rejects — VerifierController::approve()
+    // now auto-waitlists the applicant instead (200, not 400). See
+    // VerifierWaitlistTest.php for the waitlist-promotion flow this feeds into.
+    public function test_approve_waitlists_applicant_when_at_capacity()
     {
         $verifier = User::factory()->create(['role' => 'sk_verifier']);
         $config = ApplicationConfiguration::factory()->atCapacity()->create(); // 10/10
@@ -136,7 +150,8 @@ class ApplicationPeriodRulesTest extends TestCase
         $response = $this->actingAs($verifier, 'sanctum')
             ->postJson("/api/verifier/applications/{$application->id}/approve");
 
-        $response->assertStatus(400);
+        $response->assertOk();
+        $this->assertEquals('waitlisted', $application->fresh()->status);
         $this->assertEquals(10, $config->fresh()->slots_filled); // unchanged
     }
 

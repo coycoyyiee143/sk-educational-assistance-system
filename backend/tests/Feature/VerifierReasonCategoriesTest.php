@@ -183,8 +183,8 @@ class VerifierReasonCategoriesTest extends TestCase
         $schedule = ClaimingSchedule::forceCreate([
             'config_id'   => $config->id,
             'location'    => 'Barangay Mamatid Covered Court',
-            'is_published' => true,
-            'published_at' => now(),
+            'is_active'    => true,
+            'activated_at' => now(),
         ]);
 
         $lane = ClaimingLane::forceCreate([
@@ -199,7 +199,7 @@ class VerifierReasonCategoriesTest extends TestCase
             'application_id'        => $app->id,
             'claiming_schedule_id'  => $schedule->id,
             'claiming_lane_id'      => $lane->id,
-            'claim_status'          => 'pending',
+            'claim_status'          => 'pending_claiming',
         ]);
 
         return [$app, $assignment];
@@ -219,7 +219,13 @@ class VerifierReasonCategoriesTest extends TestCase
         $this->assertDatabaseHas('applications', ['id' => $app->id, 'status' => 'claimed']);
     }
 
-    public function test_unclaimed_does_not_require_reason_categories()
+    // 'unclaimed' is intentionally NOT settable through this endpoint —
+    // it's exclusively set by the SweepUnclaimedAssignments scheduled
+    // command for assignments left over after claiming day ends (see
+    // VerifierController::updateClaimStatus()'s validation and its
+    // surrounding comments). A verifier submitting it directly should be
+    // rejected, not accepted.
+    public function test_unclaimed_is_rejected_when_submitted_directly_by_a_verifier()
     {
         $verifier = $this->makeVerifier();
         [$app, $assignment] = $this->makeApprovedAssignment();
@@ -229,8 +235,8 @@ class VerifierReasonCategoriesTest extends TestCase
                 'claim_status' => 'unclaimed',
             ]);
 
-        $response->assertOk();
-        $this->assertDatabaseHas('applications', ['id' => $app->id, 'status' => 'unclaimed']);
+        $response->assertStatus(422);
+        $this->assertDatabaseHas('applications', ['id' => $app->id, 'status' => 'approved']);
     }
 
     public function test_not_cleared_requires_reason_categories()
