@@ -435,6 +435,56 @@ class VerifierController extends Controller
         return response()->json(['message' => 'Re-upload requested.']);
     }
 
+    // Resolves an appeal_requested application. Approved sends it back into
+    // the normal manual review queue (for_review) — the verifier still
+    // makes the real accept/reject call there via the existing
+    // approve/reject actions, rather than this endpoint short-circuiting
+    // straight to 'approved'. Denied restores it to 'rejected', where the
+    // one-shot guard in ApplicationController::appeal() keeps it terminal.
+    public function appealDecision(Request $request, $id)
+    {
+        $request->validate([
+            'decision' => 'required|in:approved,denied',
+            'notes'    => 'required|string',
+        ]);
+
+        $app = Application::with('user')->findOrFail($id);
+
+        if ($app->status !== 'appeal_requested') {
+            return response()->json(['message' => 'This application has no pending appeal.'], 400);
+        }
+
+        $newStatus = $request->decision === 'approved' ? 'for_review' : 'rejected';
+
+        $app->update([
+            'status'                => $newStatus,
+            'appeal_decision_notes' => $request->notes,
+            'appeal_decided_at'     => now(),
+        ]);
+
+        VerifierAction::create([
+            'application_id' => $app->id,
+            'verifier_id'    => $request->user()->id,
+            'action'         => $request->decision === 'approved' ? 'appeal_approved' : 'appeal_denied',
+            'notes'          => $request->notes,
+        ]);
+
+        \App\Models\AuditLog::record(
+            'application_appeal_' . $request->decision,
+            $app,
+            "Appeal {$request->decision} for application #{$app->id}. Notes: {$request->notes}"
+        );
+
+        $app->user->notify(new ApplicationStatusNotification(
+            $request->decision === 'approved' ? 'Appeal Approved' : 'Appeal Denied',
+            $request->decision === 'approved'
+                ? 'Your appeal has been approved and your application is back under review.'
+                : 'Your appeal was not approved. Reason: ' . $request->notes
+        ));
+
+        return response()->json(['message' => 'Appeal ' . $request->decision . '.']);
+    }
+
     public function retryOcr(\App\Models\ApplicationDocument $document)
     {
         $document->update(['status' => 'pending']);

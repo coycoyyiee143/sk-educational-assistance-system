@@ -134,6 +134,24 @@ export const STATUS_CONFIG = {
         applicantMessage: "We regret to inform you that your application did not meet the eligibility requirements. Please contact the SK office for further assistance.",
         showClaiming: false,
         showReupload: false,
+        // Only status that can offer an appeal button — gated further by
+        // application.appealed_at being unset (one appeal per rejection).
+        // See ApplicantStatus.jsx.
+        showAppeal: true,
+    },
+
+    // Applicant formally appealed a rejected application (see
+    // ApplicationController::appeal()). Sits here until a verifier resolves
+    // it via VerifierController::appealDecision() — approved routes back to
+    // for_review for a real re-check, denied returns to rejected.
+    appeal_requested: {
+        applicantLabel: "Appeal Under Review",
+        verifierLabel: "Appeal Requested",
+        boxClass: "status-box-pending",
+        badgeClass: "status-pending",
+        applicantMessage: "Your appeal has been submitted and is awaiting review by an SK Verifier. Please wait for further updates.",
+        showClaiming: false,
+        showReupload: false,
     },
 
     // [claiming_assignments.claim_status] Renamed from bare "pending" —

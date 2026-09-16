@@ -152,6 +152,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/verifier/applications/{id}/approve', [VerifierController::class, 'approve']);
         Route::post('/verifier/applications/{id}/reject', [VerifierController::class, 'reject']);
         Route::post('/verifier/applications/{id}/reupload', [VerifierController::class, 'requestReupload']);
+        Route::post('/verifier/applications/{id}/appeal-decision', [VerifierController::class, 'appealDecision']);
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
         Route::post('/verifier/documents/{document}/retry-ocr', [VerifierController::class, 'retryOcr']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
@@ -176,6 +177,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::put('/applications/{id}', [ApplicationController::class, 'update']);
         Route::post('/applications/{id}/documents', [DocumentController::class, 'upload']);
         Route::post('/applications/{id}/documents/{docId}/reupload', [DocumentController::class, 'reupload']);
+        Route::post('/applications/{id}/appeal', [ApplicationController::class, 'appeal']);
         Route::get('/applications/{id}/documents', [DocumentController::class, 'index']);
         Route::post('/face-verification', [FaceVerificationController::class, 'store']);
         Route::get('/face-verification', [FaceVerificationController::class, 'show']);

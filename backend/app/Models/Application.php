@@ -21,6 +21,11 @@ class Application extends Model
         'student_id_number',
         'status',
         'rejection_reason',
+        'appeal_reason',
+        'appeal_document_path',
+        'appealed_at',
+        'appeal_decision_notes',
+        'appeal_decided_at',
         'submitted_at',
         'waitlisted_at',
         'attestation_accepted_at',
@@ -30,6 +35,8 @@ class Application extends Model
         'submitted_at'  => 'datetime',
         'waitlisted_at' => 'datetime',
         'attestation_accepted_at' => 'datetime',
+        'appealed_at' => 'datetime',
+        'appeal_decided_at' => 'datetime',
     ];
 
     public function user()

@@ -181,6 +181,64 @@ class ApplicationController extends Controller
         ]);
     }
 
+    // Lets an applicant formally request reconsideration of a rejected
+    // application. One-shot: appealed_at being already set blocks a second
+    // request for the same rejection — the applicant must wait for a
+    // verifier decision (see VerifierController::appealDecision()) rather
+    // than being able to resubmit indefinitely.
+    public function appeal(Request $request, $id)
+    {
+        $application = Application::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        if ($application->status !== 'rejected') {
+            return response()->json([
+                'message' => 'Only a rejected application can be appealed.',
+            ], 400);
+        }
+
+        if ($application->appealed_at) {
+            return response()->json([
+                'message' => 'You have already submitted an appeal for this application.',
+            ], 400);
+        }
+
+        $request->validate([
+            'reason'   => 'required|string',
+            'document' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+        ]);
+
+        $updateData = [
+            'status'       => 'appeal_requested',
+            'appeal_reason' => $request->reason,
+            'appealed_at'  => now(),
+        ];
+
+        if ($request->hasFile('document')) {
+            $file     = $request->file('document');
+            $fileName = time() . '_' . $file->getClientOriginalName();
+            $updateData['appeal_document_path'] = $file->storeAs(
+                "documents/{$application->id}",
+                $fileName,
+                'local'
+            );
+        }
+
+        $application->update($updateData);
+
+        \App\Models\AuditLog::record(
+            'application_appeal_requested',
+            $application,
+            "Requested an appeal for application #{$application->id}. Reason: {$request->reason}"
+        );
+
+        return response()->json([
+            'message'     => 'Appeal submitted.',
+            'application' => $application,
+        ]);
+    }
+
     public function claimingSchedule(Request $request)
     {
         $application = Application::where('user_id', $request->user()->id)

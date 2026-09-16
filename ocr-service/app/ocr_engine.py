@@ -1,3 +1,12 @@
+import os
+# PaddlePaddle's MKL-DNN backend (enable_mkldnn=True below) and OpenCV each
+# bundle their own Intel OpenMP runtime. Loading both in one process trips
+# "OMP: Error #15: Initializing libiomp5md.dll, but found libiomp5md.dll
+# already initialized" - a native abort that kills the whole process
+# (crashes the server mid-upload, not a catchable Python exception). Must
+# be set before paddleocr/cv2 are imported.
+os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
+
 from paddleocr import PaddleOCR
 import cv2
 import numpy as np
