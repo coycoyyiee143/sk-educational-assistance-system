@@ -14,7 +14,7 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
-use Illuminate\Validation\Rules\Rule;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {

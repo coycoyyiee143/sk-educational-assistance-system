@@ -76,16 +76,6 @@ class OpeningDaySeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
-        ApplicationConfiguration::create([
-            'school_year'  => '2025-2026',
-            'open_date'    => now()->subHours(1),
-            'close_date'   => now()->addDays(14)->endOfDay(),
-            'slot_limit'   => 2000,
-            'slots_filled' => 0,
-            'is_unlimited' => false,
-            'is_active'    => true,
-            'created_by'   => $admin->id,
-        ]);
 
         // Deliberately no applicants, no applications, no documents —
         // this seeder's entire point is a blank slate.
