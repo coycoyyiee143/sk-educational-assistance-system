@@ -201,6 +201,7 @@ class VerifierClaimingUiTestSeeder extends Seeder
                 'claim_status'         => 'claimed',
                 'source'               => 'original',
                 'amount'               => 5000,
+                'verified_documents'   => ['registration_form', 'school_id', 'voters_certificate'],
                 'verified_by'          => $verifier->id,
                 'verified_at'          => now()->subDay(), // same day as Lane A's claiming_date
             ]
@@ -252,6 +253,7 @@ class VerifierClaimingUiTestSeeder extends Seeder
                 'claim_status'         => 'claimed',
                 'source'               => 'original',
                 'amount'               => 5000,
+                'verified_documents'   => ['registration_form', 'school_id', 'voters_certificate'],
                 'verified_by'          => $verifier->id,
                 'verified_at'          => now(), // today, on/after late_claiming_date
             ]
@@ -275,6 +277,7 @@ class VerifierClaimingUiTestSeeder extends Seeder
                 'claim_status'         => 'claimed',
                 'source'               => 'waitlist_promotion',
                 'amount'               => 5000,
+                'verified_documents'   => ['registration_form', 'school_id', 'voters_certificate'],
                 'verified_by'          => $verifier->id,
                 'verified_at'          => now(),
             ]

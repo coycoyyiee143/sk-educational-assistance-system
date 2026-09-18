@@ -240,6 +240,7 @@ class FullDemoSeeder extends Seeder
                 'claim_status'         => 'claimed',
                 'amount'               => $this->assistanceAmount,
                 'source'               => 'original',
+                'verified_documents'   => ['registration_form', 'school_id', 'voters_certificate'],
                 'verified_by'          => $this->verifier->id,
                 'verified_at'          => $lane->claiming_date,
             ]);

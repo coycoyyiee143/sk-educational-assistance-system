@@ -325,7 +325,9 @@ class WaitlistScenarioSeeder extends Seeder
         foreach ($apps as $app) {
             ClaimingAssignment::where('application_id', $app->id)->update([
                 'claim_status'       => 'claimed',
-                'verified_documents' => [],
+                // All three matched — a real "Claimed" outcome can't exist
+                // without the verifier having checked every document.
+                'verified_documents' => ['registration_form', 'school_id', 'voters_certificate'],
                 'verified_by'        => $this->verifier->id,
                 'verified_at'        => $lane->claiming_date,
                 'amount'             => $config->assistance_amount,
@@ -422,7 +424,7 @@ class WaitlistScenarioSeeder extends Seeder
 
             $assignment->update([
                 'claim_status'       => 'claimed',
-                'verified_documents' => [],
+                'verified_documents' => ['registration_form', 'school_id', 'voters_certificate'],
                 'verified_by'        => $this->verifier->id,
                 'verified_at'        => now(),
                 'amount'             => $config->assistance_amount,
