@@ -1,3 +1,4 @@
 # https://www.robotstxt.org/robotstxt.html
+# Not officially SK's yet — keep it out of search engines for now.
 User-agent: *
-Disallow:
+Disallow: /
