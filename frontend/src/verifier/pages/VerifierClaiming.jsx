@@ -442,11 +442,21 @@ function VerifierClaiming() {
   function selectApplicant(app) {
     setSelected(app);
 
+    // For an already-resolved assignment, reflect what was actually
+    // recorded at claim time instead of always showing "Not Reviewed" —
+    // verified_documents only ever lists the docs that were matched (see
+    // VerifierController::updateClaimStatus), so anything not in that
+    // list is left as unreviewed rather than guessed at as "issue".
+    const verifiedDocuments =
+      app?.claiming_assignment?.verified_documents || [];
+
     setDocStatusState(
       DOC_TYPES.reduce(
         (acc, d) => ({
           ...acc,
-          [d.key]: "unreviewed",
+          [d.key]: verifiedDocuments.includes(d.key)
+            ? "matched"
+            : "unreviewed",
         }),
         {}
       )
