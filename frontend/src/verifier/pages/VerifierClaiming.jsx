@@ -752,6 +752,8 @@ function VerifierClaiming() {
       docStatus[d.key] === "unreviewed"
   ).length;
 
+  // A document flagged Issue Found means it does NOT match the physical
+  // copy — that's disqualifying on its own, same as an undecided one.
   const claimedBlocked =
     unreviewedCount > 0 ||
     issueDocs.length > 0;
@@ -1483,28 +1485,12 @@ function VerifierClaiming() {
                               <div className="verifier-waitlist-notice-body">
                                 <p className="verifier-waitlist-notice-text">
                                   <strong>
-                                    Cannot mark as Claimed yet.
+                                    Cannot mark as Claimed.
                                   </strong>{" "}
-                                  {unreviewedCount >
-                                    0 &&
-                                    `${unreviewedCount} document(s) have not been reviewed. `}
-                                  {issueDocs.length >
-                                    0 &&
-                                    `${issueDocs
-                                      .map(
-                                        (
-                                          d
-                                        ) =>
-                                          d.label
-                                      )
-                                      .join(
-                                        ", "
-                                      )} ${issueDocs.length ===
-                                        1
-                                        ? "was"
-                                        : "were"
-                                    } flagged with an issue. `}
-                                  Please complete document verification first.
+                                  {unreviewedCount > 0 &&
+                                    `${unreviewedCount} document${unreviewedCount === 1 ? "" : "s"} still ${unreviewedCount === 1 ? "needs" : "need"} to be reviewed. `}
+                                  {issueDocs.length > 0 &&
+                                    `${issueDocs.map((d) => d.label).join(", ")} ${issueDocs.length === 1 ? "was" : "were"} flagged with an issue — this applicant cannot be marked Claimed until it's resolved. `}
                                 </p>
                               </div>
                             </div>
