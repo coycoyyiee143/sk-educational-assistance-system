@@ -45,19 +45,11 @@ class BudgetToolsDemoSeeder extends Seeder
     {
         ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
 
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@skmamatid.com'],
-            [
-                'first_name'        => 'SK Admin',
-                'middle_name'       => 'Mamatid',
-                'last_name'         => 'Official',
-                'mobile_number'     => '09123456789',
-                'password'          => Hash::make('admin123'),
-                'role'              => 'sk_admin',
-                'is_active'         => true,
-                'email_verified_at' => now(),
-            ]
-        );
+        $admin = User::where('email', 'admin@skmamatid.com')->first();
+        if (!$admin) {
+            $this->command->error('Run OpeningDaySeeder first — it creates the admin account this seeder builds on top of.');
+            return;
+        }
 
         $sharedPasswordHash = Hash::make('applicant123');
 

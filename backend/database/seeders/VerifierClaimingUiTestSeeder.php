@@ -71,33 +71,12 @@ class VerifierClaimingUiTestSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@skmamatid.com'],
-            [
-                'first_name'        => 'SK Admin',
-                'middle_name'       => 'Mamatid',
-                'last_name'         => 'Official',
-                'mobile_number'     => '09123456789',
-                'password'          => Hash::make('admin123'),
-                'role'              => 'sk_admin',
-                'is_active'         => true,
-                'email_verified_at' => now(),
-            ]
-        );
-
-        $verifier = User::firstOrCreate(
-            ['email' => 'verifier@skmamatid.com'],
-            [
-                'first_name'        => 'SK Verifier',
-                'middle_name'       => 'Mamatid',
-                'last_name'         => 'Official',
-                'mobile_number'     => '09876543210',
-                'password'          => Hash::make('verifier123'),
-                'role'              => 'sk_verifier',
-                'is_active'         => true,
-                'email_verified_at' => now(),
-            ]
-        );
+        $admin = User::where('email', 'admin@skmamatid.com')->first();
+        $verifier = User::where('email', 'verifier@skmamatid.com')->first();
+        if (!$admin || !$verifier) {
+            $this->command->error('Run OpeningDaySeeder first — it creates the admin/verifier accounts this seeder builds on top of.');
+            return;
+        }
 
         // ── ACTIVE period (current, open Late Claiming) ────────────────
         $config = ApplicationConfiguration::firstOrCreate(
@@ -118,8 +97,8 @@ class VerifierClaimingUiTestSeeder extends Seeder
             ['config_id' => $config->id],
             [
                 'location'              => 'Barangay Mamatid Covered Court',
-                'is_published'          => true,
-                'published_at'          => now()->subDays(7),
+                'is_active'             => true,
+                'activated_at'          => now()->subDays(7),
                 'late_claiming_date'     => now()->toDateString(),
                 'late_claiming_end_date' => now()->addDays(5)->toDateString(),
             ]

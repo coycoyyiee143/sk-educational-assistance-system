@@ -71,29 +71,12 @@ class DemoDataSeeder extends Seeder
 
     public function run(): void
     {
-        $admin = User::create([
-            'first_name'        => 'SK Admin',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'admin@skmamatid.com',
-            'mobile_number'     => '09123456789',
-            'password'          => Hash::make('admin123'),
-            'role'              => 'sk_admin',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
-
-        $this->verifier = User::create([
-            'first_name'        => 'SK Verifier',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'verifier@skmamatid.com',
-            'mobile_number'     => '09876543210',
-            'password'          => Hash::make('verifier123'),
-            'role'              => 'sk_verifier',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
+        $admin = User::where('email', 'admin@skmamatid.com')->first();
+        $this->verifier = User::where('email', 'verifier@skmamatid.com')->first();
+        if (!$admin || !$this->verifier) {
+            $this->command->error('Run OpeningDaySeeder first — it creates the admin/verifier accounts this seeder builds on top of.');
+            return;
+        }
 
         // ── Historical Period 1: 2023-2024, completed, lower approval rate ──
         $config2023 = ApplicationConfiguration::create([
@@ -255,8 +238,8 @@ class DemoDataSeeder extends Seeder
         $schedule = ClaimingSchedule::create([
             'config_id'    => $config->id,
             'location'     => 'Barangay Mamatid Covered Court',
-            'is_published' => true,
-            'published_at' => $config->close_date->copy()->addDays(5),
+            'is_active' => true,
+            'activated_at' => $config->close_date->copy()->addDays(5),
         ]);
 
         $lane = ClaimingLane::create([

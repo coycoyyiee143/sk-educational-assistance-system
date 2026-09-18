@@ -67,29 +67,12 @@ class FullDemoSeeder extends Seeder
     {
         $this->sharedPasswordHash = Hash::make('applicant123');
 
-        $admin = User::create([
-            'first_name'        => 'SK Admin',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'admin@skmamatid.com',
-            'mobile_number'     => '09123456789',
-            'password'          => Hash::make('admin123'),
-            'role'              => 'sk_admin',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
-
-        $this->verifier = User::create([
-            'first_name'        => 'SK Verifier',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'verifier@skmamatid.com',
-            'mobile_number'     => '09876543210',
-            'password'          => Hash::make('verifier123'),
-            'role'              => 'sk_verifier',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
+        $admin = User::where('email', 'admin@skmamatid.com')->first();
+        $this->verifier = User::where('email', 'verifier@skmamatid.com')->first();
+        if (!$admin || !$this->verifier) {
+            $this->command->error('Run OpeningDaySeeder first — it creates the admin/verifier accounts this seeder builds on top of.');
+            return;
+        }
 
         // ── Closed periods: claiming genuinely already happened, fully
         //    resolved, 100% claimed — "Applicants Funded" reads exactly
@@ -235,8 +218,8 @@ class FullDemoSeeder extends Seeder
         $schedule = ClaimingSchedule::create([
             'config_id'             => $config->id,
             'location'              => 'Barangay Mamatid Covered Court',
-            'is_published'          => true,
-            'published_at'          => $config->close_date->copy()->addDays(5),
+            'is_active'          => true,
+            'activated_at'          => $config->close_date->copy()->addDays(5),
             'late_claiming_date'     => $laneDate->copy()->addDays(3)->toDateString(),
             'late_claiming_end_date' => $laneDate->copy()->addDays(8)->toDateString(),
         ]);
@@ -369,8 +352,8 @@ class FullDemoSeeder extends Seeder
         $schedule = ClaimingSchedule::create([
             'config_id'             => $config->id,
             'location'              => 'Barangay Mamatid Covered Court',
-            'is_published'          => true,
-            'published_at'          => now()->subDays(1),
+            'is_active'          => true,
+            'activated_at'          => now()->subDays(1),
             'late_claiming_date'     => now()->toDateString(),
             'late_claiming_end_date' => now()->addDays(4)->toDateString(),
         ]);
