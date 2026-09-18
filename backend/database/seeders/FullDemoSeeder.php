@@ -237,8 +237,8 @@ class FullDemoSeeder extends Seeder
             'location'              => 'Barangay Mamatid Covered Court',
             'is_published'          => true,
             'published_at'          => $config->close_date->copy()->addDays(5),
-            'grace_period_date'     => $laneDate->copy()->addDays(3)->toDateString(),
-            'grace_period_end_date' => $laneDate->copy()->addDays(8)->toDateString(),
+            'late_claiming_date'     => $laneDate->copy()->addDays(3)->toDateString(),
+            'late_claiming_end_date' => $laneDate->copy()->addDays(8)->toDateString(),
         ]);
 
         $lane = ClaimingLane::create([
@@ -360,8 +360,8 @@ class FullDemoSeeder extends Seeder
     }
 
     /**
-     * Grace period is deliberately set to START TODAY / already open —
-     * so both Regular Claiming AND Grace Period Claiming can be
+     * Late Claiming is deliberately set to START TODAY / already open —
+     * so both Regular Claiming AND Late Claiming can be
      * demonstrated live on the same day you're presenting.
      */
     private function seedClaimingSchedule(ApplicationConfiguration $config): ClaimingSchedule
@@ -371,8 +371,8 @@ class FullDemoSeeder extends Seeder
             'location'              => 'Barangay Mamatid Covered Court',
             'is_published'          => true,
             'published_at'          => now()->subDays(1),
-            'grace_period_date'     => now()->toDateString(),
-            'grace_period_end_date' => now()->addDays(4)->toDateString(),
+            'late_claiming_date'     => now()->toDateString(),
+            'late_claiming_end_date' => now()->addDays(4)->toDateString(),
         ]);
 
         ClaimingLane::create([
@@ -408,7 +408,7 @@ class FullDemoSeeder extends Seeder
      */
     private function seedPendingClaimingAssignments(ApplicationConfiguration $config, ClaimingSchedule $schedule): void
     {
-        $lanes = $schedule->lanes()->where('lane_name', '!=', 'Grace Period Claiming')->orderBy('id')->get();
+        $lanes = $schedule->lanes()->where('lane_name', '!=', 'Late Claiming')->orderBy('id')->get();
         $remaining = Application::where('config_id', $config->id)
             ->where('status', 'approved')
             ->orderBy('control_number')
@@ -443,8 +443,8 @@ class FullDemoSeeder extends Seeder
     }
 
     /**
-     * One applicant, seeded directly at grace-period status, so the
-     * Grace Period Claiming List / promotion UI has real material to
+     * One applicant, seeded directly at Late Claiming status, so the
+     * Late Claiming List / promotion UI has real material to
      * show without needing a live promotion click first.
      */
     private function seedOnePromotedApplicant(ApplicationConfiguration $config, ClaimingSchedule $schedule): void
@@ -470,11 +470,11 @@ class FullDemoSeeder extends Seeder
         $lane = ClaimingLane::firstOrCreate(
             [
                 'claiming_schedule_id' => $schedule->id,
-                'lane_name'            => 'Grace Period Claiming',
+                'lane_name'            => 'Late Claiming',
             ],
             [
                 'batch'         => 'morning',
-                'claiming_date' => $schedule->grace_period_date,
+                'claiming_date' => $schedule->late_claiming_date,
                 'capacity'      => null,
             ]
         );

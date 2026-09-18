@@ -11,7 +11,7 @@ class SweepUnclaimedAssignments extends Command
 {
     protected $signature = 'claiming:sweep-unclaimed';
 
-    protected $description = 'Flips past-due pending_claiming assignments to unclaimed, and reassigns eligible original no-shows into a grace-period retry slot if grace period is still open.';
+    protected $description = 'Flips past-due pending_claiming assignments to unclaimed, and reassigns eligible original no-shows into a Late Claiming retry slot if Late Claiming is still open.';
 
     public function handle(): int
     {
@@ -24,16 +24,16 @@ class SweepUnclaimedAssignments extends Command
                     $q2->where('source', 'original')
                        ->whereHas('lane', fn($l) => $l->where('claiming_date', '<', now()->toDateString()));
                 })
-                // Waitlist promotions and grace-period retries both sit on
-                // the flexible "Grace Period Claiming" lane — not tied to
-                // one calendar day, since the whole point of grace period
+                // Waitlist promotions and late-claiming retries both sit on
+                // the flexible "Late Claiming" lane — not tied to
+                // one calendar day, since the whole point of Late Claiming
                 // is walking in any day within the window. Only overdue
-                // once the grace period ITSELF has ended.
+                // once Late Claiming ITSELF has ended.
                 ->orWhere(function ($q3) {
-                    $q3->whereIn('source', ['waitlist_promotion', 'grace_period_retry'])
+                    $q3->whereIn('source', ['waitlist_promotion', 'late_claiming_retry'])
                        ->whereHas('schedule', fn($s) => $s->where(function ($s2) {
-                           $s2->whereNull('grace_period_end_date')
-                              ->orWhere('grace_period_end_date', '<', now()->toDateString());
+                           $s2->whereNull('late_claiming_end_date')
+                              ->orWhere('late_claiming_end_date', '<', now()->toDateString());
                        }));
                 });
             })
@@ -45,37 +45,37 @@ class SweepUnclaimedAssignments extends Command
         foreach ($overdue as $assignment) {
             $schedule = $assignment->schedule;
             $wasOriginal = $assignment->source === 'original';
-            $graceStillOpen = $schedule
-                && $schedule->grace_period_date
-                && $schedule->grace_period_end_date
-                && now()->toDateString() <= $schedule->grace_period_end_date;
+            $lateClaimingStillOpen = $schedule
+                && $schedule->late_claiming_date
+                && $schedule->late_claiming_end_date
+                && now()->toDateString() <= $schedule->late_claiming_end_date;
 
-            // Only 'original' rows can still have grace period ahead of
+            // Only 'original' rows can still have Late Claiming ahead of
             // them at this point — anything already on the flex lane that
-            // reached this query has, by definition, had grace period end.
-            if ($wasOriginal && $graceStillOpen) {
+            // reached this query has, by definition, had Late Claiming end.
+            if ($wasOriginal && $lateClaimingStillOpen) {
                 AuditLog::record(
                     'claiming_missed_slot',
                     $assignment->application,
-                    "Application #{$assignment->application_id} missed its original claiming slot ({$assignment->lane->lane_name}, {$assignment->lane->claiming_date}) — reassigned to grace period."
+                    "Application #{$assignment->application_id} missed its original claiming slot ({$assignment->lane->lane_name}, {$assignment->lane->claiming_date}) — reassigned to Late Claiming."
                 );
 
-                $graceLane = ClaimingLane::firstOrCreate(
+                $lateClaimingLane = ClaimingLane::firstOrCreate(
                     [
                         'claiming_schedule_id' => $schedule->id,
                         'lane_name'            => 'Late Claiming',
                     ],
                     [
                         'batch'         => 'morning',
-                        'claiming_date' => $schedule->grace_period_date,
+                        'claiming_date' => $schedule->late_claiming_date,
                         'capacity'      => null,
                     ]
                 );
 
                 $assignment->update([
-                    'claiming_lane_id' => $graceLane->id,
+                    'claiming_lane_id' => $lateClaimingLane->id,
                     'claim_status'     => 'pending_claiming',
-                    'source'           => 'grace_period_retry',
+                    'source'           => 'late_claiming_retry',
                 ]);
                 // Application.status intentionally NOT touched here — a
                 // retry reassignment is not a resolution, the applicant
@@ -85,7 +85,7 @@ class SweepUnclaimedAssignments extends Command
                 continue;
             }
 
-            // Grace period has genuinely ended (or was never configured
+            // Late Claiming has genuinely ended (or was never configured
             // with an end date) — this is now final, regardless of
             // source. Sync Application.status alongside claim_status,
             // mirroring exactly what VerifierController::updateClaimStatus()
@@ -103,12 +103,12 @@ class SweepUnclaimedAssignments extends Command
                 'claiming_unclaimed_final',
                 $assignment->application,
                 $wasOriginal
-                    ? "Application #{$assignment->application_id} did not claim during its original slot, and grace period has ended — marked permanently unclaimed."
-                    : "Application #{$assignment->application_id} (source: {$assignment->source}) did not claim during grace period, which has now ended — marked permanently unclaimed."
+                    ? "Application #{$assignment->application_id} did not claim during its original slot, and Late Claiming has ended — marked permanently unclaimed."
+                    : "Application #{$assignment->application_id} (source: {$assignment->source}) did not claim during Late Claiming, which has now ended — marked permanently unclaimed."
             );
         }
 
-        $this->info("Sweep complete: {$reassigned} reassigned to grace period, {$flippedFinal} marked permanently unclaimed.");
+        $this->info("Sweep complete: {$reassigned} reassigned to Late Claiming, {$flippedFinal} marked permanently unclaimed.");
 
         return self::SUCCESS;
     }

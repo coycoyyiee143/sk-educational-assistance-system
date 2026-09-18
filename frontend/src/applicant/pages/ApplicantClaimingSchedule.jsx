@@ -198,12 +198,12 @@ function ApplicantClaimingSchedule() {
                   ))}
                 </ul>
 
-                {assignment && schedule?.grace_period_date && (
+                {assignment && schedule?.late_claiming_date && (
                   <p className="mt-3 mb-0">
                     <strong>Late Claiming:</strong>{" "}
                     If you are unable to claim on your assigned date, you may
                     still claim until{" "}
-                    {formatDate(schedule.grace_period_date)} subject to SK
+                    {formatDate(schedule.late_claiming_date)} subject to SK
                     office approval.
                   </p>
                 )}

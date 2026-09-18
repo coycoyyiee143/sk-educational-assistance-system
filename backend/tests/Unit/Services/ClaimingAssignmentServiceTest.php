@@ -103,11 +103,11 @@ class ClaimingAssignmentServiceTest extends TestCase
         $this->assertNull($result);
     }
 
-    public function test_never_assigns_into_the_grace_period_claiming_lane()
+    public function test_never_assigns_into_the_late_claiming_lane()
     {
         Notification::fake();
         $schedule = $this->makeSchedule();
-        $this->makeLane($schedule, 'Grace Period Claiming', null);
+        $this->makeLane($schedule, 'Late Claiming', null);
         $application = $this->makeApplication($schedule);
 
         $result = ClaimingAssignmentService::assignToLane($application);

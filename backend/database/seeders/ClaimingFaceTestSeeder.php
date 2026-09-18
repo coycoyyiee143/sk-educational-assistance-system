@@ -68,8 +68,8 @@ class ClaimingFaceTestSeeder extends Seeder
                 'location'              => 'Barangay Mamatid Covered Court',
                 'is_published'          => true,
                 'published_at'          => now()->subDays(2),
-                'grace_period_date'     => now()->addWeek()->startOfWeek()->addDay()->toDateString(),
-                'grace_period_end_date' => now()->addWeek()->startOfWeek()->addDays(5)->toDateString(),
+                'late_claiming_date'     => now()->addWeek()->startOfWeek()->addDay()->toDateString(),
+                'late_claiming_end_date' => now()->addWeek()->startOfWeek()->addDays(5)->toDateString(),
             ]
         );
 

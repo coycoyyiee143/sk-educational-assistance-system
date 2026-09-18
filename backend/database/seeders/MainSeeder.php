@@ -246,8 +246,8 @@ class MainSeeder extends Seeder
             'location'              => 'Barangay Mamatid Covered Court',
             'is_published'          => true,
             'published_at'          => now()->subDays(5),
-            'grace_period_date'     => now()->addDays(1)->toDateString(),
-            'grace_period_end_date' => now()->addDays(6)->toDateString(),
+            'late_claiming_date'     => now()->addDays(1)->toDateString(),
+            'late_claiming_end_date' => now()->addDays(6)->toDateString(),
         ]);
 
         $lane = ClaimingLane::create([

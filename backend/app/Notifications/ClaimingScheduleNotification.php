@@ -33,12 +33,12 @@ class ClaimingScheduleNotification extends Notification implements ShouldQueue
 
     public function toMail($notifiable)
     {
-        $isGracePeriod = $this->assignment?->source === 'waitlist_promotion';
+        $isLateClaiming = $this->assignment?->source === 'waitlist_promotion';
 
-        if ($isGracePeriod) {
-            $startDate = Carbon::parse($this->schedule->grace_period_date)->format('F j');
-            $endDate = $this->schedule->grace_period_end_date
-                ? Carbon::parse($this->schedule->grace_period_end_date)->format('F j, Y')
+        if ($isLateClaiming) {
+            $startDate = Carbon::parse($this->schedule->late_claiming_date)->format('F j');
+            $endDate = $this->schedule->late_claiming_end_date
+                ? Carbon::parse($this->schedule->late_claiming_end_date)->format('F j, Y')
                 : null;
 
             $windowText = $endDate

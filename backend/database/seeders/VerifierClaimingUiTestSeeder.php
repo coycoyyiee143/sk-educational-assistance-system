@@ -18,52 +18,52 @@ use Illuminate\Support\Facades\Hash;
  * tabs side by side:
  *
  * REGULAR CLAIMING should show:
- *   - Resolved history from BEFORE grace period started (Ana, Lane A,
+ *   - Resolved history from BEFORE Late Claiming started (Ana, Lane A,
  *     verified the same day as her lane's claiming_date)
  *
- * GRACE PERIOD LIST should show:
+ * LATE CLAIMING LIST should show:
  *   - Retrying, unresolved (Maria/Juan/Carlos/Liza/Pedro — original,
  *     lane day passed, no action taken yet)
- *   - Retrying, already reassigned by the sweep (Miguel — grace_period_retry)
- *   - Retrying, resolved DURING grace period (Elena — original source,
- *     but verified_at falls on/after grace_period_date)
+ *   - Retrying, already reassigned by the sweep (Miguel — late_claiming_retry)
+ *   - Retrying, resolved DURING Late Claiming (Elena — original source,
+ *     but verified_at falls on/after late_claiming_date)
  *   - Promoted, unresolved (Rosa — waitlist_promotion, still pending)
  *   - Promoted, resolved (Diego — waitlist_promotion, already claimed)
  *
  * NOT INCLUDED: a genuinely terminal Unclaimed example. 'unclaimed' can
- * only legitimately exist once grace period has actually ended, which
+ * only legitimately exist once Late Claiming has actually ended, which
  * means it'd need its own separate, already-closed config — and
  * searchClaiming() now scopes by the ACTIVE config_id only, so a
- * closed-period example wouldn't appear in this scenario's Grace Period
+ * closed-period example wouldn't appear in this scenario's Late Claiming
  * List anyway. Not worth seeding here; see ClaimingFaceTestSeeder or a
  * standalone scenario if this case needs covering later.
  *
  * DELIBERATELY NOT INCLUDED: a "still genuinely pending, not yet
  * overdue" regular lane example (previously "Lane C" / Ramon, now
  * removed). This is IMPOSSIBLE to demonstrate on the same schedule as
- * the grace period examples above, per the core sequencing rule: every
- * regular lane's claiming_date must be scheduled BEFORE grace_period_date.
- * Once grace period is open (as it is throughout this scenario), every
+ * the Late Claiming examples above, per the core sequencing rule: every
+ * regular lane's claiming_date must be scheduled BEFORE late_claiming_date.
+ * Once Late Claiming is open (as it is throughout this scenario), every
  * regular lane's date is, by definition, already in the past — there is
- * no valid moment where grace period is open AND a regular lane is
+ * no valid moment where Late Claiming is open AND a regular lane is
  * still upcoming. Trying to seed both in one schedule produces a state
  * the real app can never reach (this was an actual mistake in an
- * earlier version of this seeder — Lane C dated the same day grace
- * period started).
+ * earlier version of this seeder — Lane C dated the same day Late
+ * Claiming started).
  *
  * To see the "still pending, not yet overdue" case instead, seed a
- * SEPARATE, standalone scenario where grace_period_date is pushed into
- * the future (e.g. +5 days) and skip creating any grace-period-pool
- * applicants (Pedro/Miguel/Rosa/etc.) entirely — that schedule's Grace
- * Period tab will legitimately be empty, which is itself correct: grace
- * period genuinely hasn't started yet.
+ * SEPARATE, standalone scenario where late_claiming_date is pushed into
+ * the future (e.g. +5 days) and skip creating any Late-Claiming-pool
+ * applicants (Pedro/Miguel/Rosa/etc.) entirely — that schedule's Late
+ * Claiming tab will legitimately be empty, which is itself correct: Late
+ * Claiming genuinely hasn't started yet.
  *
  * Not for testing the mandatory face-verification gate specifically —
  * these are fabricated accounts with no real FaceVerification embedding.
  * See ClaimingFaceTestSeeder for that (needs a REAL registered account,
  * since face verification is atomic with signup). Regular claiming here
  * still works fine for these applicants since face verification is
- * OPTIONAL there; attempting "Claimed" on a grace period row will
+ * OPTIONAL there; attempting "Claimed" on a Late Claiming row will
  * correctly hit the mandatory-gate rejection, which IS testable here —
  * just not passing it.
  */
@@ -99,7 +99,7 @@ class VerifierClaimingUiTestSeeder extends Seeder
             ]
         );
 
-        // ── ACTIVE period (current, open grace period) ────────────────
+        // ── ACTIVE period (current, open Late Claiming) ────────────────
         $config = ApplicationConfiguration::firstOrCreate(
             ['school_year' => '2025-2026-uitest'],
             [
@@ -120,14 +120,14 @@ class VerifierClaimingUiTestSeeder extends Seeder
                 'location'              => 'Barangay Mamatid Covered Court',
                 'is_published'          => true,
                 'published_at'          => now()->subDays(7),
-                'grace_period_date'     => now()->toDateString(),
-                'grace_period_end_date' => now()->addDays(5)->toDateString(),
+                'late_claiming_date'     => now()->toDateString(),
+                'late_claiming_end_date' => now()->addDays(5)->toDateString(),
             ]
         );
 
-        // Both lanes are dated BEFORE grace_period_date, correctly
+        // Both lanes are dated BEFORE late_claiming_date, correctly
         // respecting the sequencing rule — nothing here is dated today
-        // or later, since grace period is already open.
+        // or later, since Late Claiming is already open.
         $laneA = ClaimingLane::firstOrCreate(
             ['claiming_schedule_id' => $schedule->id, 'lane_name' => 'Lane A'],
             ['capacity' => 50, 'batch' => 'morning', 'claiming_date' => now()->subDay()->toDateString()]
@@ -139,9 +139,9 @@ class VerifierClaimingUiTestSeeder extends Seeder
 
         $laneA->update(['verifier_id' => $verifier->id]);
 
-        $graceLane = ClaimingLane::firstOrCreate(
-            ['claiming_schedule_id' => $schedule->id, 'lane_name' => 'Grace Period Claiming'],
-            ['capacity' => null, 'batch' => 'morning', 'claiming_date' => $schedule->grace_period_date]
+        $lateClaimingLane = ClaimingLane::firstOrCreate(
+            ['claiming_schedule_id' => $schedule->id, 'lane_name' => 'Late Claiming'],
+            ['capacity' => null, 'batch' => 'morning', 'claiming_date' => $schedule->late_claiming_date]
         );
 
         // ── Applicant scaffolding helper (usable across any config) ────
@@ -196,7 +196,7 @@ class VerifierClaimingUiTestSeeder extends Seeder
             return $app;
         };
 
-        // ── Lane A: overdue, unresolved (should move to Grace Period) ──
+        // ── Lane A: overdue, unresolved (should move to Late Claiming) ──
         $a1 = $makeApplicant('lanea-pending1', 'Maria', 'Santos', $config);
         ClaimingAssignment::updateOrCreate(
             ['application_id' => $a1->id],
@@ -209,7 +209,7 @@ class VerifierClaimingUiTestSeeder extends Seeder
             ['claiming_schedule_id' => $schedule->id, 'claiming_lane_id' => $laneA->id, 'claim_status' => 'pending_claiming', 'source' => 'original']
         );
 
-        // Ana: resolved BEFORE grace period started (verified_at matches
+        // Ana: resolved BEFORE Late Claiming started (verified_at matches
         // her lane's claiming_date, yesterday) — this is the genuine
         // "stays in Regular as history" case.
         $a3 = $makeApplicant('lanea-claimed', 'Ana', 'Reyes', $config);
@@ -227,7 +227,7 @@ class VerifierClaimingUiTestSeeder extends Seeder
             ]
         );
 
-        // ── Lane B: overdue, unresolved (should also move to Grace Period) ──
+        // ── Lane B: overdue, unresolved (should also move to Late Claiming) ──
         $b1 = $makeApplicant('laneb-pending1', 'Carlos', 'Garcia', $config);
         ClaimingAssignment::updateOrCreate(
             ['application_id' => $b1->id],
@@ -240,30 +240,30 @@ class VerifierClaimingUiTestSeeder extends Seeder
             ['claiming_schedule_id' => $schedule->id, 'claiming_lane_id' => $laneB->id, 'claim_status' => 'pending_claiming', 'source' => 'original']
         );
 
-        // ── Grace period: RETRYING, unresolved ──────────────────────────
+        // ── Late Claiming: RETRYING, unresolved ──────────────────────────
         // Original no-show whose lane day has passed — surfaced
         // immediately without waiting on the sweep (see
-        // applyGracePeriodEligibleCondition()'s comment for why).
-        $g1 = $makeApplicant('grace-noshow', 'Pedro', 'Villanueva', $config);
+        // applyLateClaimingEligibleCondition()'s comment for why).
+        $g1 = $makeApplicant('late-claiming-noshow', 'Pedro', 'Villanueva', $config);
         ClaimingAssignment::updateOrCreate(
             ['application_id' => $g1->id],
             ['claiming_schedule_id' => $schedule->id, 'claiming_lane_id' => $laneA->id, 'claim_status' => 'pending_claiming', 'source' => 'original']
         );
 
         // Already reassigned by the sweep — also "Retrying".
-        $g3 = $makeApplicant('grace-retry', 'Miguel', 'Torres', $config);
+        $g3 = $makeApplicant('late-claiming-retry', 'Miguel', 'Torres', $config);
         ClaimingAssignment::updateOrCreate(
             ['application_id' => $g3->id],
-            ['claiming_schedule_id' => $schedule->id, 'claiming_lane_id' => $graceLane->id, 'claim_status' => 'pending_claiming', 'source' => 'grace_period_retry']
+            ['claiming_schedule_id' => $schedule->id, 'claiming_lane_id' => $lateClaimingLane->id, 'claim_status' => 'pending_claiming', 'source' => 'late_claiming_retry']
         );
 
-        // ── Grace period: RETRYING, resolved DURING grace period ────────
+        // ── Late Claiming: RETRYING, resolved DURING Late Claiming ────────
         // Source stays 'original' (never swept — walked in and got
         // resolved before the hourly sweep ever ran), but verified_at
-        // falls on/after grace_period_date, so this correctly stays
-        // visible in Grace Period as history, not bounced back to
+        // falls on/after late_claiming_date, so this correctly stays
+        // visible in Late Claiming as history, not bounced back to
         // Regular.
-        $g4 = $makeApplicant('grace-retry-resolved', 'Elena', 'Bautista', $config);
+        $g4 = $makeApplicant('late-claiming-retry-resolved', 'Elena', 'Bautista', $config);
         $g4->update(['status' => 'claimed']);
         ClaimingAssignment::updateOrCreate(
             ['application_id' => $g4->id],
@@ -274,25 +274,25 @@ class VerifierClaimingUiTestSeeder extends Seeder
                 'source'               => 'original',
                 'amount'               => 5000,
                 'verified_by'          => $verifier->id,
-                'verified_at'          => now(), // today, on/after grace_period_date
+                'verified_at'          => now(), // today, on/after late_claiming_date
             ]
         );
 
-        // ── Grace period: PROMOTED, unresolved ──────────────────────────
-        $g2 = $makeApplicant('grace-promoted', 'Rosa', 'Fernandez', $config);
+        // ── Late Claiming: PROMOTED, unresolved ──────────────────────────
+        $g2 = $makeApplicant('late-claiming-promoted', 'Rosa', 'Fernandez', $config);
         ClaimingAssignment::updateOrCreate(
             ['application_id' => $g2->id],
-            ['claiming_schedule_id' => $schedule->id, 'claiming_lane_id' => $graceLane->id, 'claim_status' => 'pending_claiming', 'source' => 'waitlist_promotion']
+            ['claiming_schedule_id' => $schedule->id, 'claiming_lane_id' => $lateClaimingLane->id, 'claim_status' => 'pending_claiming', 'source' => 'waitlist_promotion']
         );
 
-        // ── Grace period: PROMOTED, resolved ────────────────────────────
-        $g5 = $makeApplicant('grace-promoted-resolved', 'Diego', 'Ramos', $config);
+        // ── Late Claiming: PROMOTED, resolved ────────────────────────────
+        $g5 = $makeApplicant('late-claiming-promoted-resolved', 'Diego', 'Ramos', $config);
         $g5->update(['status' => 'claimed']);
         ClaimingAssignment::updateOrCreate(
             ['application_id' => $g5->id],
             [
                 'claiming_schedule_id' => $schedule->id,
-                'claiming_lane_id'     => $graceLane->id,
+                'claiming_lane_id'     => $lateClaimingLane->id,
                 'claim_status'         => 'claimed',
                 'source'               => 'waitlist_promotion',
                 'amount'               => 5000,
@@ -303,14 +303,14 @@ class VerifierClaimingUiTestSeeder extends Seeder
 
         $this->command->info('VerifierClaimingUiTestSeeder done. Log in as verifier@skmamatid.com / verifier123.');
         $this->command->info('--- Regular Claiming ---');
-        $this->command->info('Lane A (assigned to you): Maria + Juan pending — WILL move to Grace Period (overdue).');
-        $this->command->info('Lane A also: Ana — CLAIMED, stays here as history (resolved before grace period).');
-        $this->command->info('Lane B: Carlos + Liza pending — WILL move to Grace Period (overdue).');
-        $this->command->info('--- Grace Period List ---');
-        $this->command->info('Retrying, unresolved: Pedro (original, unswept), Miguel (grace_period_retry).');
-        $this->command->info('Retrying, resolved: Elena — CLAIMED during grace period, stays here as history.');
+        $this->command->info('Lane A (assigned to you): Maria + Juan pending — WILL move to Late Claiming (overdue).');
+        $this->command->info('Lane A also: Ana — CLAIMED, stays here as history (resolved before Late Claiming).');
+        $this->command->info('Lane B: Carlos + Liza pending — WILL move to Late Claiming (overdue).');
+        $this->command->info('--- Late Claiming List ---');
+        $this->command->info('Retrying, unresolved: Pedro (original, unswept), Miguel (late_claiming_retry).');
+        $this->command->info('Retrying, resolved: Elena — CLAIMED during Late Claiming, stays here as history.');
         $this->command->info('Promoted, unresolved: Rosa (waitlist_promotion).');
         $this->command->info('Promoted, resolved: Diego — CLAIMED, stays here as history.');
-        $this->command->info('NOTE: "still pending, not yet overdue" regular claiming is NOT demonstrated here — see class docblock for why it cannot coexist with an already-open grace period.');
+        $this->command->info('NOTE: "still pending, not yet overdue" regular claiming is NOT demonstrated here — see class docblock for why it cannot coexist with an already-open Late Claiming.');
     }
 }

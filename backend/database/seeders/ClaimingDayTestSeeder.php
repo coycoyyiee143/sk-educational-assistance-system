@@ -15,12 +15,12 @@ use Illuminate\Support\Facades\Hash;
 
 /**
  * Seeds a REGULAR claiming day scenario — deliberately separate from
- * WaitlistScenarioSeeder's grace-period-focused one, since a regular
- * lane's claiming_date can never coincide with an open grace period (see
- * VerifierClaimingUiTestSeeder's docblock: grace period only opens once
+ * WaitlistScenarioSeeder's Late-Claiming-focused one, since a regular
+ * lane's claiming_date can never coincide with an open Late Claiming (see
+ * VerifierClaimingUiTestSeeder's docblock: Late Claiming only opens once
  * every regular lane's date has already passed). This schedule has NO
- * grace_period_date/end at all, so nothing here leaks into the Grace
- * Period List.
+ * late_claiming_date/end at all, so nothing here leaks into the Late
+ * Claiming List.
  *
  * Scenario: 3 verifiers, each assigned their own lane by control-number
  * range (Lane A 1-10, Lane B 11-20, Lane C 21-30), all pending — nothing
@@ -125,7 +125,7 @@ class ClaimingDayTestSeeder extends Seeder
                 'location'     => 'Barangay Mamatid Covered Court',
                 'is_active'    => true,
                 'activated_at' => now(),
-                // Deliberately no grace_period_date/end — this schedule
+                // Deliberately no late_claiming_date/end — this schedule
                 // is regular-claiming-only.
             ]);
 
@@ -159,7 +159,7 @@ class ClaimingDayTestSeeder extends Seeder
             }
         });
 
-        $this->command->info('Claiming day scenario seeded: 30/30 slots filled across 3 lanes (10 each) — Lane A your verifier, Lane B verifier2@skmamatid.com, Lane C verifier3@skmamatid.com (password verifier123 for both). 4 extra applicants sit on the waitlist. No grace period configured on this schedule on purpose. Mark someone Not Cleared to free a slot, then Promote from the Waitlist page (close_date has already passed).');
+        $this->command->info('Claiming day scenario seeded: 30/30 slots filled across 3 lanes (10 each) — Lane A your verifier, Lane B verifier2@skmamatid.com, Lane C verifier3@skmamatid.com (password verifier123 for both). 4 extra applicants sit on the waitlist. No Late Claiming configured on this schedule on purpose. Mark someone Not Cleared to free a slot, then Promote from the Waitlist page (close_date has already passed).');
     }
 
     /**

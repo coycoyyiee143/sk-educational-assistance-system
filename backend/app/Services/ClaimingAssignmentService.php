@@ -72,7 +72,7 @@ class ClaimingAssignmentService
                 return null;
             }
 
-            // Lock every regular (non-Grace-Period-Claiming) lane row for
+            // Lock every regular (non-Late-Claiming) lane row for
             // this schedule. A concurrent call hitting the same schedule
             // blocks here until this transaction commits or rolls back,
             // so nobody reads a stale "still has room" snapshot.

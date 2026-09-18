@@ -7,36 +7,36 @@ use App\Models\ApplicationConfiguration;
 use App\Models\ClaimingAssignment;
 use App\Models\ClaimingLane;
 use App\Models\ClaimingSchedule;
-use App\Traits\GracePeriodEligibility;
+use App\Traits\LateClaimingEligibility;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionMethod;
 use Tests\TestCase;
 
 /**
- * Unit-level coverage for App\Traits\GracePeriodEligibility — the shared
- * "is this claiming_assignments row grace-period-eligible" decision logic
+ * Unit-level coverage for App\Traits\LateClaimingEligibility — the shared
+ * "is this claiming_assignments row Late-Claiming-eligible" decision logic
  * used identically by VerifierController::updateClaimStatus()/
  * searchClaiming() and AdminReportController. Exercised here through a
  * tiny anonymous harness class that `use`s the trait directly, with the
  * private methods invoked via reflection — no HTTP/routing/middleware
  * layer involved, only the query-building/branching logic itself.
  */
-class GracePeriodEligibilityTest extends TestCase
+class LateClaimingEligibilityTest extends TestCase
 {
     use RefreshDatabase;
 
     protected function harness(): object
     {
         return new class {
-            use GracePeriodEligibility;
+            use LateClaimingEligibility;
         };
     }
 
-    /** Calls the private applyGracePeriodEligibleCondition() and returns matching assignment ids. */
+    /** Calls the private applyLateClaimingEligibleCondition() and returns matching assignment ids. */
     protected function eligibleIds(string $today): array
     {
         $harness = $this->harness();
-        $method = new ReflectionMethod($harness, 'applyGracePeriodEligibleCondition');
+        $method = new ReflectionMethod($harness, 'applyLateClaimingEligibleCondition');
         $method->setAccessible(true);
 
         $query = ClaimingAssignment::query();
@@ -45,25 +45,25 @@ class GracePeriodEligibilityTest extends TestCase
         return $query->pluck('id')->all();
     }
 
-    protected function gracePeriodType(string $source): string
+    protected function lateClaimingType(string $source): string
     {
         $harness = $this->harness();
-        $method = new ReflectionMethod($harness, 'gracePeriodType');
+        $method = new ReflectionMethod($harness, 'lateClaimingType');
         $method->setAccessible(true);
 
         return $method->invoke($harness, $source);
     }
 
-    protected function makeSchedule(?string $graceStart, ?string $graceEnd): ClaimingSchedule
+    protected function makeSchedule(?string $lateClaimingStart, ?string $lateClaimingEnd): ClaimingSchedule
     {
         $config = ApplicationConfiguration::factory()->create();
 
         return ClaimingSchedule::forceCreate([
-            'config_id'             => $config->id,
-            'location'              => 'Barangay Hall',
-            'is_active'             => true,
-            'grace_period_date'     => $graceStart,
-            'grace_period_end_date' => $graceEnd,
+            'config_id'              => $config->id,
+            'location'               => 'Barangay Hall',
+            'is_active'              => true,
+            'late_claiming_date'     => $lateClaimingStart,
+            'late_claiming_end_date' => $lateClaimingEnd,
         ]);
     }
 
@@ -106,13 +106,13 @@ class GracePeriodEligibilityTest extends TestCase
         $this->assertContains($assignment->id, $this->eligibleIds($today));
     }
 
-    public function test_grace_period_retry_source_is_always_eligible()
+    public function test_late_claiming_retry_source_is_always_eligible()
     {
         $today = '2026-10-05';
         $schedule = $this->makeSchedule(null, null);
         $lane = $this->makeLane($schedule, '2026-10-01');
         $assignment = $this->makeAssignment($schedule, $lane, [
-            'source'       => 'grace_period_retry',
+            'source'       => 'late_claiming_retry',
             'claim_status' => 'claimed',
         ]);
 
@@ -134,7 +134,7 @@ class GracePeriodEligibilityTest extends TestCase
         $this->assertContains($assignment->id, $this->eligibleIds($today));
     }
 
-    public function test_original_source_pending_with_lane_day_passed_during_open_grace_period_is_eligible()
+    public function test_original_source_pending_with_lane_day_passed_during_open_late_claiming_is_eligible()
     {
         $today = '2026-10-05';
         $schedule = $this->makeSchedule('2026-10-03', '2026-10-10');
@@ -160,10 +160,10 @@ class GracePeriodEligibilityTest extends TestCase
         $this->assertNotContains($assignment->id, $this->eligibleIds($today));
     }
 
-    public function test_original_source_pending_with_lane_day_passed_but_grace_period_not_yet_open_is_not_eligible()
+    public function test_original_source_pending_with_lane_day_passed_but_late_claiming_not_yet_open_is_not_eligible()
     {
         $today = '2026-10-05';
-        $schedule = $this->makeSchedule('2026-10-08', '2026-10-15'); // grace period hasn't started
+        $schedule = $this->makeSchedule('2026-10-08', '2026-10-15'); // Late Claiming hasn't started
         $lane = $this->makeLane($schedule, '2026-10-01');
         $assignment = $this->makeAssignment($schedule, $lane, [
             'source'       => 'original',
@@ -173,10 +173,10 @@ class GracePeriodEligibilityTest extends TestCase
         $this->assertNotContains($assignment->id, $this->eligibleIds($today));
     }
 
-    public function test_original_source_pending_with_lane_day_passed_but_grace_period_already_ended_is_not_eligible()
+    public function test_original_source_pending_with_lane_day_passed_but_late_claiming_already_ended_is_not_eligible()
     {
         $today = '2026-10-20';
-        $schedule = $this->makeSchedule('2026-10-03', '2026-10-10'); // grace period already closed
+        $schedule = $this->makeSchedule('2026-10-03', '2026-10-10'); // Late Claiming already closed
         $lane = $this->makeLane($schedule, '2026-10-01');
         $assignment = $this->makeAssignment($schedule, $lane, [
             'source'       => 'original',
@@ -186,9 +186,9 @@ class GracePeriodEligibilityTest extends TestCase
         $this->assertNotContains($assignment->id, $this->eligibleIds($today));
     }
 
-    // ── Group 3: source=original, resolved during grace period ────
+    // ── Group 3: source=original, resolved during Late Claiming ────
 
-    public function test_original_source_resolved_claimed_during_grace_period_window_is_eligible()
+    public function test_original_source_resolved_claimed_during_late_claiming_window_is_eligible()
     {
         $today = '2026-10-05';
         $schedule = $this->makeSchedule('2026-10-03', '2026-10-10');
@@ -196,13 +196,13 @@ class GracePeriodEligibilityTest extends TestCase
         $assignment = $this->makeAssignment($schedule, $lane, [
             'source'       => 'original',
             'claim_status' => 'claimed',
-            'verified_at'  => '2026-10-04 09:00:00', // on/after grace_period_date
+            'verified_at'  => '2026-10-04 09:00:00', // on/after late_claiming_date
         ]);
 
         $this->assertContains($assignment->id, $this->eligibleIds($today));
     }
 
-    public function test_original_source_resolved_not_cleared_before_grace_period_started_is_not_eligible()
+    public function test_original_source_resolved_not_cleared_before_late_claiming_started_is_not_eligible()
     {
         $today = '2026-10-05';
         $schedule = $this->makeSchedule('2026-10-03', '2026-10-10');
@@ -210,7 +210,7 @@ class GracePeriodEligibilityTest extends TestCase
         $assignment = $this->makeAssignment($schedule, $lane, [
             'source'       => 'original',
             'claim_status' => 'not_cleared',
-            'verified_at'  => '2026-10-01 09:00:00', // resolved on their normal lane day, before grace period
+            'verified_at'  => '2026-10-01 09:00:00', // resolved on their normal lane day, before Late Claiming
         ]);
 
         $this->assertNotContains($assignment->id, $this->eligibleIds($today));
@@ -230,20 +230,20 @@ class GracePeriodEligibilityTest extends TestCase
         $this->assertNotContains($assignment->id, $this->eligibleIds($today));
     }
 
-    // ── gracePeriodType() ──────────────────────────────────────────
+    // ── lateClaimingType() ──────────────────────────────────────────
 
-    public function test_grace_period_type_labels_waitlist_promotion_as_promoted()
+    public function test_late_claiming_type_labels_waitlist_promotion_as_promoted()
     {
-        $this->assertEquals('promoted', $this->gracePeriodType('waitlist_promotion'));
+        $this->assertEquals('promoted', $this->lateClaimingType('waitlist_promotion'));
     }
 
-    public function test_grace_period_type_labels_grace_period_retry_as_retrying()
+    public function test_late_claiming_type_labels_late_claiming_retry_as_retrying()
     {
-        $this->assertEquals('retrying', $this->gracePeriodType('grace_period_retry'));
+        $this->assertEquals('retrying', $this->lateClaimingType('late_claiming_retry'));
     }
 
-    public function test_grace_period_type_labels_original_as_retrying()
+    public function test_late_claiming_type_labels_original_as_retrying()
     {
-        $this->assertEquals('retrying', $this->gracePeriodType('original'));
+        $this->assertEquals('retrying', $this->lateClaimingType('original'));
     }
 }

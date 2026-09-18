@@ -135,10 +135,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/year-level-age/pdf', [AdminReportController::class, 'yearLevelAgePdf']);
         Route::get('/admin/reports/submission-trends/pdf', [AdminReportController::class, 'submissionTrendsPdf']);
         Route::get('/admin/reports/submission-vs-approval/pdf', [AdminReportController::class, 'submissionVsApprovalPdf']);
-        Route::get('/admin/reports/grace-period-claiming-list/pdf', [AdminReportController::class, 'gracePeriodClaimingListPdf']);
+        Route::get('/admin/reports/late-claiming-list/pdf', [AdminReportController::class, 'lateClaimingListPdf']);
         Route::get('/admin/reports/approved-applicants/pdf', [AdminReportController::class, 'approvedApplicantsPdf']);
         Route::get('/admin/reports/approved-applicants/html', [AdminReportController::class, 'approvedApplicantsHtml']);
-        Route::get('/admin/reports/grace-period-claiming-list', [AdminReportController::class, 'gracePeriodClaimingList']);
+        Route::get('/admin/reports/late-claiming-list', [AdminReportController::class, 'lateClaimingList']);
         Route::get('/admin/reports/disbursement', [AdminReportController::class, 'disbursementReport']);
         Route::get('/admin/reports/disbursement/pdf', [AdminReportController::class, 'disbursementReportPdf']);
         Route::get('/admin/reports/ocr-queue-health', [AdminReportController::class, 'ocrQueueHealth']);

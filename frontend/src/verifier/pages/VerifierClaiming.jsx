@@ -118,13 +118,13 @@ function VerifierClaiming() {
   const [assignedLane, setAssignedLane] = useState(null);
   const [allLanes, setAllLanes] = useState([]);
 
-  const [gracePeriodDates, setGracePeriodDates] = useState({
+  const [lateClaimingDates, setLateClaimingDates] = useState({
     start: null,
     end: null,
   });
 
   const [selectedLaneId, setSelectedLaneId] = useState("");
-  const [gracePeriodMode, setGracePeriodMode] = useState(false);
+  const [lateClaimingMode, setLateClaimingMode] = useState(false);
   const [assigningLane, setAssigningLane] = useState(false);
   const [laneRequestMessage, setLaneRequestMessage] = useState("");
   const [pendingRequestLaneId, setPendingRequestLaneId] = useState(null);
@@ -156,23 +156,23 @@ function VerifierClaiming() {
           );
         }
 
-        setGracePeriodDates({
-          start: res.data.grace_period_date ?? null,
-          end: res.data.grace_period_end_date ?? null,
+        setLateClaimingDates({
+          start: res.data.late_claiming_date ?? null,
+          end: res.data.late_claiming_end_date ?? null,
         });
 
         if (!modeManuallySetRef.current) {
           const today = todayStr();
-          const gpStart = res.data.grace_period_date;
-          const gpEnd = res.data.grace_period_end_date;
+          const lateClaimingStart = res.data.late_claiming_date;
+          const lateClaimingEnd = res.data.late_claiming_end_date;
 
-          const isGracePeriodNow =
-            gpStart &&
-            gpEnd &&
-            today >= gpStart &&
-            today <= gpEnd;
+          const isLateClaimingNow =
+            lateClaimingStart &&
+            lateClaimingEnd &&
+            today >= lateClaimingStart &&
+            today <= lateClaimingEnd;
 
-          setGracePeriodMode(isGracePeriodNow);
+          setLateClaimingMode(isLateClaimingNow);
         }
 
         setLanesLoaded(true);
@@ -190,7 +190,7 @@ function VerifierClaiming() {
   useEffect(() => {
     if (!lanesLoaded) return;
 
-    if (gracePeriodMode) {
+    if (lateClaimingMode) {
       handleSearch({
         preventDefault: () => { },
       });
@@ -201,7 +201,7 @@ function VerifierClaiming() {
     }
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lanesLoaded, gracePeriodMode, assignedLane]);
+  }, [lanesLoaded, lateClaimingMode, assignedLane]);
 
   useEffect(() => {
     if (!fileError) return;
@@ -226,8 +226,8 @@ function VerifierClaiming() {
     if (selected || submitting) return;
 
     const params = {};
-    if (gracePeriodMode) {
-      params.grace_period = 1;
+    if (lateClaimingMode) {
+      params.late_claiming = 1;
       if (controlNo.trim()) params.control_number = controlNo.trim();
       if (applicantName.trim()) params.name = applicantName.trim();
     } else {
@@ -250,7 +250,7 @@ function VerifierClaiming() {
       // ticks and just let the next tick (or a manual Refresh) sort it
       // out.
     }
-  }, [selected, submitting, gracePeriodMode, selectedLaneId, controlNo, applicantName]);
+  }, [selected, submitting, lateClaimingMode, selectedLaneId, controlNo, applicantName]);
 
   // Was a raw setInterval with no visibility pause or overlap guard —
   // usePolling adds both. All the existing skip logic (selected/
@@ -312,7 +312,7 @@ function VerifierClaiming() {
   function switchToRegularMode() {
     modeManuallySetRef.current = true;
 
-    setGracePeriodMode(false);
+    setLateClaimingMode(false);
     setResults([]);
     setCurrentPage(1);
     setSelected(null);
@@ -327,10 +327,10 @@ function VerifierClaiming() {
     }
   }
 
-  function switchToGracePeriodMode() {
+  function switchToLateClaimingMode() {
     modeManuallySetRef.current = true;
 
-    setGracePeriodMode(true);
+    setLateClaimingMode(true);
     setResults([]);
     setCurrentPage(1);
     setSelected(null);
@@ -376,7 +376,7 @@ function VerifierClaiming() {
     setSelected(null);
 
     if (
-      !gracePeriodMode &&
+      !lateClaimingMode &&
       !controlNo.trim() &&
       !applicantName.trim() &&
       !selectedLaneId
@@ -393,8 +393,8 @@ function VerifierClaiming() {
     try {
       const params = {};
 
-      if (gracePeriodMode) {
-        params.grace_period = 1;
+      if (lateClaimingMode) {
+        params.late_claiming = 1;
 
         if (controlNo.trim()) {
           params.control_number = controlNo.trim();
@@ -793,12 +793,12 @@ function VerifierClaiming() {
     );
 
   const showResultsCard =
-    gracePeriodMode ||
+    lateClaimingMode ||
     searching ||
     results.length > 0 ||
     searchError;
 
-  // Grace period walk-ins have no lane/schedule structure backing up who
+  // Late Claiming walk-ins have no lane/schedule structure backing up who
   // they are, so identity comes first: Face Verification renders as Step
   // 1 and Document Verification as Step 2 there. Regular claiming has no
   // Face Verification step at all (see the docblock further down), so
@@ -806,7 +806,7 @@ function VerifierClaiming() {
   // full width instead.
   const documentVerificationPanel = (
     <div
-      className={`verifier-claiming-split-col verifier-claiming-verification-col ${gracePeriodMode
+      className={`verifier-claiming-split-col verifier-claiming-verification-col ${lateClaimingMode
         ? "verifier-claiming-split-col-border"
         : ""
         }`}
@@ -816,7 +816,7 @@ function VerifierClaiming() {
           Document Verification
         </h4>
 
-        {gracePeriodMode && (
+        {lateClaimingMode && (
           <span className="verifier-claiming-step-badge">
             Step 2
           </span>
@@ -832,7 +832,7 @@ function VerifierClaiming() {
 
         <div className="verifier-waitlist-notice-body">
           <p className="verifier-waitlist-notice-text">
-            {gracePeriodMode
+            {lateClaimingMode
               ? "Confirm the physical documents match the approved record after identity has been verified."
               : "Confirm the physical documents match the approved record."}
           </p>
@@ -980,7 +980,7 @@ function VerifierClaiming() {
     </div>
   );
 
-  const faceVerificationPanel = gracePeriodMode && selected && (
+  const faceVerificationPanel = lateClaimingMode && selected && (
     <div className="verifier-claiming-split-col verifier-claiming-verification-col">
       <div className="verifier-claiming-step-heading">
         <h4 className="verifier-claiming-mode-title">
@@ -1010,7 +1010,7 @@ function VerifierClaiming() {
             selected?.id
           }
           required={
-            gracePeriodMode
+            lateClaimingMode
           }
           registrationPhotoUrl={
             registrationPhotoUrl
@@ -1306,7 +1306,7 @@ function VerifierClaiming() {
                           </span>
                         </div>
 
-                        {gracePeriodMode && (
+                        {lateClaimingMode && (
                           <div className="verifier-review-detail-item">
                             <span className="verifier-review-detail-label">
                               Assignment Type
@@ -1390,7 +1390,7 @@ function VerifierClaiming() {
                     Verification Process
                   </h4>
 
-                  {/* Grace period walk-ins have no lane/schedule
+                  {/* Late Claiming walk-ins have no lane/schedule
                      structure backing up who they are, so identity comes
                      first — Face Verification renders as Step 1 and
                      Document Verification as Step 2. Regular claiming has
@@ -1399,15 +1399,15 @@ function VerifierClaiming() {
                      own list), so Face Verification is skipped entirely
                      there rather than shown as merely optional — matches
                      the backend, which already only enforces a passed
-                     face verification for grace-period 'claimed' actions
+                     face verification for Late Claiming 'claimed' actions
                      (see VerifierController::updateClaimStatus). */}
                   <div
-                    className={`verifier-claiming-split-card ${!gracePeriodMode
+                    className={`verifier-claiming-split-card ${!lateClaimingMode
                       ? "verifier-claiming-split-card-single"
                       : ""
                       }`}
                   >
-                    {gracePeriodMode ? (
+                    {lateClaimingMode ? (
                       <>
                         {faceVerificationPanel}
                         {documentVerificationPanel}
@@ -1525,7 +1525,7 @@ function VerifierClaiming() {
                         <div className="verifier-claiming-mode-tabs">
                           <button
                             type="button"
-                            className={`verifier-claiming-mode-btn ${!gracePeriodMode
+                            className={`verifier-claiming-mode-btn ${!lateClaimingMode
                               ? "verifier-claiming-mode-btn-active"
                               : ""
                               }`}
@@ -1538,12 +1538,12 @@ function VerifierClaiming() {
 
                           <button
                             type="button"
-                            className={`verifier-claiming-mode-btn ${gracePeriodMode
+                            className={`verifier-claiming-mode-btn ${lateClaimingMode
                               ? "verifier-claiming-mode-btn-active"
                               : ""
                               }`}
                             onClick={
-                              switchToGracePeriodMode
+                              switchToLateClaimingMode
                             }
                           >
                             Late Claiming
@@ -1551,9 +1551,9 @@ function VerifierClaiming() {
                         </div>
                       </div>
 
-                      {gracePeriodMode ? (
-                        gracePeriodDates.start &&
-                          gracePeriodDates.end ? (
+                      {lateClaimingMode ? (
+                        lateClaimingDates.start &&
+                          lateClaimingDates.end ? (
                           <div className="verifier-claiming-context verifier-claiming-context-warning">
                             <span className="verifier-claiming-context-icon">
                               <i className="bi bi-calendar3"></i>
@@ -1569,22 +1569,22 @@ function VerifierClaiming() {
                                 {Math.max(
                                   1,
                                   daysBetween(
-                                    gracePeriodDates.start,
+                                    lateClaimingDates.start,
                                     todayStr()
                                   ) + 1
                                 )}
                                 /
                                 {daysBetween(
-                                  gracePeriodDates.start,
-                                  gracePeriodDates.end
+                                  lateClaimingDates.start,
+                                  lateClaimingDates.end
                                 ) + 1}{" "}
                                 (
                                 {formatDateDisplay(
-                                  gracePeriodDates.start
+                                  lateClaimingDates.start
                                 )}{" "}
                                 –{" "}
                                 {formatDateDisplay(
-                                  gracePeriodDates.end
+                                  lateClaimingDates.end
                                 )}
                                 )
                               </span>
@@ -1802,7 +1802,7 @@ function VerifierClaiming() {
 
                     <div className="verifier-claiming-split-col verifier-claiming-split-col-border">
                       <h4 className="verifier-claiming-search-title">
-                        {gracePeriodMode
+                        {lateClaimingMode
                           ? "Filter Late Claiming List"
                           : "Search Applicant"}
                       </h4>
@@ -1869,14 +1869,14 @@ function VerifierClaiming() {
                             >
                               {searching
                                 ? "Searching..."
-                                : gracePeriodMode
+                                : lateClaimingMode
                                   ? "Filter"
                                   : "Search"}
                             </button>
                           </fieldset>
                         </form>
 
-                        {gracePeriodMode ? (
+                        {lateClaimingMode ? (
                           <p className="text-muted small mt-3 mb-0">
                             Showing everyone currently in the Late Claiming pool. Filter by control number or name above, or leave blank to see everyone.
                           </p>
@@ -1897,12 +1897,12 @@ function VerifierClaiming() {
                   <div className="page-card verifier-attention-card verifier-claiming-results-card">
                     <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                       <h4 className="verifier-claiming-results-title mb-0">
-                        {gracePeriodMode
+                        {lateClaimingMode
                           ? "Late Claiming Applicants"
                           : "Search Results"}
                       </h4>
 
-                      {gracePeriodMode && (
+                      {lateClaimingMode && (
                         <button
                           type="button"
                           className="verifier-ocr-refresh-btn"
@@ -1957,7 +1957,7 @@ function VerifierClaiming() {
                         <>
                           <div className="table-responsive mt-3 verifier-claiming-table-wrap">
                             <table className="table table-bordered table-striped align-middle verifier-attention-table verifier-claiming-results-table">
-                              {gracePeriodMode ? (
+                              {lateClaimingMode ? (
                                 <colgroup>
                                   <col
                                     style={{
@@ -2046,7 +2046,7 @@ function VerifierClaiming() {
                                     Status
                                   </th>
 
-                                  {gracePeriodMode && (
+                                  {lateClaimingMode && (
                                     <th>
                                       Type
                                     </th>
@@ -2063,7 +2063,7 @@ function VerifierClaiming() {
                                   <tr>
                                     <td
                                       colSpan={
-                                        gracePeriodMode
+                                        lateClaimingMode
                                           ? 6
                                           : 5
                                       }
@@ -2106,7 +2106,7 @@ function VerifierClaiming() {
                                             <tr className="verifier-claiming-results-divider">
                                               <td
                                                 colSpan={
-                                                  gracePeriodMode
+                                                  lateClaimingMode
                                                     ? 6
                                                     : 5
                                                 }
@@ -2155,7 +2155,7 @@ function VerifierClaiming() {
                                               />
                                             </td>
 
-                                            {gracePeriodMode && (
+                                            {lateClaimingMode && (
                                               <td className="verifier-claiming-type-cell">
                                                 {app
                                                   .claiming_assignment
@@ -2169,7 +2169,7 @@ function VerifierClaiming() {
                                                 {(app
                                                   .claiming_assignment
                                                   ?.source ===
-                                                  "grace_period_retry" ||
+                                                  "late_claiming_retry" ||
                                                   app
                                                     .claiming_assignment
                                                     ?.source ===
@@ -2313,7 +2313,7 @@ function VerifierClaiming() {
                       !searching &&
                       !searchError && (
                         <p className="text-muted small mt-3 mb-0">
-                          {gracePeriodMode
+                          {lateClaimingMode
                             ? "No applicants currently in the Late Claiming list."
                             : "No matching applicants found."}
                         </p>
