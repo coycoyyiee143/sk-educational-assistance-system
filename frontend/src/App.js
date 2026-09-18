@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GuestRoute from "./components/GuestRoute";
+import { useAuth } from "./context/AuthContext";
 
 import Home from "./public/pages/Home";
 import Requirements from "./public/pages/Requirements";
@@ -41,6 +42,23 @@ import ApplicantClaimingSchedule from "./applicant/pages/ApplicantClaimingSchedu
 
 
 function App() {
+  const { loading } = useAuth();
+
+  // Gated here, once, above <Routes> — every route below (each wrapped
+  // in its own ProtectedRoute/GuestRoute) mounts fresh on every in-app
+  // navigation, so checking `loading` inside those instead of here used
+  // to re-flash this same full-screen spinner on every sidebar click,
+  // not just on the app's actual first load.
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ height: "100vh" }}>
+        <div className="spinner-border text-danger" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
@@ -55,14 +56,14 @@ const Home = () => {
 
       <nav className="navbar navbar-expand-lg navbar-custom sticky-top">
         <div className="container">
-          <a className="navbar-brand navbar-brand-custom" href="/">
+          <Link className="navbar-brand navbar-brand-custom" to="/">
             <img src="/icons/sk-logo.jpg" alt="SK Logo" />
 
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>
             </div>
-          </a>
+          </Link>
 
           <button
             className="navbar-toggler"
@@ -79,39 +80,39 @@ const Home = () => {
           >
             <ul className="navbar-nav">
               <li className="nav-item">
-                <a className="nav-link active" href="/">
+                <Link className="nav-link active" to="/">
                   Home
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/requirements">
+                <Link className="nav-link" to="/requirements">
                   Requirements
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/announcements">
+                <Link className="nav-link" to="/announcements">
                   Announcements
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/events">
+                <Link className="nav-link" to="/events">
                   Events
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/login">
+                <Link className="nav-link" to="/login">
                   Login
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/register">
+                <Link className="nav-link" to="/register">
                   Register
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

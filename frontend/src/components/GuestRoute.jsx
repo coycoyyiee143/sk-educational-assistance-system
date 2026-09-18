@@ -6,17 +6,9 @@ import { useAuth } from "../context/AuthContext";
 // (Login, Register) from a user who's already signed in. Sends them to
 // their role's dashboard instead of showing the login/register form.
 const GuestRoute = ({ children }) => {
-    const { user, loading } = useAuth();
-
-    if (loading) {
-        return (
-            <div className="d-flex justify-content-center align-items-center" style={{ height: "100vh" }}>
-                <div className="spinner-border text-danger" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                </div>
-            </div>
-        );
-    }
+    // See ProtectedRoute.jsx — `loading` is gated once in App.js, above
+    // <Routes>, so it isn't re-checked here on every route mount.
+    const { user } = useAuth();
 
     if (user) {
         if (user.role === "sk_admin" || user.role === "superadmin") return <Navigate to="/AdminDashboard" replace />;

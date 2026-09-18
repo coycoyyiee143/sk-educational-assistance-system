@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
@@ -339,9 +339,9 @@ const Register = () => {
       <>
         <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
           <div className="container">
-            <a
+            <Link
               className="navbar-brand navbar-brand-custom"
-              href="/"
+              to="/"
             >
               <img
                 src="/icons/sk-logo.jpg"
@@ -354,7 +354,7 @@ const Register = () => {
                   Educational Assistance System
                 </span>
               </div>
-            </a>
+            </Link>
           </div>
         </nav>
 
@@ -691,9 +691,9 @@ const Register = () => {
     <>
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
-          <a
+          <Link
             className="navbar-brand navbar-brand-custom"
-            href="/"
+            to="/"
           >
             <img
               src="/icons/sk-logo.jpg"
@@ -707,7 +707,7 @@ const Register = () => {
                 Educational Assistance System
               </span>
             </div>
-          </a>
+          </Link>
 
           <button
             className="navbar-toggler"
@@ -724,57 +724,57 @@ const Register = () => {
           >
             <ul className="navbar-nav">
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/"
+                  to="/"
                 >
                   Home
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/requirements"
+                  to="/requirements"
                 >
                   Requirements
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/announcements"
+                  to="/announcements"
                 >
                   Announcements
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/events"
+                  to="/events"
                 >
                   Events
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/login"
+                  to="/login"
                 >
                   Login
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link active"
-                  href="/register"
+                  to="/register"
                 >
                   Register
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -1204,9 +1204,9 @@ const Register = () => {
 
                   <p className="text-center mt-3">
                     Already have an account?{" "}
-                    <a href="/login">
+                    <Link to="/login">
                       Login
-                    </a>
+                    </Link>
                   </p>
                 </form>
               </div>

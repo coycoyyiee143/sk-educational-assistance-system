@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
@@ -119,24 +119,24 @@ const Login = () => {
     <>
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
-          <a className="navbar-brand navbar-brand-custom" href="/">
+          <Link className="navbar-brand navbar-brand-custom" to="/">
             <img src="/icons/logo-in.png" alt="SK Logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>
             </div>
-          </a>
+          </Link>
           <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
             <span className="navbar-toggler-icon"></span>
           </button>
           <div className="collapse navbar-collapse justify-content-end" id="mainNavbar">
             <ul className="navbar-nav">
-              <li className="nav-item"><a className="nav-link" href="/">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="/requirements">Requirements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/announcements">Announcements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/events">Events</a></li>
-              <li className="nav-item"><a className="nav-link active" href="/login">Login</a></li>
-              <li className="nav-item"><a className="nav-link" href="/register">Register</a></li>
+              <li className="nav-item"><Link className="nav-link" to="/">Home</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/requirements">Requirements</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/announcements">Announcements</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/events">Events</Link></li>
+              <li className="nav-item"><Link className="nav-link active" to="/login">Login</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/register">Register</Link></li>
             </ul>
           </div>
         </div>
@@ -209,13 +209,13 @@ const Login = () => {
                         </button>
                       </div>
                       <div className="text-end mb-3">
-                        <a href="/forgot-password" className="login-link-lg">Forgot Password?</a>
+                        <Link to="/forgot-password" className="login-link-lg">Forgot Password?</Link>
                       </div>
                       <button type="submit" className="btn btn-danger w-100 login-btn-lg" disabled={loading}>
                         {loading ? "Logging in..." : "Login"}
                       </button>
                       <p className="text-center mt-3 login-register-lg">
-                        Don't have an account? <a href="/register">Register here</a>
+                        Don't have an account? <Link to="/register">Register here</Link>
                       </p>
                     </form>
                   </>

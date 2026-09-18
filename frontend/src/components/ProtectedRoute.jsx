@@ -3,17 +3,12 @@ import { Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
-    const { user, loading } = useAuth();
-
-    if (loading) {
-        return (
-            <div className="d-flex justify-content-center align-items-center" style={{ height: "100vh" }}>
-                <div className="spinner-border text-danger" role="status">
-                    <span className="visually-hidden">Loading...</span>
-                </div>
-            </div>
-        );
-    }
+    // `loading` (the one-time "have we checked localStorage for a saved
+    // session yet" flag) is gated once in App.js, above <Routes> — this
+    // component mounts fresh on every route switch, so checking it here
+    // too would flash this route's own loading screen on every single
+    // in-app navigation instead of just once on the initial page load.
+    const { user } = useAuth();
 
     if (!user) {
         return <Navigate to="/login" replace />;
