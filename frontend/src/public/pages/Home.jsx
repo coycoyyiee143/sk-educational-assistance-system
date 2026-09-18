@@ -127,11 +127,11 @@ const Home = () => {
         }}
       >
         <div className="container">
-          <h1>SK Educational Assistance Application System</h1>
+          <h1>SK Mamatid Educational Assistance System</h1>
 
           <p>
-            Apply online for the Educational Assistance Program of the
-            Sangguniang Kabataan of Barangay Mamatid. View requirements,
+            Apply online for the <strong>Educational Assistance Program of the
+              Sangguniang Kabataan of Barangay Mamatid</strong>. View requirements,
             announcements, schedules, and important updates through this
             system.
           </p>
@@ -167,7 +167,7 @@ const Home = () => {
               <p>
                 The Educational Assistance Program of Sangguniang Kabataan of
                 Barangay Mamatid provides financial support to qualified youth
-                residents who are currently studying.
+                residents who are currently in college.
               </p>
 
               <p>
@@ -218,11 +218,10 @@ const Home = () => {
                     </div>
 
                     <span
-                      className={`home-status-badge ${
-                        config.is_active
-                          ? "home-status-badge-open"
-                          : "home-status-badge-closed"
-                      }`}
+                      className={`home-status-badge ${config.is_active
+                        ? "home-status-badge-open"
+                        : "home-status-badge-closed"
+                        }`}
                     >
                       <span className="home-status-dot" />
 
@@ -434,11 +433,10 @@ const Home = () => {
                     </div>
 
                     <span
-                      className={`schedule-status-badge ${
-                        config.is_active
-                          ? "schedule-status-open"
-                          : "schedule-status-closed"
-                      }`}
+                      className={`schedule-status-badge ${config.is_active
+                        ? "schedule-status-open"
+                        : "schedule-status-closed"
+                        }`}
                     >
                       {config.is_active ? "Open" : "Closed"}
                     </span>
