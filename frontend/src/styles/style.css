@@ -3678,6 +3678,7 @@ a:hover {
   font-size: 13px;
   font-weight: 600;
   display: inline-block;
+  white-space: nowrap;
 }
 
 .role-verifier {
@@ -3688,6 +3689,7 @@ a:hover {
   font-size: 14px;
   font-weight: 600;
   display: inline-block;
+  white-space: nowrap;
 }
 
 .role-admin {
@@ -3698,6 +3700,7 @@ a:hover {
   font-size: 14px;
   font-weight: 600;
   display: inline-block;
+  white-space: nowrap;
 }
 
 .badge-approved {
