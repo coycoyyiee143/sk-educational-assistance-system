@@ -522,11 +522,11 @@ function AdminUsers() {
                 <table className="table table-bordered table-striped align-middle announcement-table">
                   <colgroup>
                     <col style={{ width: "7%" }} />
-                    <col style={{ width: "17%" }} />
-                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "32%" }} />
                     <col style={{ width: "10%" }} />
                     <col style={{ width: "14%" }} />
-                    <col style={{ width: "28%" }} />
+                    <col style={{ width: "15%" }} />
                   </colgroup>
                   <thead>
                     <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
@@ -626,11 +626,11 @@ function AdminUsers() {
                 <table className="table table-bordered table-striped align-middle announcement-table">
                   <colgroup>
                     <col style={{ width: "8%" }} />
-                    <col style={{ width: "20%" }} />
-                    <col style={{ width: "28%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "34%" }} />
                     <col style={{ width: "12%" }} />
                     <col style={{ width: "12%" }} />
-                    <col style={{ width: "20%" }} />
+                    <col style={{ width: "12%" }} />
                   </colgroup>
                   <thead>
                     <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
