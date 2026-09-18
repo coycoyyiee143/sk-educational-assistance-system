@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import { useNavigate, Navigate, Link } from "react-router-dom";
@@ -23,6 +23,17 @@ const Login = () => {
   const [secret, setSecret] = useState(null);
   const [setupEmail, setSetupEmail] = useState(null);
   const [code, setCode] = useState("");
+  const codeInputRef = useRef(null);
+
+  // Native autoFocus makes the browser auto-scroll the input into view,
+  // which on the 2fa_setup step shoves the QR code above it up behind the
+  // sticky navbar. Focusing manually with preventScroll avoids that scroll
+  // entirely while still landing the cursor in the field.
+  useEffect(() => {
+    if (step === "2fa_setup" || step === "2fa_verify") {
+      codeInputRef.current?.focus({ preventScroll: true });
+    }
+  }, [step]);
 
   function goToRoleHome(user) {
     if (user.role === "sk_admin" || user.role === "superadmin") navigate("/AdminDashboard");
@@ -256,6 +267,7 @@ const Login = () => {
                     <form onSubmit={handleTwoFactorSubmit} className="text-start">
                       <div className="floating-field mb-3">
                         <input
+                          ref={codeInputRef}
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
@@ -265,7 +277,6 @@ const Login = () => {
                           placeholder="123456"
                           value={code}
                           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                          autoFocus
                         />
                         <label htmlFor="twoFaCode" className="floating-label">6-digit code</label>
                       </div>
@@ -301,6 +312,7 @@ const Login = () => {
                     <form onSubmit={handleTwoFactorSubmit} className="text-start">
                       <div className="floating-field mb-3">
                         <input
+                          ref={codeInputRef}
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
@@ -310,7 +322,6 @@ const Login = () => {
                           placeholder="123456"
                           value={code}
                           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                          autoFocus
                         />
                         <label htmlFor="twoFaCode" className="floating-label">6-digit code</label>
                       </div>

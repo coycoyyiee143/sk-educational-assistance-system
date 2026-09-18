@@ -622,9 +622,13 @@ function VerifierClaiming() {
       );
 
       setTimeout(() => {
+        // "nearest" instead of "center" — centering can overscroll far
+        // enough to push the face-verification panel above this ref up
+        // behind the sticky navbar; nearest only scrolls the minimum
+        // needed to bring the error into view.
         claimingActionRef.current?.scrollIntoView({
           behavior: "smooth",
-          block: "center",
+          block: "nearest",
         });
       }, 0);
     } finally {
