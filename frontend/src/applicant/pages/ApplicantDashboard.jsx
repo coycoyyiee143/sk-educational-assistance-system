@@ -23,6 +23,7 @@ function ApplicantDashboard() {
   // Shown once per login session — remembered via sessionStorage so
   // navigating between dashboard visits within the same login doesn't
   // keep re-triggering it, but a fresh login (new tab/session) will.
+  const [fileError, setFileError] = useState("");
   const [showPrivacyModal, setShowPrivacyModal] = useState(
     () => !sessionStorage.getItem("privacyNoticeShown")
   );
@@ -38,6 +39,12 @@ function ApplicantDashboard() {
     logout();
     navigate("/login");
   }
+
+  useEffect(() => {
+    if (!fileError) return;
+    const t = setTimeout(() => setFileError(""), 6000);
+    return () => clearTimeout(t);
+  }, [fileError]);
 
   useEffect(() => {
     Promise.all([
@@ -79,7 +86,7 @@ function ApplicantDashboard() {
       window.open(url, "_blank");
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch {
-      alert("Failed to load document.");
+      setFileError("Failed to load document.");
     }
   }
 
@@ -266,6 +273,8 @@ function ApplicantDashboard() {
               </div>
 
             </div>
+
+            {fileError && <div className="alert alert-danger">{fileError}</div>}
 
             <ApplicationHistoryList
               applicationHistory={applicationHistory}

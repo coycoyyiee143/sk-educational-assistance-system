@@ -292,7 +292,7 @@ function ApplicantSubmission() {
         URL.revokeObjectURL(url);
       }, 60000);
     } catch {
-      alert("Failed to load document.");
+      setError("Failed to load document.");
     }
   }
 

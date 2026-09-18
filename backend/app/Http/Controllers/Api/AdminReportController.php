@@ -236,6 +236,19 @@ class AdminReportController extends Controller
             )->values();
         }
 
+        // Mirrors the "Search name or control number" box on the Record
+        // Preview table above the Export button — without this, exporting
+        // while that search is narrowed to one applicant would silently
+        // download every record matching the dropdown filters instead of
+        // just the one(s) visible on screen.
+        if ($request->filled('search')) {
+            $search = mb_strtolower($request->query('search'));
+            $applications = $applications->filter(function ($app) use ($search) {
+                $name = mb_strtolower(trim($app->user->first_name . ' ' . $app->user->last_name));
+                return str_contains($name, $search) || str_contains(mb_strtolower((string) $app->control_number), $search);
+            })->values();
+        }
+
         $filename = 'applicant-records-' . now()->format('Y-m-d') . '.csv';
         $headers = [
             'Content-Type'        => 'text/csv',

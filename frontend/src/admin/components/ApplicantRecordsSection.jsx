@@ -127,6 +127,13 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     if (selectedConfigId) params.config_id = selectedConfigId;
     return params;
   }
+  // Export needs the on-screen record search folded in too, or "Export CSV"
+  // would silently include records the admin filtered out of view.
+  function buildExportParams() {
+    const params = buildParams();
+    if (recordSearch.trim()) params.search = recordSearch.trim();
+    return params;
+  }
   async function handlePreview(e) {
     e.preventDefault();
     setError("");
@@ -148,7 +155,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     setExporting(true);
     try {
       const res = await api.get("/admin/reports/export", {
-        params: buildParams(),
+        params: buildExportParams(),
         responseType: "blob",
       });
       const url = window.URL.createObjectURL(new Blob([res.data]));
@@ -184,7 +191,9 @@ function ApplicantRecordsSection({ selectedConfigId }) {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch {}
+    } catch {
+      setError("Failed to export report.");
+    }
   }
   async function handleApprovedListExport() {
     try {

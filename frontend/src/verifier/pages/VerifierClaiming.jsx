@@ -103,6 +103,7 @@ function VerifierClaiming() {
   const [claimingFeedback, setClaimingFeedback] = useState(null);
   const [feedbackCountdown, setFeedbackCountdown] = useState(5);
   const [filePreview, setFilePreview] = useState(null);
+  const [fileError, setFileError] = useState("");
 
   const claimingActionRef = useRef(null);
 
@@ -201,6 +202,12 @@ function VerifierClaiming() {
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lanesLoaded, gracePeriodMode, assignedLane]);
+
+  useEffect(() => {
+    if (!fileError) return;
+    const t = setTimeout(() => setFileError(""), 6000);
+    return () => clearTimeout(t);
+  }, [fileError]);
 
   // Silent background refresh — applicants get assigned to lanes in
   // real time as verifiers elsewhere approve applications (see
@@ -634,7 +641,7 @@ function VerifierClaiming() {
           "Document Preview",
       });
     } catch {
-      alert("Failed to load document.");
+      setFileError("Failed to load document.");
     }
   }
 
@@ -815,6 +822,8 @@ function VerifierClaiming() {
           </span>
         )}
       </div>
+
+      {fileError && <div className="alert alert-danger">{fileError}</div>}
 
       <div className="verifier-waitlist-notice">
         <span className="verifier-waitlist-notice-icon">

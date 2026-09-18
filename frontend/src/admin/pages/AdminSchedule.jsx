@@ -101,6 +101,9 @@ function AdminSchedule() {
   const lanePerPage = 10;
   const [gracePeriodList, setGracePeriodList] = useState(null);
   const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
+  const [removeDayTarget, setRemoveDayTarget] = useState(null); // day index pending confirmation, or null
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showActivateConfirm, setShowActivateConfirm] = useState(false);
 
   const loadGracePeriodClaimingList = useCallback(() => {
     setLoadingGracePeriodList(true);
@@ -175,7 +178,18 @@ function AdminSchedule() {
   }
 
   function removeDay(dayIndex) {
+    const day = days[dayIndex];
+    const hasContent = day && (day.date || day.morning.lanes.length > 0 || day.afternoon.lanes.length > 0);
+    if (hasContent) {
+      setRemoveDayTarget(dayIndex);
+      return;
+    }
     setDays((prev) => prev.filter((_, i) => i !== dayIndex));
+  }
+
+  function confirmRemoveDay() {
+    setDays((prev) => prev.filter((_, i) => i !== removeDayTarget));
+    setRemoveDayTarget(null);
   }
 
   function addLane(dayIndex, session) {
@@ -206,8 +220,19 @@ function AdminSchedule() {
   }
 
   function handleReset() {
+    const hasContent = days.some((d) => d.date || d.morning.lanes.length > 0 || d.afternoon.lanes.length > 0);
+    if (hasContent) {
+      setShowResetConfirm(true);
+      return;
+    }
     setForm(emptyForm);
     setDays([emptyDay()]);
+  }
+
+  function confirmReset() {
+    setForm(emptyForm);
+    setDays([emptyDay()]);
+    setShowResetConfirm(false);
   }
 
   async function handleSubmit(e) {
@@ -251,9 +276,13 @@ function AdminSchedule() {
     }
   }
 
-  async function handleActivate() {
+  function handleActivate() {
     if (!schedule) return;
-    if (!window.confirm("Activate this claiming schedule? From this point on, every newly-approved applicant is assigned to a lane and notified automatically, and lane setup can no longer be edited.")) return;
+    setShowActivateConfirm(true);
+  }
+
+  async function confirmActivate() {
+    setShowActivateConfirm(false);
     setActivating(true);
     setError("");
     setSuccess("");
@@ -962,6 +991,81 @@ function AdminSchedule() {
 
         <PanelFooter />
       </div>
+
+      {removeDayTarget !== null && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Remove This Day?</h5>
+                <button type="button" className="btn-close" onClick={() => setRemoveDayTarget(null)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">Its date and lane setup for both sessions will be lost.</p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setRemoveDayTarget(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmRemoveDay}>
+                  Yes, Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showResetConfirm && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Reset The Schedule Form?</h5>
+                <button type="button" className="btn-close" onClick={() => setShowResetConfirm(false)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">All days and lanes you've configured so far will be discarded.</p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowResetConfirm(false)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmReset}>
+                  Yes, Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showActivateConfirm && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Activate This Claiming Schedule?</h5>
+                <button type="button" className="btn-close" onClick={() => setShowActivateConfirm(false)} disabled={activating} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  From this point on, every newly-approved applicant is assigned to a lane and
+                  notified automatically, and lane setup can no longer be edited.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowActivateConfirm(false)} disabled={activating}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-custom" onClick={confirmActivate} disabled={activating}>
+                  {activating ? "Activating..." : "Yes, Activate"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
