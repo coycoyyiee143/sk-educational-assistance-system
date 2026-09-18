@@ -126,11 +126,22 @@ export function getCheckDisplayLabel(checkName) {
     );
 }
 
-// Translates raw automated-check output (which can include technical
-// specifics like "(max: 106)" from image-forensics scoring) into a plain
-// sentence a non-technical verifier or an applicant can actually act on.
-// Falls back to stripping the technical parts of unrecognized messages
-// rather than ever showing raw numbers/thresholds.
+// Strips technical parentheticals like "(max: 106)" / "(mean: 12.34)" from
+// raw check output — the substance of the message survives (which is what
+// a verifier actually needs, e.g. which AI-tool signature or filename
+// pattern was matched), just not the raw numbers/thresholds no non-IT
+// reader can act on.
+export function stripTechnicalDetail(rawReason) {
+    if (!rawReason) return "";
+    return rawReason.replace(/\s*\((?:max|mean|score|threshold)[^)]*\)/gi, "").trim();
+}
+
+// Translates raw automated-check output into a plain sentence a
+// non-technical verifier or an applicant can actually act on, for use as
+// a reason category — this is deliberately generic (it drops the raw
+// evidence, e.g. which AI tool's C2PA signature matched) since a reason
+// offered to reject/re-upload on needs to stand on its own. To show the
+// underlying evidence itself, use `stripTechnicalDetail` instead.
 export function translateFlagReason(checkName, rawReason) {
     if (checkName === "image_integrity") {
         return "This image shows signs of digital editing and could not be verified as an unaltered original.";
@@ -143,8 +154,6 @@ export function translateFlagReason(checkName, rawReason) {
     }
     if (!rawReason) return `${getCheckDisplayLabel(checkName)} check failed.`;
 
-    // Strip technical parentheticals like "(max: 106)" / "(mean: 12.34)"
-    // that no non-IT reader (verifier or applicant) can act on.
-    const cleaned = rawReason.replace(/\s*\((?:max|mean|score|threshold)[^)]*\)/gi, "").trim();
+    const cleaned = stripTechnicalDetail(rawReason);
     return cleaned || `${getCheckDisplayLabel(checkName)} check failed.`;
 }

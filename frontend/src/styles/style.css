@@ -9102,6 +9102,15 @@ a:hover {
   overflow-wrap: anywhere;
 }
 
+.verifier-preview-extraction-detail {
+  display: block;
+  margin-top: 4px;
+  color: #667788;
+  font-size: 11px;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
 .verifier-ocr-results-column {
   padding: 16px;
   background: #f8f9fa;

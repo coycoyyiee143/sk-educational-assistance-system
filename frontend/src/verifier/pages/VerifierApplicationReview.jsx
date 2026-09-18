@@ -12,6 +12,7 @@ import {
   OTHER,
   getCheckDisplayLabel,
   translateFlagReason,
+  stripTechnicalDetail,
 } from "../constants/verificationReasons";
 import {
   getVerifierStatusLabel,
@@ -1447,6 +1448,11 @@ function VerifierApplicationReview() {
                                   <span className="verifier-preview-extraction-value">
                                     {check.extracted_value || "Not extracted"}
                                   </span>
+                                  {!check.passed && check.flag_reason && (
+                                    <span className="verifier-preview-extraction-detail">
+                                      {stripTechnicalDetail(check.flag_reason)}
+                                    </span>
+                                  )}
                                 </div>
                               ))}
                             </div>
