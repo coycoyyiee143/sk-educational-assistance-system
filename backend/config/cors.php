@@ -21,6 +21,7 @@ return [
 
     'allowed_origins' => [
         'http://localhost:3000',
+        'https://skmamatid-eap.duckdns.org',
         'https://skmamatideducassistance.dedyn.io',
     ],
 
