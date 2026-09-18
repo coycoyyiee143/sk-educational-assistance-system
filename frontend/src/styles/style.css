@@ -6452,6 +6452,82 @@ a:hover {
   border-color: #8e0000;
 }
 
+.user-icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, opacity 0.15s ease;
+}
+
+.user-icon-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.user-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.user-icon-btn-view {
+  background: #6c757d;
+  color: #ffffff;
+}
+
+.user-icon-btn-view:hover:not(:disabled) {
+  background: #5c636a;
+}
+
+.user-icon-btn-activate {
+  background: #2e8b47;
+  color: #ffffff;
+}
+
+.user-icon-btn-activate:hover:not(:disabled) {
+  background: #237038;
+}
+
+.user-icon-btn-deactivate {
+  background: #e67e22;
+  color: #ffffff;
+}
+
+.user-icon-btn-deactivate:hover:not(:disabled) {
+  background: #c96a17;
+}
+
+.user-icon-btn-reset-password {
+  background: #2f6fed;
+  color: #ffffff;
+}
+
+.user-icon-btn-reset-password:hover:not(:disabled) {
+  background: #1f56c4;
+}
+
+.user-icon-btn-reset-2fa {
+  background: #6f42c1;
+  color: #ffffff;
+}
+
+.user-icon-btn-reset-2fa:hover:not(:disabled) {
+  background: #59339c;
+}
+
+.user-icon-btn-delete {
+  background: #b71c1c;
+  color: #ffffff;
+}
+
+.user-icon-btn-delete:hover:not(:disabled) {
+  background: #8e0000;
+}
+
 /* ============================================
    ADMIN USERS - APPLICANT DETAILS MODAL
    ============================================ */
