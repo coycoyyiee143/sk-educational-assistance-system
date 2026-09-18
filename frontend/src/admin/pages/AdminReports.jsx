@@ -10,6 +10,7 @@ import PanelFooter from "../../components/PanelFooter";
 import { useAuth } from "../../context/AuthContext";
 function AdminReports() {
   const { user } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [periods, setPeriods] = useState([]);
   const [selectedConfigId, setSelectedConfigId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -25,10 +26,13 @@ function AdminReports() {
   if (loading) {
     return (
       <div className="admin-layout">
-        <AdminNavigation />
+        <AdminNavigation
+          mobileOpen={mobileMenuOpen}
+          onMobileClose={() => setMobileMenuOpen(false)}
+        />
         <div className="admin-main">
           <div className="admin-topbar">
-            <AdminTopbarUser />
+            <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
           </div>
           <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
             <div className="spinner-border text-danger" role="status" />
@@ -40,10 +44,13 @@ function AdminReports() {
   }
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <AdminTopbarUser />
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
         <section className="page-section">
           <div className="container-fluid">

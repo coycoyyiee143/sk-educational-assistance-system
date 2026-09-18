@@ -6,6 +6,7 @@ import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 
 function AdminDashboard() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [stats, setStats] = useState({ total: 0, incomplete: 0, pending: 0, approved: 0, rejected: 0, no_active_period: false });
   const [loading, setLoading] = useState(true);
 
@@ -145,10 +146,13 @@ function AdminDashboard() {
 
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <AdminTopbarUser />
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
         <section className="page-section">
           <div className="container-fluid">

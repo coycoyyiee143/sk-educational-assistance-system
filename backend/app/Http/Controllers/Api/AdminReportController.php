@@ -1062,4 +1062,89 @@ class AdminReportController extends Controller
             ],
         ]);
     }
+
+    /**
+     * List recent backups produced by scripts/backup.sh, newest first.
+     * Reads the backup directory directly (no DB table involved) — each
+     * dated subfolder is one backup run, containing database.sql.gz and
+     * storage-private.tar.gz. A folder missing either file is flagged
+     * as incomplete/failed rather than silently treated as a good backup.
+     */
+    public function backupStatus()
+    {
+        $backupPath = config('backup.path');
+
+        if (!$backupPath || !is_dir($backupPath)) {
+            return response()->json([
+                'configured' => false,
+                'path'       => $backupPath,
+                'backups'    => [],
+            ]);
+        }
+
+        $folders = collect(scandir($backupPath))
+            ->reject(fn ($name) => in_array($name, ['.', '..']))
+            ->filter(fn ($name) => is_dir($backupPath . DIRECTORY_SEPARATOR . $name))
+            ->sortDesc()
+            ->values()
+            ->take(20)
+            ->map(function ($name) use ($backupPath) {
+                $dir = $backupPath . DIRECTORY_SEPARATOR . $name;
+                $dbFile = $dir . DIRECTORY_SEPARATOR . 'database.sql.gz';
+                $filesFile = $dir . DIRECTORY_SEPARATOR . 'storage-private.tar.gz';
+                $dbOk = is_file($dbFile);
+                $filesOk = is_file($filesFile);
+
+                return [
+                    'name'       => $name,
+                    'complete'   => $dbOk && $filesOk,
+                    'created_at' => date('c', filemtime($dir)),
+                    'size_bytes' => ($dbOk ? filesize($dbFile) : 0) + ($filesOk ? filesize($filesFile) : 0),
+                ];
+            });
+
+        return response()->json([
+            'configured' => true,
+            'path'       => $backupPath,
+            'backups'    => $folders,
+        ]);
+    }
+
+    /**
+     * Trigger scripts/backup.sh immediately (manual "Run Backup Now").
+     * Runs synchronously — a full backup of this app's data size is
+     * expected to finish well within the request timeout. Every attempt
+     * is audit-logged, success or failure, since this both touches
+     * production data and is destructive to run twice concurrently
+     * (mitigated by the script's own atomic dated-folder naming).
+     */
+    public function runBackup(Request $request)
+    {
+        $scriptPath = config('backup.script_path');
+
+        if (!$scriptPath || !is_file($scriptPath)) {
+            return response()->json(['message' => 'Backup script not found on this server.'], 500);
+        }
+
+        $process = new \Symfony\Component\Process\Process([$scriptPath]);
+        $process->setTimeout(300);
+        $process->run();
+
+        if (!$process->isSuccessful()) {
+            \App\Models\AuditLog::record(
+                'backup_run_failed',
+                null,
+                'Manual backup failed: ' . mb_strimwidth(trim($process->getErrorOutput()), 0, 500, '...')
+            );
+
+            return response()->json([
+                'message' => 'Backup failed. Check server logs for details.',
+                'error'   => trim($process->getErrorOutput()),
+            ], 500);
+        }
+
+        \App\Models\AuditLog::record('backup_run', null, 'Manual backup triggered from System Maintenance page');
+
+        return response()->json(['message' => 'Backup completed.']);
+    }
 }

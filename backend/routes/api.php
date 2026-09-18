@@ -77,6 +77,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // available to superadmin and it_support, not sk_admin.
     Route::middleware(['role:superadmin,it_support'])->group(function () {
         Route::get('/admin/system-status', [AdminReportController::class, 'systemStatus']);
+        Route::get('/admin/backup-status', [AdminReportController::class, 'backupStatus']);
+        // Runs scripts/backup.sh on demand — non-destructive (creates a
+        // new dated backup, never overwrites/deletes anything live).
+        // Restore is deliberately NOT exposed here — CLI-only, see BACKUP.md.
+        Route::post('/admin/backup-run', [AdminReportController::class, 'runBackup']);
     });
 
     // Master activity log and budget forecasting — superadmin only.

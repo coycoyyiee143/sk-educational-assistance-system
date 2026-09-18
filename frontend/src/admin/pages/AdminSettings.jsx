@@ -36,6 +36,7 @@ const emptyForm = {
 };
 
 function AdminSettings() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [config, setConfig] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -313,10 +314,13 @@ function AdminSettings() {
 
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <AdminTopbarUser />
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
 
         <section className="page-section">

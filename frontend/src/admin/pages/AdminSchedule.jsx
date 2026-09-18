@@ -83,6 +83,7 @@ function formatDateRange(dates) {
 }
 
 function AdminSchedule() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [config, setConfig] = useState(null);
   const [approvedCount, setApprovedCount] = useState(0);
   const [unassignedApprovedCount, setUnassignedApprovedCount] = useState(0);
@@ -424,10 +425,13 @@ function AdminSchedule() {
 
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <AdminTopbarUser />
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
 
         <section className="page-section">
