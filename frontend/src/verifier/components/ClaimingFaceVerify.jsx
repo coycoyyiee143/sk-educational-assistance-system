@@ -69,7 +69,7 @@ function ClaimingFaceVerify({ applicationId, required = false, registrationPhoto
       {!result && (
         <div className="verifier-claiming-face-start">
           <button type="button" className="btn-save-green verifier-claiming-face-verify-btn" onClick={() => setShowCapture(true)}>Verify Applicant&apos;s Face</button>
-          {required && <div className="form-text text-danger mt-1">Required before this applicant can be marked Claimed during grace period.</div>}
+          {required && <div className="form-text text-danger mt-1">Required before this applicant can be marked Claimed during Late Claiming.</div>}
         </div>
       )}
       {showCapture && (

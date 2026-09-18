@@ -1546,7 +1546,7 @@ function VerifierClaiming() {
                               switchToGracePeriodMode
                             }
                           >
-                            Grace Period List
+                            Late Claiming
                           </button>
                         </div>
                       </div>
@@ -1561,7 +1561,7 @@ function VerifierClaiming() {
 
                             <div className="verifier-claiming-context-content">
                               <strong>
-                                Grace Period
+                                Late Claiming
                               </strong>
 
                               <span>
@@ -1598,7 +1598,7 @@ function VerifierClaiming() {
 
                             <div className="verifier-claiming-context-content">
                               <span>
-                                Couldn't load the claiming schedule — this may not mean grace period is unconfigured, the request may have just failed.{" "}
+                                Couldn't load the claiming schedule — this may not mean Late Claiming is unconfigured, the request may have just failed.{" "}
                                 <button
                                   type="button"
                                   className="verifier-claiming-retry-link"
@@ -1617,7 +1617,7 @@ function VerifierClaiming() {
 
                             <div className="verifier-claiming-context-content">
                               <span>
-                                No grace period configured for the active schedule.
+                                No Late Claiming configured for the active schedule.
                               </span>
                             </div>
                           </div>
@@ -1803,7 +1803,7 @@ function VerifierClaiming() {
                     <div className="verifier-claiming-split-col verifier-claiming-split-col-border">
                       <h4 className="verifier-claiming-search-title">
                         {gracePeriodMode
-                          ? "Filter Grace Period List"
+                          ? "Filter Late Claiming List"
                           : "Search Applicant"}
                       </h4>
 
@@ -1878,7 +1878,7 @@ function VerifierClaiming() {
 
                         {gracePeriodMode ? (
                           <p className="text-muted small mt-3 mb-0">
-                            Showing everyone currently in the grace period pool. Filter by control number or name above, or leave blank to see everyone.
+                            Showing everyone currently in the Late Claiming pool. Filter by control number or name above, or leave blank to see everyone.
                           </p>
                         ) : results.length ===
                           0 &&
@@ -1898,7 +1898,7 @@ function VerifierClaiming() {
                     <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                       <h4 className="verifier-claiming-results-title mb-0">
                         {gracePeriodMode
-                          ? "Grace Period Applicants"
+                          ? "Late Claiming Applicants"
                           : "Search Results"}
                       </h4>
 
@@ -2314,7 +2314,7 @@ function VerifierClaiming() {
                       !searchError && (
                         <p className="text-muted small mt-3 mb-0">
                           {gracePeriodMode
-                            ? "No applicants currently in the grace period list."
+                            ? "No applicants currently in the Late Claiming list."
                             : "No matching applicants found."}
                         </p>
                       )}

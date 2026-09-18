@@ -25,7 +25,7 @@ function groupLanesIntoDays(lanesArr) {
   if (!lanesArr || lanesArr.length === 0) return [emptyDay()];
   const map = {};
   lanesArr
-    .filter((l) => l.lane_name !== "Grace Period Claiming")
+    .filter((l) => l.lane_name !== "Late Claiming")
     .forEach((l) => {
       if (!map[l.claiming_date]) {
         map[l.claiming_date] = {
@@ -364,7 +364,7 @@ function AdminSchedule() {
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      setError("Failed to generate grace period claiming list.");
+      setError("Failed to generate Late Claiming list.");
     }
   }
 
@@ -382,7 +382,7 @@ function AdminSchedule() {
     { label: "Total Lanes", value: totalLanesCount },
     { label: "Claiming Dates", value: formatDateRange(claimingDates) },
     {
-      label: "Grace Period",
+      label: "Late Claiming",
       value: form.grace_period_date
         ? (form.grace_period_end_date
           ? `${form.grace_period_date} to ${form.grace_period_end_date}`
@@ -395,7 +395,7 @@ function AdminSchedule() {
   // its live assignments_count — there's no separate preview snapshot to
   // reconcile against, since applicants land on a lane the moment
   // they're approved, not at some future publish step.
-  const displayedLanes = (schedule?.lanes ?? []).filter((l) => l.lane_name !== "Grace Period Claiming");
+  const displayedLanes = (schedule?.lanes ?? []).filter((l) => l.lane_name !== "Late Claiming");
   const laneTotalPages = Math.max(1, Math.ceil(displayedLanes.length / lanePerPage));
   const lanePageStart = (lanePage - 1) * lanePerPage;
   const pagedLanes = displayedLanes.slice(lanePageStart, lanePageStart + lanePerPage);
@@ -436,7 +436,7 @@ function AdminSchedule() {
             <div className="page-card">
               <h3 className="section-title mb-2">Claiming Schedule Management</h3>
               <p className="text-muted mb-0">
-                Set the claiming dates, batches, lane capacities, and grace period. Once activated, approved
+                Set the claiming dates, batches, lane capacities, and Late Claiming. Once activated, approved
                 applicants are assigned to a lane and notified automatically, in real time, as they're approved —
                 no separate publish step.
               </p>
@@ -692,7 +692,7 @@ function AdminSchedule() {
                       )}
 
                       <hr className="my-4" />
-                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Grace Period</h5>
+                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Late Claiming</h5>
 
                       <div className="visibility-notice visibility-notice-compact mb-3">
                         <div className="visibility-notice-icon">!</div>
@@ -936,7 +936,7 @@ function AdminSchedule() {
             {schedule?.grace_period_date && (
               <div className="page-card">
                 <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <h4 className="sub-title sub-title-dark mb-0">Grace Period Claiming List</h4>
+                  <h4 className="sub-title sub-title-dark mb-0">Late Claiming List</h4>
                   <div className="d-flex gap-2">
                     <button
                       className="btn btn-outline-custom btn-sm"
@@ -951,7 +951,7 @@ function AdminSchedule() {
                   </div>
                 </div>
                 <p className="text-muted small mb-3">
-                  Everyone expected during grace period — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
+                  Everyone expected during Late Claiming — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
                 </p>
                 <div className="table-responsive">
                   <table className="table table-bordered table-striped align-middle announcement-table">
@@ -976,7 +976,7 @@ function AdminSchedule() {
                       ) : (
                         <tr>
                           <td colSpan={4} className="text-muted">
-                            {loadingGracePeriodList ? "Loading..." : "No applicants expected during grace period for this period."}
+                            {loadingGracePeriodList ? "Loading..." : "No applicants expected during Late Claiming for this period."}
                           </td>
                         </tr>
                       )}

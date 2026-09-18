@@ -77,7 +77,7 @@ class AdminScheduleController extends Controller
             // added an edge case (an unlimited lane silently swallowing
             // every applicant that reaches it in fill order, never letting
             // later lanes get used). The one legitimate uncapped lane in
-            // this system — "Grace Period Claiming" — is created directly
+            // this system — "Late Claiming" — is created directly
             // by VerifierController's waitlist-promotion flow, not through
             // this admin-configured lane list, so it's unaffected by this.
             'lanes.*.capacity'      => 'required|integer|min:1',
@@ -142,7 +142,7 @@ class AdminScheduleController extends Controller
             $graceStart = \Carbon\Carbon::parse($request->grace_period_date)->startOfDay();
             if ($graceStart->lte($latestClaimingDate)) {
                 return response()->json([
-                    'message' => "Grace Period must start after every claiming date. The latest claiming date entered is {$latestClaimingDate->toDateString()}, but Grace Period is set to start {$graceStart->toDateString()}.",
+                    'message' => "Late Claiming must start after every claiming date. The latest claiming date entered is {$latestClaimingDate->toDateString()}, but Late Claiming is set to start {$graceStart->toDateString()}.",
                 ], 400);
             }
         }
@@ -351,7 +351,7 @@ class AdminScheduleController extends Controller
 
         if ($schedule && $schedule->grace_period_end_date && now()->lt($schedule->grace_period_end_date)) {
             return response()->json([
-                'message' => 'Cannot close this period until the grace period has ended (' . $schedule->grace_period_end_date . ').',
+                'message' => 'Cannot close this period until Late Claiming has ended (' . $schedule->grace_period_end_date . ').',
             ], 400);
         }
 

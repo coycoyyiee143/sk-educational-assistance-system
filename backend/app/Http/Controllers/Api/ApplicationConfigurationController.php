@@ -184,7 +184,7 @@ class ApplicationConfigurationController extends Controller
 
         if ($schedule) {
             $conflictingLane = $schedule->lanes
-                ->where('lane_name', '!=', 'Grace Period Claiming')
+                ->where('lane_name', '!=', 'Late Claiming')
                 ->first(fn ($lane) => \Carbon\Carbon::parse($lane->claiming_date)->startOfDay()->lte($newCloseDate));
 
             if ($conflictingLane) {
@@ -195,7 +195,7 @@ class ApplicationConfigurationController extends Controller
 
             if ($schedule->grace_period_date && \Carbon\Carbon::parse($schedule->grace_period_date)->startOfDay()->lte($newCloseDate)) {
                 return response()->json([
-                    'message' => "Can't extend to {$newCloseDate->toDateString()} — Grace Period is already scheduled to start on {$schedule->grace_period_date}, which would then fall on or before the new closing date. Adjust the grace period dates first, or choose a shorter extension.",
+                    'message' => "Can't extend to {$newCloseDate->toDateString()} — Late Claiming is already scheduled to start on {$schedule->grace_period_date}, which would then fall on or before the new closing date. Adjust the Late Claiming dates first, or choose a shorter extension.",
                 ], 400);
             }
         }

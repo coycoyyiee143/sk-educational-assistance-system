@@ -63,7 +63,7 @@ class SweepUnclaimedAssignments extends Command
                 $graceLane = ClaimingLane::firstOrCreate(
                     [
                         'claiming_schedule_id' => $schedule->id,
-                        'lane_name'            => 'Grace Period Claiming',
+                        'lane_name'            => 'Late Claiming',
                     ],
                     [
                         'batch'         => 'morning',

@@ -29,7 +29,7 @@ use Illuminate\Support\Facades\DB;
  * lane. If every regular lane is full, assignToLane() simply returns
  * null and the applicant stays 'approved' with no assignment until
  * room opens up. The one uncapped (capacity = null) lane in this
- * system is "Grace Period Claiming", which VerifierController creates
+ * system is "Late Claiming", which VerifierController creates
  * directly for waitlist promotions/retries — this service explicitly
  * excludes that lane (see the where() below), so it never enters this
  * fill logic at all.
@@ -77,7 +77,7 @@ class ClaimingAssignmentService
             // blocks here until this transaction commits or rolls back,
             // so nobody reads a stale "still has room" snapshot.
             $lanes = ClaimingLane::where('claiming_schedule_id', $schedule->id)
-                ->where('lane_name', '!=', 'Grace Period Claiming')
+                ->where('lane_name', '!=', 'Late Claiming')
                 ->orderBy('claiming_date')
                 ->orderBy('id')
                 ->lockForUpdate()

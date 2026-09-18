@@ -107,7 +107,7 @@ class VerifierController extends Controller
 
             $app->user->notify(new ApplicationStatusNotification(
                 'Waitlisted',
-                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before the grace period ends."
+                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before Late Claiming ends."
             ));
 
             return response()->json(['message' => 'No slots available — applicant added to waitlist instead.']);
@@ -198,7 +198,7 @@ class VerifierController extends Controller
             $lane = ClaimingLane::firstOrCreate(
                 [
                     'claiming_schedule_id' => $schedule->id,
-                    'lane_name'            => 'Grace Period Claiming',
+                    'lane_name'            => 'Late Claiming',
                 ],
                 [
                     'batch'         => 'morning',
@@ -268,7 +268,7 @@ class VerifierController extends Controller
                 $lane = ClaimingLane::firstOrCreate(
                     [
                         'claiming_schedule_id' => $schedule->id,
-                        'lane_name'            => 'Grace Period Claiming',
+                        'lane_name'            => 'Late Claiming',
                     ],
                     [
                         'batch'         => 'morning',
@@ -535,7 +535,7 @@ class VerifierController extends Controller
             $lastFace = $assignment->latestFaceVerification;
             if (!$lastFace || !$lastFace->matched) {
                 return response()->json([
-                    'message' => 'Face verification must pass before this applicant can be marked Claimed during grace period.',
+                    'message' => 'Face verification must pass before this applicant can be marked Claimed during Late Claiming.',
                 ], 400);
             }
         }
@@ -689,7 +689,7 @@ class VerifierController extends Controller
         }
 
         $allLanes = $schedule->lanes()
-            ->where('lane_name', '!=', 'Grace Period Claiming')
+            ->where('lane_name', '!=', 'Late Claiming')
             ->orderBy('claiming_date')
             ->orderBy('lane_name')
             ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id', 'requested_verifier_id']);

@@ -388,7 +388,7 @@ class AdminReportController extends Controller
         }
         $list = $this->buildGracePeriodClaimingList($config);
         $pdf = Pdf::loadView('claiming.grace-period-claiming-list', [
-            'title'    => 'Grace Period Claiming List',
+            'title'    => 'Late Claiming List',
             'config'   => $config,
             'retrying' => $list['retrying'],
             'promoted' => $list['promoted'],
