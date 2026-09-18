@@ -12196,15 +12196,6 @@ body {
   margin-bottom: 18px;
 }
 
-.verifier-claiming-phase-label {
-  display: block;
-  font-family: 'Inter', Arial, sans-serif;
-  font-size: 14px;
-  font-weight: 500;
-  color: #4f5b66;
-  margin-bottom: 8px;
-}
-
 .verifier-claiming-mode-tabs {
   display: inline-flex;
   align-items: center;
@@ -12250,10 +12241,10 @@ body {
 
 .verifier-claiming-context {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
   min-height: 48px;
-  padding: 11px 14px;
+  padding: 12px 14px;
   margin-bottom: 18px;
   border-radius: 8px;
   font-family: 'Inter', Arial, sans-serif;
@@ -12299,10 +12290,11 @@ body {
 
 .verifier-claiming-context-content {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 6px;
   min-width: 0;
+  width: 100%;
 }
 
 .verifier-claiming-context-content strong {
@@ -12310,9 +12302,51 @@ body {
   font-weight: 700;
 }
 
+.verifier-claiming-context-headline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.verifier-claiming-context-muted {
+  color: inherit;
+  opacity: 0.75;
+  font-size: 13px;
+}
+
+.verifier-claiming-day-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.08);
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .verifier-claiming-current-lane {
-  flex-basis: 100%;
-  margin-top: 3px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.15);
+}
+
+.verifier-claiming-lane-passed-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #f8d7da;
+  color: #842029;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .verifier-claiming-lane-section {

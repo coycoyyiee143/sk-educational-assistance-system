@@ -127,7 +127,7 @@ class AdminScheduleController extends Controller
 
         // Late Claiming is for people who missed THEIR claiming day and
         // are being given one more chance — it only makes sense once
-        // every regular claiming day has actually happened. If it were
+        // every scheduled claiming day has actually happened. If it were
         // allowed to start before or during the claiming days, someone
         // could show up during "Late Claiming" for a lane that hasn't
         // even had its real claiming day yet, which breaks the eligibility

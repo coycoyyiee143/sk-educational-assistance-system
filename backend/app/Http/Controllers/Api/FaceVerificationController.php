@@ -284,13 +284,13 @@ class FaceVerificationController extends Controller
      * "claimed" — it only records the attempt (photo, score, match result)
      * and returns the result to the verifier.
      *
-     * In REGULAR claiming, using this is the verifier's own judgment call,
+     * In SCHEDULED claiming, using this is the verifier's own judgment call,
      * same as the physical-document checks — neither is backend-enforced.
      * In LATE CLAIMING, VerifierController::updateClaimStatus()
      * backend-enforces this: 'claimed' is rejected unless a passing
      * ClaimingFaceVerification row exists for that assignment, since a
      * Late Claiming walk-in has no scheduled lane/control-number structure
-     * backing up identity the way regular claiming does.
+     * backing up identity the way scheduled claiming does.
      */
     public function verifyClaiming(Request $request, $applicationId)
     {

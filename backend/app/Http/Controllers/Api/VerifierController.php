@@ -630,7 +630,7 @@ class VerifierController extends Controller
         if ($lateClaiming) {
             $query->whereHas('claimingAssignment', fn($q) => $this->applyLateClaimingEligibleCondition($q, $today));
         } else {
-            // Regular Claiming NEVER shows anyone currently late-claiming-
+            // Scheduled Claiming NEVER shows anyone currently late-claiming-
             // eligible — once someone's overdue into the late-claiming
             // window, they belong exclusively on that tab from then on.
             // What's left here is: still-active pending applicants (haven't
@@ -640,7 +640,7 @@ class VerifierController extends Controller
             $query->whereDoesntHave('claimingAssignment', fn($q) => $this->applyLateClaimingEligibleCondition($q, $today));
 
             if ($laneId) {
-                // Regular claiming day — scoped to one specific lane, so a
+                // Scheduled claiming day — scoped to one specific lane, so a
                 // verifier only ever sees the applicants assigned to the
                 // lane they're actually working.
                 $query->whereHas('claimingAssignment', fn($q) => $q->where('claiming_lane_id', $laneId));
@@ -700,7 +700,7 @@ class VerifierController extends Controller
             'assigned_lane'         => $assignedLane,
             'all_lanes'             => $allLanes,
             // So the frontend can auto-default to whichever mode actually
-            // matches today, instead of always opening on Regular Claiming
+            // matches today, instead of always opening on Scheduled Claiming
             // regardless of what day it is.
             'late_claiming_date'     => $schedule->late_claiming_date,
             'late_claiming_end_date' => $schedule->late_claiming_end_date,

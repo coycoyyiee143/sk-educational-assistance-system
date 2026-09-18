@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 /**
- * Seeds a REGULAR claiming day scenario — deliberately separate from
+ * Seeds a SCHEDULED claiming day scenario — deliberately separate from
  * WaitlistScenarioSeeder's Late-Claiming-focused one, since a regular
  * lane's claiming_date can never coincide with an open Late Claiming (see
  * VerifierClaimingUiTestSeeder's docblock: Late Claiming only opens once

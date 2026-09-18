@@ -437,7 +437,7 @@ class AdminReportController extends Controller
                 'amount'         => $amount,
                 // Present only when a face check was actually run for this
                 // claim — mandatory in Late Claiming, optional (verifier's
-                // call) in regular claiming, so this may legitimately be
+                // call) in scheduled claiming, so this may legitimately be
                 // null for a regular-claiming row nobody chose to verify.
                 'face_verification' => $face ? [
                     'matched'       => $face->matched,

@@ -345,7 +345,7 @@ class FullDemoSeeder extends Seeder
 
     /**
      * Late Claiming is deliberately set to START TODAY / already open —
-     * so both Regular Claiming AND Late Claiming can be
+     * so both Scheduled Claiming AND Late Claiming can be
      * demonstrated live on the same day you're presenting.
      */
     private function seedClaimingSchedule(ApplicationConfiguration $config): ClaimingSchedule

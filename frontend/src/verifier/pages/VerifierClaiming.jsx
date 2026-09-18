@@ -309,7 +309,7 @@ function VerifierClaiming() {
     );
   }
 
-  function switchToRegularMode() {
+  function switchToScheduledMode() {
     modeManuallySetRef.current = true;
 
     setLateClaimingMode(false);
@@ -816,7 +816,7 @@ function VerifierClaiming() {
 
   // Late Claiming walk-ins have no lane/schedule structure backing up who
   // they are, so identity comes first: Face Verification renders as Step
-  // 1 and Document Verification as Step 2 there. Regular claiming has no
+  // 1 and Document Verification as Step 2 there. Scheduled claiming has no
   // Face Verification step at all (see the docblock further down), so
   // Document Verification renders alone with no step badge and takes the
   // full width instead.
@@ -1409,7 +1409,7 @@ function VerifierClaiming() {
                   {/* Late Claiming walk-ins have no lane/schedule
                      structure backing up who they are, so identity comes
                      first — Face Verification renders as Step 1 and
-                     Document Verification as Step 2. Regular claiming has
+                     Document Verification as Step 2. Scheduled claiming has
                      that structure already (a scheduled lane, a control
                      number, a verifier who selected them off that lane's
                      own list), so Face Verification is skipped entirely
@@ -1518,10 +1518,6 @@ function VerifierClaiming() {
                       </h4>
 
                       <div className="verifier-claiming-phase">
-                        <span className="verifier-claiming-phase-label">
-                          Claiming Phase Selection
-                        </span>
-
                         <div className="verifier-claiming-mode-tabs">
                           <button
                             type="button"
@@ -1530,10 +1526,10 @@ function VerifierClaiming() {
                               : ""
                               }`}
                             onClick={
-                              switchToRegularMode
+                              switchToScheduledMode
                             }
                           >
-                            Regular Claiming
+                            Scheduled Claiming
                           </button>
 
                           <button
@@ -1560,34 +1556,37 @@ function VerifierClaiming() {
                             </span>
 
                             <div className="verifier-claiming-context-content">
-                              <strong>
-                                Late Claiming
-                              </strong>
+                              <div className="verifier-claiming-context-headline">
+                                <strong>
+                                  Late Claiming
+                                </strong>
 
-                              <span>
-                                — Day{" "}
-                                {Math.max(
-                                  1,
-                                  daysBetween(
+                                <span className="verifier-claiming-day-badge">
+                                  Day{" "}
+                                  {Math.max(
+                                    1,
+                                    daysBetween(
+                                      lateClaimingDates.start,
+                                      todayStr()
+                                    ) + 1
+                                  )}
+                                  /
+                                  {daysBetween(
                                     lateClaimingDates.start,
-                                    todayStr()
-                                  ) + 1
-                                )}
-                                /
-                                {daysBetween(
-                                  lateClaimingDates.start,
-                                  lateClaimingDates.end
-                                ) + 1}{" "}
-                                (
-                                {formatDateDisplay(
-                                  lateClaimingDates.start
-                                )}{" "}
-                                –{" "}
-                                {formatDateDisplay(
-                                  lateClaimingDates.end
-                                )}
-                                )
-                              </span>
+                                    lateClaimingDates.end
+                                  ) + 1}
+                                </span>
+
+                                <span className="verifier-claiming-context-muted">
+                                  {formatDateDisplay(
+                                    lateClaimingDates.start
+                                  )}{" "}
+                                  –{" "}
+                                  {formatDateDisplay(
+                                    lateClaimingDates.end
+                                  )}
+                                </span>
+                              </div>
                             </div>
                           </div>
                         ) : lanesError ? (
@@ -1630,59 +1629,63 @@ function VerifierClaiming() {
                             </span>
 
                             <div className="verifier-claiming-context-content">
-                              <strong>
-                                Today —{" "}
-                                {formatDateDisplay(
-                                  todayStr()
-                                )}
-                              </strong>
+                              <div className="verifier-claiming-context-headline">
+                                <strong>
+                                  Today —{" "}
+                                  {formatDateDisplay(
+                                    todayStr()
+                                  )}
+                                </strong>
 
-                              {todaysLanes.length >
-                                0 ? (
-                                <span>
-                                  — Lanes claiming today:{" "}
-                                  {todaysLanes
-                                    .map(
-                                      (
-                                        lane
-                                      ) =>
-                                        `${lane.lane_name
-                                        } (${lane.batch ===
-                                          "morning"
-                                          ? "Morning"
-                                          : "Afternoon"
-                                        })`
-                                    )
-                                    .join(
-                                      ", "
-                                    )}
-                                </span>
-                              ) : (
-                                <span>
-                                  — No lanes scheduled to claim today.
-                                </span>
-                              )}
+                                {todaysLanes.length >
+                                  0 ? (
+                                  <span>
+                                    Lanes claiming today:{" "}
+                                    {todaysLanes
+                                      .map(
+                                        (
+                                          lane
+                                        ) =>
+                                          `${lane.lane_name
+                                          } (${lane.batch ===
+                                            "morning"
+                                            ? "Morning"
+                                            : "Afternoon"
+                                          })`
+                                      )
+                                      .join(
+                                        ", "
+                                      )}
+                                  </span>
+                                ) : (
+                                  <span>
+                                    No lanes scheduled to claim today.
+                                  </span>
+                                )}
+                              </div>
 
                               {assignedLane && (
-                                <span className="verifier-claiming-current-lane">
-                                  Currently viewing:{" "}
-                                  <strong>
-                                    {
-                                      assignedLane.lane_name
-                                    }
-                                  </strong>{" "}
-                                  (
-                                  {formatDateDisplay(
-                                    assignedLane.claiming_date
-                                  )}
-                                  )
+                                <div className="verifier-claiming-current-lane">
+                                  <span>
+                                    Currently viewing:{" "}
+                                    <strong>
+                                      {
+                                        assignedLane.lane_name
+                                      }
+                                    </strong>{" "}
+                                    (
+                                    {formatDateDisplay(
+                                      assignedLane.claiming_date
+                                    )}
+                                    )
+                                  </span>
                                   {assignedLane.claiming_date <
                                     todayStr() && (
-                                      <span className="text-danger ms-1">
-                                        — this lane&apos;s date has already passed
+                                      <span className="verifier-claiming-lane-passed-badge">
+                                        Date Passed
                                       </span>
                                     )}
-                                </span>
+                                </div>
                               )}
                             </div>
                           </div>

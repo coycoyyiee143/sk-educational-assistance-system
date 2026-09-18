@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\Hash;
  * Seeds a full VerifierClaiming.jsx UI test scenario, covering the two
  * tabs side by side:
  *
- * REGULAR CLAIMING should show:
+ * SCHEDULED CLAIMING should show:
  *   - Resolved history from BEFORE Late Claiming started (Ana, Lane A,
  *     verified the same day as her lane's claiming_date)
  *
@@ -61,7 +61,7 @@ use Illuminate\Support\Facades\Hash;
  * Not for testing the mandatory face-verification gate specifically —
  * these are fabricated accounts with no real FaceVerification embedding.
  * See ClaimingFaceTestSeeder for that (needs a REAL registered account,
- * since face verification is atomic with signup). Regular claiming here
+ * since face verification is atomic with signup). Scheduled claiming here
  * still works fine for these applicants since face verification is
  * OPTIONAL there; attempting "Claimed" on a Late Claiming row will
  * correctly hit the mandatory-gate rejection, which IS testable here —
@@ -284,7 +284,7 @@ class VerifierClaimingUiTestSeeder extends Seeder
         );
 
         $this->command->info('VerifierClaimingUiTestSeeder done. Log in as verifier@skmamatid.com / verifier123.');
-        $this->command->info('--- Regular Claiming ---');
+        $this->command->info('--- Scheduled Claiming ---');
         $this->command->info('Lane A (assigned to you): Maria + Juan pending — WILL move to Late Claiming (overdue).');
         $this->command->info('Lane A also: Ana — CLAIMED, stays here as history (resolved before Late Claiming).');
         $this->command->info('Lane B: Carlos + Liza pending — WILL move to Late Claiming (overdue).');
@@ -293,6 +293,6 @@ class VerifierClaimingUiTestSeeder extends Seeder
         $this->command->info('Retrying, resolved: Elena — CLAIMED during Late Claiming, stays here as history.');
         $this->command->info('Promoted, unresolved: Rosa (waitlist_promotion).');
         $this->command->info('Promoted, resolved: Diego — CLAIMED, stays here as history.');
-        $this->command->info('NOTE: "still pending, not yet overdue" regular claiming is NOT demonstrated here — see class docblock for why it cannot coexist with an already-open Late Claiming.');
+        $this->command->info('NOTE: "still pending, not yet overdue" scheduled claiming is NOT demonstrated here — see class docblock for why it cannot coexist with an already-open Late Claiming.');
     }
 }
