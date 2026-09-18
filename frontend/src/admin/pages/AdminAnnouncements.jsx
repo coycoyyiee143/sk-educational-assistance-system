@@ -151,6 +151,7 @@ function AdminAnnouncements() {
 
   async function deleteAllAnnouncements() {
     setShowDeleteAllConfirm(false);
+    if (announcements.length === 0) return;
     setError("");
     setSuccess("");
     try {
@@ -330,6 +331,7 @@ function AdminAnnouncements() {
                     type="button"
                     className="table-toolbar-btn table-toolbar-btn-red"
                     onClick={() => setShowDeleteAllConfirm(true)}
+                    disabled={announcements.length === 0}
                   >
                     Delete All
                   </button>

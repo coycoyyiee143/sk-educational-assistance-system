@@ -29,6 +29,55 @@ function SetupPendingBadge({ emailVerifiedAt }) {
     </span>
   );
 }
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+function CheckCircleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" />
+      <path d="m8 12 3 3 5-6" />
+    </svg>
+  );
+}
+function BanIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="4.9" y1="4.9" x2="19.1" y2="19.1" />
+    </svg>
+  );
+}
+function KeyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+    </svg>
+  );
+}
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
+  );
+}
 function getPageNumbers(currentPage, totalPages) {
   const pages = [];
   const maxVisible = 5;
@@ -294,6 +343,11 @@ function AdminUsers() {
   const [resetting, setResetting] = useState(false);
   const [twoFATarget, setTwoFATarget] = useState(null); // confirm-dialog target (2FA reset)
   const [resettingTwoFA, setResettingTwoFA] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState(null); // confirm-dialog target (deactivate only — activating is non-destructive)
+  const [deactivating, setDeactivating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // confirm-dialog target (delete)
+  const [deleting, setDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState(null); // id currently being (re)activated — guards double-click
   const roleMenuRef = useRef(null);
   const perPage = 10;
   function loadUsers() {
@@ -322,20 +376,49 @@ function AdminUsers() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
   async function toggleStatus(id) {
+    setTogglingId(id);
     try {
       await api.patch(`/admin/users/${id}/toggle-status`);
       loadUsers();
     } catch {
       setError("Failed to update status.");
+    } finally {
+      setTogglingId(null);
     }
   }
-  async function deleteUser(id) {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
+  // Deactivating locks the account out immediately, so it goes through a
+  // confirm modal like the other account-impacting actions below.
+  // Re-activating isn't destructive, so that path calls toggleStatus directly.
+  function handleToggleClick(p) {
+    if (p.is_active) setDeactivateTarget(p);
+    else toggleStatus(p.id);
+  }
+  async function confirmDeactivate() {
+    if (!deactivateTarget) return;
+    setDeactivating(true);
+    setError("");
     try {
-      await api.delete(`/admin/users/${id}`);
+      await api.patch(`/admin/users/${deactivateTarget.id}/toggle-status`);
+      setDeactivateTarget(null);
+      loadUsers();
+    } catch {
+      setError("Failed to update status.");
+    } finally {
+      setDeactivating(false);
+    }
+  }
+  async function confirmDeleteUser() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setError("");
+    try {
+      await api.delete(`/admin/users/${deleteTarget.id}`);
+      setDeleteTarget(null);
       loadUsers();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete user.");
+    } finally {
+      setDeleting(false);
     }
   }
   async function savePersonnel(form) {
@@ -471,24 +554,41 @@ function AdminUsers() {
                               <span className="text-muted" style={{ fontSize: "13px" }}>View only</span>
                             ) : (
                             <div className="user-action-group">
-                              <button className={`user-action-btn ${p.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(p.id)}>{p.is_active ? "Deactivate" : "Activate"}</button>
                               <button
-                                className="user-action-btn"
+                                className={`user-icon-btn ${p.is_active ? "user-icon-btn-deactivate" : "user-icon-btn-activate"}`}
+                                onClick={() => handleToggleClick(p)}
+                                disabled={togglingId === p.id}
+                                title={p.is_active ? "Deactivate" : "Activate"}
+                                aria-label={p.is_active ? "Deactivate" : "Activate"}
+                              >
+                                {p.is_active ? <BanIcon /> : <CheckCircleIcon />}
+                              </button>
+                              <button
+                                className="user-icon-btn user-icon-btn-reset-password"
                                 onClick={() => setResetTarget(p)}
                                 disabled={p.id === currentUser?.id}
-                                title={p.id === currentUser?.id ? "Use Change Password in your own account settings instead" : undefined}
+                                title={p.id === currentUser?.id ? "Use Change Password in your own account settings instead" : "Reset Password"}
+                                aria-label="Reset Password"
                               >
-                                Reset Password
+                                <KeyIcon />
                               </button>
                               <button
-                                className="user-action-btn"
+                                className="user-icon-btn user-icon-btn-reset-2fa"
                                 onClick={() => setTwoFATarget(p)}
                                 disabled={p.id === currentUser?.id}
-                                title={p.id === currentUser?.id ? "You can't reset your own 2FA this way" : "Clears their authenticator setup — use if they lost their device or QR code"}
+                                title={p.id === currentUser?.id ? "You can't reset your own 2FA this way" : "Reset 2FA — clears their authenticator setup, use if they lost their device or QR code"}
+                                aria-label="Reset 2FA"
                               >
-                                Reset 2FA
+                                <ShieldIcon />
                               </button>
-                              <button className="user-action-btn user-action-delete" onClick={() => deleteUser(p.id)}>Delete</button>
+                              <button
+                                className="user-icon-btn user-icon-btn-delete"
+                                onClick={() => setDeleteTarget(p)}
+                                title="Delete"
+                                aria-label="Delete"
+                              >
+                                <TrashIcon />
+                              </button>
                             </div>
                             )}
                           </td>
@@ -550,14 +650,25 @@ function AdminUsers() {
                           <td><StatusBadge active={a.is_active} /></td>
                           <td>
                             <div className="user-action-group">
-                              <button className="user-action-btn user-action-view" onClick={() => setViewApplicant(a)}>View</button>
-                              <button className={`user-action-btn ${a.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(a.id)}>{a.is_active ? "Deactivate" : "Activate"}</button>
+                              <button className="user-icon-btn user-icon-btn-view" onClick={() => setViewApplicant(a)} title="View" aria-label="View">
+                                <EyeIcon />
+                              </button>
                               <button
-                                className="user-action-btn"
-                                onClick={() => setTwoFATarget(a)}
-                                title="Clears their authenticator setup — use if they lost their device or QR code"
+                                className={`user-icon-btn ${a.is_active ? "user-icon-btn-deactivate" : "user-icon-btn-activate"}`}
+                                onClick={() => handleToggleClick(a)}
+                                disabled={togglingId === a.id}
+                                title={a.is_active ? "Deactivate" : "Activate"}
+                                aria-label={a.is_active ? "Deactivate" : "Activate"}
                               >
-                                Reset 2FA
+                                {a.is_active ? <BanIcon /> : <CheckCircleIcon />}
+                              </button>
+                              <button
+                                className="user-icon-btn user-icon-btn-reset-2fa"
+                                onClick={() => setTwoFATarget(a)}
+                                title="Reset 2FA — clears their authenticator setup, use if they lost their device or QR code"
+                                aria-label="Reset 2FA"
+                              >
+                                <ShieldIcon />
                               </button>
                             </div>
                           </td>
@@ -640,6 +751,60 @@ function AdminUsers() {
                 </button>
                 <button type="button" className="btn btn-custom" onClick={confirmResetTwoFA} disabled={resettingTwoFA}>
                   {resettingTwoFA ? "Resetting..." : "Yes, Reset 2FA"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deactivateTarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Deactivate Account?</h5>
+                <button type="button" className="btn-close" onClick={() => setDeactivateTarget(null)} disabled={deactivating} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  This will immediately lock {deactivateTarget.first_name} {deactivateTarget.last_name} ({deactivateTarget.email})
+                  out of their account. They won't be able to log in until an admin reactivates it.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setDeactivateTarget(null)} disabled={deactivating}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmDeactivate} disabled={deactivating}>
+                  {deactivating ? "Deactivating..." : "Yes, Deactivate"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Delete User?</h5>
+                <button type="button" className="btn-close" onClick={() => setDeleteTarget(null)} disabled={deleting} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  This will permanently delete {deleteTarget.first_name} {deleteTarget.last_name}'s ({deleteTarget.email}) account.
+                  This action cannot be undone.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmDeleteUser} disabled={deleting}>
+                  {deleting ? "Deleting..." : "Yes, Delete"}
                 </button>
               </div>
             </div>

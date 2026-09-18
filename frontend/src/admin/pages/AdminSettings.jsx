@@ -53,6 +53,7 @@ function AdminSettings() {
   const [extendDate, setExtendDate] = useState("");
   const [extending, setExtending] = useState(false);
   const [extendError, setExtendError] = useState("");
+  const [showClosePeriodModal, setShowClosePeriodModal] = useState(false);
 
   useEffect(() => {
     api.get("/admin/application-configs")
@@ -112,9 +113,6 @@ function AdminSettings() {
 
   async function handleClosePeriod() {
     if (!config) return;
-    if (!window.confirm(
-      "Close this application period? This will mark every remaining waitlisted applicant as not selected, and cannot be undone."
-    )) return;
     setClosing(true);
     setError("");
     setSuccess("");
@@ -122,6 +120,7 @@ function AdminSettings() {
       const res = await api.post(`/admin/application-configs/${config.id}/close`);
       setSuccess(res.data.message);
       setConfig((prev) => ({ ...prev, closed_at: res.data.config.closed_at }));
+      setShowClosePeriodModal(false);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to close period.");
     } finally {
@@ -658,7 +657,7 @@ function AdminSettings() {
                   <button
                     type="button"
                     className="btn btn-outline-danger"
-                    onClick={handleClosePeriod}
+                    onClick={() => setShowClosePeriodModal(true)}
                     disabled={closing}
                   >
                     {closing ? "Closing..." : "Close Period"}
@@ -762,6 +761,42 @@ function AdminSettings() {
                   disabled={extending || !extendDate}
                 >
                   {extending ? "Extending..." : "Confirm Extension"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showClosePeriodModal && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content edit-announcement-modal">
+              <div className="modal-header">
+                <h5 className="modal-title">Close This Period?</h5>
+              </div>
+              <div className="p-4">
+                <p className="mb-0">
+                  This will mark every remaining waitlisted applicant as not
+                  selected. This cannot be undone.
+                </p>
+              </div>
+              <div className="d-flex justify-content-end gap-2 p-3 border-top">
+                <button
+                  type="button"
+                  className="btn btn-clear-dark"
+                  onClick={() => setShowClosePeriodModal(false)}
+                  disabled={closing}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleClosePeriod}
+                  disabled={closing}
+                >
+                  {closing ? "Closing..." : "Yes, Close Period"}
                 </button>
               </div>
             </div>

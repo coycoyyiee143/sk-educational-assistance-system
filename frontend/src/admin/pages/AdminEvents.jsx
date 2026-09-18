@@ -324,6 +324,7 @@ function AdminEvents() {
   const [currentPage, setCurrentPage] = useState(1);
   const perPage = 10;
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => { loadEvents(); }, []);
 
@@ -400,19 +401,26 @@ function AdminEvents() {
   }
 
   async function deleteEvent(id) {
-    setDeleteTarget(null);
+    setDeleting(true);
     setError("");
     setSuccess("");
     try {
       await api.delete(`/admin/events/${id}`);
       setEvents((prev) => prev.filter((e) => e.id !== id));
+      setDeleteTarget(null);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete event.");
+    } finally {
+      setDeleting(false);
     }
   }
 
   async function deleteAllEvents() {
-    setShowDeleteAllConfirm(false);
+    if (events.length === 0) {
+      setShowDeleteAllConfirm(false);
+      return;
+    }
+    setDeleting(true);
     setError("");
     setSuccess("");
     try {
@@ -420,8 +428,11 @@ function AdminEvents() {
       setEvents([]);
       setCurrentPage(1);
       setSuccess("All events have been permanently deleted from the system.");
+      setShowDeleteAllConfirm(false);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete all events.");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -527,6 +538,7 @@ function AdminEvents() {
                     type="button"
                     className="table-toolbar-btn table-toolbar-btn-red"
                     onClick={() => setShowDeleteAllConfirm(true)}
+                    disabled={events.length === 0}
                   >
                     Delete All
                   </button>
@@ -662,6 +674,7 @@ function AdminEvents() {
                 type="button"
                 className="feedback-popup-cancel"
                 onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
               >
                 Cancel
               </button>
@@ -669,8 +682,9 @@ function AdminEvents() {
                 type="button"
                 className="feedback-popup-proceed"
                 onClick={() => deleteEvent(deleteTarget.id)}
+                disabled={deleting}
               >
-                Yes
+                {deleting ? "Deleting..." : "Yes"}
               </button>
             </div>
           </div>
@@ -692,6 +706,7 @@ function AdminEvents() {
                 type="button"
                 className="feedback-popup-cancel"
                 onClick={() => setShowDeleteAllConfirm(false)}
+                disabled={deleting}
               >
                 Cancel
               </button>
@@ -699,8 +714,9 @@ function AdminEvents() {
                 type="button"
                 className="feedback-popup-proceed"
                 onClick={deleteAllEvents}
+                disabled={deleting}
               >
-                Proceed
+                {deleting ? "Deleting..." : "Proceed"}
               </button>
             </div>
           </div>

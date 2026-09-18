@@ -147,6 +147,11 @@ function VerifierApplicationReview() {
   const [loading, setLoading] = useState(true);
   const [refreshingOcr, setRefreshingOcr] = useState(false);
   const [error, setError] = useState("");
+  // Separate from `error` above — that one gates the whole "not found" page
+  // (see `if (error || !app) return ...` below), so action failures that
+  // happen after the page has already loaded get their own dismissible
+  // banner instead of blowing away the loaded application view.
+  const [actionError, setActionError] = useState("");
   const [activeRawDocId, setActiveRawDocId] = useState(null);
   const [activeDocumentType, setActiveDocumentType] = useState(
     "registration_form"
@@ -173,6 +178,12 @@ function VerifierApplicationReview() {
     school_id: { reasons: [], otherText: "" },
     voters_certificate: { reasons: [], otherText: "" },
   });
+
+  useEffect(() => {
+    if (!actionError) return;
+    const t = setTimeout(() => setActionError(""), 6000);
+    return () => clearTimeout(t);
+  }, [actionError]);
 
   useEffect(() => {
     api
@@ -652,7 +663,7 @@ function VerifierApplicationReview() {
       setActiveRawDocId(null);
       setOpenFlagDocId(null);
     } catch {
-      alert("Failed to refresh OCR verification results.");
+      setActionError("Failed to refresh OCR verification results.");
     } finally {
       setRefreshingOcr(false);
     }
@@ -676,7 +687,7 @@ function VerifierApplicationReview() {
 
       setApp(res.data);
     } catch {
-      alert("Failed to queue OCR retry.");
+      setActionError("Failed to queue OCR retry.");
     } finally {
       setRefreshingOcr(false);
     }
@@ -710,7 +721,7 @@ function VerifierApplicationReview() {
 
       setApp(res.data);
     } catch {
-      alert(
+      setActionError(
         "Failed to queue retries for one or more documents."
       );
     } finally {
@@ -742,7 +753,7 @@ function VerifierApplicationReview() {
         URL.revokeObjectURL(url);
       }, 60000);
     } catch {
-      alert("Failed to load document.");
+      setActionError("Failed to load document.");
     }
   }
 
@@ -755,6 +766,8 @@ function VerifierApplicationReview() {
 
         <section className="page-section">
           <div className="container-fluid">
+
+            {actionError && <div className="alert alert-danger">{actionError}</div>}
 
             <div className="verifier-dashboard-header">
 

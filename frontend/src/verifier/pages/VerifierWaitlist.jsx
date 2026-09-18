@@ -19,6 +19,7 @@ function VerifierWaitlist() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [confirmPromote, setConfirmPromote] = useState(null); // "single" | "all" | null
 
   // async + awaited so usePolling's overlap guard below knows when this
   // actually finishes, not just when it starts. Same error-on-failure
@@ -233,7 +234,7 @@ function VerifierWaitlist() {
                   <button
                     type="button"
                     className="verifier-waitlist-action-btn"
-                    onClick={handlePromote}
+                    onClick={() => setConfirmPromote("single")}
                     disabled={promoting || promotingAll || waitlist.length === 0}
                   >
                     {promoting ? "Promoting..." : "Promote Next Applicant"}
@@ -242,7 +243,7 @@ function VerifierWaitlist() {
                   <button
                     type="button"
                     className="verifier-waitlist-action-btn"
-                    onClick={handlePromoteAll}
+                    onClick={() => setConfirmPromote("all")}
                     disabled={promoting || promotingAll || waitlist.length === 0}
                   >
                     {promotingAll ? "Promoting..." : "Promote All Available"}
@@ -360,6 +361,55 @@ function VerifierWaitlist() {
 
         <PanelFooter />
       </div>
+
+      {confirmPromote && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {confirmPromote === "all" ? "Promote All Available?" : "Promote Next Applicant?"}
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setConfirmPromote(null)}
+                  disabled={promoting || promotingAll}
+                />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  {confirmPromote === "all"
+                    ? `This will promote every waitlisted applicant that fits into the currently freed slots (up to ${freeSlots === null ? "unlimited" : freeSlots}), oldest wait first. This cannot be undone.`
+                    : `This will promote ${nextApplicant?.name ?? "the next applicant"} (first in line) off the waitlist into a freed slot. This cannot be undone.`}
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setConfirmPromote(null)}
+                  disabled={promoting || promotingAll}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-custom"
+                  onClick={async () => {
+                    if (confirmPromote === "all") await handlePromoteAll();
+                    else await handlePromote();
+                    setConfirmPromote(null);
+                  }}
+                  disabled={promoting || promotingAll}
+                >
+                  {promoting || promotingAll ? "Promoting..." : "Yes, Promote"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
