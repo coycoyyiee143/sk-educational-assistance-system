@@ -324,6 +324,10 @@ class AdminController extends Controller
             'google2fa_enabled_at'  => null,
         ])->save();
 
+        // Any device remembered under the old secret must re-prove itself
+        // once the user re-enrolls, same as after a password change.
+        \App\Models\TrustedDevice::where('user_id', $user->id)->delete();
+
         \App\Models\AuditLog::record(
             '2fa_reset',
             $user,

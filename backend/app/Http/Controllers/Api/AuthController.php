@@ -324,8 +324,9 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'email'    => 'required|email',
-            'password' => 'required|string',
+            'email'        => 'required|email',
+            'password'     => 'required|string',
+            'device_token' => 'nullable|string',
         ]);
     
         $user = User::where('email', $request->email)->first();
@@ -400,8 +401,14 @@ class AuthController extends Controller
             ]);
         }
     
+        // Password's already been checked above regardless — this only ever
+        // shortcuts the authenticator-code step, never the password itself.
+        if ($this->twoFactor->isDeviceTrusted($user, $request->device_token)) {
+            return $this->issueTokenAfterTwoFactor($user, $request);
+        }
+
         Cache::put("2fa_pending:{$pendingToken}", $user->id, now()->addMinutes(self::PENDING_TOKEN_MINUTES));
-    
+
         return response()->json([
             'requires_2fa'  => true,
             'pending_token' => $pendingToken,
@@ -427,8 +434,9 @@ class AuthController extends Controller
     public function confirmTwoFactorSetup(Request $request)
     {
         $request->validate([
-            'pending_token' => 'required|string',
-            'code'          => 'required|digits:6',
+            'pending_token'   => 'required|string',
+            'code'            => 'required|digits:6',
+            'remember_device' => 'nullable|boolean',
         ]);
 
         $payload = Cache::get("2fa_setup:{$request->pending_token}");
@@ -451,8 +459,9 @@ class AuthController extends Controller
     public function verifyTwoFactor(Request $request)
     {
         $request->validate([
-            'pending_token' => 'required|string',
-            'code'          => 'required|digits:6',
+            'pending_token'   => 'required|string',
+            'code'            => 'required|digits:6',
+            'remember_device' => 'nullable|boolean',
         ]);
 
         $userId = Cache::get("2fa_pending:{$request->pending_token}");
@@ -482,11 +491,20 @@ class AuthController extends Controller
             'ip_address'  => $request->ip(),
         ]);
 
-        return response()->json([
+        $response = [
             'message' => 'Login successful.',
             'token'   => $token,
             'user'    => $user,
-        ]);
+        ];
+
+        // Only set on the two 2FA-confirmation endpoints (where the
+        // checkbox lives) — a trusted-device auto-login never reaches here
+        // with remember_device set, since there's no new device to remember.
+        if ($request->boolean('remember_device')) {
+            $response['device_token'] = $this->twoFactor->rememberDevice($user, $request);
+        }
+
+        return response()->json($response);
     }
 
     public function logout(Request $request)

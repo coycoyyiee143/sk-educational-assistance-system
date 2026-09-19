@@ -226,6 +226,11 @@ class ProfileController extends Controller
         $keepIds = PasswordHistory::where('user_id', $user->id)->latest()->take(5)->pluck('id');
         PasswordHistory::where('user_id', $user->id)->whereNotIn('id', $keepIds)->delete();
 
+        // A remembered device only ever shortcuts the 2FA step, never the
+        // password — but if the password leaked, any device trusted under
+        // it should stop being able to skip 2FA too.
+        \App\Models\TrustedDevice::where('user_id', $user->id)->delete();
+
         // Log the password change without exposing any password content
         \App\Models\AuditLog::record(
             'password_changed',

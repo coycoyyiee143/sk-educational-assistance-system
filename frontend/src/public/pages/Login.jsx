@@ -23,6 +23,7 @@ const Login = () => {
   const [secret, setSecret] = useState(null);
   const [setupEmail, setSetupEmail] = useState(null);
   const [code, setCode] = useState("");
+  const [rememberDevice, setRememberDevice] = useState(false);
   const codeInputRef = useRef(null);
 
   // Native autoFocus makes the browser auto-scroll the input into view,
@@ -51,7 +52,8 @@ const Login = () => {
     }
     setLoading(true);
     try {
-      const response = await api.post("/login", { email, password });
+      const deviceToken = localStorage.getItem("device_token");
+      const response = await api.post("/login", { email, password, device_token: deviceToken });
       const data = response.data;
 
       if (data.requires_2fa_setup) {
@@ -97,9 +99,13 @@ const Login = () => {
       const response = await api.post(endpoint, {
         pending_token: pendingToken,
         code: code.trim(),
+        remember_device: rememberDevice,
       });
 
-      const { token, user } = response.data;
+      const { token, user, device_token } = response.data;
+      if (device_token) {
+        localStorage.setItem("device_token", device_token);
+      }
       login(user, token);
       goToRoleHome(user);
     } catch (err) {
@@ -117,6 +123,7 @@ const Login = () => {
     setQrCodeUrl(null);
     setSecret(null);
     setSetupEmail(null);
+    setRememberDevice(false);
   }
 
   if (user) {
@@ -280,6 +287,18 @@ const Login = () => {
                         />
                         <label htmlFor="twoFaCode" className="floating-label">6-digit code</label>
                       </div>
+                      <div className="form-check mb-3">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="rememberDeviceSetup"
+                          checked={rememberDevice}
+                          onChange={(e) => setRememberDevice(e.target.checked)}
+                        />
+                        <label className="form-check-label" htmlFor="rememberDeviceSetup">
+                          Remember this device for 10 days
+                        </label>
+                      </div>
                       <button type="submit" className="btn btn-danger w-100 login-btn-lg" disabled={loading}>
                         {loading ? "Confirming..." : "Confirm & Continue"}
                       </button>
@@ -324,6 +343,18 @@ const Login = () => {
                           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
                         />
                         <label htmlFor="twoFaCode" className="floating-label">6-digit code</label>
+                      </div>
+                      <div className="form-check mb-3">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="rememberDeviceVerify"
+                          checked={rememberDevice}
+                          onChange={(e) => setRememberDevice(e.target.checked)}
+                        />
+                        <label className="form-check-label" htmlFor="rememberDeviceVerify">
+                          Remember this device for 10 days
+                        </label>
                       </div>
                       <button type="submit" className="btn btn-danger w-100 login-btn-lg" disabled={loading}>
                         {loading ? "Verifying..." : "Verify"}
