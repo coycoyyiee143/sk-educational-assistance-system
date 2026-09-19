@@ -7739,6 +7739,58 @@ a:hover {
   gap: 8px;
 }
 
+/* "For Review" is the verifier's actual job — colored solid even when not
+   selected, and noticeably bigger than every other tab, so it reads as
+   the primary thing to click rather than one option among equals. */
+.verifier-application-filter-btn-primary {
+  background: #b71c1c;
+  border-color: #b71c1c;
+  color: #ffffff;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 9px 16px;
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.25);
+}
+
+.verifier-application-filter-btn-primary:hover {
+  background: #a01818;
+  border-color: #a01818;
+  color: #ffffff;
+}
+
+.verifier-application-filter-btn-primary.verifier-application-filter-btn-active {
+  background: #8e0000;
+  border-color: #8e0000;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(183, 28, 28, 0.2), 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.verifier-application-filter-btn-primary .verifier-application-filter-count {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+/* "All" is a reset/audit view, not a daily-use queue — de-emphasized so
+   it doesn't compete with the tabs a verifier actually needs each day. */
+.verifier-application-filter-btn-all {
+  background: transparent;
+  border-color: transparent;
+  color: #8a9099;
+  box-shadow: none;
+}
+
+.verifier-application-filter-btn-all:hover {
+  background: #f3f4f5;
+  border-color: #e0e3e6;
+  color: #626b74;
+}
+
+.verifier-application-filter-btn-all.verifier-application-filter-btn-active {
+  background: #f1f2f3;
+  border-color: #d3d7db;
+  color: #444c54;
+}
+
 .verifier-application-filter-divider {
   width: 1px;
   height: 22px;

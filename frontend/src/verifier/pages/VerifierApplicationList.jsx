@@ -21,12 +21,19 @@ function StatusBadge({ app }) {
 }
 
 // Grouped by what the verifier actually needs to do, not just a flat list
-// of raw statuses: "action" tabs are things sitting in the verifier's own
-// queue right now, "resolved" tabs are past decisions kept around for
-// reference. A visual divider separates the two groups in the toolbar.
+// of raw statuses, and ordered by priority rather than alphabetically or
+// by pipeline order:
+//   1. "primary" — For Review. This IS the job; it gets first position
+//      and its own bigger, always-colored (not just outlined) styling so
+//      it visually dominates the row instead of reading as one pill among
+//      many equal-weight options.
+//   2. "action" — other things the verifier is actively waiting on or
+//      needs to notice, but isn't their next click.
+//   3. "resolved" — past decisions, kept for reference only.
+//   4. "all" — a reset/audit view, not a daily-use queue, so it's last
+//      and styled quieter than the rest instead of leading the row.
 const STATUS_TABS = [
-  { key: "all", label: "All", group: "action" },
-  { key: "for_review", label: "For Review", group: "action" },
+  { key: "for_review", label: "For Review", group: "primary" },
   // reupload_requested (verifier flagged it) and auto_reupload_requested
   // (system flagged it) both mean the exact same thing operationally —
   // nothing for the verifier to do until the applicant re-uploads — so
@@ -38,6 +45,7 @@ const STATUS_TABS = [
   { key: "appeal_requested", label: "Appeal Requested", group: "action" },
   { key: "approved", label: "Approved", group: "resolved" },
   { key: "rejected", label: "Rejected", group: "resolved" },
+  { key: "all", label: "All", group: "all" },
 ];
 
 const AWAITING_APPLICANT_STATUSES = ["reupload_requested", "auto_reupload_requested"];
@@ -207,22 +215,21 @@ function VerifierApplicationList() {
 
                 <div className="verifier-application-filter-tabs">
                   {STATUS_TABS.map((tab, idx) => {
-                    // A divider renders once, right where the tabs switch
-                    // from "needs action" to "already decided" — makes the
-                    // two clusters read as distinct groups instead of one
-                    // undifferentiated row of buttons.
-                    const isFirstResolvedTab =
-                      tab.group === "resolved" &&
-                      STATUS_TABS[idx - 1]?.group !== "resolved";
+                    // A divider renders once at each group boundary —
+                    // primary → action → resolved → all — so the row
+                    // reads as distinct clusters by priority instead of
+                    // one undifferentiated line of equal-weight buttons.
+                    const showDivider =
+                      idx > 0 && tab.group !== STATUS_TABS[idx - 1].group;
 
                     return (
                       <div key={tab.key} className="verifier-application-filter-tab-wrap">
-                        {isFirstResolvedTab && (
+                        {showDivider && (
                           <span className="verifier-application-filter-divider" aria-hidden="true" />
                         )}
                         <button
                           type="button"
-                          className={`verifier-application-filter-btn ${statusTab === tab.key
+                          className={`verifier-application-filter-btn verifier-application-filter-btn-${tab.group} ${statusTab === tab.key
                             ? "verifier-application-filter-btn-active"
                             : ""
                             }`}
