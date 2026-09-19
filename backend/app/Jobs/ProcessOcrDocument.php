@@ -280,6 +280,34 @@ class ProcessOcrDocument implements ShouldQueue
     {
         \Log::error("OCR job permanently failed for doc {$this->document->id} after {$this->tries} attempts: " . $exception->getMessage());
         $this->document->update(['status' => 'failed']);
+
+        // updateApplicationStatus() only advances the application once
+        // every latest document is 'processed' -- a 'failed' document
+        // never becomes that on its own, so calling it here would just
+        // silently no-op and leave the applicant stuck on
+        // 'pending_prescreening' forever with no way to know why. Route
+        // it through the same auto-reupload path the normal flagging
+        // flow already uses (see the auto_reupload_flagged branch above)
+        // so the applicant gets a concrete next step instead of an
+        // indefinite spinner.
+        $reason = 'We were unable to process your ' . str_replace('_', ' ', $this->document->document_type)
+            . ' due to a system error. Please try re-uploading it.';
+
+        $this->application->update([
+            'status'               => 'auto_reupload_requested',
+            'auto_reupload_reason' => $reason,
+        ]);
+
+        \App\Models\AuditLog::record(
+            'ocr_processing_failed',
+            $this->document,
+            $reason
+        );
+
+        $this->application->user->notify(new ApplicationStatusNotification(
+            'Re-upload Needed',
+            $reason
+        ));
     }
 
 
