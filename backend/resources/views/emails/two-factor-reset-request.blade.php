@@ -38,6 +38,20 @@
         (e.g. a call or a face-to-face check) before resetting their 2FA from the Manage Users panel.
     </p>
 
+    <p style="text-align: center; margin: 25px 0;">
+        <a href="{{ rtrim(env('FRONTEND_URL', 'http://localhost:3000'), '/') }}/AdminUsers" style="
+            background: #b71c1c;
+            color: #ffffff;
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            display: inline-block;
+            font-weight: bold;
+        ">
+            Go to Manage Users
+        </a>
+    </p>
+
     <hr style="
         border: none;
         border-top: 1px solid #eeeeee;
