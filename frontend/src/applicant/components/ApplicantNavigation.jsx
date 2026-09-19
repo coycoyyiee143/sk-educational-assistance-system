@@ -11,7 +11,20 @@ function ApplicantNavigation() {
 
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // Each page renders its own <ApplicantNavigation />, so navigating
+  // remounts this component — read/persist via localStorage so the
+  // collapsed sidebar doesn't pop back open on every nav click.
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("applicant-sidebar-collapsed") === "1"
+  );
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("applicant-sidebar-collapsed", next ? "1" : "0");
+      return next;
+    });
+  };
 
   // Mobile only
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -128,7 +141,7 @@ function ApplicantNavigation() {
         <button
           type="button"
           className="applicant-sidebar-toggle"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapsed}
           aria-label="Toggle sidebar"
         >
           <svg

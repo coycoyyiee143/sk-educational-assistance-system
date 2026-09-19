@@ -12,7 +12,20 @@ function AdminNavigation({
   const navigate = useNavigate();
 
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // Each page renders its own <AdminNavigation />, so navigating
+  // remounts this component — read/persist via localStorage so the
+  // collapsed sidebar doesn't pop back open on every nav click.
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("admin-sidebar-collapsed") === "1"
+  );
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("admin-sidebar-collapsed", next ? "1" : "0");
+      return next;
+    });
+  };
 
   const isItSupport = user?.role === "it_support";
   const isSuperadmin = user?.role === "superadmin";
@@ -55,7 +68,7 @@ function AdminNavigation({
         <button
           type="button"
           className="admin-sidebar-toggle"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapsed}
           aria-label="Toggle sidebar"
         >
           <svg

@@ -14,7 +14,20 @@ function VerifierNavigation({
 
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // Each page renders its own <VerifierNavigation />, so navigating
+  // remounts this component — read/persist via localStorage so the
+  // collapsed sidebar doesn't pop back open on every nav click.
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("verifier-sidebar-collapsed") === "1"
+  );
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("verifier-sidebar-collapsed", next ? "1" : "0");
+      return next;
+    });
+  };
 
   const handleLogout = async () => {
     try {
@@ -52,7 +65,7 @@ function VerifierNavigation({
         <button
           type="button"
           className="verifier-sidebar-toggle"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapsed}
           aria-label="Toggle sidebar"
         >
           <svg
