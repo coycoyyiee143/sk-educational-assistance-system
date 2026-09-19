@@ -34,6 +34,12 @@ function StatusBadge({ app }) {
 //      and styled quieter than the rest instead of leading the row.
 const STATUS_TABS = [
   { key: "for_review", label: "For Review", group: "primary" },
+  // Within "action", ordered by whether it needs a human decision from
+  // the verifier (appeal, a stuck OCR failure) vs. just informational
+  // waiting that isn't on the verifier at all (applicant hasn't
+  // re-uploaded yet, or OCR is still auto-processing).
+  { key: "appeal_requested", label: "Appeal Requested", group: "action" },
+  { key: "ocr_failed", label: "OCR Failed", group: "action" },
   // reupload_requested (verifier flagged it) and auto_reupload_requested
   // (system flagged it) both mean the exact same thing operationally —
   // nothing for the verifier to do until the applicant re-uploads — so
@@ -41,8 +47,6 @@ const STATUS_TABS = [
   // separately.
   { key: "awaiting_applicant", label: "Awaiting Applicant", group: "action" },
   { key: "pending_prescreening", label: "Pending", group: "action" },
-  { key: "ocr_failed", label: "OCR Failed", group: "action" },
-  { key: "appeal_requested", label: "Appeal Requested", group: "action" },
   { key: "approved", label: "Approved", group: "resolved" },
   { key: "rejected", label: "Rejected", group: "resolved" },
   { key: "all", label: "All", group: "all" },
