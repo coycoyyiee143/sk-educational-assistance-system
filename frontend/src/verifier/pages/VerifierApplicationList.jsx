@@ -20,15 +20,27 @@ function StatusBadge({ app }) {
   );
 }
 
+// Grouped by what the verifier actually needs to do, not just a flat list
+// of raw statuses: "action" tabs are things sitting in the verifier's own
+// queue right now, "resolved" tabs are past decisions kept around for
+// reference. A visual divider separates the two groups in the toolbar.
 const STATUS_TABS = [
-  { key: "all", label: "All" },
-  { key: "for_review", label: "For Review" },
-  { key: "pending_prescreening", label: "Pending" },
-  { key: "approved", label: "Approved" },
-  { key: "rejected", label: "Rejected" },
-  { key: "appeal_requested", label: "Appeal Requested" },
-  { key: "ocr_failed", label: "OCR Failed" },
+  { key: "all", label: "All", group: "action" },
+  { key: "for_review", label: "For Review", group: "action" },
+  // reupload_requested (verifier flagged it) and auto_reupload_requested
+  // (system flagged it) both mean the exact same thing operationally —
+  // nothing for the verifier to do until the applicant re-uploads — so
+  // they're one combined tab instead of two the verifier has to check
+  // separately.
+  { key: "awaiting_applicant", label: "Awaiting Applicant", group: "action" },
+  { key: "pending_prescreening", label: "Pending", group: "action" },
+  { key: "ocr_failed", label: "OCR Failed", group: "action" },
+  { key: "appeal_requested", label: "Appeal Requested", group: "action" },
+  { key: "approved", label: "Approved", group: "resolved" },
+  { key: "rejected", label: "Rejected", group: "resolved" },
 ];
+
+const AWAITING_APPLICANT_STATUSES = ["reupload_requested", "auto_reupload_requested"];
 
 function VerifierApplicationList() {
   const [applications, setApplications] = useState([]);
@@ -66,6 +78,9 @@ function VerifierApplicationList() {
   const counts = {
     all: applications.length,
     for_review: applications.filter((a) => a.status === "for_review").length,
+    awaiting_applicant: applications.filter((a) =>
+      AWAITING_APPLICANT_STATUSES.includes(a.status)
+    ).length,
     pending_prescreening: applications.filter(
       (a) => a.status === "pending_prescreening"
     ).length,
@@ -80,13 +95,13 @@ function VerifierApplicationList() {
   };
 
   const filtered = applications
-    .filter((app) =>
-      statusTab === "all"
-        ? true
-        : statusTab === "ocr_failed"
-          ? app.failed_documents_count > 0
-          : app.status === statusTab
-    )
+    .filter((app) => {
+      if (statusTab === "all") return true;
+      if (statusTab === "ocr_failed") return app.failed_documents_count > 0;
+      if (statusTab === "awaiting_applicant")
+        return AWAITING_APPLICANT_STATUSES.includes(app.status);
+      return app.status === statusTab;
+    })
     .filter(
       (app) =>
         app.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -191,25 +206,39 @@ function VerifierApplicationList() {
                 </div>
 
                 <div className="verifier-application-filter-tabs">
-                  {STATUS_TABS.map((tab) => (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      className={`verifier-application-filter-btn ${statusTab === tab.key
-                        ? "verifier-application-filter-btn-active"
-                        : ""
-                        }`}
-                      onClick={() => handleTabChange(tab.key)}
-                    >
-                      <span>{tab.label}</span>
+                  {STATUS_TABS.map((tab, idx) => {
+                    // A divider renders once, right where the tabs switch
+                    // from "needs action" to "already decided" — makes the
+                    // two clusters read as distinct groups instead of one
+                    // undifferentiated row of buttons.
+                    const isFirstResolvedTab =
+                      tab.group === "resolved" &&
+                      STATUS_TABS[idx - 1]?.group !== "resolved";
 
-                      <span
-                        className={`verifier-application-filter-count verifier-application-filter-count-${tab.key}`}
-                      >
-                        {counts[tab.key]}
-                      </span>
-                    </button>
-                  ))}
+                    return (
+                      <div key={tab.key} className="verifier-application-filter-tab-wrap">
+                        {isFirstResolvedTab && (
+                          <span className="verifier-application-filter-divider" aria-hidden="true" />
+                        )}
+                        <button
+                          type="button"
+                          className={`verifier-application-filter-btn ${statusTab === tab.key
+                            ? "verifier-application-filter-btn-active"
+                            : ""
+                            }`}
+                          onClick={() => handleTabChange(tab.key)}
+                        >
+                          <span>{tab.label}</span>
+
+                          <span
+                            className={`verifier-application-filter-count verifier-application-filter-count-${tab.key}`}
+                          >
+                            {counts[tab.key]}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 

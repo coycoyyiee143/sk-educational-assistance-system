@@ -7718,6 +7718,34 @@ a:hover {
   color: #b71c1c;
 }
 
+.verifier-application-filter-count-awaiting_applicant {
+  background: #e4e9f5;
+  color: #38508c;
+}
+
+.verifier-application-filter-count-ocr_failed {
+  background: #f2e2e2;
+  color: #b71c1c;
+}
+
+.verifier-application-filter-count-appeal_requested {
+  background: #f0e3f5;
+  color: #7a2d99;
+}
+
+.verifier-application-filter-tab-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.verifier-application-filter-divider {
+  width: 1px;
+  height: 22px;
+  background: #d8dce0;
+  flex-shrink: 0;
+}
+
 @media (max-width: 900px) {
   .verifier-application-toolbar {
     flex-direction: column;
