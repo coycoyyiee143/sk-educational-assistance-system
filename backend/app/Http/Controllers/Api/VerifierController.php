@@ -25,19 +25,25 @@ class VerifierController extends Controller
 
         if (!$activeConfig) {
             return response()->json([
-                'pending'  => 0,
-                'review'   => 0,
-                'approved' => 0,
-                'rejected' => 0,
+                'pending'   => 0,
+                'review'    => 0,
+                'approved'  => 0,
+                'rejected'  => 0,
+                'failed_ocr' => 0,
                 'no_active_period' => true,
             ]);
         }
 
         return response()->json([
-            'pending'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening', 'auto_reupload_requested', 'reupload_requested'])->whereHas('documents')->count(),
-            'review'   => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
-            'approved' => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
-            'rejected' => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
+            'pending'   => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening', 'auto_reupload_requested', 'reupload_requested'])->whereHas('documents')->count(),
+            'review'    => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
+            'approved'  => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
+            'rejected'  => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
+            // Applications sitting on at least one OCR-failed document —
+            // previously invisible from the dashboard entirely.
+            'failed_ocr' => Application::where('config_id', $activeConfig->id)
+                ->whereHas('documents', fn($q) => $q->where('status', 'failed'))
+                ->count(),
             'no_active_period' => false,
         ]);
     }
@@ -47,7 +53,7 @@ class VerifierController extends Controller
     $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
     $configId = $request->query('config_id', $activeConfig?->id);
 
-    $applications = Application::with(['user', 'verifierActions'])
+    $applications = Application::with(['user', 'verifierActions', 'documents'])
         ->where('config_id', $configId)
         ->where(function ($query) {
             $query->where('status', '!=', 'pending_prescreening')
@@ -58,14 +64,19 @@ class VerifierController extends Controller
         ->get()
         ->map(function ($app) {
             return [
-                'id'                => $app->id,
-                'control_number'    => $app->control_number,
-                'name'              => $app->user->first_name . ' ' . $app->user->last_name,
-                'submitted_at'      => $app->submitted_at,
-                'updated_at'        => $app->updated_at,
-                'status'            => $app->status,
-                'school_name'       => $app->school_name,
-                'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
+                'id'                    => $app->id,
+                'control_number'        => $app->control_number,
+                'name'                  => $app->user->first_name . ' ' . $app->user->last_name,
+                'submitted_at'          => $app->submitted_at,
+                'updated_at'            => $app->updated_at,
+                'status'                => $app->status,
+                'school_name'           => $app->school_name,
+                'verifier_actions'      => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
+                // Surfaced so the list can flag "needs attention" without a
+                // verifier having to open the application first — previously
+                // a failed document was invisible until someone happened to
+                // click into that specific applicant's review page.
+                'failed_documents_count' => $app->documents->where('status', 'failed')->count(),
             ];
         });
 

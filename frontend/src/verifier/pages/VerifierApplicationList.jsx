@@ -27,6 +27,7 @@ const STATUS_TABS = [
   { key: "approved", label: "Approved" },
   { key: "rejected", label: "Rejected" },
   { key: "appeal_requested", label: "Appeal Requested" },
+  { key: "ocr_failed", label: "OCR Failed" },
 ];
 
 function VerifierApplicationList() {
@@ -73,10 +74,19 @@ function VerifierApplicationList() {
     appeal_requested: applications.filter(
       (a) => a.status === "appeal_requested"
     ).length,
+    ocr_failed: applications.filter(
+      (a) => a.failed_documents_count > 0
+    ).length,
   };
 
   const filtered = applications
-    .filter((app) => statusTab === "all" || app.status === statusTab)
+    .filter((app) =>
+      statusTab === "all"
+        ? true
+        : statusTab === "ocr_failed"
+          ? app.failed_documents_count > 0
+          : app.status === statusTab
+    )
     .filter(
       (app) =>
         app.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -254,6 +264,14 @@ function VerifierApplicationList() {
 
                           <td>
                             <StatusBadge app={app} />
+                            {app.failed_documents_count > 0 && (
+                              <span
+                                className="status-badge verifier-ocr-failed-badge"
+                                title={`${app.failed_documents_count} document${app.failed_documents_count === 1 ? "" : "s"} failed OCR processing`}
+                              >
+                                OCR Failed
+                              </span>
+                            )}
                           </td>
 
                           <td className="verifier-attention-action">

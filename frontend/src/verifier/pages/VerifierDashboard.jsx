@@ -28,6 +28,7 @@ function VerifierDashboard() {
     review: 0,
     approved: 0,
     rejected: 0,
+    failed_ocr: 0,
     no_active_period: false,
   });
 
@@ -267,6 +268,18 @@ function VerifierDashboard() {
               stats.no_active_period && (
                 <div className="alert alert-warning">
                   No active application period is currently configured. Statistics will show once a period is activated.
+                </div>
+              )}
+
+            {!loading &&
+              stats.failed_ocr > 0 && (
+                <div className="alert alert-danger d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <span>
+                    <strong>{stats.failed_ocr}</strong> application{stats.failed_ocr === 1 ? "" : "s"} {stats.failed_ocr === 1 ? "has" : "have"} a document that failed OCR processing and needs attention.
+                  </span>
+                  <Link to="/VerifierApplicationList" className="alert-link">
+                    Review now →
+                  </Link>
                 </div>
               )}
 
