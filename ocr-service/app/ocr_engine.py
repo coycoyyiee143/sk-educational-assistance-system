@@ -10,8 +10,22 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 from paddleocr import PaddleOCR
 import cv2
 import numpy as np
+import tempfile
 
 _ocr = None
+
+# Every image handed to PaddleOCR is padded up to this exact square canvas
+# before inference (see _pad_to_fixed_canvas). Real uploads arrive in wildly
+# different resolutions/aspect ratios, and PaddlePaddle's CPU inference
+# engine (oneDNN backend) caches per-input-shape state that is never freed
+# between calls -- so a worker processing N differently-shaped documents
+# accumulates N sets of cached state instead of reusing one. Forcing every
+# input to the same fixed shape means the engine only ever sees one shape
+# and reuses the same cached state, instead of leaking ~30-40MB of RSS per
+# newly-seen shape (confirmed locally: fixed-shape repeats plateau in RSS,
+# varying-shape repeats grow unbounded -- this is what took the production
+# OCR worker from a ~380MB baseline up to ~4GB RSS and starved the server).
+OCR_CANVAS_SIZE = 1600
 
 def get_ocr():
     global _ocr
@@ -36,12 +50,42 @@ def get_ocr():
     return _ocr
 
 
+def _pad_to_fixed_canvas(image_path: str) -> str:
+    """
+    Downscales (never upscales) so the longer side fits OCR_CANVAS_SIZE,
+    preserving aspect ratio, then pastes into the top-left corner of a
+    fixed OCR_CANVAS_SIZE x OCR_CANVAS_SIZE white canvas. Every image
+    PaddleOCR sees ends up exactly this shape, regardless of the source
+    photo's resolution. Detected text stays in the unpadded top-left
+    region, so bbox coordinates for real content are unaffected -- padding
+    only adds blank space where nothing is ever detected. Downstream code
+    (get_page_dimensions) derives page width/height from the max extent of
+    detected blocks, not from image dimensions, so it's unaffected too.
+    """
+    img = cv2.imread(image_path)
+    if img is None:
+        return image_path
+
+    h, w = img.shape[:2]
+    scale = min(1.0, OCR_CANVAS_SIZE / max(h, w))
+    if scale < 1.0:
+        img = cv2.resize(img, (int(w * scale), int(h * scale)), interpolation=cv2.INTER_AREA)
+
+    canvas = np.full((OCR_CANVAS_SIZE, OCR_CANVAS_SIZE, 3), 255, dtype=np.uint8)
+    ch, cw = img.shape[:2]
+    canvas[0:ch, 0:cw] = img
+
+    suffix = os.path.splitext(image_path)[1] or '.jpg'
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        cv2.imwrite(tmp.name, canvas)
+        return tmp.name
+
+
 def preprocess_image(image_path: str) -> str:
     """
     Enhance image to improve OCR on watermark-heavy documents.
     Saves preprocessed image to a temp file and returns its path.
     """
-    import tempfile, os
     img = cv2.imread(image_path)
     if img is None:
         return image_path
@@ -62,7 +106,12 @@ def preprocess_image(image_path: str) -> str:
 def run_ocr(image_path: str) -> list:
     ocr = get_ocr()
 
-    results = ocr.ocr(image_path, cls=True)
+    canvas_path = _pad_to_fixed_canvas(image_path)
+    try:
+        results = ocr.ocr(canvas_path, cls=True)
+    finally:
+        if canvas_path != image_path and os.path.exists(canvas_path):
+            os.unlink(canvas_path)
     extracted = parse_results(results)
 
     avg_conf = get_average_confidence(extracted)
@@ -76,8 +125,9 @@ def run_ocr(image_path: str) -> list:
     # which the average-only check let through unnoticed).
     if not extracted or avg_conf < 0.85 or min_conf < 0.65:
         preprocessed_path = preprocess_image(image_path)
+        preprocessed_canvas_path = _pad_to_fixed_canvas(preprocessed_path)
         try:
-            results2 = ocr.ocr(preprocessed_path, cls=True)
+            results2 = ocr.ocr(preprocessed_canvas_path, cls=True)
             extracted2 = parse_results(results2)
 
             avg2 = get_average_confidence(extracted2)
@@ -93,9 +143,10 @@ def run_ocr(image_path: str) -> list:
             if improved_avg or improved_min:
                 extracted = extracted2
         finally:
-            import os
             if preprocessed_path != image_path and os.path.exists(preprocessed_path):
                 os.unlink(preprocessed_path)
+            if preprocessed_canvas_path != preprocessed_path and os.path.exists(preprocessed_canvas_path):
+                os.unlink(preprocessed_canvas_path)
 
     return extracted
 
