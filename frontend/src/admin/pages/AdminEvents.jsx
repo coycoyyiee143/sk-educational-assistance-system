@@ -14,6 +14,11 @@ function todayStr() {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
+function nowTimeStr() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 // The API serializes date-cast fields as full UTC timestamps (e.g.
 // "2026-09-19T16:00:00.000000Z" for a 2026-09-20 local date, since the
 // server runs Asia/Manila), NOT a plain "YYYY-MM-DD" — so slicing the
@@ -83,7 +88,7 @@ function toInputTime(timeStr) {
 
 // ── Add Modal ─────────────────────────────────────────────────────────────────
 function AddEventModal({ onClose, onSave, saving }) {
-  const [form, setForm] = useState(() => ({ ...emptyForm, event_date: todayStr() }));
+  const [form, setForm] = useState(() => ({ ...emptyForm, event_date: todayStr(), event_time: nowTimeStr() }));
   const [previewUrl, setPreviewUrl] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
@@ -199,7 +204,7 @@ function AddEventModal({ onClose, onSave, saving }) {
                         className="form-check-input"
                         id="add-event-multi-day"
                         checked={form.end_date !== ""}
-                        onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.checked ? f.event_date : "", end_time: e.target.checked ? f.end_time : "" }))}
+                        onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.checked ? f.event_date : "", end_time: e.target.checked ? (f.end_time || nowTimeStr()) : "" }))}
                       />
                       <label className="form-check-label" htmlFor="add-event-multi-day">
                         This event ends on a different day
@@ -365,7 +370,7 @@ function EditEventModal({ event, onClose, onSave, saving }) {
                         className="form-check-input"
                         id="edit-event-multi-day"
                         checked={form.end_date !== ""}
-                        onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.checked ? f.event_date : "", end_time: e.target.checked ? f.end_time : "" }))}
+                        onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.checked ? f.event_date : "", end_time: e.target.checked ? (f.end_time || nowTimeStr()) : "" }))}
                       />
                       <label className="form-check-label" htmlFor="edit-event-multi-day">
                         This event ends on a different day
