@@ -29,7 +29,18 @@ class AuthController extends Controller
     const MAX_FAILED_ATTEMPTS = 3;
     const LOCKOUT_MINUTES = 15;
     const PENDING_TOKEN_MINUTES = 10;
-    const TWO_FACTOR_HELP_COOLDOWN_MINUTES = 15;
+
+    // Progressive cooldown schedule for the "email an admin for help" 2FA
+    // request, in seconds — same idea as RESEND_COOLDOWN_SCHEDULE below:
+    // short wait on the first attempt, longer on repeats, since each one
+    // fans out an email to every admin/it_support inbox. Capped at 900s
+    // (15 minutes), the same ceiling the flat cooldown used before.
+    const TWO_FACTOR_HELP_COOLDOWN_SCHEDULE = [60, 180, 420, 900];
+
+    // Window after which the attempt count resets, so a burst of requests
+    // today doesn't permanently throttle someone who gets locked out again
+    // next week.
+    const TWO_FACTOR_HELP_WINDOW_HOURS = 2;
 
     // Shared password rule set: 8 char min, lowercase + number, breach-checked,
     // blocked against obvious/context-specific weak terms.
@@ -513,15 +524,26 @@ class AuthController extends Controller
 
         $user = User::findOrFail($userId);
 
-        $lastRequest = TwoFactorResetRequest::where('user_id', $user->id)->latest()->first();
-        $cooldownEnd = $lastRequest ? $lastRequest->created_at->addMinutes(self::TWO_FACTOR_HELP_COOLDOWN_MINUTES) : null;
+        $recentRequests = TwoFactorResetRequest::where('user_id', $user->id)
+            ->where('created_at', '>=', now()->subHours(self::TWO_FACTOR_HELP_WINDOW_HOURS))
+            ->orderByDesc('created_at')
+            ->get();
 
-        if ($cooldownEnd && now()->lessThan($cooldownEnd)) {
-            $minutesLeft = (int) ceil(now()->diffInSeconds($cooldownEnd) / 60);
-            return response()->json([
-                'message'     => "A request was already sent. Please wait {$minutesLeft} minute(s) before requesting again.",
-                'retry_after' => now()->diffInSeconds($cooldownEnd),
-            ], 429);
+        $lastRequest = $recentRequests->first();
+
+        if ($lastRequest) {
+            $attemptNumber = $recentRequests->count();
+            $scheduleIndex = min($attemptNumber - 1, count(self::TWO_FACTOR_HELP_COOLDOWN_SCHEDULE) - 1);
+            $cooldownEnd = $lastRequest->created_at->addSeconds(self::TWO_FACTOR_HELP_COOLDOWN_SCHEDULE[$scheduleIndex]);
+
+            if (now()->lessThan($cooldownEnd)) {
+                $secondsLeft = now()->diffInSeconds($cooldownEnd);
+                $minutesLeft = (int) ceil($secondsLeft / 60);
+                return response()->json([
+                    'message'     => "A request was already sent. Please wait {$minutesLeft} minute(s) before requesting again.",
+                    'retry_after' => $secondsLeft,
+                ], 429);
+            }
         }
 
         TwoFactorResetRequest::create([
