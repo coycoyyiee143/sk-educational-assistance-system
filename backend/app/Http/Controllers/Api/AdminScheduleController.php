@@ -86,14 +86,17 @@ class AdminScheduleController extends Controller
             'lanes.*.verifier_id'   => 'nullable|exists:users,id',
         ]);
 
-        // A verifier can only staff one lane at a time — same one-lane-per-
-        // verifier rule assignVerifier() enforces when editing an existing
-        // lane, applied here too since lanes can now be given a verifier
-        // right at schedule-creation time.
+        // A verifier can only staff one lane per session at a time — same
+        // one-lane-per-session rule assignVerifier() enforces when editing
+        // an existing lane, applied here too since lanes can now be given
+        // a verifier right at schedule-creation time. Scoped to the same
+        // claiming_date + batch (morning/afternoon), since the same
+        // verifier can legitimately run one lane in the morning and
+        // another in the afternoon, or a lane on a different day.
         $duplicateVerifierId = collect($request->lanes)
-            ->pluck('verifier_id')
-            ->filter()
-            ->duplicates()
+            ->filter(fn ($lane) => !empty($lane['verifier_id']))
+            ->groupBy(fn ($lane) => $lane['claiming_date'] . '|' . $lane['batch'])
+            ->flatMap(fn ($group) => collect($group)->pluck('verifier_id')->duplicates())
             ->first();
         if ($duplicateVerifierId) {
             return response()->json([
@@ -253,13 +256,18 @@ class AdminScheduleController extends Controller
 
         $lane = ClaimingLane::findOrFail($laneId);
 
-        // Enforce one lane per verifier — same constraint selfAssignLane()
-        // already applies on the verifier side. Without this, an admin
-        // could put the same person on two lanes at once, which doesn't
-        // make sense physically (they can't be in two places at the same
-        // claiming session).
+        // Enforce one lane per verifier per session — same constraint
+        // selfAssignLane() already applies on the verifier side. Without
+        // this, an admin could put the same person on two lanes at once,
+        // which doesn't make sense physically (they can't be in two
+        // places at the same claiming session). Scoped to the same
+        // claiming_date + batch, since the same verifier can legitimately
+        // run a morning lane and an afternoon lane, or lanes on different
+        // days.
         if ($request->verifier_id) {
             ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
+                ->where('claiming_date', $lane->claiming_date)
+                ->where('batch', $lane->batch)
                 ->where('verifier_id', $request->verifier_id)
                 ->where('id', '!=', $lane->id)
                 ->update(['verifier_id' => null]);

@@ -742,7 +742,13 @@ class VerifierController extends Controller
         }
 
         if ($lane->verifier_id === null) {
+            // Scoped to the same claiming_date + batch (morning/afternoon)
+            // — a verifier can legitimately staff one lane in the morning
+            // and another in the afternoon, or lanes on different days, so
+            // only the same-session lane should be vacated here.
             \App\Models\ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
+                ->where('claiming_date', $lane->claiming_date)
+                ->where('batch', $lane->batch)
                 ->where('verifier_id', $request->user()->id)
                 ->update(['verifier_id' => null]);
 
