@@ -7618,11 +7618,15 @@ a:hover {
   color: #1a1a1a;
 }
 
+/* Search and the filter tabs used to share one row, fighting each other
+   for width — fine back when there were fewer, smaller tabs, but the
+   tab row now carries more visual weight (a bigger primary tab, group
+   dividers, 8 tabs total) and needs its own full-width line to breathe. */
 .verifier-application-toolbar {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
   margin-bottom: 18px;
 }
 
@@ -7635,10 +7639,10 @@ a:hover {
 .verifier-application-filter-tabs {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 0 auto;
+  margin: 0;
   padding: 0;
 }
 
@@ -7796,23 +7800,6 @@ a:hover {
   height: 22px;
   background: #d8dce0;
   flex-shrink: 0;
-}
-
-@media (max-width: 900px) {
-  .verifier-application-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .verifier-application-search {
-    width: 100%;
-    max-width: 312px;
-  }
-
-  .verifier-application-filter-tabs {
-    justify-content: flex-start;
-    margin-left: 0;
-  }
 }
 
 .verifier-application-search-input {
