@@ -313,6 +313,16 @@ function ApplicantRecordsSection({ selectedConfigId }) {
       record.control_number?.toLowerCase().includes(q)
     );
   });
+  const activeFilterLabels = [
+    filter.type !== "All Applications" ? `Status: ${filter.type}` : null,
+    filter.from ? `From: ${formatDate(filter.from)}` : null,
+    filter.to ? `To: ${formatDate(filter.to)}` : null,
+    filter.school_name !== "All Schools" ? `School: ${filter.school_name}` : null,
+    filter.course !== "All Courses" ? `Course: ${filter.course}` : null,
+    filter.year_level !== "All Year Levels" ? `Year Level: ${filter.year_level}` : null,
+    filter.applicant_type !== "All Applicants" ? `Applicant Type: ${filter.applicant_type}` : null,
+    filter.reviewed_by ? `Reviewed By: ${filter.reviewed_by}` : null,
+  ].filter(Boolean);
   const stats = summary?.summary ?? {};
   const rates = summary?.rates ?? {};
   const totalApplicants = Number(stats.total_applicants) || 0;
@@ -899,6 +909,21 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             }}
           />
         </div>
+        {activeFilterLabels.length > 0 && (
+          <div className="report-records-active-filters">
+            <span className="report-records-active-filters-label">
+              Filtered by:
+            </span>
+            {activeFilterLabels.map((label) => (
+              <span
+                key={label}
+                className="report-records-active-filter-chip"
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+        )}
         <div className="table-responsive">
           <table className="table table-bordered table-striped align-middle announcement-table">
             <colgroup>
