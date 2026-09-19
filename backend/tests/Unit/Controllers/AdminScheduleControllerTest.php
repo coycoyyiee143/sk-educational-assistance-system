@@ -13,7 +13,7 @@ use Tests\TestCase;
 /**
  * Unit-level coverage for the pure decision logic inside
  * AdminScheduleController — store()'s lane-date-vs-close-date and
- * grace-period-ordering validation, and closePeriod()'s waitlist ->
+ * Late-Claiming-ordering validation, and closePeriod()'s waitlist ->
  * not_selected settlement — exercised by calling the controller methods
  * directly (with a manually built Request where needed), WITHOUT going
  * through routing, Sanctum auth middleware, or ->postJson()/->actingAs().
@@ -128,9 +128,9 @@ class AdminScheduleControllerTest extends TestCase
         $this->assertEquals(400, $response->getStatusCode());
     }
 
-    // ── store() — grace period must start after every claiming date ──
+    // ── store() — Late Claiming must start after every claiming date ──
 
-    public function test_store_rejects_grace_period_starting_on_or_before_the_latest_claiming_date()
+    public function test_store_rejects_late_claiming_starting_on_or_before_the_latest_claiming_date()
     {
         $config = ApplicationConfiguration::factory()->create(['is_active' => true]);
         $closeDate = \Carbon\Carbon::parse($config->close_date);
@@ -142,16 +142,16 @@ class AdminScheduleControllerTest extends TestCase
                 'batch'         => 'morning',
                 'claiming_date' => $latestClaimingDate->format('Y-m-d'),
             ]],
-            'grace_period_date' => $latestClaimingDate->format('Y-m-d'), // same day: not after
+            'late_claiming_date' => $latestClaimingDate->format('Y-m-d'), // same day: not after
         ]);
 
         $response = $this->controller()->store($request);
 
         $this->assertEquals(400, $response->getStatusCode());
-        $this->assertStringContainsString('Grace Period', $response->getData(true)['message']);
+        $this->assertStringContainsString('Late Claiming', $response->getData(true)['message']);
     }
 
-    public function test_store_allows_grace_period_starting_after_the_latest_claiming_date()
+    public function test_store_allows_late_claiming_starting_after_the_latest_claiming_date()
     {
         $config = ApplicationConfiguration::factory()->create(['is_active' => true]);
         $closeDate = \Carbon\Carbon::parse($config->close_date);
@@ -163,7 +163,7 @@ class AdminScheduleControllerTest extends TestCase
                 'batch'         => 'morning',
                 'claiming_date' => $latestClaimingDate->format('Y-m-d'),
             ]],
-            'grace_period_date' => $latestClaimingDate->copy()->addDay()->format('Y-m-d'),
+            'late_claiming_date' => $latestClaimingDate->copy()->addDay()->format('Y-m-d'),
         ]);
 
         $response = $this->controller()->store($request);
@@ -171,7 +171,7 @@ class AdminScheduleControllerTest extends TestCase
         $this->assertEquals(200, $response->getStatusCode());
     }
 
-    public function test_store_picks_the_latest_claiming_date_across_multiple_lanes_for_the_grace_period_check()
+    public function test_store_picks_the_latest_claiming_date_across_multiple_lanes_for_the_late_claiming_check()
     {
         $config = ApplicationConfiguration::factory()->create(['is_active' => true]);
         $closeDate = \Carbon\Carbon::parse($config->close_date);
@@ -185,7 +185,7 @@ class AdminScheduleControllerTest extends TestCase
             // After the EARLY lane but not after the LATE (actual latest) lane —
             // must still be rejected, proving the check uses the max(), not
             // just the first lane in the array.
-            'grace_period_date' => $earlyLane->copy()->addDay()->format('Y-m-d'),
+            'late_claiming_date' => $earlyLane->copy()->addDay()->format('Y-m-d'),
         ]);
 
         $response = $this->controller()->store($request);
@@ -222,14 +222,14 @@ class AdminScheduleControllerTest extends TestCase
         $this->assertEquals(400, $response->getStatusCode());
     }
 
-    public function test_close_period_is_blocked_while_the_grace_period_has_not_yet_ended()
+    public function test_close_period_is_blocked_while_late_claiming_has_not_yet_ended()
     {
         $config = ApplicationConfiguration::factory()->create(['is_active' => true]);
         \App\Models\ClaimingSchedule::create([
             'config_id'             => $config->id,
             'location'              => 'Barangay Hall',
             'is_active'             => true,
-            'grace_period_end_date' => now()->addDays(3)->format('Y-m-d'),
+            'late_claiming_end_date' => now()->addDays(3)->format('Y-m-d'),
         ]);
 
         $response = $this->controller()->closePeriod($config->id);
@@ -238,14 +238,14 @@ class AdminScheduleControllerTest extends TestCase
         $this->assertNull($config->fresh()->closed_at);
     }
 
-    public function test_close_period_proceeds_once_the_grace_period_has_already_ended()
+    public function test_close_period_proceeds_once_late_claiming_has_already_ended()
     {
         $config = ApplicationConfiguration::factory()->create(['is_active' => true]);
         \App\Models\ClaimingSchedule::create([
             'config_id'             => $config->id,
             'location'              => 'Barangay Hall',
             'is_active'             => true,
-            'grace_period_end_date' => now()->subDay()->format('Y-m-d'),
+            'late_claiming_end_date' => now()->subDay()->format('Y-m-d'),
         ]);
 
         $response = $this->controller()->closePeriod($config->id);

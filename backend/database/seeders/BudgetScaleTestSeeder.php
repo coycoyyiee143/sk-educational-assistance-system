@@ -27,17 +27,11 @@ class BudgetScaleTestSeeder extends Seeder
 
     public function run(): void
     {
-        $admin = User::create([
-            'first_name'        => 'SK Admin',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'admin@skmamatid.com',
-            'mobile_number'     => '09123456789',
-            'password'          => Hash::make('admin123'),
-            'role'              => 'sk_admin',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
+        $admin = User::where('email', 'admin@skmamatid.com')->first();
+        if (!$admin) {
+            $this->command->error('Run OpeningDaySeeder first — it creates the admin account this seeder builds on top of.');
+            return;
+        }
 
         $periods = [
             ['school_year' => '2023-2024', 'yearsAgo' => 3, 'passRate' => 0.75],

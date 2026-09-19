@@ -250,7 +250,7 @@ class AdminScheduleControllerTest extends TestCase
         $response->assertStatus(400);
     }
 
-    public function test_close_period_blocked_while_grace_period_still_active()
+    public function test_close_period_blocked_while_late_claiming_still_active()
     {
         $admin = $this->makeAdmin();
         $config = ApplicationConfiguration::factory()->create(['is_active' => true]);
@@ -258,7 +258,7 @@ class AdminScheduleControllerTest extends TestCase
             'config_id'             => $config->id,
             'location'              => 'Loc',
             'is_active'             => true,
-            'grace_period_end_date' => now()->addDays(3)->format('Y-m-d'),
+            'late_claiming_end_date' => now()->addDays(3)->format('Y-m-d'),
         ]);
 
         $response = $this->actingAs($admin, 'sanctum')->postJson("/api/admin/application-configs/{$config->id}/close");

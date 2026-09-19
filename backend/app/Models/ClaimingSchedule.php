@@ -13,8 +13,8 @@ class ClaimingSchedule extends Model
         'morning_end',
         'afternoon_start',
         'afternoon_end',
-        'grace_period_date',
-        'grace_period_end_date',
+        'late_claiming_date',
+        'late_claiming_end_date',
         'is_active',
         'activated_at',
     ];

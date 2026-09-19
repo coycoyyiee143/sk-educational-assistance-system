@@ -132,13 +132,13 @@ class VerifierClaimingOpsTest extends TestCase
         $response->assertJsonCount(2, 'all_lanes');
     }
 
-    public function test_claiming_lanes_excludes_the_grace_period_lane()
+    public function test_claiming_lanes_excludes_the_late_claiming_lane()
     {
         $verifier = $this->makeVerifier();
         $config = ApplicationConfiguration::factory()->create(['is_active' => true]);
         $schedule = $this->makeSchedule($config);
         $this->makeLane($schedule, 'Lane A');
-        $this->makeLane($schedule, 'Grace Period Claiming');
+        $this->makeLane($schedule, 'Late Claiming');
 
         $response = $this->actingAs($verifier, 'sanctum')
             ->getJson('/api/verifier/claiming/lanes');

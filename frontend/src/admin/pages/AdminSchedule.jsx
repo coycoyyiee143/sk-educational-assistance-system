@@ -10,8 +10,8 @@ const emptyForm = {
   morning_end: "12:00",
   afternoon_start: "13:00",
   afternoon_end: "17:00",
-  grace_period_date: "",
-  grace_period_end_date: "",
+  late_claiming_date: "",
+  late_claiming_end_date: "",
 };
 
 const emptySessionLane = () => ({ lane_name: "", capacity: "", verifier_id: "" });
@@ -25,7 +25,7 @@ function groupLanesIntoDays(lanesArr) {
   if (!lanesArr || lanesArr.length === 0) return [emptyDay()];
   const map = {};
   lanesArr
-    .filter((l) => l.lane_name !== "Grace Period Claiming")
+    .filter((l) => l.lane_name !== "Late Claiming")
     .forEach((l) => {
       if (!map[l.claiming_date]) {
         map[l.claiming_date] = {
@@ -100,18 +100,18 @@ function AdminSchedule() {
   const [success, setSuccess] = useState("");
   const [lanePage, setLanePage] = useState(1);
   const lanePerPage = 10;
-  const [gracePeriodList, setGracePeriodList] = useState(null);
-  const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
+  const [lateClaimingList, setLateClaimingList] = useState(null);
+  const [loadingLateClaimingList, setLoadingLateClaimingList] = useState(false);
   const [removeDayTarget, setRemoveDayTarget] = useState(null); // day index pending confirmation, or null
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showActivateConfirm, setShowActivateConfirm] = useState(false);
 
-  const loadGracePeriodClaimingList = useCallback(() => {
-    setLoadingGracePeriodList(true);
-    api.get("/admin/reports/grace-period-claiming-list")
-      .then((res) => setGracePeriodList(res.data))
-      .catch(() => setGracePeriodList(null))
-      .finally(() => setLoadingGracePeriodList(false));
+  const loadLateClaimingList = useCallback(() => {
+    setLoadingLateClaimingList(true);
+    api.get("/admin/reports/late-claiming-list")
+      .then((res) => setLateClaimingList(res.data))
+      .catch(() => setLateClaimingList(null))
+      .finally(() => setLoadingLateClaimingList(false));
   }, []);
 
   const loadSchedule = useCallback((silent = false) => {
@@ -135,12 +135,12 @@ function AdminSchedule() {
             morning_end: sched.morning_end?.slice(0, 5) ?? "12:00",
             afternoon_start: sched.afternoon_start?.slice(0, 5) ?? "13:00",
             afternoon_end: sched.afternoon_end?.slice(0, 5) ?? "17:00",
-            grace_period_date: sched.grace_period_date ?? "",
-            grace_period_end_date: sched.grace_period_end_date ?? "",
+            late_claiming_date: sched.late_claiming_date ?? "",
+            late_claiming_end_date: sched.late_claiming_end_date ?? "",
           });
           setDays(groupLanesIntoDays(sched.lanes));
-          if (sched.grace_period_date) {
-            loadGracePeriodClaimingList();
+          if (sched.late_claiming_date) {
+            loadLateClaimingList();
           }
         }
       })
@@ -155,7 +155,7 @@ function AdminSchedule() {
         setLoading(false);
         setRefreshing(false);
       });
-  }, [loadGracePeriodClaimingList]);
+  }, [loadLateClaimingList]);
 
   useEffect(() => {
     loadSchedule();
@@ -353,19 +353,19 @@ function AdminSchedule() {
     }
   }
 
-  async function handleGracePeriodClaimingListExport() {
+  async function handleLateClaimingListExport() {
     try {
-      const res = await api.get("/admin/reports/grace-period-claiming-list/pdf", { responseType: "blob" });
+      const res = await api.get("/admin/reports/late-claiming-list/pdf", { responseType: "blob" });
       const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `grace-period-claiming-list-${new Date().toISOString().slice(0, 10)}.pdf`);
+      link.setAttribute("download", `late-claiming-list-${new Date().toISOString().slice(0, 10)}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      setError("Failed to generate grace period claiming list.");
+      setError("Failed to generate Late Claiming list.");
     }
   }
 
@@ -383,11 +383,11 @@ function AdminSchedule() {
     { label: "Total Lanes", value: totalLanesCount },
     { label: "Claiming Dates", value: formatDateRange(claimingDates) },
     {
-      label: "Grace Period",
-      value: form.grace_period_date
-        ? (form.grace_period_end_date
-          ? `${form.grace_period_date} to ${form.grace_period_end_date}`
-          : form.grace_period_date)
+      label: "Late Claiming",
+      value: form.late_claiming_date
+        ? (form.late_claiming_end_date
+          ? `${form.late_claiming_date} to ${form.late_claiming_end_date}`
+          : form.late_claiming_date)
         : "Not set",
     },
   ] : [];
@@ -396,7 +396,7 @@ function AdminSchedule() {
   // its live assignments_count — there's no separate preview snapshot to
   // reconcile against, since applicants land on a lane the moment
   // they're approved, not at some future publish step.
-  const displayedLanes = (schedule?.lanes ?? []).filter((l) => l.lane_name !== "Grace Period Claiming");
+  const displayedLanes = (schedule?.lanes ?? []).filter((l) => l.lane_name !== "Late Claiming");
   const laneTotalPages = Math.max(1, Math.ceil(displayedLanes.length / lanePerPage));
   const lanePageStart = (lanePage - 1) * lanePerPage;
   const pagedLanes = displayedLanes.slice(lanePageStart, lanePageStart + lanePerPage);
@@ -440,7 +440,7 @@ function AdminSchedule() {
             <div className="page-card">
               <h3 className="section-title mb-2">Claiming Schedule Management</h3>
               <p className="text-muted mb-0">
-                Set the claiming dates, batches, lane capacities, and grace period. Once activated, approved
+                Set the claiming dates, batches, lane capacities, and Late Claiming. Once activated, approved
                 applicants are assigned to a lane and notified automatically, in real time, as they're approved —
                 no separate publish step.
               </p>
@@ -696,7 +696,7 @@ function AdminSchedule() {
                       )}
 
                       <hr className="my-4" />
-                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Grace Period</h5>
+                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Late Claiming</h5>
 
                       <div className="visibility-notice visibility-notice-compact mb-3">
                         <div className="visibility-notice-icon">!</div>
@@ -715,8 +715,8 @@ function AdminSchedule() {
                           <input
                             type="date"
                             className="form-control"
-                            value={form.grace_period_date}
-                            onChange={set("grace_period_date")}
+                            value={form.late_claiming_date}
+                            onChange={set("late_claiming_date")}
                             min={latestClaimingDateStr ? nextDayStr(latestClaimingDateStr) : undefined}
                           />
                           {latestClaimingDateStr ? (
@@ -734,9 +734,9 @@ function AdminSchedule() {
                           <input
                             type="date"
                             className="form-control"
-                            value={form.grace_period_end_date}
-                            onChange={set("grace_period_end_date")}
-                            min={form.grace_period_date || undefined}
+                            value={form.late_claiming_end_date}
+                            onChange={set("late_claiming_end_date")}
+                            min={form.late_claiming_date || undefined}
                           />
                         </div>
                       </div>
@@ -937,25 +937,25 @@ function AdminSchedule() {
               </div>
             )}
 
-            {schedule?.grace_period_date && (
+            {schedule?.late_claiming_date && (
               <div className="page-card">
                 <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <h4 className="sub-title sub-title-dark mb-0">Grace Period Claiming List</h4>
+                  <h4 className="sub-title sub-title-dark mb-0">Late Claiming List</h4>
                   <div className="d-flex gap-2">
                     <button
                       className="btn btn-outline-custom btn-sm"
-                      onClick={loadGracePeriodClaimingList}
-                      disabled={loadingGracePeriodList}
+                      onClick={loadLateClaimingList}
+                      disabled={loadingLateClaimingList}
                     >
-                      {loadingGracePeriodList ? "Loading..." : "Refresh"}
+                      {loadingLateClaimingList ? "Loading..." : "Refresh"}
                     </button>
-                    <button type="button" className="btn btn-custom btn-sm" onClick={handleGracePeriodClaimingListExport}>
+                    <button type="button" className="btn btn-custom btn-sm" onClick={handleLateClaimingListExport}>
                       Print List
                     </button>
                   </div>
                 </div>
                 <p className="text-muted small mb-3">
-                  Everyone expected during grace period — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
+                  Everyone expected during Late Claiming — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
                 </p>
                 <div className="table-responsive">
                   <table className="table table-bordered table-striped align-middle announcement-table">
@@ -968,8 +968,8 @@ function AdminSchedule() {
                       </tr>
                     </thead>
                     <tbody>
-                      {gracePeriodList?.entries?.length > 0 ? (
-                        gracePeriodList.entries.map((entry, i) => (
+                      {lateClaimingList?.entries?.length > 0 ? (
+                        lateClaimingList.entries.map((entry, i) => (
                           <tr key={`${entry.control_number}-${i}`}>
                             <td>{i + 1}</td>
                             <td>{entry.control_number}</td>
@@ -980,7 +980,7 @@ function AdminSchedule() {
                       ) : (
                         <tr>
                           <td colSpan={4} className="text-muted">
-                            {loadingGracePeriodList ? "Loading..." : "No applicants expected during grace period for this period."}
+                            {loadingLateClaimingList ? "Loading..." : "No applicants expected during Late Claiming for this period."}
                           </td>
                         </tr>
                       )}
