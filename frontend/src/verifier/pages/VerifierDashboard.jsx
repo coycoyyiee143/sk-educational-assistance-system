@@ -79,7 +79,7 @@ function VerifierDashboard() {
 
   const cards = [
     {
-      label: "Pending Applications",
+      label: "Pending",
       value: stats.pending,
       accent: "orange",
       icon: (
