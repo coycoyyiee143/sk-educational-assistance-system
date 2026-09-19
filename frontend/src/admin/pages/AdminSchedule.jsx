@@ -6,7 +6,7 @@ import PanelFooter from "../../components/PanelFooter";
 
 const emptyForm = {
   location: "Barangay Mamatid Hall",
-  morning_start: "07:00",
+  morning_start: "08:00",
   morning_end: "12:00",
   afternoon_start: "13:00",
   afternoon_end: "17:00",
@@ -21,8 +21,19 @@ const emptyDay = (dateStr = "") => ({
   afternoon: { enabled: true, lanes: [emptySessionLane()] },
 });
 
+// NOT toISOString().slice(0, 10) — that formats in UTC, which rolls
+// local midnight back to the previous calendar day in any timezone
+// ahead of UTC (e.g. UTC+8), silently breaking every "day after X"
+// calculation below.
+function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return toLocalDateStr(new Date());
 }
 
 function groupLanesIntoDays(lanesArr) {
@@ -56,7 +67,7 @@ function serializeLanes(days) {
       if (!day[session].enabled) return;
       day[session].lanes.forEach((lane, laneIdx) => {
         lanes.push({
-          lane_name: lane.lane_name.trim() || `Day ${dayIdx + 1} ${session === "morning" ? "AM" : "PM"} Lane ${laneIdx + 1}`,
+          lane_name: lane.lane_name.trim() || `Day ${dayIdx + 1} ${session === "morning" ? "Morning" : "Afternoon"} Lane ${laneIdx + 1}`,
           // Capacity is required now — no more "blank = auto-split",
           // since there's no fixed applicant pool to split at save time
           // under real-time assignment. Default to 1 if left blank so
@@ -76,7 +87,7 @@ function serializeLanes(days) {
 function nextDayStr(dateStr) {
   const d = new Date(`${dateStr}T00:00:00`);
   d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return toLocalDateStr(d);
 }
 
 // A claiming day must fall strictly after the application period's
@@ -638,10 +649,13 @@ function AdminSchedule() {
                                 className="form-control"
                                 value={day.date}
                                 onChange={(e) => setDayDate(dayIdx, e.target.value)}
+                                min={config?.close_date ? nextDayStr(config.close_date.slice(0, 10)) : undefined}
                                 required
                               />
                               {config?.close_date && (
-                                <div className="form-text">Must be after {config.close_date.slice(0, 10)}</div>
+                                <div className="form-text">
+                                  Must be after the application period's closing date ({config.close_date.slice(0, 10)})
+                                </div>
                               )}
                             </div>
                           </div>
@@ -681,7 +695,7 @@ function AdminSchedule() {
                                             <input
                                               type="text"
                                               className="form-control form-control-sm"
-                                              placeholder={`Day ${dayIdx + 1} ${session === "morning" ? "AM" : "PM"} Lane ${laneIdx + 1}`}
+                                              placeholder={`Day ${dayIdx + 1} ${session === "morning" ? "Morning" : "Afternoon"} Lane ${laneIdx + 1}`}
                                               value={lane.lane_name}
                                               onChange={(e) => setLaneField(dayIdx, session, laneIdx, "lane_name", e.target.value)}
                                             />
