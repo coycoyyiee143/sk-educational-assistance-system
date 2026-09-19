@@ -141,6 +141,39 @@ higher later.
 
 ---
 
+## Troubleshooting: OCR taking 5+ minutes or failing (School ID, Voter's Cert)
+
+**Symptom:** OCR on documents like School ID and Voter's Certificate takes
+5+ minutes and sometimes fails outright, even though `ocr-service` itself
+looks healthy.
+
+**Cause:** a second `sk-eas-queue-ocr` instance (e.g. `sk-eas-queue-ocr@1`)
+running alongside the main one. `ocr-service` runs with only **1** gunicorn
+worker (see the worker-count note above) — it can only process one OCR
+request at a time. Two queue worker instances both pulling OCR jobs means
+two jobs get sent to that single worker at once; the second one sits
+blocked behind the first, and Laravel's job timeout can trip before it
+ever gets processed, which is where the failures came from.
+
+**Fix — stop and disable the extra instance:**
+
+```bash
+sudo systemctl stop sk-eas-queue-ocr@1.service
+sudo systemctl disable sk-eas-queue-ocr@1.service
+```
+
+This confirmed instantly fixed the slowness/failures in practice. Check
+what's actually running before assuming `@1` is the extra one:
+
+```bash
+systemctl list-units 'sk-eas-queue-ocr*'
+```
+
+Only one `sk-eas-queue-ocr` instance should be enabled/running unless
+`ocr-service` itself is also scaled up to more than 1 worker to match.
+
+---
+
 ## If you ever edit a `.service` file directly (worker count, flags, etc.)
 
 This is a DIFFERENT kind of change from the routine code deploys
