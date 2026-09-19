@@ -7672,18 +7672,24 @@ a:hover {
   box-shadow: 0 2px 4px rgba(0, 0, 0, .06);
 }
 
+/* Was a near-invisible light-gray tint, barely different from the default
+   unselected look. A solid dark fill fixed that but then competed with
+   "For Review"'s red for attention — a bold border reads as clearly
+   "selected" without trying to out-shine the one tab that should actually
+   stand out. "For Review" and "All" override this with their own more
+   specific active styles below. */
 .verifier-application-filter-btn-active {
-  background: #f1f2f3;
-  border-color: #d3d7db;
+  background: #e4e6e8;
+  border-color: #b5bac0;
   color: #2f3438;
-  font-weight: 600;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, .05);
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
 }
 
 .verifier-application-filter-btn-active:hover {
-  background: #eceeef;
-  border-color: #ccd1d5;
-  color: #252a2e;
+  background: #dadce0;
+  border-color: #a5abb2;
+  color: #1f2326;
 }
 
 .verifier-application-filter-count {
@@ -7728,13 +7734,13 @@ a:hover {
 }
 
 .verifier-application-filter-count-ocr_failed {
-  background: #f2e2e2;
-  color: #b71c1c;
+  background: #fbe4d2;
+  color: #b8560f;
 }
 
 .verifier-application-filter-count-appeal_requested {
-  background: #f0e3f5;
-  color: #7a2d99;
+  background: #fbe4d2;
+  color: #b8560f;
 }
 
 .verifier-application-filter-tab-wrap {
@@ -7793,6 +7799,11 @@ a:hover {
   background: #f1f2f3;
   border-color: #d3d7db;
   color: #444c54;
+}
+
+.verifier-application-filter-btn-all.verifier-application-filter-btn-active .verifier-application-filter-count {
+  background: #e3e6e9;
+  color: #626b74;
 }
 
 .verifier-application-filter-divider {
