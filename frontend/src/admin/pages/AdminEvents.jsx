@@ -4,8 +4,14 @@ import AdminTopbarUser from "../components/AdminTopbarUser";
 import api, { STORAGE_URL } from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 
+// NOT toISOString().slice(0, 10) — that formats in UTC, which rolls
+// local midnight back to the previous calendar day in any timezone
+// ahead of UTC (e.g. UTC+8).
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
 }
 
 const emptyForm = { title: "", venue: "", event_date: "", event_time: "", description: "", image: null };
