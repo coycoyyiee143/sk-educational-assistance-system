@@ -119,6 +119,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierDashboard"
             onClick={closeMobileMenu}
+            title="Dashboard"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -141,6 +142,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierApplicationList"
             onClick={closeMobileMenu}
+            title="Application List"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -165,6 +167,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierClaiming"
             onClick={closeMobileMenu}
+            title="Claiming"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -186,6 +189,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierWaitlist"
             onClick={closeMobileMenu}
+            title="Waitlist"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -208,6 +212,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierProfile"
             onClick={closeMobileMenu}
+            title="My Profile"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -228,6 +233,7 @@ function VerifierNavigation({
           <button
             type="button"
             className="verifier-sidebar-link"
+            title="Activity Log"
             onClick={() => {
               closeMobileMenu();
               setShowActivityLog(true);
@@ -251,6 +257,7 @@ function VerifierNavigation({
           <button
             type="button"
             className="verifier-sidebar-link"
+            title="Change Password"
             onClick={() => {
               closeMobileMenu();
               setShowChangePassword(true);
@@ -275,6 +282,7 @@ function VerifierNavigation({
         <button
           type="button"
           className="verifier-sidebar-logout"
+          title="Logout"
           onClick={handleLogout}
         >
           <svg

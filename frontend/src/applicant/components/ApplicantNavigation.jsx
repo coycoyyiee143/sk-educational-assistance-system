@@ -198,6 +198,7 @@ function ApplicantNavigation() {
           <NavLink
             to="/ApplicantDashboard"
             onClick={closeMobileNavigation}
+            title="Dashboard"
             className={({ isActive }) =>
               isActive
                 ? "applicant-sidebar-link active"
@@ -224,6 +225,7 @@ function ApplicantNavigation() {
           <NavLink
             to="/ApplicantSubmission"
             onClick={closeMobileNavigation}
+            title="Application Submission"
             className={({ isActive }) =>
               isActive
                 ? "applicant-sidebar-link active"
@@ -248,6 +250,7 @@ function ApplicantNavigation() {
           <NavLink
             to="/ApplicantStatus"
             onClick={closeMobileNavigation}
+            title="Application Status"
             className={({ isActive }) =>
               isActive
                 ? "applicant-sidebar-link active"
@@ -272,6 +275,7 @@ function ApplicantNavigation() {
           <NavLink
             to="/ApplicantClaimingSchedule"
             onClick={closeMobileNavigation}
+            title="Claiming Schedule"
             className={({ isActive }) =>
               isActive
                 ? "applicant-sidebar-link active"
@@ -300,6 +304,7 @@ function ApplicantNavigation() {
           <NavLink
             to="/ApplicantProfile"
             onClick={closeMobileNavigation}
+            title="My Profile"
             className={({ isActive }) =>
               isActive
                 ? "applicant-sidebar-link active"
@@ -324,6 +329,7 @@ function ApplicantNavigation() {
           <button
             type="button"
             className="applicant-sidebar-link applicant-sidebar-btn"
+            title="Activity Log"
             onClick={handleActivityLog}
           >
             <svg
@@ -344,6 +350,7 @@ function ApplicantNavigation() {
           <button
             type="button"
             className="applicant-sidebar-link applicant-sidebar-btn"
+            title="Change Password"
             onClick={handleChangePassword}
           >
             <svg
@@ -366,6 +373,7 @@ function ApplicantNavigation() {
         <button
           type="button"
           className="applicant-sidebar-logout"
+          title="Logout"
           onClick={handleLogout}
         >
           <svg
