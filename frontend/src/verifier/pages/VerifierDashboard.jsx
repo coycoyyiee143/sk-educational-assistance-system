@@ -29,6 +29,7 @@ function VerifierDashboard() {
     approved: 0,
     rejected: 0,
     failed_ocr: 0,
+    appeal_requested: 0,
     no_active_period: false,
   });
 
@@ -276,6 +277,18 @@ function VerifierDashboard() {
                 <div className="alert alert-danger d-flex justify-content-between align-items-center flex-wrap gap-2">
                   <span>
                     <strong>{stats.failed_ocr}</strong> application{stats.failed_ocr === 1 ? "" : "s"} {stats.failed_ocr === 1 ? "has" : "have"} a document that failed OCR processing and needs attention.
+                  </span>
+                  <Link to="/VerifierApplicationList" className="alert-link">
+                    Review now →
+                  </Link>
+                </div>
+              )}
+
+            {!loading &&
+              stats.appeal_requested > 0 && (
+                <div className="alert alert-warning d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <span>
+                    <strong>{stats.appeal_requested}</strong> application{stats.appeal_requested === 1 ? "" : "s"} {stats.appeal_requested === 1 ? "has" : "have"} a pending appeal awaiting your decision.
                   </span>
                   <Link to="/VerifierApplicationList" className="alert-link">
                     Review now →

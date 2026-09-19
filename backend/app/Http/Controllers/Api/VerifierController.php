@@ -30,6 +30,7 @@ class VerifierController extends Controller
                 'approved'  => 0,
                 'rejected'  => 0,
                 'failed_ocr' => 0,
+                'appeal_requested' => 0,
                 'no_active_period' => true,
             ]);
         }
@@ -44,6 +45,10 @@ class VerifierController extends Controller
             'failed_ocr' => Application::where('config_id', $activeConfig->id)
                 ->whereHas('documents', fn($q) => $q->where('status', 'failed'))
                 ->count(),
+            // Appeals need a verifier decision but aren't part of the FCFS
+            // "for_review" queue, so they're surfaced as a separate count/
+            // banner instead of being folded into that queue's ordering.
+            'appeal_requested' => Application::where('config_id', $activeConfig->id)->where('status', 'appeal_requested')->count(),
             'no_active_period' => false,
         ]);
     }
