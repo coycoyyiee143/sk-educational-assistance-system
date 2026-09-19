@@ -24,6 +24,9 @@ const Login = () => {
   const [setupEmail, setSetupEmail] = useState(null);
   const [code, setCode] = useState("");
   const [rememberDevice, setRememberDevice] = useState(false);
+  const [helpRequested, setHelpRequested] = useState(false);
+  const [helpMessage, setHelpMessage] = useState("");
+  const [helpLoading, setHelpLoading] = useState(false);
   const codeInputRef = useRef(null);
 
   // Native autoFocus makes the browser auto-scroll the input into view,
@@ -124,7 +127,23 @@ const Login = () => {
     setSecret(null);
     setSetupEmail(null);
     setRememberDevice(false);
+    setHelpRequested(false);
+    setHelpMessage("");
   }
+
+  const handleRequestTwoFactorHelp = async () => {
+    setHelpLoading(true);
+    setHelpMessage("");
+    try {
+      const response = await api.post("/2fa/request-help", { pending_token: pendingToken });
+      setHelpMessage(response.data.message);
+      setHelpRequested(true);
+    } catch (err) {
+      setHelpMessage(err.response?.data?.message || "Couldn't send the request. Please try again.");
+    } finally {
+      setHelpLoading(false);
+    }
+  };
 
   if (user) {
     if (user.role === "sk_admin" || user.role === "superadmin") return <Navigate to="/AdminDashboard" replace />;
@@ -368,6 +387,26 @@ const Login = () => {
                         ← Back
                       </button>
                     </form>
+
+                    {helpMessage && (
+                      <div className={`alert ${helpRequested ? "alert-success" : "alert-danger"} mt-3`}>
+                        {helpMessage}
+                      </div>
+                    )}
+
+                    {!helpRequested && (
+                      <p className="text-center mt-3 login-register-lg">
+                        Lost your authenticator?{" "}
+                        <button
+                          type="button"
+                          className="btn btn-link p-0 login-link-lg"
+                          onClick={handleRequestTwoFactorHelp}
+                          disabled={helpLoading}
+                        >
+                          {helpLoading ? "Sending..." : "Request help"}
+                        </button>
+                      </p>
+                    )}
                   </>
                 )}
 
