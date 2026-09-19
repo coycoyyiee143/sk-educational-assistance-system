@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import api from "../../services/api";
@@ -34,12 +34,14 @@ function StatusBadge({ app }) {
 //      and styled quieter than the rest instead of leading the row.
 const STATUS_TABS = [
   { key: "for_review", label: "For Review", group: "primary" },
-  // Within "action", ordered by whether it needs a human decision from
-  // the verifier (appeal, a stuck OCR failure) vs. just informational
-  // waiting that isn't on the verifier at all (applicant hasn't
-  // re-uploaded yet, or OCR is still auto-processing).
-  { key: "appeal_requested", label: "Appeal Requested", group: "action" },
+  // Within "action", ordered by urgency: a stuck OCR failure sits right
+  // next to For Review since it blocks that same review from happening
+  // at all, ahead of an appeal (also needs a human decision, but isn't
+  // blocking anything) and the purely informational waiting statuses
+  // below (applicant hasn't re-uploaded yet, or OCR is still
+  // auto-processing).
   { key: "ocr_failed", label: "OCR Failed", group: "action" },
+  { key: "appeal_requested", label: "Appeal Requested", group: "action" },
   // reupload_requested (verifier flagged it) and auto_reupload_requested
   // (system flagged it) both mean the exact same thing operationally —
   // nothing for the verifier to do until the applicant re-uploads — so
@@ -55,10 +57,14 @@ const STATUS_TABS = [
 const AWAITING_APPLICANT_STATUSES = ["reupload_requested", "auto_reupload_requested"];
 
 function VerifierApplicationList() {
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab = STATUS_TABS.some((t) => t.key === requestedTab) ? requestedTab : "for_review";
+
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusTab, setStatusTab] = useState("for_review");
+  const [statusTab, setStatusTab] = useState(initialTab);
   const [currentPage, setCurrentPage] = useState(1);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
