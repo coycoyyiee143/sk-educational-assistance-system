@@ -349,8 +349,15 @@ function AdminUsers() {
   const [deleteTarget, setDeleteTarget] = useState(null); // confirm-dialog target (delete)
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState(null); // id currently being (re)activated — guards double-click
+  const [pendingTwoFARequests, setPendingTwoFARequests] = useState([]);
+  const [dismissingRequestId, setDismissingRequestId] = useState(null);
   const roleMenuRef = useRef(null);
   const perPage = 10;
+  function loadPendingTwoFARequests() {
+    api.get("/admin/2fa-reset-requests")
+      .then((res) => setPendingTwoFARequests(res.data))
+      .catch(() => { });
+  }
   function loadUsers() {
     api.get("/admin/users")
       .then((res) => {
@@ -360,7 +367,7 @@ function AdminUsers() {
       .catch(() => { })
       .finally(() => setLoading(false));
   }
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { loadUsers(); loadPendingTwoFARequests(); }, []);
   useEffect(() => {
     if (!error && !success) return;
     const t = setTimeout(() => {
@@ -460,10 +467,25 @@ function AdminUsers() {
       setSuccess(res.data?.message || "2FA has been reset.");
       setTwoFATarget(null);
       loadUsers();
+      loadPendingTwoFARequests();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to reset 2FA.");
     } finally {
       setResettingTwoFA(false);
+    }
+  }
+  // Dismisses a "lost my authenticator" request without resetting
+  // anything — e.g. identity couldn't be confirmed, or the requester
+  // got back into their authenticator on their own.
+  async function dismissTwoFARequest(id) {
+    setDismissingRequestId(id);
+    try {
+      await api.post(`/admin/2fa-reset-requests/${id}/dismiss`);
+      loadPendingTwoFARequests();
+    } catch {
+      setError("Failed to dismiss request.");
+    } finally {
+      setDismissingRequestId(null);
     }
   }
   const filteredApplicants = applicants.filter((a) =>
@@ -501,6 +523,40 @@ function AdminUsers() {
             </div>
             {error && <div className="alert alert-danger">{error}</div>}
             {success && <div className="alert alert-success">{success}</div>}
+
+            {pendingTwoFARequests.length > 0 && (
+              <div className="alert alert-warning">
+                <strong>{pendingTwoFARequests.length} pending 2FA reset request{pendingTwoFARequests.length > 1 ? "s" : ""}</strong>
+                <p className="mb-2">Verify identity before resetting — see below.</p>
+                <ul className="list-unstyled mb-0">
+                  {pendingTwoFARequests.map((r) => (
+                    <li key={r.id} className="d-flex justify-content-between align-items-center flex-wrap gap-2 py-1">
+                      <span>
+                        {r.user?.first_name} {r.user?.last_name} ({r.user?.email}) — requested{" "}
+                        {new Date(r.created_at).toLocaleString()}
+                      </span>
+                      <span>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-custom me-2"
+                          onClick={() => setTwoFATarget(r.user)}
+                        >
+                          Reset now
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          disabled={dismissingRequestId === r.id}
+                          onClick={() => dismissTwoFARequest(r.id)}
+                        >
+                          {dismissingRequestId === r.id ? "Dismissing..." : "Dismiss"}
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {/* Personnel */}
             <div className="page-card">
               <div className="d-flex justify-content-between align-items-center mb-3">

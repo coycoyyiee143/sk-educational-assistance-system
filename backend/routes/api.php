@@ -30,6 +30,8 @@ Route::post('/email/verify-by-code', [AuthController::class, 'verifyEmailByCode'
 // Both handled inside AuthController — no separate TwoFactorController.
 Route::post('/2fa/setup/confirm', [AuthController::class, 'confirmTwoFactorSetup']); // activates + logs in
 Route::post('/2fa/verify', [AuthController::class, 'verifyTwoFactor']);              // normal login 2FA step
+// "Lost your authenticator?" — notifies it_support/superadmin, does not reset anything itself.
+Route::post('/2fa/request-help', [AuthController::class, 'requestTwoFactorHelp']);
 
 // Forgot Password
 Route::post('/password/forgot', [PasswordResetController::class, 'sendResetCode']);
@@ -71,6 +73,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // docblock in AdminController for why this is admin-only and not
         // self-service.
         Route::post('/admin/users/{id}/reset-2fa', [AdminController::class, 'resetTwoFactor']);
+        // "Lost my authenticator" requests raised from the login screen.
+        Route::get('/admin/2fa-reset-requests', [AdminController::class, 'pendingTwoFactorResetRequests']);
+        Route::post('/admin/2fa-reset-requests/{id}/dismiss', [AdminController::class, 'dismissTwoFactorResetRequest']);
     });
 
     // View-only system status (failed jobs, DB connectivity, storage) —
