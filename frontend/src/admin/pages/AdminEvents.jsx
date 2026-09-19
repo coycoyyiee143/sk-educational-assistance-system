@@ -4,6 +4,10 @@ import AdminTopbarUser from "../components/AdminTopbarUser";
 import api, { STORAGE_URL } from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 const emptyForm = { title: "", venue: "", event_date: "", event_time: "", description: "", image: null };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -40,7 +44,7 @@ function toInputTime(timeStr) {
 
 // ── Add Modal ─────────────────────────────────────────────────────────────────
 function AddEventModal({ onClose, onSave, saving }) {
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => ({ ...emptyForm, event_date: todayStr() }));
   const [previewUrl, setPreviewUrl] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
@@ -321,7 +325,7 @@ function AdminEvents() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(3);
   const [currentPage, setCurrentPage] = useState(1);
   const perPage = 10;
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
@@ -331,14 +335,14 @@ function AdminEvents() {
 
   useEffect(() => {
     if (!error && !success) return;
-    setCountdown(10);
+    setCountdown(3);
     const tick = setInterval(() => {
       setCountdown((c) => (c <= 1 ? 0 : c - 1));
     }, 1000);
     const dismiss = setTimeout(() => {
       setError("");
       setSuccess("");
-    }, 10000);
+    }, 3000);
     return () => {
       clearInterval(tick);
       clearTimeout(dismiss);

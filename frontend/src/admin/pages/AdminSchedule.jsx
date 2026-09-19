@@ -15,11 +15,15 @@ const emptyForm = {
 };
 
 const emptySessionLane = () => ({ lane_name: "", capacity: "", verifier_id: "" });
-const emptyDay = () => ({
-  date: "",
+const emptyDay = (dateStr = "") => ({
+  date: dateStr,
   morning: { enabled: true, lanes: [emptySessionLane()] },
   afternoon: { enabled: true, lanes: [emptySessionLane()] },
 });
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 function groupLanesIntoDays(lanesArr) {
   if (!lanesArr || lanesArr.length === 0) return [emptyDay()];
@@ -91,7 +95,7 @@ function AdminSchedule() {
   const [verifiers, setVerifiers] = useState([]);
   const [assigningLaneId, setAssigningLaneId] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [days, setDays] = useState([emptyDay()]);
+  const [days, setDays] = useState([emptyDay(todayStr())]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
@@ -175,7 +179,10 @@ function AdminSchedule() {
   }
 
   function addDay() {
-    setDays((prev) => [...prev, emptyDay()]);
+    setDays((prev) => {
+      const lastDate = [...prev].reverse().find((d) => d.date)?.date;
+      return [...prev, emptyDay(lastDate ? nextDayStr(lastDate) : todayStr())];
+    });
   }
 
   function removeDay(dayIndex) {
@@ -227,12 +234,12 @@ function AdminSchedule() {
       return;
     }
     setForm(emptyForm);
-    setDays([emptyDay()]);
+    setDays([emptyDay(todayStr())]);
   }
 
   function confirmReset() {
     setForm(emptyForm);
-    setDays([emptyDay()]);
+    setDays([emptyDay(todayStr())]);
     setShowResetConfirm(false);
   }
 
@@ -377,6 +384,20 @@ function AdminSchedule() {
   const latestClaimingDateStr = claimingDates.length > 0
     ? claimingDates.slice().sort().slice(-1)[0]
     : null;
+
+  // Late claiming can't overlap the regular claiming days, so once at
+  // least one is dated, default it to the very next day instead of
+  // leaving the admin to work out the earliest valid date themselves —
+  // only for a schedule being set up fresh, never overriding a saved
+  // schedule that intentionally left it blank.
+  useEffect(() => {
+    if (schedule || !latestClaimingDateStr) return;
+    setForm((f) => {
+      if (f.late_claiming_date) return f;
+      const start = nextDayStr(latestClaimingDateStr);
+      return { ...f, late_claiming_date: start, late_claiming_end_date: f.late_claiming_end_date || start };
+    });
+  }, [latestClaimingDateStr, schedule]);
   const summaryItems = schedule ? [
     { label: "Total Approved Applicants", value: approvedCount },
     { label: "Awaiting a Lane", value: unassignedApprovedCount },

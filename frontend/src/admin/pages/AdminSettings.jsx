@@ -26,14 +26,23 @@ function generateSchoolYearOptions() {
 
 const SCHOOL_YEAR_OPTIONS = generateSchoolYearOptions();
 
-const emptyForm = {
-  school_year: "",
-  open_date: "",
-  close_date: "",
-  slot_limit: "",
-  is_unlimited: false,
-  assistance_amount: "2000",
-};
+function nowDateTimeLocal() {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
+
+function emptyForm() {
+  return {
+    school_year: "",
+    open_date: nowDateTimeLocal(),
+    close_date: "",
+    slot_limit: "",
+    is_unlimited: false,
+    assistance_amount: "2000",
+  };
+}
 
 function AdminSettings() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
