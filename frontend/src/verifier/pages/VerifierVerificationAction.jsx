@@ -189,7 +189,7 @@ function VerifierVerificationAction() {
   const [error, setError] = useState("");
   const [selectedAction, setSelectedAction] = useState(null);
   const [successFeedback, setSuccessFeedback] = useState(null);
-  const [feedbackSeconds, setFeedbackSeconds] = useState(10);
+  const [feedbackSeconds, setFeedbackSeconds] = useState(3);
   useEffect(() => {
     api.get(`/verifier/applications/${id}`)
       .then((res) => setApp(res.data))

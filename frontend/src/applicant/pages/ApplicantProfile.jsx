@@ -38,7 +38,7 @@ function ApplicantProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showSavedPopup, setShowSavedPopup] = useState(false);
-  const [savedCountdown, setSavedCountdown] = useState(10);
+  const [savedCountdown, setSavedCountdown] = useState(3);
   const [error, setError] = useState("");
   const [faceStatus, setFaceStatus] = useState(null);
   const [facePhotoUrl, setFacePhotoUrl] = useState(null);
@@ -126,7 +126,7 @@ function ApplicantProfile() {
 
   useEffect(() => {
     if (!showSavedPopup) return;
-    setSavedCountdown(10);
+    setSavedCountdown(3);
     const tick = setInterval(() => {
       setSavedCountdown((count) =>
         count <= 1 ? 0 : count - 1
@@ -134,7 +134,7 @@ function ApplicantProfile() {
     }, 1000);
     const dismiss = setTimeout(() => {
       setShowSavedPopup(false);
-    }, 10000);
+    }, 3000);
     return () => {
       clearInterval(tick);
       clearTimeout(dismiss);

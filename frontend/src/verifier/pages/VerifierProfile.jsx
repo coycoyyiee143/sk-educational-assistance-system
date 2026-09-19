@@ -21,7 +21,7 @@ function VerifierProfile() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(3);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ function VerifierProfile() {
   useEffect(() => {
     if (!success && !error) return;
 
-    setCountdown(10);
+    setCountdown(3);
 
     const tick = setInterval(() => {
       setCountdown((c) => (c <= 1 ? 0 : c - 1));
@@ -46,7 +46,7 @@ function VerifierProfile() {
     const dismiss = setTimeout(() => {
       setSuccess("");
       setError("");
-    }, 10000);
+    }, 3000);
 
     return () => {
       clearInterval(tick);

@@ -92,7 +92,7 @@ function AdminAnnouncements() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(3);
   const [currentPage, setCurrentPage] = useState(1);
   const perPage = 10;
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -115,14 +115,14 @@ function AdminAnnouncements() {
 
   useEffect(() => {
     if (!error && !success) return;
-    setCountdown(10);
+    setCountdown(3);
     const tick = setInterval(() => {
       setCountdown((c) => (c <= 1 ? 0 : c - 1));
     }, 1000);
     const dismiss = setTimeout(() => {
       setError("");
       setSuccess("");
-    }, 10000);
+    }, 3000);
     return () => {
       clearInterval(tick);
       clearTimeout(dismiss);
