@@ -1,12 +1,3 @@
-import os
-# PaddlePaddle's MKL-DNN backend (enable_mkldnn=True below) and OpenCV each
-# bundle their own Intel OpenMP runtime. Loading both in one process trips
-# "OMP: Error #15: Initializing libiomp5md.dll, but found libiomp5md.dll
-# already initialized" - a native abort that kills the whole process
-# (crashes the server mid-upload, not a catchable Python exception). Must
-# be set before paddleocr/cv2 are imported.
-os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
-
 from paddleocr import PaddleOCR
 import cv2
 import numpy as np
@@ -31,7 +22,7 @@ def get_ocr():
             ocr_version='PP-OCRv4',        # confirmed valid for installed paddleocr==2.8.1 (legacy 2.x API)
             use_gpu=False,                 # explicit - server has no GPU, avoids any accidental GPU probe overhead
             enable_mkldnn=True,            # CPU inference speedup on Intel/AMD - safe no-op if unsupported
-            cpu_threads=int(os.getenv("OCR_CPU_THREADS", "2")),  # prod default of 2 matches the server's 2 vCPU limit (prevents oversubscription across workers) - override via OCR_CPU_THREADS in .env for local dev boxes with more cores
+            cpu_threads=2,                 # match the server's 2 vCPU limit - prevents oversubscription across workers
         )
     return _ocr
 
