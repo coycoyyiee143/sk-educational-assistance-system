@@ -469,10 +469,14 @@ function AdminUsers() {
   const filteredApplicants = applicants.filter((a) =>
     `${a.first_name} ${a.last_name} ${a.email}`.toLowerCase().includes(applicantSearch.toLowerCase())
   );
-  const filteredPersonnel = personnel.filter((p) =>
-    `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(personnelSearch.toLowerCase()) &&
-    (!roleFilter || p.role === roleFilter)
-  );
+  const filteredPersonnel = personnel
+    .filter((p) =>
+      `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(personnelSearch.toLowerCase()) &&
+      (!roleFilter || p.role === roleFilter)
+    )
+    // Your own account always leads the list, so it's easy to find and
+    // never buried behind pagination.
+    .sort((a, b) => (b.id === currentUser?.id) - (a.id === currentUser?.id));
   const applicantTotalPages = Math.max(1, Math.ceil(filteredApplicants.length / perPage));
   const applicantStart = (applicantPage - 1) * perPage;
   const pagedApplicants = filteredApplicants.slice(applicantStart, applicantStart + perPage);
@@ -542,7 +546,13 @@ function AdminUsers() {
                       <tr><td colSpan={6} className="text-center text-muted py-4">No personnel accounts found.</td></tr>
                     ) : (
                       pagedPersonnel.map((p) => {
+                        const isSelf = p.id === currentUser?.id;
                         const isLocked = currentUser?.role === "it_support" && p.role === "superadmin";
+                        const restrictedReason = isSelf
+                          ? "This is your own account"
+                          : isLocked
+                          ? "Superadmin accounts can't be managed by IT Support"
+                          : null;
                         return (
                         <tr key={p.id}>
                           <td>{p.id}</td>
@@ -554,15 +564,12 @@ function AdminUsers() {
                             <SetupPendingBadge emailVerifiedAt={p.email_verified_at} />
                           </td>
                           <td>
-                            {isLocked ? (
-                              <span className="text-muted" style={{ fontSize: "13px" }}>View only</span>
-                            ) : (
                             <div className="user-action-group">
                               <button
                                 className={`user-icon-btn ${p.is_active ? "user-icon-btn-deactivate" : "user-icon-btn-activate"}`}
                                 onClick={() => handleToggleClick(p)}
-                                disabled={togglingId === p.id}
-                                title={p.is_active ? "Deactivate" : "Activate"}
+                                disabled={!!restrictedReason || togglingId === p.id}
+                                title={restrictedReason || (p.is_active ? "Deactivate" : "Activate")}
                                 aria-label={p.is_active ? "Deactivate" : "Activate"}
                               >
                                 {p.is_active ? <BanIcon /> : <CheckCircleIcon />}
@@ -570,8 +577,8 @@ function AdminUsers() {
                               <button
                                 className="user-icon-btn user-icon-btn-reset-password"
                                 onClick={() => setResetTarget(p)}
-                                disabled={p.id === currentUser?.id}
-                                title={p.id === currentUser?.id ? "Use Change Password in your own account settings instead" : "Reset Password"}
+                                disabled={!!restrictedReason}
+                                title={restrictedReason || "Reset Password"}
                                 aria-label="Reset Password"
                               >
                                 <KeyIcon />
@@ -579,8 +586,8 @@ function AdminUsers() {
                               <button
                                 className="user-icon-btn user-icon-btn-reset-2fa"
                                 onClick={() => setTwoFATarget(p)}
-                                disabled={p.id === currentUser?.id}
-                                title={p.id === currentUser?.id ? "You can't reset your own 2FA this way" : "Reset 2FA — clears their authenticator setup, use if they lost their device or QR code"}
+                                disabled={!!restrictedReason}
+                                title={restrictedReason || "Reset 2FA — clears their authenticator setup, use if they lost their device or QR code"}
                                 aria-label="Reset 2FA"
                               >
                                 <ShieldIcon />
@@ -588,13 +595,13 @@ function AdminUsers() {
                               <button
                                 className="user-icon-btn user-icon-btn-delete"
                                 onClick={() => setDeleteTarget(p)}
-                                title="Delete"
+                                disabled={!!restrictedReason}
+                                title={restrictedReason || "Delete"}
                                 aria-label="Delete"
                               >
                                 <TrashIcon />
                               </button>
                             </div>
-                            )}
                           </td>
                         </tr>
                         );
