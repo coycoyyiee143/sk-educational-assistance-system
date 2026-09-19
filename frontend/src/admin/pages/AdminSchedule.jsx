@@ -79,6 +79,15 @@ function nextDayStr(dateStr) {
   return d.toISOString().slice(0, 10);
 }
 
+// A claiming day must fall strictly after the application period's
+// close_date, so the earliest valid default is whichever is later:
+// today, or the day right after close_date.
+function firstValidDayDate(closeDate) {
+  if (!closeDate) return todayStr();
+  const dayAfterClose = nextDayStr(closeDate.slice(0, 10));
+  return dayAfterClose > todayStr() ? dayAfterClose : todayStr();
+}
+
 function formatDateRange(dates) {
   const unique = [...new Set(dates.filter(Boolean))].sort();
   if (unique.length === 0) return "—";
@@ -95,7 +104,7 @@ function AdminSchedule() {
   const [verifiers, setVerifiers] = useState([]);
   const [assigningLaneId, setAssigningLaneId] = useState(null);
   const [form, setForm] = useState(emptyForm);
-  const [days, setDays] = useState([emptyDay(todayStr())]);
+  const [days, setDays] = useState([emptyDay()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activating, setActivating] = useState(false);
@@ -165,6 +174,19 @@ function AdminSchedule() {
     loadSchedule();
   }, [loadSchedule]);
 
+  // Only defaults the very first, still-blank claiming day of a brand
+  // new schedule — never a saved one — and only once close_date is
+  // known, so the suggested date is never one the "must be after
+  // close_date" rule would immediately reject.
+  useEffect(() => {
+    if (schedule || !config?.close_date) return;
+    setDays((prev) =>
+      prev.length === 1 && !prev[0].date
+        ? [emptyDay(firstValidDayDate(config.close_date))]
+        : prev
+    );
+  }, [schedule, config]);
+
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   function setDayDate(dayIndex, value) {
@@ -181,7 +203,7 @@ function AdminSchedule() {
   function addDay() {
     setDays((prev) => {
       const lastDate = [...prev].reverse().find((d) => d.date)?.date;
-      return [...prev, emptyDay(lastDate ? nextDayStr(lastDate) : todayStr())];
+      return [...prev, emptyDay(lastDate ? nextDayStr(lastDate) : firstValidDayDate(config?.close_date))];
     });
   }
 
@@ -234,12 +256,12 @@ function AdminSchedule() {
       return;
     }
     setForm(emptyForm);
-    setDays([emptyDay(todayStr())]);
+    setDays([emptyDay(firstValidDayDate(config?.close_date))]);
   }
 
   function confirmReset() {
     setForm(emptyForm);
-    setDays([emptyDay(todayStr())]);
+    setDays([emptyDay(firstValidDayDate(config?.close_date))]);
     setShowResetConfirm(false);
   }
 
@@ -417,7 +439,19 @@ function AdminSchedule() {
   // its live assignments_count — there's no separate preview snapshot to
   // reconcile against, since applicants land on a lane the moment
   // they're approved, not at some future publish step.
-  const displayedLanes = (schedule?.lanes ?? []).filter((l) => l.lane_name !== "Late Claiming");
+  // Lanes come back in whatever order the DB returns them, not grouped
+  // by claiming day — sort chronologically (day, then morning before
+  // afternoon, then lane name) so Day 1's lanes list together before
+  // Day 2's instead of interleaving.
+  const BATCH_ORDER = { morning: 0, afternoon: 1 };
+  const displayedLanes = (schedule?.lanes ?? [])
+    .filter((l) => l.lane_name !== "Late Claiming")
+    .slice()
+    .sort((a, b) =>
+      a.claiming_date.localeCompare(b.claiming_date) ||
+      (BATCH_ORDER[a.batch] ?? 0) - (BATCH_ORDER[b.batch] ?? 0) ||
+      a.lane_name.localeCompare(b.lane_name)
+    );
   const laneTotalPages = Math.max(1, Math.ceil(displayedLanes.length / lanePerPage));
   const lanePageStart = (lanePage - 1) * lanePerPage;
   const pagedLanes = displayedLanes.slice(lanePageStart, lanePageStart + lanePerPage);
