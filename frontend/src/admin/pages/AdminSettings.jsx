@@ -581,7 +581,7 @@ function AdminSettings() {
                     <h4 className="sub-title sub-title-dark mb-1">Extend Application Period</h4>
                     <p className="text-muted small mb-0">
                       Move the Closing Date later. Blocked if it would collide with an already-scheduled
-                      claiming date or Grace Period start — reschedule those first if needed.
+                      claiming date or Late Claiming start — reschedule those first if needed.
                     </p>
                   </div>
                   <button
@@ -655,7 +655,7 @@ function AdminSettings() {
                     <h4 className="sub-title sub-title-dark mb-1">Close This Period</h4>
                     <p className="text-muted small mb-0">
                       Marks this period as fully settled. Any remaining waitlisted applicants will be
-                      finalized as "not selected." Only available once the grace period has ended.
+                      finalized as "not selected." Only available once Late Claiming has ended.
                     </p>
                   </div>
                   <button

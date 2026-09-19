@@ -164,7 +164,7 @@ class ApplicationConfigurationController extends Controller
         ]);
 
         // The whole point of AdminScheduleController::store()'s validation
-        // is that no claiming date (or grace period date) is ever allowed
+        // is that no claiming date (or Late Claiming date) is ever allowed
         // to fall on/before the application period's close_date. Extending
         // close_date forward could silently violate that invariant for a
         // schedule that was already set up under the OLD close_date — so
@@ -173,7 +173,7 @@ class ApplicationConfigurationController extends Controller
         // noticing. This applies whether the schedule is still a draft
         // or already active (applicants possibly already assigned) —
         // either way, the admin needs to consciously resolve the
-        // conflict (reschedule the lanes/grace period, or pick a less
+        // conflict (reschedule the lanes/Late Claiming, or pick a less
         // aggressive extension) rather than have it happen as a side
         // effect of extending the deadline.
         $newCloseDate = \Carbon\Carbon::parse($data['close_date'])->startOfDay();
@@ -184,7 +184,7 @@ class ApplicationConfigurationController extends Controller
 
         if ($schedule) {
             $conflictingLane = $schedule->lanes
-                ->where('lane_name', '!=', 'Grace Period Claiming')
+                ->where('lane_name', '!=', 'Late Claiming')
                 ->first(fn ($lane) => \Carbon\Carbon::parse($lane->claiming_date)->startOfDay()->lte($newCloseDate));
 
             if ($conflictingLane) {
@@ -193,9 +193,9 @@ class ApplicationConfigurationController extends Controller
                 ], 400);
             }
 
-            if ($schedule->grace_period_date && \Carbon\Carbon::parse($schedule->grace_period_date)->startOfDay()->lte($newCloseDate)) {
+            if ($schedule->late_claiming_date && \Carbon\Carbon::parse($schedule->late_claiming_date)->startOfDay()->lte($newCloseDate)) {
                 return response()->json([
-                    'message' => "Can't extend to {$newCloseDate->toDateString()} — Grace Period is already scheduled to start on {$schedule->grace_period_date}, which would then fall on or before the new closing date. Adjust the grace period dates first, or choose a shorter extension.",
+                    'message' => "Can't extend to {$newCloseDate->toDateString()} — Late Claiming is already scheduled to start on {$schedule->late_claiming_date}, which would then fall on or before the new closing date. Adjust the Late Claiming dates first, or choose a shorter extension.",
                 ], 400);
             }
         }

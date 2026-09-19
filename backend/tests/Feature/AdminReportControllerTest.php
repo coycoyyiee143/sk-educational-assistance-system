@@ -338,24 +338,24 @@ class AdminReportControllerTest extends TestCase
         $this->assertEquals(1, $row['rejected']);
     }
 
-    // ── gracePeriodClaimingList() ────────────────────────────────
+    // ── lateClaimingList() ────────────────────────────────
 
-    public function test_grace_period_claiming_list_returns_404_without_active_period()
+    public function test_late_claiming_list_returns_404_without_active_period()
     {
         $admin = $this->makeAdmin();
         ApplicationConfiguration::query()->update(['is_active' => false]);
 
-        $response = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/reports/grace-period-claiming-list');
+        $response = $this->actingAs($admin, 'sanctum')->getJson('/api/admin/reports/late-claiming-list');
 
         $response->assertStatus(404);
     }
 
-    public function test_grace_period_claiming_list_returns_entries_for_active_period()
+    public function test_late_claiming_list_returns_entries_for_active_period()
     {
         $admin = $this->makeAdmin();
         $config = $this->makeConfig();
 
-        $response = $this->actingAs($admin, 'sanctum')->getJson("/api/admin/reports/grace-period-claiming-list?config_id={$config->id}");
+        $response = $this->actingAs($admin, 'sanctum')->getJson("/api/admin/reports/late-claiming-list?config_id={$config->id}");
 
         $response->assertOk();
         $response->assertJsonStructure(['config', 'entries', 'retrying_count', 'promoted_count']);
@@ -537,12 +537,12 @@ class AdminReportControllerTest extends TestCase
         $this->assertStringContainsString('SK-2026-0001', $response->getContent());
     }
 
-    public function test_grace_period_claiming_list_pdf_downloads_successfully()
+    public function test_late_claiming_list_pdf_downloads_successfully()
     {
         $admin = $this->makeAdmin();
         $config = $this->makeConfig();
 
-        $response = $this->actingAs($admin, 'sanctum')->get("/api/admin/reports/grace-period-claiming-list/pdf?config_id={$config->id}");
+        $response = $this->actingAs($admin, 'sanctum')->get("/api/admin/reports/late-claiming-list/pdf?config_id={$config->id}");
 
         $response->assertOk();
         $response->assertHeader('Content-Type', 'application/pdf');

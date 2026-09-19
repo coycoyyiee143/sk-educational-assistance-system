@@ -80,7 +80,7 @@ class WaitlistScenarioSeeder extends Seeder
             $waitlistedApps = $this->seedWaitlistedApplicants($config, 6);
 
             $schedule = $this->seedClaimingSchedule($config);
-            $graceLane = $this->seedGracePeriodLane($schedule);
+            $lateClaimingLane = $this->seedLateClaimingLane($schedule);
 
             // Frozen, ordered-by-id list of exactly the 30 originally-
             // approved applicants, captured ONCE right after assignment.
@@ -96,21 +96,21 @@ class WaitlistScenarioSeeder extends Seeder
 
             // Indices 3-4: left untouched as unswept no-shows (2 apps) —
             // stays pending_claiming/original from the assignment step
-            // above, which is what makes them grace-period-eligible per
-            // GracePeriodEligibility rule 2. Nothing to do here.
+            // above, which is what makes them Late-Claiming-eligible per
+            // LateClaimingEligibility rule 2. Nothing to do here.
 
             // Indices 5-6: already-swept retries (2 apps) — reassigned
-            // onto the Grace Period lane with source flipped to
-            // grace_period_retry, exactly what SweepUnclaimedAssignments
+            // onto the Late Claiming lane with source flipped to
+            // late_claiming_retry, exactly what SweepUnclaimedAssignments
             // does. Gives a "Retrying" example that isn't just an unswept
             // original, alongside indices 3-4 above.
-            $this->seedSweptRetryOutcomes($graceLane, $assignedApps->slice(5, 2));
+            $this->seedSweptRetryOutcomes($lateClaimingLane, $assignedApps->slice(5, 2));
 
             // Indices 7-29: claimed (23 apps)
             $this->seedClaimedOutcomes($config, $schedule, $assignedApps->slice(7));
 
-            // Promote 4 of the 6 waitlisted applicants onto the Grace
-            // Period lane — this is what actually exercises the
+            // Promote 4 of the 6 waitlisted applicants onto the Late
+            // Claiming lane — this is what actually exercises the
             // "Promoted" badge, across four different outcomes:
             //  0: pending, no face verification yet (tests the required
             //     gate from scratch)
@@ -122,10 +122,10 @@ class WaitlistScenarioSeeder extends Seeder
             //     again, demonstrating the cascade)
             //  3: resolved claimed, with a passing face verification
             // The other 2 stay waitlisted.
-            $this->seedPromotedOutcomes($config, $graceLane, $waitlistedApps->slice(0, 4));
+            $this->seedPromotedOutcomes($config, $lateClaimingLane, $waitlistedApps->slice(0, 4));
         });
 
-        $this->command->info('Waitlist scenario seeded: period at capacity (30/30, back to 30/30 after 4 promotions absorb the freed slots), 2 still waitlisted, 4 not_cleared total (3 original + 1 cascaded from a promoted applicant), grace period pool has 2 unswept no-shows, 2 swept retries, 1 pending promotion (no face verification), 1 pending promotion (failed face verification on record), 1 resolved not_cleared promotion, and 1 resolved claimed promotion.');
+        $this->command->info('Waitlist scenario seeded: period at capacity (30/30, back to 30/30 after 4 promotions absorb the freed slots), 2 still waitlisted, 4 not_cleared total (3 original + 1 cascaded from a promoted applicant), Late Claiming pool has 2 unswept no-shows, 2 swept retries, 1 pending promotion (no face verification), 1 pending promotion (failed face verification on record), 1 resolved not_cleared promotion, and 1 resolved claimed promotion.');
     }
 
     /**
@@ -224,8 +224,8 @@ class WaitlistScenarioSeeder extends Seeder
             'location'              => 'Barangay Mamatid Covered Court',
             'is_active'             => true,
             'activated_at'          => now()->subDays(2),
-            'grace_period_date'     => now()->subDay()->toDateString(),
-            'grace_period_end_date' => now()->addDays(5)->toDateString(),
+            'late_claiming_date'     => now()->subDay()->toDateString(),
+            'late_claiming_end_date' => now()->addDays(5)->toDateString(),
         ]);
 
         ClaimingLane::create([
@@ -245,14 +245,14 @@ class WaitlistScenarioSeeder extends Seeder
      * command — waitlist promotions and swept no-shows both always land
      * on this one flexible, unscheduled lane rather than a dated one.
      */
-    private function seedGracePeriodLane(ClaimingSchedule $schedule): ClaimingLane
+    private function seedLateClaimingLane(ClaimingSchedule $schedule): ClaimingLane
     {
         return ClaimingLane::create([
             'claiming_schedule_id' => $schedule->id,
-            'lane_name'            => 'Grace Period Claiming',
+            'lane_name'            => 'Late Claiming',
             'capacity'             => null,
             'batch'                => 'morning',
-            'claiming_date'        => $schedule->grace_period_date,
+            'claiming_date'        => $schedule->late_claiming_date,
         ]);
     }
 
@@ -288,16 +288,16 @@ class WaitlistScenarioSeeder extends Seeder
 
     /**
      * Mirrors SweepUnclaimedAssignments' reassignment step: moves an
-     * overdue 'original' assignment onto the flexible Grace Period lane
-     * and flips source to grace_period_retry, leaving claim_status
+     * overdue 'original' assignment onto the flexible Late Claiming lane
+     * and flips source to late_claiming_retry, leaving claim_status
      * untouched (still pending_claiming — a retry is not a resolution).
      */
-    private function seedSweptRetryOutcomes(ClaimingLane $graceLane, $apps): void
+    private function seedSweptRetryOutcomes(ClaimingLane $lateClaimingLane, $apps): void
     {
         foreach ($apps as $app) {
             ClaimingAssignment::where('application_id', $app->id)->update([
-                'claiming_lane_id' => $graceLane->id,
-                'source'           => 'grace_period_retry',
+                'claiming_lane_id' => $lateClaimingLane->id,
+                'source'           => 'late_claiming_retry',
             ]);
         }
     }
@@ -325,7 +325,9 @@ class WaitlistScenarioSeeder extends Seeder
         foreach ($apps as $app) {
             ClaimingAssignment::where('application_id', $app->id)->update([
                 'claim_status'       => 'claimed',
-                'verified_documents' => [],
+                // All three matched — a real "Claimed" outcome can't exist
+                // without the verifier having checked every document.
+                'verified_documents' => ['registration_form', 'school_id', 'voters_certificate'],
                 'verified_by'        => $this->verifier->id,
                 'verified_at'        => $lane->claiming_date,
                 'amount'             => $config->assistance_amount,
@@ -339,12 +341,12 @@ class WaitlistScenarioSeeder extends Seeder
      * Mirrors what Application::tryApprove() + VerifierController's
      * promotion flow actually do (status -> approved, control_number
      * assigned, slots_filled incremented, ClaimingAssignment created on
-     * the Grace Period lane with source: waitlist_promotion) for every
+     * the Late Claiming lane with source: waitlist_promotion) for every
      * app passed in, then resolves each into a distinct outcome by
      * index — see the call site for what each index demonstrates.
      * Expects exactly 4 apps.
      */
-    private function seedPromotedOutcomes(ApplicationConfiguration $config, ClaimingLane $graceLane, $apps): void
+    private function seedPromotedOutcomes(ApplicationConfiguration $config, ClaimingLane $lateClaimingLane, $apps): void
     {
         $apps = $apps->values();
         $nextSequence = 31;
@@ -358,8 +360,8 @@ class WaitlistScenarioSeeder extends Seeder
 
             ClaimingAssignment::create([
                 'application_id'       => $app->id,
-                'claiming_schedule_id' => $graceLane->claiming_schedule_id,
-                'claiming_lane_id'     => $graceLane->id,
+                'claiming_schedule_id' => $lateClaimingLane->claiming_schedule_id,
+                'claiming_lane_id'     => $lateClaimingLane->id,
                 'claim_status'         => 'pending_claiming',
                 'source'               => 'waitlist_promotion',
             ]);
@@ -388,7 +390,7 @@ class WaitlistScenarioSeeder extends Seeder
         }
 
         // Index 2: resolved not_cleared — a promoted applicant who then
-        // ALSO failed physical verification during grace period. No face
+        // ALSO failed physical verification during Late Claiming. No face
         // verification is required for not_cleared, only for claimed.
         // Frees their slot again, same rule as any other not_cleared.
         $cascadedNotCleared = $apps->get(2);
@@ -406,7 +408,7 @@ class WaitlistScenarioSeeder extends Seeder
 
         // Index 3: resolved claimed, with a passing face verification on
         // record first (matches the real precondition updateClaimStatus
-        // enforces before allowing 'claimed' during grace period).
+        // enforces before allowing 'claimed' during Late Claiming).
         $resolvedClaimed = $apps->get(3);
         if ($resolvedClaimed) {
             $assignment = ClaimingAssignment::where('application_id', $resolvedClaimed->id)->first();
@@ -422,7 +424,7 @@ class WaitlistScenarioSeeder extends Seeder
 
             $assignment->update([
                 'claim_status'       => 'claimed',
-                'verified_documents' => [],
+                'verified_documents' => ['registration_form', 'school_id', 'voters_certificate'],
                 'verified_by'        => $this->verifier->id,
                 'verified_at'        => now(),
                 'amount'             => $config->assistance_amount,

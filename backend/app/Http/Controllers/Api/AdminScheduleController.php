@@ -68,8 +68,8 @@ class AdminScheduleController extends Controller
             'morning_end'           => 'nullable',
             'afternoon_start'       => 'nullable',
             'afternoon_end'         => 'nullable',
-            'grace_period_date'     => 'nullable|date',
-            'grace_period_end_date' => 'nullable|date|after_or_equal:grace_period_date',
+            'late_claiming_date'     => 'nullable|date',
+            'late_claiming_end_date' => 'nullable|date|after_or_equal:late_claiming_date',
             'lanes'                 => 'required|array|min:1',
             'lanes.*.lane_name'     => 'required|string',
             // Capacity is REQUIRED here — unlimited-capacity regular lanes
@@ -77,7 +77,7 @@ class AdminScheduleController extends Controller
             // added an edge case (an unlimited lane silently swallowing
             // every applicant that reaches it in fill order, never letting
             // later lanes get used). The one legitimate uncapped lane in
-            // this system — "Grace Period Claiming" — is created directly
+            // this system — "Late Claiming" — is created directly
             // by VerifierController's waitlist-promotion flow, not through
             // this admin-configured lane list, so it's unaffected by this.
             'lanes.*.capacity'      => 'required|integer|min:1',
@@ -125,24 +125,24 @@ class AdminScheduleController extends Controller
             ], 400);
         }
 
-        // Grace period is for people who missed THEIR claiming day and
+        // Late Claiming is for people who missed THEIR claiming day and
         // are being given one more chance — it only makes sense once
-        // every regular claiming day has actually happened. If it were
+        // every scheduled claiming day has actually happened. If it were
         // allowed to start before or during the claiming days, someone
-        // could show up during "grace period" for a lane that hasn't
+        // could show up during "Late Claiming" for a lane that hasn't
         // even had its real claiming day yet, which breaks the eligibility
-        // logic in GracePeriodEligibility (it assumes every original
-        // lane's date is already in the past by the time grace period
+        // logic in LateClaimingEligibility (it assumes every original
+        // lane's date is already in the past by the time Late Claiming
         // opens — see CLAIMING_RULES.md).
         $latestClaimingDate = collect($request->lanes)
             ->map(fn ($lane) => \Carbon\Carbon::parse($lane['claiming_date'])->startOfDay())
             ->max();
 
-        if ($request->grace_period_date) {
-            $graceStart = \Carbon\Carbon::parse($request->grace_period_date)->startOfDay();
-            if ($graceStart->lte($latestClaimingDate)) {
+        if ($request->late_claiming_date) {
+            $lateClaimingStart = \Carbon\Carbon::parse($request->late_claiming_date)->startOfDay();
+            if ($lateClaimingStart->lte($latestClaimingDate)) {
                 return response()->json([
-                    'message' => "Grace Period must start after every claiming date. The latest claiming date entered is {$latestClaimingDate->toDateString()}, but Grace Period is set to start {$graceStart->toDateString()}.",
+                    'message' => "Late Claiming must start after every claiming date. The latest claiming date entered is {$latestClaimingDate->toDateString()}, but Late Claiming is set to start {$lateClaimingStart->toDateString()}.",
                 ], 400);
             }
         }
@@ -159,7 +159,7 @@ class AdminScheduleController extends Controller
         $schedule->fill($request->only([
             'location', 'morning_start', 'morning_end',
             'afternoon_start', 'afternoon_end',
-            'grace_period_date', 'grace_period_end_date',
+            'late_claiming_date', 'late_claiming_end_date',
         ]));
         $schedule->save();
 
@@ -332,7 +332,7 @@ class AdminScheduleController extends Controller
      * applications. Two things happen atomically:
      * 1. Every still-waitlisted applicant for this config becomes
      *    not_selected — they passed every check but ran out of room by
-     *    the time grace period ended. Not a rejection.
+     *    the time Late Claiming ended. Not a rejection.
      * 2. closed_at is stamped, so this period now has a real "settled"
      *    timestamp distinct from its planned close_date.
      */
@@ -349,9 +349,9 @@ class AdminScheduleController extends Controller
             ->latest()
             ->first();
 
-        if ($schedule && $schedule->grace_period_end_date && now()->lt($schedule->grace_period_end_date)) {
+        if ($schedule && $schedule->late_claiming_end_date && now()->lt($schedule->late_claiming_end_date)) {
             return response()->json([
-                'message' => 'Cannot close this period until the grace period has ended (' . $schedule->grace_period_end_date . ').',
+                'message' => 'Cannot close this period until Late Claiming has ended (' . $schedule->late_claiming_end_date . ').',
             ], 400);
         }
 

@@ -187,7 +187,7 @@ class FaceVerificationController extends Controller
      * anything new. Directly answers the panel's ask that the
      * applicant's photo be visible on the claiming page as a passive
      * human-glance reference, distinct from (and free alongside) the
-     * mandatory active face check in grace period.
+     * mandatory active face check in Late Claiming.
      */
     public function registrationPhoto(Request $request, $applicationId)
     {
@@ -284,13 +284,13 @@ class FaceVerificationController extends Controller
      * "claimed" — it only records the attempt (photo, score, match result)
      * and returns the result to the verifier.
      *
-     * In REGULAR claiming, using this is the verifier's own judgment call,
+     * In SCHEDULED claiming, using this is the verifier's own judgment call,
      * same as the physical-document checks — neither is backend-enforced.
-     * In GRACE PERIOD claiming, VerifierController::updateClaimStatus()
+     * In LATE CLAIMING, VerifierController::updateClaimStatus()
      * backend-enforces this: 'claimed' is rejected unless a passing
      * ClaimingFaceVerification row exists for that assignment, since a
-     * grace-period walk-in has no scheduled lane/control-number structure
-     * backing up identity the way regular claiming does.
+     * Late Claiming walk-in has no scheduled lane/control-number structure
+     * backing up identity the way scheduled claiming does.
      */
     public function verifyClaiming(Request $request, $applicationId)
     {
@@ -330,7 +330,7 @@ class FaceVerificationController extends Controller
         }
 
         // Own row per attempt — never overwrites a prior attempt's proof,
-        // so a sweep-driven grace-period retry keeps its own independent
+        // so a sweep-driven Late Claiming retry keeps its own independent
         // record instead of silently replacing the last one.
         $faceRecord = \App\Models\ClaimingFaceVerification::create([
             'claiming_assignment_id' => $assignment->id,

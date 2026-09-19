@@ -45,6 +45,6 @@ class ClaimingReminderNotification extends Notification implements ShouldQueue
             ->line('**Lane:** ' . $this->lane->lane_name)
             ->line('**Venue:** ' . $this->schedule->location)
             ->line('Please bring valid identification and the original copies of your submitted documents.')
-            ->line('If you are unable to claim on your assigned date, please coordinate with the SK office regarding the grace period.');
+            ->line('If you are unable to claim on your assigned date, please coordinate with the SK office regarding Late Claiming.');
     }
 }

@@ -228,11 +228,11 @@ class ApplicationConfigurationControllerTest extends TestCase
         $this->assertStringContainsString('Lane A', $response->getData(true)['message']);
     }
 
-    public function test_extend_ignores_the_grace_period_claiming_lane_when_checking_for_conflicts()
+    public function test_extend_ignores_the_late_claiming_lane_when_checking_for_conflicts()
     {
-        // "Grace Period Claiming" is the one lane deliberately excluded
+        // "Late Claiming" is the one lane deliberately excluded
         // from the conflict check (its date is derived separately from
-        // grace_period_date/grace_period_end_date on the schedule, not
+        // late_claiming_date/late_claiming_end_date on the schedule, not
         // treated as a normal lane conflict here).
         $config = ApplicationConfiguration::factory()->alreadyStarted()->create([
             'close_date' => now()->addDays(5)->endOfDay(),
@@ -240,7 +240,7 @@ class ApplicationConfigurationControllerTest extends TestCase
         $schedule = ClaimingSchedule::create(['config_id' => $config->id, 'location' => 'Barangay Hall']);
         ClaimingLane::create([
             'claiming_schedule_id' => $schedule->id,
-            'lane_name'            => 'Grace Period Claiming',
+            'lane_name'            => 'Late Claiming',
             'capacity'             => null,
             'batch'                => 'morning',
             'claiming_date'        => now()->addDays(20)->format('Y-m-d'),
@@ -252,7 +252,7 @@ class ApplicationConfigurationControllerTest extends TestCase
         $this->assertEquals(200, $response->getStatusCode());
     }
 
-    public function test_extend_blocks_when_it_would_land_on_or_before_the_scheduled_grace_period_start()
+    public function test_extend_blocks_when_it_would_land_on_or_before_the_scheduled_late_claiming_start()
     {
         $config = ApplicationConfiguration::factory()->alreadyStarted()->create([
             'close_date' => now()->addDays(5)->endOfDay(),
@@ -260,13 +260,13 @@ class ApplicationConfigurationControllerTest extends TestCase
         ClaimingSchedule::create([
             'config_id'         => $config->id,
             'location'          => 'Barangay Hall',
-            'grace_period_date' => now()->addDays(15)->format('Y-m-d'),
+            'late_claiming_date' => now()->addDays(15)->format('Y-m-d'),
         ]);
         $request = $this->extendRequest(now()->addDays(20)->format('Y-m-d'));
 
         $response = $this->controller()->extend($request, $config->id);
 
         $this->assertEquals(400, $response->getStatusCode());
-        $this->assertStringContainsString('Grace Period', $response->getData(true)['message']);
+        $this->assertStringContainsString('Late Claiming', $response->getData(true)['message']);
     }
 }

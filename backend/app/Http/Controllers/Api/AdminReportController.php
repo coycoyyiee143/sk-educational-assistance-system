@@ -9,14 +9,14 @@ use App\Models\ClaimingAssignment;
 use App\Models\User;
 use App\Models\VerificationCheck;
 use App\Models\VerifierAction;
-use App\Traits\GracePeriodEligibility;
+use App\Traits\LateClaimingEligibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class AdminReportController extends Controller
 {
-    use GracePeriodEligibility;
+    use LateClaimingEligibility;
 
     // "Approved" means currently eligible to claim, or already claimed —
     // approved (pre-claiming-day) + claimed (successfully received) +
@@ -283,13 +283,13 @@ class AdminReportController extends Controller
         return response()->stream($callback, 200, $headers);
     }
 
-    public function gracePeriodClaimingList(Request $request)
+    public function lateClaimingList(Request $request)
     {
         $config = $this->resolveConfig($request);
         if (!$config) {
             return response()->json(['message' => 'No active application period.'], 404);
         }
-        $list = $this->buildGracePeriodClaimingList($config);
+        $list = $this->buildLateClaimingList($config);
         $entries = $list['retrying']->map(fn($a) => [
             'control_number' => $a->application->control_number,
             'name'           => trim($a->application->user->first_name . ' ' . $a->application->user->last_name),
@@ -366,34 +366,34 @@ class AdminReportController extends Controller
         ])->render();
     }
 
-    private function buildGracePeriodClaimingList(ApplicationConfiguration $config)
+    private function buildLateClaimingList(ApplicationConfiguration $config)
     {
         $today = now()->toDateString();
         $assignments = ClaimingAssignment::with(['application.user', 'lane'])
             ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
-            ->where(fn($q) => $this->applyGracePeriodEligibleCondition($q, $today))
+            ->where(fn($q) => $this->applyLateClaimingEligibleCondition($q, $today))
             ->get();
 
         return [
-            'retrying' => $assignments->filter(fn($a) => $this->gracePeriodType($a->source) === 'retrying')->values(),
-            'promoted' => $assignments->filter(fn($a) => $this->gracePeriodType($a->source) === 'promoted')->values(),
+            'retrying' => $assignments->filter(fn($a) => $this->lateClaimingType($a->source) === 'retrying')->values(),
+            'promoted' => $assignments->filter(fn($a) => $this->lateClaimingType($a->source) === 'promoted')->values(),
         ];
     }
 
-    public function gracePeriodClaimingListPdf(Request $request)
+    public function lateClaimingListPdf(Request $request)
     {
         $config = $this->resolveConfig($request);
         if (!$config) {
             return response()->json(['message' => 'No active application period.'], 404);
         }
-        $list = $this->buildGracePeriodClaimingList($config);
-        $pdf = Pdf::loadView('claiming.grace-period-claiming-list', [
-            'title'    => 'Grace Period Claiming List',
+        $list = $this->buildLateClaimingList($config);
+        $pdf = Pdf::loadView('claiming.late-claiming-list', [
+            'title'    => 'Late Claiming List',
             'config'   => $config,
             'retrying' => $list['retrying'],
             'promoted' => $list['promoted'],
         ]);
-        return $pdf->stream('grace-period-claiming-list-' . now()->format('Y-m-d') . '.pdf');
+        return $pdf->stream('late-claiming-list-' . now()->format('Y-m-d') . '.pdf');
     }
 
     /**
@@ -436,8 +436,8 @@ class AdminReportController extends Controller
                 'verified_at'    => $a->verified_at,
                 'amount'         => $amount,
                 // Present only when a face check was actually run for this
-                // claim — mandatory in grace period, optional (verifier's
-                // call) in regular claiming, so this may legitimately be
+                // claim — mandatory in Late Claiming, optional (verifier's
+                // call) in scheduled claiming, so this may legitimately be
                 // null for a regular-claiming row nobody chose to verify.
                 'face_verification' => $face ? [
                     'matched'       => $face->matched,
