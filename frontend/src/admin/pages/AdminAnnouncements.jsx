@@ -84,6 +84,7 @@ function EditAnnouncementModal({ announcement, onClose, onSave, saving }) {
 }
 
 function AdminAnnouncements() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [editTarget, setEditTarget] = useState(null);
@@ -238,10 +239,13 @@ function AdminAnnouncements() {
 
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <AdminTopbarUser />
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
 
         <section className="page-section">

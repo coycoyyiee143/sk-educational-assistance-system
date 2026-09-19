@@ -326,6 +326,7 @@ function AddPersonnelModal({ onClose, onSave, actingRole }) {
 }
 function AdminUsers() {
   const { user: currentUser } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [applicants, setApplicants] = useState([]);
   const [personnel, setPersonnel] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -480,10 +481,13 @@ function AdminUsers() {
   const pagedPersonnel = filteredPersonnel.slice(personnelStart, personnelStart + perPage);
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <AdminTopbarUser />
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
         <section className="page-section">
           <div className="container-fluid">

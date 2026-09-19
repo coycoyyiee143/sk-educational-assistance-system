@@ -28,8 +28,8 @@ body {
   margin-left: 10px;
 }
 
-.admin-main .page-card:first-of-type .section-title,
-.admin-main .page-card:first-of-type .text-muted {
+.admin-main .container-fluid > .page-card:first-of-type .section-title,
+.admin-main .container-fluid > .page-card:first-of-type .text-muted {
   color: #ffffff !important;
 }
 
@@ -60,7 +60,7 @@ body {
   margin-bottom: 25px;
 }
 
-.admin-main .page-card:first-of-type {
+.admin-main .container-fluid > .page-card:first-of-type {
   background: linear-gradient(135deg, #c85050 0%, #8e0000 100%);
 }
 

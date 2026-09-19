@@ -72,6 +72,7 @@ function formatDescription(log, currentUser) {
 // Combined activity log for Admin and Verifier accounts only.
 // Applicant activity is intentionally excluded from this view.
 function AdminMasterActivityLog() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -139,10 +140,13 @@ function AdminMasterActivityLog() {
 
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <AdminTopbarUser />
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
 
         <section className="page-section">
