@@ -14,15 +14,41 @@ function todayStr() {
   return `${d.getFullYear()}-${m}-${day}`;
 }
 
-const emptyForm = { title: "", venue: "", event_date: "", event_time: "", description: "", image: null };
+function nowTimeStr() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+// The API serializes date-cast fields as full UTC timestamps (e.g.
+// "2026-09-19T16:00:00.000000Z" for a 2026-09-20 local date, since the
+// server runs Asia/Manila), NOT a plain "YYYY-MM-DD" — so slicing the
+// first 10 characters grabs the UTC date, which is a day off from the
+// intended local calendar date. Parse as a Date (which correctly
+// converts to local time) and read local components instead.
+function toInputDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+
+const emptyForm = { title: "", venue: "", event_date: "", event_time: "", end_date: "", end_time: "", description: "", image: null };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function getEventStatus(dateStr) {
-  if (!dateStr) return "Upcoming";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const eventDate = new Date(dateStr); eventDate.setHours(0, 0, 0, 0);
-  if (eventDate.getTime() === today.getTime()) return "Ongoing";
-  return eventDate > today ? "Upcoming" : "Finished";
+// Ongoing is now a real start–end window, not just "is event_date today" —
+// a multi-day event stays Ongoing for its whole span instead of flipping
+// to Finished the day after it starts. A blank end just means a
+// single-day event, ending at the close of event_date.
+function getEventStatus(event) {
+  if (!event?.event_date) return "Upcoming";
+  const start = new Date(`${toInputDate(event.event_date)}T${event.event_time ? event.event_time.slice(0, 5) : "00:00"}:00`);
+  const endDateStr = event.end_date ? toInputDate(event.end_date) : toInputDate(event.event_date);
+  const end = new Date(`${endDateStr}T${event.end_time ? event.end_time.slice(0, 5) : "23:59"}:59`);
+  const now = new Date();
+  if (now < start) return "Upcoming";
+  if (now > end) return "Finished";
+  return "Ongoing";
 }
 
 function StatusBadge({ status }) {
@@ -33,6 +59,18 @@ function StatusBadge({ status }) {
 function formatDate(dateStr) {
   if (!dateStr) return "";
   return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+}
+
+// "September 20, 2026" for a single day, "September 20–22, 2026" for a
+// multi-day event.
+function formatDateRange(startStr, endStr) {
+  if (!endStr || endStr === startStr) return formatDate(startStr);
+  const start = new Date(startStr);
+  const end = new Date(endStr);
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  const startLabel = start.toLocaleDateString("en-US", { month: "long", day: "numeric", year: sameMonth ? undefined : "numeric" });
+  const endLabel = end.toLocaleDateString("en-US", { month: sameMonth ? undefined : "long", day: "numeric", year: "numeric" });
+  return `${startLabel}–${endLabel}`;
 }
 
 function formatTime(timeStr) {
@@ -50,7 +88,7 @@ function toInputTime(timeStr) {
 
 // ── Add Modal ─────────────────────────────────────────────────────────────────
 function AddEventModal({ onClose, onSave, saving }) {
-  const [form, setForm] = useState(() => ({ ...emptyForm, event_date: todayStr() }));
+  const [form, setForm] = useState(() => ({ ...emptyForm, event_date: todayStr(), event_time: nowTimeStr() }));
   const [previewUrl, setPreviewUrl] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
@@ -152,13 +190,39 @@ function AddEventModal({ onClose, onSave, saving }) {
                     <input className="form-control" placeholder="Enter venue" value={form.venue} onChange={set("venue")} />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label">Date<span className="event-modal-required">*</span></label>
+                    <label className="form-label">Start Date<span className="event-modal-required">*</span></label>
                     <input type="date" className="form-control" value={form.event_date} onChange={set("event_date")} required />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label">Time</label>
+                    <label className="form-label">Start Time</label>
                     <input type="time" className="form-control" value={form.event_time} onChange={set("event_time")} />
                   </div>
+                  <div className="col-12">
+                    <div className="form-check">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        id="add-event-multi-day"
+                        checked={form.end_date !== ""}
+                        onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.checked ? f.event_date : "", end_time: e.target.checked ? (f.end_time || nowTimeStr()) : "" }))}
+                      />
+                      <label className="form-check-label" htmlFor="add-event-multi-day">
+                        This event ends on a different day
+                      </label>
+                    </div>
+                  </div>
+                  {form.end_date !== "" && (
+                    <>
+                      <div className="col-md-6">
+                        <label className="form-label">End Date<span className="event-modal-required">*</span></label>
+                        <input type="date" className="form-control" value={form.end_date} min={form.event_date || undefined} onChange={set("end_date")} required />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">End Time</label>
+                        <input type="time" className="form-control" value={form.end_time} onChange={set("end_time")} />
+                      </div>
+                    </>
+                  )}
                   <div className="col-12 mt-4">
                     <label className="form-label">Description</label>
                     <textarea className="form-control announcement-textarea" placeholder="Enter event description" value={form.description} onChange={set("description")} />
@@ -184,8 +248,10 @@ function EditEventModal({ event, onClose, onSave, saving }) {
   const [form, setForm] = useState({
     title: event.title,
     venue: event.venue ?? "",
-    event_date: event.event_date,
+    event_date: toInputDate(event.event_date),
     event_time: toInputTime(event.event_time),
+    end_date: event.end_date ? toInputDate(event.end_date) : "",
+    end_time: toInputTime(event.end_time),
     description: event.description ?? "",
     image: null,
   });
@@ -290,13 +356,39 @@ function EditEventModal({ event, onClose, onSave, saving }) {
                     <input className="form-control" value={form.venue} onChange={set("venue")} />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label">Date</label>
+                    <label className="form-label">Start Date</label>
                     <input type="date" className="form-control" value={form.event_date} onChange={set("event_date")} required />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label">Time</label>
+                    <label className="form-label">Start Time</label>
                     <input type="time" className="form-control" value={form.event_time} onChange={set("event_time")} />
                   </div>
+                  <div className="col-12">
+                    <div className="form-check">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        id="edit-event-multi-day"
+                        checked={form.end_date !== ""}
+                        onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.checked ? f.event_date : "", end_time: e.target.checked ? (f.end_time || nowTimeStr()) : "" }))}
+                      />
+                      <label className="form-check-label" htmlFor="edit-event-multi-day">
+                        This event ends on a different day
+                      </label>
+                    </div>
+                  </div>
+                  {form.end_date !== "" && (
+                    <>
+                      <div className="col-md-6">
+                        <label className="form-label">End Date</label>
+                        <input type="date" className="form-control" value={form.end_date} min={form.event_date || undefined} onChange={set("end_date")} required />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">End Time</label>
+                        <input type="time" className="form-control" value={form.end_time} onChange={set("end_time")} />
+                      </div>
+                    </>
+                  )}
                   <div className="col-12 mt-4">
                     <label className="form-label">Description</label>
                     <textarea className="form-control announcement-textarea" value={form.description} onChange={set("description")} />
@@ -369,6 +461,8 @@ function AdminEvents() {
     fd.append("venue", form.venue ?? "");
     fd.append("event_date", form.event_date);
     fd.append("event_time", form.event_time ?? "");
+    fd.append("end_date", form.end_date ?? "");
+    fd.append("end_time", form.end_time ?? "");
     fd.append("description", form.description ?? "");
     if (form.image) fd.append("image", form.image);
     return fd;
@@ -448,11 +542,11 @@ function AdminEvents() {
   }
 
   const filtered = events.filter((e) => {
-    const status = getEventStatus(e.event_date);
+    const status = getEventStatus(e);
     const matchSearch = e.title.toLowerCase().includes(search.toLowerCase()) ||
       (e.venue ?? "").toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "All Status" || status === statusFilter;
-    const matchDate = !dateFilter || e.event_date === dateFilter;
+    const matchDate = !dateFilter || (dateFilter >= toInputDate(e.event_date) && dateFilter <= (e.end_date ? toInputDate(e.end_date) : toInputDate(e.event_date)));
     return matchSearch && matchStatus && matchDate;
   });
 
@@ -595,10 +689,10 @@ function AdminEvents() {
                             />
                           </td>
                           <td>{ev.title}</td>
-                          <td>{formatDate(ev.event_date)}</td>
+                          <td>{formatDateRange(ev.event_date, ev.end_date)}</td>
                           <td>{formatTime(ev.event_time)}</td>
                           <td>{ev.venue}</td>
-                          <td><StatusBadge status={getEventStatus(ev.event_date)} /></td>
+                          <td><StatusBadge status={getEventStatus(ev)} /></td>
                           <td>
                             <button className="icon-btn icon-btn-edit" onClick={() => setEditTarget(ev)} title="Edit" aria-label="Edit">
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

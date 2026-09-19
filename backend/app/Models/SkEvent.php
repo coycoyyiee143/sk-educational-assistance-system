@@ -11,6 +11,8 @@ class SkEvent extends Model
         'description',
         'event_date',
         'event_time',
+        'end_date',
+        'end_time',
         'venue',
         'image_path',
         'is_published',
@@ -19,6 +21,7 @@ class SkEvent extends Model
 
     protected $casts = [
         'event_date' => 'date',
+        'end_date' => 'date',
         'is_published' => 'boolean',
     ];
 
