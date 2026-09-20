@@ -315,7 +315,7 @@ const Login = () => {
                           onChange={(e) => setRememberDevice(e.target.checked)}
                         />
                         <label className="form-check-label" htmlFor="rememberDeviceSetup">
-                          Remember this device for 10 days
+                          Remember this device
                         </label>
                       </div>
                       <button type="submit" className="btn btn-danger w-100 login-btn-lg" disabled={loading}>

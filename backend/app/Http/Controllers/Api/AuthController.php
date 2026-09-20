@@ -15,6 +15,7 @@ use App\Models\TwoFactorResetRequest;
 use App\Mail\TwoFactorResetRequestMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -263,64 +264,71 @@ class AuthController extends Controller
         }
 
         // Both duplicate checks passed, face matched — now it's safe to
-        // actually create the account.
-        $user = User::create([
-            'first_name'         => $request->first_name,
-            'middle_name'        => $request->middle_name,
-            'last_name'          => $request->last_name,
-            'email'              => $request->email,
-            'mobile_number'      => $request->mobile_number,
-            'password'           => Hash::make($request->password),
-            'role'               => 'applicant',
-            'privacy_consent_at' => now(),
-        ]);
+        // actually create the account. Wrapped in a transaction so a
+        // mid-process failure (e.g. photo storage erroring out) rolls back
+        // every record instead of leaving a half-created account that
+        // blocks the applicant from registering again.
+        $user = DB::transaction(function () use ($request, $idImage, $livePhoto, $result) {
+            $user = User::create([
+                'first_name'         => $request->first_name,
+                'middle_name'        => $request->middle_name,
+                'last_name'          => $request->last_name,
+                'email'              => $request->email,
+                'mobile_number'      => $request->mobile_number,
+                'password'           => Hash::make($request->password),
+                'role'               => 'applicant',
+                'privacy_consent_at' => now(),
+            ]);
 
-        // Seed password history with the initial password, so the very
-        // first change already has something to check reuse against.
-        PasswordHistory::create([
-            'user_id'       => $user->id,
-            'password_hash' => $user->password,
-        ]);
+            // Seed password history with the initial password, so the very
+            // first change already has something to check reuse against.
+            PasswordHistory::create([
+                'user_id'       => $user->id,
+                'password_hash' => $user->password,
+            ]);
 
-        // Audit trail ng Data Privacy consent — proof kung sino, kailan, at saang IP nag-agree
-        \App\Models\AuditLog::record(
-            'consent',
-            $user,
-            "{$user->first_name} {$user->last_name} agreed to the Data Privacy Notice.",
-            $user
-        );
+            // Audit trail ng Data Privacy consent — proof kung sino, kailan, at saang IP nag-agree
+            \App\Models\AuditLog::record(
+                'consent',
+                $user,
+                "{$user->first_name} {$user->last_name} agreed to the Data Privacy Notice.",
+                $user
+            );
 
-        // Profile starts pre-filled with what Register already collected —
-        // is_profile_complete stays false until the applicant fills in the
-        // rest via the Profile page.
-        StudentProfile::create([
-            'user_id'   => $user->id,
-            'birthdate' => $request->birthdate,
-            'barangay'  => $request->barangay,
-        ]);
+            // Profile starts pre-filled with what Register already collected —
+            // is_profile_complete stays false until the applicant fills in the
+            // rest via the Profile page.
+            StudentProfile::create([
+                'user_id'   => $user->id,
+                'birthdate' => $request->birthdate,
+                'barangay'  => $request->barangay,
+            ]);
 
-        // Now persist the ID + live photo to permanent storage under this
-        // user's folder, and record the verification result.
-        $idImagePath = $idImage->storeAs(
-            "face-verifications/{$user->id}",
-            'id_' . time() . '.' . $idImage->getClientOriginalExtension(),
-            'local'
-        );
-        $livePhotoPath = $livePhoto->storeAs(
-            "face-verifications/{$user->id}",
-            'live_' . time() . '.' . $livePhoto->getClientOriginalExtension(),
-            'local'
-        );
+            // Now persist the ID + live photo to permanent storage under this
+            // user's folder, and record the verification result.
+            $idImagePath = $idImage->storeAs(
+                "face-verifications/{$user->id}",
+                'id_' . time() . '.' . $idImage->getClientOriginalExtension(),
+                'local'
+            );
+            $livePhotoPath = $livePhoto->storeAs(
+                "face-verifications/{$user->id}",
+                'live_' . time() . '.' . $livePhoto->getClientOriginalExtension(),
+                'local'
+            );
 
-        FaceVerification::create([
-            'user_id'                  => $user->id,
-            'id_image_path'            => $idImagePath,
-            'live_photo_path'          => $livePhotoPath,
-            'face_embedding'           => $result['embedding'],
-            'registration_match_score' => $result['score'],
-            'status'                   => 'verified',
-            'verified_at'              => now(),
-        ]);
+            FaceVerification::create([
+                'user_id'                  => $user->id,
+                'id_image_path'            => $idImagePath,
+                'live_photo_path'          => $livePhotoPath,
+                'face_embedding'           => $result['embedding'],
+                'registration_match_score' => $result['score'],
+                'status'                   => 'verified',
+                'verified_at'              => now(),
+            ]);
+
+            return $user;
+        });
 
         // TRIGGER: Automatically dispatches Laravel's email verification link via your Log/Mail system
         $user->sendEmailVerificationNotification();
