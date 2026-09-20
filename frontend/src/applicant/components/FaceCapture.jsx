@@ -226,6 +226,9 @@ function FaceCapture({
   const showIdUpload = (mode === "registration" || mode === "profile_reverify") && !externalIdImage;
   const requiresIdImage = mode === "registration" || mode === "profile_reverify";
   const effectiveIdImage = externalIdImage || idImage;
+  // Camera stays locked until the 2x2 photo is in, so there's nothing to
+  // match a live capture against yet.
+  const idRequiredButMissing = requiresIdImage && !effectiveIdImage;
 
   async function handleIdChange(e) {
     const file = e.target.files[0];
@@ -317,7 +320,7 @@ function FaceCapture({
       .then((blob) => setLiveBlob(blob));
   }, []);
   useEffect(() => {
-    if (!modelsReady || !cameraReady || livePreview) return;
+    if (!modelsReady || !cameraReady || livePreview || idRequiredButMissing) return;
     detectionTimerRef.current = setInterval(async () => {
       const video = webcamRef.current?.video;
 
@@ -395,7 +398,7 @@ function FaceCapture({
       }
     }, DETECTION_INTERVAL_MS);
     return () => clearInterval(detectionTimerRef.current);
-  }, [modelsReady, cameraReady, livePreview, doCapture]);
+  }, [modelsReady, cameraReady, livePreview, idRequiredButMissing, doCapture]);
   function retake() {
     setLivePreview(null);
     setLiveBlob(null);
@@ -674,7 +677,17 @@ function FaceCapture({
           </label>
         </div>
 
-        {!livePreview ? (
+        {idRequiredButMissing ? (
+          <div className="face-capture-stage">
+            <div className="face-capture-camera-frame face-capture-camera-frame--locked">
+              <IconCamera width={28} height={28} />
+              <p>
+                Upload your 2x2 photo first to unlock
+                live face verification.
+              </p>
+            </div>
+          </div>
+        ) : !livePreview ? (
           <div className="face-capture-stage">
             <div className="face-capture-camera-frame">
               <Webcam

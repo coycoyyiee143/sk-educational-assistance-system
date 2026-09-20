@@ -13194,6 +13194,7 @@ body {
   background: #f7f8f9;
   border: 1px dashed #ccd1d6;
   border-radius: 13px;
+  cursor: pointer;
 }
 
 .identity-id-preview img {
@@ -13359,6 +13360,25 @@ body {
   overflow: hidden;
   border-radius: 13px;
   background: #111;
+}
+
+.face-capture-camera-frame--locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  background: #f7f8f9;
+  border: 1px dashed #ccd1d6;
+  color: #8a939c;
+  text-align: center;
+}
+
+.face-capture-camera-frame--locked p {
+  margin: 0;
+  font-size: 13px;
+  max-width: 220px;
 }
 
 .face-capture-webcam,
