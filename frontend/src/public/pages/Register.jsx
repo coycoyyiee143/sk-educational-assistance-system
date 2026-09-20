@@ -51,6 +51,7 @@ const Register = () => {
   const [idPreview, setIdPreview] = useState(null);
   const [idPhotoError, setIdPhotoError] = useState("");
   const [idPhotoChecking, setIdPhotoChecking] = useState(false);
+  const [idDragActive, setIdDragActive] = useState(false);
   const idFileInputRef = useRef(null);
 
   const [step, setStep] = useState("form");
@@ -110,9 +111,7 @@ const Register = () => {
     });
   };
 
-  async function handleIdChange(e) {
-    const file = e.target.files[0];
-
+  async function processIdFile(file) {
     if (!file) return;
 
     setGeneralError("");
@@ -127,7 +126,6 @@ const Register = () => {
         setIdPhotoError(
           "Your 2x2 photo must have a plain white background. Please retake or upload a photo taken against a white backdrop."
         );
-        e.target.value = "";
         return;
       }
 
@@ -136,6 +134,19 @@ const Register = () => {
     } finally {
       setIdPhotoChecking(false);
     }
+  }
+
+  function handleIdChange(e) {
+    const file = e.target.files[0];
+    processIdFile(file);
+    e.target.value = "";
+  }
+
+  function handleIdDrop(e) {
+    e.preventDefault();
+    setIdDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    processIdFile(file);
   }
 
   const handleNext = async (e) => {
@@ -389,9 +400,17 @@ const Register = () => {
                 />
 
                 <div
-                  className="identity-id-preview"
+                  className={`identity-id-preview ${
+                    idDragActive ? "is-dragging" : ""
+                  }`}
                   role="button"
                   onClick={() => idFileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIdDragActive(true);
+                  }}
+                  onDragLeave={() => setIdDragActive(false)}
+                  onDrop={handleIdDrop}
                 >
                   {idPreview ? (
                     <img
@@ -400,7 +419,7 @@ const Register = () => {
                     />
                   ) : (
                     <span>
-                      Click to choose a photo
+                      Click or drag a photo here
                     </span>
                   )}
                 </div>
@@ -419,7 +438,7 @@ const Register = () => {
 
                 <button
                   type="button"
-                  className="btn btn-outline-secondary btn-sm mt-2"
+                  className="identity-upload-btn mt-2"
                   onClick={() => idFileInputRef.current?.click()}
                 >
                   {idImage ? "Change photo" : "Choose File"}
@@ -477,6 +496,7 @@ const Register = () => {
                   <FaceCapture
                     mode="registration"
                     externalIdImage={idImage}
+                    hideIdUpload
                     submitLabel={
                       loading
                         ? "Creating account..."

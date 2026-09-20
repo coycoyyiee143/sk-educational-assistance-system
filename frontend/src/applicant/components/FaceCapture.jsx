@@ -190,13 +190,14 @@ const IconShield = (props) => (
  * Falls back gracefully to a manual capture button whenever detection
  * can't run (models failed to load, browser incompatibility, etc.).
  *
- * Props: mode, applicationId, externalIdImage, onSuccess, onError,
- *        onSubmitCapture, submitLabel, disabled
+ * Props: mode, applicationId, externalIdImage, hideIdUpload, onSuccess,
+ *        onError, onSubmitCapture, submitLabel, disabled
  */
 function FaceCapture({
   mode = "registration",
   applicationId = null,
   externalIdImage = null,
+  hideIdUpload = false,
   onSuccess,
   onError,
   onSubmitCapture,
@@ -223,7 +224,7 @@ function FaceCapture({
 
   const [scanStatus, setScanStatus] = useState("loading");
   const [progress, setProgress] = useState(0);
-  const showIdUpload = (mode === "registration" || mode === "profile_reverify") && !externalIdImage;
+  const showIdUpload = (mode === "registration" || mode === "profile_reverify") && !hideIdUpload;
   const requiresIdImage = mode === "registration" || mode === "profile_reverify";
   const effectiveIdImage = externalIdImage || idImage;
   // Camera stays locked until the 2x2 photo is in, so there's nothing to
