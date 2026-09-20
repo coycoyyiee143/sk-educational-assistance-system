@@ -103,18 +103,18 @@ function ApplicantProfile() {
       .get("/face-verification")
       .then((res) => {
         setFaceStatus(res.data.status);
-        if (res.data.photo_url) {
-          return api.get(res.data.photo_url, {
-            responseType: "blob",
-          });
-        }
-        return null;
-      })
-      .then((photoRes) => {
-        if (photoRes) {
-          objectUrl = URL.createObjectURL(photoRes.data);
-          setFacePhotoUrl(objectUrl);
-        }
+        if (!res.data.photo_url) return null;
+        // Nested try/catch: a flaky connection failing just this photo
+        // fetch shouldn't undo the status we already got above — only a
+        // failure to reach /face-verification itself should ever mark
+        // the badge "Not Verified".
+        return api
+          .get(res.data.photo_url, { responseType: "blob" })
+          .then((photoRes) => {
+            objectUrl = URL.createObjectURL(photoRes.data);
+            setFacePhotoUrl(objectUrl);
+          })
+          .catch(() => {});
       })
       .catch(() => {
         setFaceStatus("not_started");
@@ -316,8 +316,12 @@ function ApplicantProfile() {
       className: "badge bg-secondary",
     },
   };
-  const faceStatusInfo =
-    FACE_STATUS_LABEL[faceStatus] || null;
+  // A new application period needing re-verification takes priority over
+  // the underlying registration status — otherwise the badge would keep
+  // showing "Verified" from a period ago, which is stale, not current.
+  const faceStatusInfo = reverifyRequired
+    ? { text: "Re-Verification Required", className: "badge bg-warning text-dark" }
+    : FACE_STATUS_LABEL[faceStatus] || null;
   const RequiredMark = () => (
     <span className="required-asterisk">*</span>
   );
