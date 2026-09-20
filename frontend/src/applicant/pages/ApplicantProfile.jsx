@@ -5,10 +5,16 @@ import ApplicantTopbarUser from "../components/ApplicantTopbarUser";
 import PanelFooter from "../../components/PanelFooter";
 import FaceCapture from "../components/FaceCapture";
 import { useAuth } from "../../context/AuthContext";
+import { useUserPhoto } from "../../hooks/useUserPhoto";
 import api from "../../services/api";
 
 function ApplicantProfile() {
-  const { login, token } = useAuth();
+  const { login, token, user } = useAuth();
+  // The applicant's own uploaded 2x2 reference photo — NOT the live
+  // camera capture from face verification (that's a liveness/comparison
+  // artifact, not meant to represent them as a profile picture). Same
+  // source verifiers already see on the review page.
+  const { url: profilePhotoUrl, status: profilePhotoStatus } = useUserPhoto(user?.id);
   const location = useLocation();
   const navigate = useNavigate();
   const cameFromSubmission = location.state?.from === "submission";
@@ -41,8 +47,6 @@ function ApplicantProfile() {
   const [savedCountdown, setSavedCountdown] = useState(3);
   const [error, setError] = useState("");
   const [faceStatus, setFaceStatus] = useState(null);
-  const [facePhotoUrl, setFacePhotoUrl] = useState(null);
-  const [facePhotoLoading, setFacePhotoLoading] = useState(true);
   const [reverifyRequired, setReverifyRequired] = useState(false);
   const [reverifyLoading, setReverifyLoading] = useState(true);
   const [showReverifyModal, setShowReverifyModal] = useState(false);
@@ -97,35 +101,14 @@ function ApplicantProfile() {
   }, []);
 
   useEffect(() => {
-    let objectUrl = null;
     api
       .get("/face-verification")
       .then((res) => {
         setFaceStatus(res.data.status);
-        if (!res.data.photo_url) return null;
-        // Nested try/catch: a flaky connection failing just this photo
-        // fetch shouldn't undo the status we already got above — only a
-        // failure to reach /face-verification itself should ever mark
-        // the badge "Not Verified".
-        return api
-          .get(res.data.photo_url, { responseType: "blob" })
-          .then((photoRes) => {
-            objectUrl = URL.createObjectURL(photoRes.data);
-            setFacePhotoUrl(objectUrl);
-          })
-          .catch(() => {});
       })
       .catch(() => {
         setFaceStatus("not_started");
-      })
-      .finally(() => {
-        setFacePhotoLoading(false);
       });
-    return () => {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
   }, []);
 
   function loadReverifyStatus() {
@@ -360,7 +343,7 @@ function ApplicantProfile() {
                       borderRadius: "14px",
                     }}
                   >
-                    {facePhotoLoading ? (
+                    {profilePhotoStatus === "loading" ? (
                       <div
                         className="d-flex align-items-center justify-content-center"
                         style={{
@@ -379,21 +362,21 @@ function ApplicantProfile() {
                       </div>
                     ) : (
                       <img
-                        src={facePhotoUrl || "/logo.png"}
+                        src={profilePhotoUrl || "/logo.png"}
                         alt={
-                          facePhotoUrl
-                            ? "Your registered photo"
+                          profilePhotoUrl
+                            ? "Your 2x2 photo"
                             : "Profile Icon"
                         }
                         style={{
                           width: "76px",
                           height: "76px",
                           borderRadius: "50%",
-                          objectFit: facePhotoUrl
+                          objectFit: profilePhotoUrl
                             ? "cover"
                             : "contain",
                           border: "3px solid #b71c1c",
-                          padding: facePhotoUrl
+                          padding: profilePhotoUrl
                             ? "0"
                             : "8px",
                           background: "#fff",
