@@ -20,7 +20,7 @@ def block(text, conf=0.9):
 
 
 def fake_photo_result(has_face: bool):
-    return SimpleNamespace(has_large_centered_face=has_face, face_count=1 if has_face else 0,
+    return SimpleNamespace(has_large_face=has_face, face_count=1 if has_face else 0,
                             largest_face_area_ratio=0.1 if has_face else 0.0)
 
 
