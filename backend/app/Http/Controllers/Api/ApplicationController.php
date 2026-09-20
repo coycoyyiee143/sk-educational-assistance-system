@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
+use App\Models\FaceVerification;
 use Illuminate\Http\Request;
 
 class ApplicationController extends Controller
@@ -44,6 +45,18 @@ class ApplicationController extends Controller
         if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
             return response()->json(['message' => 'No more slots available.'], 400);
         }
+
+        // Same gate as ProfileController::needsFaceReverify() — applying
+        // under a period is exactly the case this feature exists for, so
+        // it can't be bypassed by skipping the Profile page and applying
+        // directly. Frontend mirror lives in ApplicantSubmission.jsx.
+        $verification = FaceVerification::where('user_id', $request->user()->id)->first();
+        if (!$verification || $verification->verified_config_id !== $config->id) {
+            return response()->json([
+                'message' => 'Please re-verify your face for the current application period before applying.',
+            ], 403);
+        }
+
         $profile = $request->user()->profile;
         if (!$profile || !$profile->birthdate) {
             return response()->json([
