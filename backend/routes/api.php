@@ -175,6 +175,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::middleware(['role:sk_verifier'])->group(function () {
         Route::get('/verifier/applications', [VerifierController::class, 'index']);
         Route::get('/verifier/applications/{id}', [VerifierController::class, 'show']);
+        Route::post('/verifier/applications/{id}/heartbeat', [VerifierController::class, 'heartbeat']);
         Route::post('/verifier/applications/{id}/approve', [VerifierController::class, 'approve']);
         Route::post('/verifier/applications/{id}/reject', [VerifierController::class, 'reject']);
         Route::post('/verifier/applications/{id}/reupload', [VerifierController::class, 'requestReupload']);

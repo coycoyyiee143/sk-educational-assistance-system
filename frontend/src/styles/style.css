@@ -9994,6 +9994,42 @@ a:hover {
   background: #16a36a;
 }
 
+.verifier-other-viewer-toast {
+  position: fixed;
+  right: 80px;
+  bottom: 24px;
+  z-index: 1040;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(90vw, 420px);
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: #fbe4d2;
+  color: #7a3a0a;
+  border: 1px solid #f3c9a3;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.verifier-other-viewer-toast svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+@media (max-width: 575.98px) {
+  .verifier-other-viewer-toast {
+    left: 16px;
+    right: 16px;
+    bottom: 70px;
+    max-width: none;
+  }
+}
+
 .verifier-scroll-top-btn {
   position: fixed;
   right: 24px;

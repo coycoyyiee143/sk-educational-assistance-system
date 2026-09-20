@@ -29,6 +29,8 @@ class Application extends Model
         'submitted_at',
         'waitlisted_at',
         'attestation_accepted_at',
+        'viewing_verifier_id',
+        'viewing_heartbeat_at',
     ];
 
     protected $casts = [
@@ -37,11 +39,17 @@ class Application extends Model
         'attestation_accepted_at' => 'datetime',
         'appealed_at' => 'datetime',
         'appeal_decided_at' => 'datetime',
+        'viewing_heartbeat_at' => 'datetime',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function viewingVerifier()
+    {
+        return $this->belongsTo(User::class, 'viewing_verifier_id');
     }
 
     public function configuration()
