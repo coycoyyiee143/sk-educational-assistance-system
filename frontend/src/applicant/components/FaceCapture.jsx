@@ -2,6 +2,7 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import Webcam from "react-webcam";
 import * as faceapi from "face-api.js";
 import api from "../../services/api";
+import { checkWhiteBackground } from "../utils/imageChecks";
 const MODEL_URL = "/models";
 const STABLE_FRAMES_REQUIRED = 10;
 const DETECTION_INTERVAL_MS = 200;
@@ -251,6 +252,15 @@ function FaceCapture({
       const converted = new File([jpegBlob], "id_image.jpg", {
         type: "image/jpeg",
       });
+
+      const bgCheck = await checkWhiteBackground(converted);
+      if (!bgCheck.valid) {
+        setIdError(
+          "Your 2x2 photo must have a plain white background. Please retake or upload a photo taken against a white backdrop."
+        );
+        e.target.value = "";
+        return;
+      }
 
       setIdImage(converted);
       setIdPreview(URL.createObjectURL(converted));

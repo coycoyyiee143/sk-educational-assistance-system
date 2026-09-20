@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
 import FaceCapture from "../../applicant/components/FaceCapture";
+import { checkWhiteBackground } from "../../applicant/utils/imageChecks";
 
 // Small reusable block: renders one red line per message for a given
 // backend field key, or nothing if there's no error for that field.
@@ -48,6 +49,8 @@ const Register = () => {
 
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
+  const [idPhotoError, setIdPhotoError] = useState("");
+  const [idPhotoChecking, setIdPhotoChecking] = useState(false);
   const idFileInputRef = useRef(null);
 
   const [step, setStep] = useState("form");
@@ -107,14 +110,32 @@ const Register = () => {
     });
   };
 
-  function handleIdChange(e) {
+  async function handleIdChange(e) {
     const file = e.target.files[0];
 
     if (!file) return;
 
-    setIdImage(file);
-    setIdPreview(URL.createObjectURL(file));
     setGeneralError("");
+    setIdPhotoError("");
+    setIdImage(null);
+    setIdPreview(null);
+
+    setIdPhotoChecking(true);
+    try {
+      const bgCheck = await checkWhiteBackground(file);
+      if (!bgCheck.valid) {
+        setIdPhotoError(
+          "Your 2x2 photo must have a plain white background. Please retake or upload a photo taken against a white backdrop."
+        );
+        e.target.value = "";
+        return;
+      }
+
+      setIdImage(file);
+      setIdPreview(URL.createObjectURL(file));
+    } finally {
+      setIdPhotoChecking(false);
+    }
   }
 
   // The native file input resets itself when the browser restores this
@@ -127,6 +148,7 @@ const Register = () => {
       if (e.persisted) {
         setIdImage(null);
         setIdPreview(null);
+        setIdPhotoError("");
         if (idFileInputRef.current) idFileInputRef.current.value = "";
       }
     }
@@ -1025,6 +1047,18 @@ const Register = () => {
                         {idImage ? idImage.name : "No file chosen"}
                       </span>
                     </div>
+
+                    {idPhotoChecking && (
+                      <div className="text-muted small mt-2">
+                        Checking photo background...
+                      </div>
+                    )}
+
+                    {idPhotoError && (
+                      <div className="text-danger small mt-2">
+                        {idPhotoError}
+                      </div>
+                    )}
 
                     {idPreview && (
                       <img
