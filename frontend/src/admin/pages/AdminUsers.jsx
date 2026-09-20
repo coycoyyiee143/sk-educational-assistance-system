@@ -4,6 +4,7 @@ import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 import { useAuth } from "../../context/AuthContext";
+import { useUserPhoto } from "../../hooks/useUserPhoto";
 function StatusBadge({ active }) {
   return <span className={active ? "status-badge status-active" : "status-badge status-inactive"}>{active ? "Active" : "Inactive"}</span>;
 }
@@ -145,18 +146,16 @@ function FaceVerificationBadge({ faceVerification }) {
   );
 }
 function ViewApplicantModal({ applicant, onClose }) {
+  // The applicant's uploaded 2x2 reference photo — same source shown on
+  // the verifier review pages — not the dead profile_photo_url/photo_url/
+  // etc. fields the backend never actually sets. Called before the
+  // early return below so the hook always runs in the same order.
+  const { url: applicantPhoto } = useUserPhoto(applicant?.id);
   if (!applicant) return null;
   const initials = `${applicant.first_name?.charAt(0) ?? ""}${applicant.last_name?.charAt(0) ?? ""}`.toUpperCase();
   const registeredDate = applicant.created_at
     ? new Date(applicant.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
     : "—";
-  const applicantPhoto =
-    applicant.profile_photo_url ||
-    applicant.photo_url ||
-    applicant.image_url ||
-    applicant.avatar_url ||
-    applicant.profile?.photo_url ||
-    null;
   return (
     <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
       <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "700px", width: "calc(100% - 32px)" }}>

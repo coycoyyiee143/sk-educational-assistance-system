@@ -231,18 +231,18 @@ class FaceVerificationController extends Controller
     /**
      * Applicant's profile picture — the 2x2 reference photo uploaded at
      * REGISTRATION, shown as an avatar on the applicant's own topbar/profile
-     * page and on verifier review screens. Unlike registrationPhoto() above
+     * page, on verifier review screens, and on the admin/superadmin/
+     * it_support Users management page. Unlike registrationPhoto() above
      * (which is application-scoped and shows the live selfie for face
      * comparison), this is user-scoped and shows the 2x2 photo itself.
      */
     public function profilePhoto(Request $request, $userId)
     {
         $user = $request->user();
-        $isOwner    = (int) $user->id === (int) $userId;
-        $isVerifier = $user->role === 'sk_verifier';
-        $isAdmin    = $user->role === 'sk_admin';
+        $isOwner = (int) $user->id === (int) $userId;
+        $isStaff = in_array($user->role, ['sk_verifier', 'sk_admin', 'superadmin', 'it_support'], true);
 
-        if (!$isOwner && !$isVerifier && !$isAdmin) {
+        if (!$isOwner && !$isStaff) {
             abort(403, 'You are not authorized to view this photo.');
         }
 
