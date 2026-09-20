@@ -324,3 +324,24 @@ def test_uplb_sy_too_far_from_year_does_not_match_falls_back_to_base():
 def test_uplb_falls_back_to_base_strategy_when_no_sy_token():
     s = UplbStrategy()
     assert s.extract_school_year("Academic Year 2025-2026") == "2025-2026"
+
+
+def test_uplb_merges_institution_header_split_by_statue_graphic():
+    s = UplbStrategy()
+    # "University" split mid-word by the Oblation statue graphic behind
+    # it (confirmed on a real sample), "LOS BAÑOS" landing on the next
+    # line below.
+    b1 = block("Univers", x_min=300, y_min=20, x_max=400, y_max=50)
+    b2 = block("y of the Philippines", x_min=405, y_min=20, x_max=600, y_max=50)
+    b3 = block("LOS BANOS", x_min=400, y_min=55, x_max=600, y_max=85)
+    other = block("THE", x_min=100, y_min=10, x_max=130, y_max=30)
+    merged = s.preprocess_blocks([b1, b2, b3, other])
+    merged_texts = [b.text for b in merged]
+    assert "Univers y of the Philippines LOS BANOS" in merged_texts
+    assert "THE" in merged_texts  # short seal-text fragment left untouched
+
+
+def test_uplb_header_merge_requires_at_least_two_keyword_blocks():
+    s = UplbStrategy()
+    blocks = [block("Univers")]
+    assert s.preprocess_blocks(blocks) == blocks
