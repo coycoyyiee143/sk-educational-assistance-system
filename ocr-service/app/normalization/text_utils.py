@@ -136,6 +136,38 @@ def reinsert_name_spacing(raw: str, first_name: str, middle_name: str, last_name
     return raw  # no confident letter-order alignment — leave as-is, no harm done
 
 
+# Generic institutional words that appear across MANY different real
+# schools' official names and can't distinguish one from another on
+# their own -- e.g. "University of the Philippines Los Baños" and
+# "Polytechnic University of the Philippines" share every one of these
+# words. Confirmed as a real false-positive, not hypothetical: an OCR
+# misread on a genuine UPLB ID ("Polytechnic University. of the
+# Philippines" -- the text detector garbled an occluded fragment into
+# a real but wrong institution name) scored high enough via aggregate
+# similarity alone to pass fuzzy_match_school() against the declared
+# UPLB school, despite literally naming a different university.
+#
+# "POLYTECHNIC" is deliberately NOT in this set -- it's the one word
+# that actually distinguishes "Polytechnic University of the
+# Philippines" (PUP) from plain "University of the Philippines" (UP),
+# two genuinely different, easily-confusable real schools differing by
+# exactly that word. Treating it as generic filler would let a plain
+# UP-system name (no "Polytechnic" at all) falsely pass as PUP on
+# aggregate similarity alone -- confirmed: a same-length "University of
+# the Philippines System Manila" scored 86% against declared PUP with
+# "Polytechnic" wrongly stopworded, the identical class of false
+# positive this whole guard exists to catch.
+_SCHOOL_STOPWORDS = {
+    "UNIVERSITY", "COLLEGE", "OF", "THE", "SYSTEM", "SAINT", "ST",
+    "PAMANTASAN", "NG", "SCHOOL", "INSTITUTE", "STATE",
+    "PHILIPPINES", "NATIONAL",
+}
+
+
+def _distinguishing_words(normalized_name: str) -> list:
+    return [w for w in normalized_name.split() if w not in _SCHOOL_STOPWORDS and len(w) >= 3]
+
+
 def fuzzy_match_school(extracted: str, expected: str, threshold: int = 85) -> dict:
     if not extracted or not expected:
         return {"score": 0, "passed": False}
@@ -156,6 +188,21 @@ def fuzzy_match_school(extracted: str, expected: str, threshold: int = 85) -> di
     if len(e1) < 0.75 * len(e2):
         return {"score": 0, "passed": False}
     score = max(fuzz.token_sort_ratio(e1, e2), fuzz.partial_ratio(e1, e2))
+
+    # Aggregate similarity alone can stay high purely from generic words
+    # shared with a genuinely DIFFERENT school (see _SCHOOL_STOPWORDS).
+    # If the expected name has at least one real distinguishing word (a
+    # campus/founder/location name, not a ubiquitous institutional
+    # term), require it to independently appear as a strong substring
+    # match -- the same guard fuzzy_match_name already applies to
+    # first/last name. Some official names (e.g. "Polytechnic University
+    # of the Philippines") have no non-generic word at all; there's
+    # nothing more specific to check for those, so they fall back to the
+    # aggregate score alone.
+    distinguishing = _distinguishing_words(e2)
+    if distinguishing and not any(fuzz.partial_ratio(w, e1) >= 85 for w in distinguishing):
+        return {"score": score, "passed": False}
+
     return {"score": score, "passed": score >= threshold}
 
 
