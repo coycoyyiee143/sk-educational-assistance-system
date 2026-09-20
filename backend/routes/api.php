@@ -210,6 +210,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/face-verification', [FaceVerificationController::class, 'show']);
         Route::get('/face-verification/photo', [FaceVerificationController::class, 'myPhoto'])
             ->name('face-verification.my-photo');
+        Route::get('/face-verification/reverify-status', [FaceVerificationController::class, 'reverifyStatus']);
+        Route::post('/face-verification/reverify', [FaceVerificationController::class, 'reverify']);
 
     });
 

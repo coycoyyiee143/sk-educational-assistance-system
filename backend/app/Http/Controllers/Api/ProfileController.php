@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApplicationConfiguration;
+use App\Models\FaceVerification;
 use App\Models\PasswordHistory;
 use App\Rules\NotRecentlyUsedPassword;
 use App\Rules\NotObviouslyWeakPassword;
@@ -52,6 +54,20 @@ class ProfileController extends Controller
 
         public function update(Request $request)
     {
+        $user = $request->user();
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+        $verification = FaceVerification::where('user_id', $user->id)->first();
+
+        // Backend-enforced mirror of the frontend gate — a new application
+        // period requires a fresh face re-capture (see
+        // FaceVerificationController::reverify()) before any other profile
+        // edit is accepted, so a direct API call can't bypass the UI gate.
+        if ($activeConfig && (!$verification || $verification->verified_config_id !== $activeConfig->id)) {
+            return response()->json([
+                'message' => 'Please re-verify your face for the current application period before saving profile changes.',
+            ], 403);
+        }
+
         $data = $this->validateProfile($request);
         $profile = $request->user()->profile;
 

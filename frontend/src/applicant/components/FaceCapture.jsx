@@ -222,7 +222,8 @@ function FaceCapture({
 
   const [scanStatus, setScanStatus] = useState("loading");
   const [progress, setProgress] = useState(0);
-  const showIdUpload = mode === "registration" && !externalIdImage;
+  const showIdUpload = (mode === "registration" || mode === "profile_reverify") && !externalIdImage;
+  const requiresIdImage = mode === "registration" || mode === "profile_reverify";
   const effectiveIdImage = externalIdImage || idImage;
 
   async function handleIdChange(e) {
@@ -430,7 +431,7 @@ function FaceCapture({
     setError("");
 
     if (
-      mode === "registration" &&
+      requiresIdImage &&
       !effectiveIdImage
     ) {
       setError("A recent 2x2 photo is required.");
@@ -474,6 +475,16 @@ function FaceCapture({
 
         res = await api.post(
           "/face-verification",
+          formData
+        );
+      } else if (mode === "profile_reverify") {
+        formData.append(
+          "id_image",
+          effectiveIdImage
+        );
+
+        res = await api.post(
+          "/face-verification/reverify",
           formData
         );
       } else {
@@ -642,7 +653,7 @@ function FaceCapture({
             <IconCamera />
 
             <span>
-              {mode === "registration"
+              {mode === "registration" || mode === "profile_reverify"
                 ? "Live Photo"
                 : "Capture Applicant's Face"}
             </span>
@@ -816,7 +827,7 @@ function FaceCapture({
                 disabled={
                   isBusy ||
                   !liveBlob ||
-                  (mode === "registration" &&
+                  (requiresIdImage &&
                     !effectiveIdImage)
                 }
               >
@@ -836,7 +847,9 @@ function FaceCapture({
                       : mode ===
                         "registration"
                         ? "Verify & Create Account"
-                        : "Verify Face")}
+                        : mode === "profile_reverify"
+                          ? "Verify & Save"
+                          : "Verify Face")}
                 </span>
 
                 {!submitting && (
