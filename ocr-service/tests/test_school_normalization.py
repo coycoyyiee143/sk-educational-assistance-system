@@ -15,6 +15,8 @@ from app.normalization.schools.svcc import StVincentCabuyaoStrategy
 from app.normalization.schools.pup import PupStrategy
 from app.normalization.schools.uphsd import UphsdStrategy
 from app.normalization.schools.cdc import CalambaDoctorsCollegeStrategy
+from app.normalization.schools.nu import NuStrategy
+from app.normalization.schools.uplb import UplbStrategy
 
 
 def block(text, x_min=0, y_min=0, x_max=100, y_max=20, conf=0.9):
@@ -88,6 +90,7 @@ def test_get_strategy_for_school_aliases_map_to_same_strategy_type():
     assert type(get_strategy_for_school("Calamba Doctors College")) is type(get_strategy_for_school("Calamba Doctor's College"))
     assert type(get_strategy_for_school("University of Perpetual Help System DALTA Calamba")) is type(get_strategy_for_school("University of Perpetual Help System DALTA"))
     assert type(get_strategy_for_school("Perpetual Help Calamba")) is type(get_strategy_for_school("University of Perpetual Help System DALTA"))
+    assert type(get_strategy_for_school("UPLB")) is type(get_strategy_for_school("University of the Philippines Los Baños"))
 
 
 # ── PamantasanNgCabuyaoStrategy (PNC) ────────────────────────────────────
@@ -279,3 +282,45 @@ def test_cdc_ay_phrase_is_case_insensitive_and_spacing_tolerant():
 def test_cdc_falls_back_to_base_strategy_when_no_ay_phrase():
     s = CalambaDoctorsCollegeStrategy()
     assert s.extract_school_year("SY 2024-2025") == "2024-2025"
+
+
+# ── NuStrategy ────────────────────────────────────────────────────────────
+
+def test_nu_extracts_school_year_phrase():
+    s = NuStrategy()
+    assert s.extract_school_year("School Year: 2024-2025\nTerm: 1") == "2024-2025"
+
+
+def test_nu_school_year_phrase_is_case_insensitive_and_spacing_tolerant():
+    s = NuStrategy()
+    assert s.extract_school_year("school   year   2024-2025") == "2024-2025"
+    assert s.extract_school_year("SCHOOLYEAR:2024-2025") == "2024-2025"
+
+
+def test_nu_falls_back_to_base_strategy_when_no_school_year_phrase():
+    s = NuStrategy()
+    assert s.extract_school_year("SY 2024-2025") == "2024-2025"
+
+
+# ── UplbStrategy ──────────────────────────────────────────────────────────
+
+def test_uplb_extracts_sy_with_year_a_few_words_later():
+    s = UplbStrategy()
+    assert s.extract_school_year("TERM & SY\nFirst Semester,\n2025-2026") == "2025-2026"
+
+
+def test_uplb_extracts_sy_immediately_adjacent_to_year():
+    s = UplbStrategy()
+    assert s.extract_school_year("SY 2025-2026") == "2025-2026"
+
+
+def test_uplb_sy_too_far_from_year_does_not_match_falls_back_to_base():
+    s = UplbStrategy()
+    # base strategy's generic pattern still finds the bare year pair
+    text = "SY " + ("x" * 100) + " 2025-2026"
+    assert s.extract_school_year(text) == "2025-2026"
+
+
+def test_uplb_falls_back_to_base_strategy_when_no_sy_token():
+    s = UplbStrategy()
+    assert s.extract_school_year("Academic Year 2025-2026") == "2025-2026"
