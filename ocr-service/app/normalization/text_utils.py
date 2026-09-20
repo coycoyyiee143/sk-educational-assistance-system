@@ -1,13 +1,28 @@
 # app/normalization/text_utils.py
 import re
+import unicodedata
 from rapidfuzz import fuzz
 
 def clean_text(text: str) -> str:
     return re.sub(r'\s+', ' ', text).strip()
 
 
+def strip_diacritics(text: str) -> str:
+    """
+    Folds accented letters to their plain ASCII equivalent (e.g. 'Ñ' ->
+    'N', 'á' -> 'a') -- OCR almost always drops the accent/tilde entirely
+    on a genuine, correctly-scanned document (confirmed on a real UPLB
+    sample: 'Paña' consistently reads as 'Pana'), so comparing an
+    un-folded applicant-provided name against OCR text penalizes a
+    correct read as if it were a real character mismatch.
+    """
+    decomposed = unicodedata.normalize('NFKD', text)
+    return ''.join(c for c in decomposed if not unicodedata.combining(c))
+
+
 def normalize_name(name: str) -> str:
     name = clean_text(name)
+    name = strip_diacritics(name)
     name = re.sub(r'[^\w\s]', '', name)
     return name.upper().strip()
 
@@ -26,9 +41,13 @@ def fuzzy_match_name(extracted: str, first_name: str, middle_name: str,
     if not extracted:
         return {"score": 0, "passed": False}
     extracted_norm = normalize_name(extracted)
-    fn = first_name.strip().upper()
-    mn = middle_name.strip().upper() if middle_name else ""
-    ln = last_name.strip().upper()
+    # Normalized (accent-folded) the same way as extracted_norm above --
+    # otherwise an applicant's own accented name (e.g. "Paña") never
+    # matches their own correctly-scanned document, since OCR reads it
+    # as "Pana" (see strip_diacritics()).
+    fn = normalize_name(first_name)
+    mn = normalize_name(middle_name) if middle_name else ""
+    ln = normalize_name(last_name)
 
     candidates = []
     if mn:
