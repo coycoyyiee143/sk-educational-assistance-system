@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from app.ocr_engine import run_ocr, get_average_confidence, get_ocr
+from app.ocr_engine import run_ocr, get_average_confidence, get_ocr, ensure_uplb_reg_form_header
 from app.verification import (
     verify_voters_certificate,
     verify_registration_form,
@@ -119,6 +119,7 @@ def process_registration_form():
         declared_school = request.form.get("declared_school", "")
         configured_school_year = request.form.get("school_year", "")
         ocr_result = run_ocr(tmp_path)
+        ocr_result = ensure_uplb_reg_form_header(tmp_path, ocr_result, declared_school)
         avg_confidence = get_average_confidence(ocr_result)
         verification = verify_registration_form(
             ocr_result, avg_confidence,
