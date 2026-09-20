@@ -64,6 +64,14 @@ class FaceVerificationController extends Controller
             return response()->json(['message' => $result['error']], 503);
         }
 
+        // Stamp the period active at registration time, so a freshly-
+        // registered applicant isn't immediately asked to re-verify again
+        // within that same period — re-verification only kicks in once a
+        // *later* period opens (see reverifyStatus()).
+        $activeConfig = $result['match']
+            ? ApplicationConfiguration::where('is_active', true)->first()
+            : null;
+
         $verification = FaceVerification::updateOrCreate(
             ['user_id' => $user->id],
             [
@@ -73,6 +81,7 @@ class FaceVerificationController extends Controller
                 'registration_match_score' => $result['score'],
                 'status'                   => $result['match'] ? 'verified' : 'failed',
                 'verified_at'              => $result['match'] ? now() : null,
+                'verified_config_id'       => $activeConfig?->id,
             ]
         );
 
