@@ -13194,6 +13194,13 @@ body {
   background: #f7f8f9;
   border: 1px dashed #ccd1d6;
   border-radius: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.identity-id-preview.is-dragging {
+  border-color: var(--reg-red);
+  background: var(--reg-soft-red);
 }
 
 .identity-id-preview img {
@@ -13206,6 +13213,25 @@ body {
 .identity-id-preview>span {
   color: #999;
   font-size: 11px;
+}
+
+.identity-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--reg-red);
+  border: 1px solid var(--reg-red);
+  border-radius: 9px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.identity-upload-btn:hover {
+  background: var(--reg-red-dark);
+  border-color: var(--reg-red-dark);
 }
 
 .identity-id-ready {
@@ -13359,6 +13385,25 @@ body {
   overflow: hidden;
   border-radius: 13px;
   background: #111;
+}
+
+.face-capture-camera-frame--locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  background: #f7f8f9;
+  border: 1px dashed #ccd1d6;
+  color: #8a939c;
+  text-align: center;
+}
+
+.face-capture-camera-frame--locked p {
+  margin: 0;
+  font-size: 13px;
+  max-width: 220px;
 }
 
 .face-capture-webcam,

@@ -2,29 +2,15 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import Webcam from "react-webcam";
 import * as faceapi from "face-api.js";
 import api from "../../services/api";
-const MODEL_URL = "/models";
+import {
+  checkWhiteBackground,
+  checkContainsFace,
+  loadFaceModels as loadModels,
+  resetFaceModels,
+} from "../utils/imageChecks";
 const STABLE_FRAMES_REQUIRED = 10;
 const DETECTION_INTERVAL_MS = 200;
 const MAX_ID_SIZE_MB = 5;
-let modelsLoadPromise = null;
-
-async function loadModels() {
-  if (!modelsLoadPromise) {
-    modelsLoadPromise = (async () => {
-      try {
-        await faceapi.tf.setBackend("webgl");
-        await faceapi.tf.ready();
-      } catch {
-        await faceapi.tf.setBackend("cpu");
-        await faceapi.tf.ready();
-      }
-
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    })();
-  }
-
-  return modelsLoadPromise;
-}
 
 // ---- Image normalization helper -------------------------------------------
 // Some mobile browsers (Android/Samsung camera especially) report the wrong
@@ -189,13 +175,14 @@ const IconShield = (props) => (
  * Falls back gracefully to a manual capture button whenever detection
  * can't run (models failed to load, browser incompatibility, etc.).
  *
- * Props: mode, applicationId, externalIdImage, onSuccess, onError,
- *        onSubmitCapture, submitLabel, disabled
+ * Props: mode, applicationId, externalIdImage, hideIdUpload, onSuccess,
+ *        onError, onSubmitCapture, submitLabel, disabled
  */
 function FaceCapture({
   mode = "registration",
   applicationId = null,
   externalIdImage = null,
+  hideIdUpload = false,
   onSuccess,
   onError,
   onSubmitCapture,
@@ -222,9 +209,12 @@ function FaceCapture({
 
   const [scanStatus, setScanStatus] = useState("loading");
   const [progress, setProgress] = useState(0);
-  const showIdUpload = (mode === "registration" || mode === "profile_reverify") && !externalIdImage;
+  const showIdUpload = (mode === "registration" || mode === "profile_reverify") && !hideIdUpload;
   const requiresIdImage = mode === "registration" || mode === "profile_reverify";
   const effectiveIdImage = externalIdImage || idImage;
+  // Camera stays locked until the 2x2 photo is in, so there's nothing to
+  // match a live capture against yet.
+  const idRequiredButMissing = requiresIdImage && !effectiveIdImage;
 
   async function handleIdChange(e) {
     const file = e.target.files[0];
@@ -252,6 +242,24 @@ function FaceCapture({
         type: "image/jpeg",
       });
 
+      const bgCheck = await checkWhiteBackground(converted);
+      if (!bgCheck.valid) {
+        setIdError(
+          "Your 2x2 photo must have a plain white background. Please retake or upload a photo taken against a white backdrop."
+        );
+        e.target.value = "";
+        return;
+      }
+
+      const faceCheck = await checkContainsFace(converted);
+      if (!faceCheck.valid) {
+        setIdError(
+          "We couldn't detect a face in this photo. Please upload an actual 2x2 photo of yourself, not an ID or document scan."
+        );
+        e.target.value = "";
+        return;
+      }
+
       setIdImage(converted);
       setIdPreview(URL.createObjectURL(converted));
     } catch {
@@ -272,7 +280,7 @@ function FaceCapture({
         setScanStatus("searching");
       })
       .catch(() => {
-        modelsLoadPromise = null;
+        resetFaceModels();
         setModelsFailed(true);
         setScanStatus("manual");
 
@@ -307,7 +315,7 @@ function FaceCapture({
       .then((blob) => setLiveBlob(blob));
   }, []);
   useEffect(() => {
-    if (!modelsReady || !cameraReady || livePreview) return;
+    if (!modelsReady || !cameraReady || livePreview || idRequiredButMissing) return;
     detectionTimerRef.current = setInterval(async () => {
       const video = webcamRef.current?.video;
 
@@ -385,7 +393,7 @@ function FaceCapture({
       }
     }, DETECTION_INTERVAL_MS);
     return () => clearInterval(detectionTimerRef.current);
-  }, [modelsReady, cameraReady, livePreview, doCapture]);
+  }, [modelsReady, cameraReady, livePreview, idRequiredButMissing, doCapture]);
   function retake() {
     setLivePreview(null);
     setLiveBlob(null);
@@ -664,7 +672,17 @@ function FaceCapture({
           </label>
         </div>
 
-        {!livePreview ? (
+        {idRequiredButMissing ? (
+          <div className="face-capture-stage">
+            <div className="face-capture-camera-frame face-capture-camera-frame--locked">
+              <IconCamera width={28} height={28} />
+              <p>
+                Upload your 2x2 photo first to unlock
+                live face verification.
+              </p>
+            </div>
+          </div>
+        ) : !livePreview ? (
           <div className="face-capture-stage">
             <div className="face-capture-camera-frame">
               <Webcam
