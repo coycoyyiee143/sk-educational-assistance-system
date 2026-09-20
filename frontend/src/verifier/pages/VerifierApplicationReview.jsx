@@ -1687,6 +1687,22 @@ function VerifierApplicationReview() {
                                         : "Retry OCR Check"}
                                     </button>
                                   </div>
+                                ) : doc.needs_auto_reupload ? (
+                                  <div className="verifier-ocr-empty-content">
+                                    <span className="verifier-ocr-check-reason-label">
+                                      Message sent to applicant:
+                                    </span>
+                                    <span className="text-danger">
+                                      <span className="verifier-ocr-check-reason-icon">!</span>{" "}
+                                      {doc.auto_reupload_reason ||
+                                        "System flagged this document for re-upload."}
+                                    </span>
+                                    {doc.auto_reupload_category && (
+                                      <code className="verifier-ocr-check-code verifier-ocr-check-code-failed mt-1">
+                                        {doc.auto_reupload_category}
+                                      </code>
+                                    )}
+                                  </div>
                                 ) : [
                                   "processing",
                                   "pending",
