@@ -14,6 +14,7 @@ from app.normalization.schools.sti_calamba import StiCalambaStrategy
 from app.normalization.schools.svcc import StVincentCabuyaoStrategy
 from app.normalization.schools.pup import PupStrategy
 from app.normalization.schools.uphsd import UphsdStrategy
+from app.normalization.schools.cdc import CalambaDoctorsCollegeStrategy
 
 
 def block(text, x_min=0, y_min=0, x_max=100, y_max=20, conf=0.9):
@@ -84,6 +85,9 @@ def test_get_strategy_for_school_aliases_map_to_same_strategy_type():
     assert type(get_strategy_for_school("SVCC")) is type(get_strategy_for_school("St. Vincent College of Cabuyao"))
     assert type(get_strategy_for_school("PUP")) is type(get_strategy_for_school("Polytechnic University of the Philippines"))
     assert type(get_strategy_for_school("University of Cabuyao")) is type(get_strategy_for_school("Pamantasan ng Cabuyao"))
+    assert type(get_strategy_for_school("Calamba Doctors College")) is type(get_strategy_for_school("Calamba Doctor's College"))
+    assert type(get_strategy_for_school("University of Perpetual Help System DALTA Calamba")) is type(get_strategy_for_school("University of Perpetual Help System DALTA"))
+    assert type(get_strategy_for_school("Perpetual Help Calamba")) is type(get_strategy_for_school("University of Perpetual Help System DALTA"))
 
 
 # ── PamantasanNgCabuyaoStrategy (PNC) ────────────────────────────────────
@@ -257,3 +261,21 @@ def test_uphsd_bottom_name_merge_excludes_course_line():
     merged = s.preprocess_blocks([student_no, course, name1, name2])
     merged_texts = [b.text for b in merged]
     assert "College of Engineering" in merged_texts  # excluded from name merge, kept as-is
+
+
+# ── CalambaDoctorsCollegeStrategy (CDC) ──────────────────────────────────
+
+def test_cdc_extracts_ay_phrase():
+    s = CalambaDoctorsCollegeStrategy()
+    assert s.extract_school_year("1st Semester AY 2024-2025") == "2024-2025"
+
+
+def test_cdc_ay_phrase_is_case_insensitive_and_spacing_tolerant():
+    s = CalambaDoctorsCollegeStrategy()
+    assert s.extract_school_year("ay   2024   -   2025") == "2024-2025"
+    assert s.extract_school_year("AY2024-2025") == "2024-2025"
+
+
+def test_cdc_falls_back_to_base_strategy_when_no_ay_phrase():
+    s = CalambaDoctorsCollegeStrategy()
+    assert s.extract_school_year("SY 2024-2025") == "2024-2025"

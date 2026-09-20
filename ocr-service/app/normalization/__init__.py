@@ -5,6 +5,7 @@ from app.normalization.schools.pnc import PamantasanNgCabuyaoStrategy
 from app.normalization.schools.svcc import StVincentCabuyaoStrategy
 from app.normalization.schools.pup import PupStrategy
 from app.normalization.schools.uphsd import UphsdStrategy
+from app.normalization.schools.cdc import CalambaDoctorsCollegeStrategy
 
 # Central registry mapping the dropdown option strings to their strategies
 SCHOOL_STRATEGY_REGISTRY = {
@@ -16,6 +17,10 @@ SCHOOL_STRATEGY_REGISTRY = {
     "Polytechnic University of the Philippines": PupStrategy(),
     "PUP": PupStrategy(),
     "University of Perpetual Help System DALTA": UphsdStrategy(),
+    "University of Perpetual Help System DALTA Calamba": UphsdStrategy(),
+    "Perpetual Help Calamba": UphsdStrategy(),
+    "Calamba Doctor's College": CalambaDoctorsCollegeStrategy(),
+    "Calamba Doctors College": CalambaDoctorsCollegeStrategy(),
 }
 
 def get_strategy_for_school(school_name: str) -> BaseSchoolStrategy:
