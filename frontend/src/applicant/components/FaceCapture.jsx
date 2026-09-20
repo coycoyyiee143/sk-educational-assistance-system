@@ -2,30 +2,15 @@ import { useRef, useState, useCallback, useEffect } from "react";
 import Webcam from "react-webcam";
 import * as faceapi from "face-api.js";
 import api from "../../services/api";
-import { checkWhiteBackground } from "../utils/imageChecks";
-const MODEL_URL = "/models";
+import {
+  checkWhiteBackground,
+  checkContainsFace,
+  loadFaceModels as loadModels,
+  resetFaceModels,
+} from "../utils/imageChecks";
 const STABLE_FRAMES_REQUIRED = 10;
 const DETECTION_INTERVAL_MS = 200;
 const MAX_ID_SIZE_MB = 5;
-let modelsLoadPromise = null;
-
-async function loadModels() {
-  if (!modelsLoadPromise) {
-    modelsLoadPromise = (async () => {
-      try {
-        await faceapi.tf.setBackend("webgl");
-        await faceapi.tf.ready();
-      } catch {
-        await faceapi.tf.setBackend("cpu");
-        await faceapi.tf.ready();
-      }
-
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
-    })();
-  }
-
-  return modelsLoadPromise;
-}
 
 // ---- Image normalization helper -------------------------------------------
 // Some mobile browsers (Android/Samsung camera especially) report the wrong
@@ -266,6 +251,15 @@ function FaceCapture({
         return;
       }
 
+      const faceCheck = await checkContainsFace(converted);
+      if (!faceCheck.valid) {
+        setIdError(
+          "We couldn't detect a face in this photo. Please upload an actual 2x2 photo of yourself, not an ID or document scan."
+        );
+        e.target.value = "";
+        return;
+      }
+
       setIdImage(converted);
       setIdPreview(URL.createObjectURL(converted));
     } catch {
@@ -286,7 +280,7 @@ function FaceCapture({
         setScanStatus("searching");
       })
       .catch(() => {
-        modelsLoadPromise = null;
+        resetFaceModels();
         setModelsFailed(true);
         setScanStatus("manual");
 

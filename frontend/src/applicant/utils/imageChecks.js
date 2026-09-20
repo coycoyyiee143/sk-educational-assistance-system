@@ -1,6 +1,71 @@
+import * as faceapi from "face-api.js";
+
 export const MIN_SHORT_SIDE_PX = 800;
 export const MIN_SHARPNESS = 150;
 export const MIN_WHITE_BORDER_RATIO = 0.6;
+
+const FACE_MODEL_URL = "/models";
+let faceModelsLoadPromise = null;
+
+// Shared with FaceCapture's live webcam detection loop, so the
+// tinyFaceDetector weights are only ever fetched once per session.
+export async function loadFaceModels() {
+  if (!faceModelsLoadPromise) {
+    faceModelsLoadPromise = (async () => {
+      try {
+        await faceapi.tf.setBackend("webgl");
+        await faceapi.tf.ready();
+      } catch {
+        await faceapi.tf.setBackend("cpu");
+        await faceapi.tf.ready();
+      }
+      await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
+    })();
+  }
+  return faceModelsLoadPromise;
+}
+
+export function resetFaceModels() {
+  faceModelsLoadPromise = null;
+}
+
+// The white-border check alone can't tell a genuine 2x2 photo apart from
+// a scanned ID or document that happens to have white margins — both pass
+// the border-ratio test. Requiring a detectable face closes that gap.
+export async function checkContainsFace(file) {
+  if (file.type === "application/pdf") {
+    return { valid: true, skipped: true };
+  }
+
+  try {
+    await loadFaceModels();
+  } catch {
+    // Don't block the upload if the face models fail to load; the
+    // white-background check still applies.
+    return { valid: true, skipped: true };
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+
+    const detection = await faceapi.detectSingleFace(
+      img,
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
+    );
+
+    return { valid: !!detection };
+  } catch {
+    return { valid: false, unreadable: true };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export function checkImageResolution(file) {
     if (file.type === "application/pdf") {

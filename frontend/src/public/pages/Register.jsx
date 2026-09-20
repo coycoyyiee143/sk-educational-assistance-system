@@ -5,7 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
 import FaceCapture from "../../applicant/components/FaceCapture";
-import { checkWhiteBackground } from "../../applicant/utils/imageChecks";
+import { checkWhiteBackground, checkContainsFace } from "../../applicant/utils/imageChecks";
 
 // Small reusable block: renders one red line per message for a given
 // backend field key, or nothing if there's no error for that field.
@@ -125,6 +125,14 @@ const Register = () => {
       if (!bgCheck.valid) {
         setIdPhotoError(
           "Your 2x2 photo must have a plain white background. Please retake or upload a photo taken against a white backdrop."
+        );
+        return;
+      }
+
+      const faceCheck = await checkContainsFace(file);
+      if (!faceCheck.valid) {
+        setIdPhotoError(
+          "We couldn't detect a face in this photo. Please upload an actual 2x2 photo of yourself, not an ID or document scan."
         );
         return;
       }
