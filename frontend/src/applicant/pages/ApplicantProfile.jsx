@@ -1,15 +1,14 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ApplicantNavigation from "../components/ApplicantNavigation";
+import ApplicantTopbarUser from "../components/ApplicantTopbarUser";
 import PanelFooter from "../../components/PanelFooter";
 import FaceCapture from "../components/FaceCapture";
 import { useAuth } from "../../context/AuthContext";
-import { useUserPhoto } from "../../hooks/useUserPhoto";
 import api from "../../services/api";
 
 function ApplicantProfile() {
-  const { login, token, user } = useAuth();
-  const { url: profilePhotoUrl, status: profilePhotoStatus } = useUserPhoto(user?.id);
+  const { login, token } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const cameFromSubmission = location.state?.from === "submission";
@@ -331,17 +330,7 @@ function ApplicantProfile() {
       <ApplicantNavigation />
       <div className="applicant-main">
         <div className="applicant-topbar">
-          <div className="applicant-topbar-user">
-            {profilePhotoStatus === "ready" ? (
-              <img
-                src={profilePhotoUrl}
-                alt="Profile"
-                className="applicant-topbar-avatar"
-              />
-            ) : (
-              <div className="applicant-topbar-avatar"></div>
-            )}
-          </div>
+          <ApplicantTopbarUser />
         </div>
         <section className="page-section">
           <div className="container-fluid">
