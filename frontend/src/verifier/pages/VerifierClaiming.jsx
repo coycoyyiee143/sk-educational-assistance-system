@@ -264,6 +264,44 @@ function VerifierClaiming() {
     });
   }
 
+  // Defaults the session/lane pickers to whatever's most relevant right
+  // now: today's session, and within it, the verifier's own lane if they
+  // have one today — falling back to "All Lanes" in today's session if
+  // they don't, or "All Sessions" / "All Lanes" outright if nothing is
+  // even scheduled for today. Shared by the initial load and by
+  // switchToScheduledMode() — that handler used to just re-apply the
+  // singular `assignedLane` (whichever of the verifier's lanes happens
+  // to sort first overall, not necessarily today's) without touching
+  // sessionFilter at all, so coming back from Late Claiming could leave
+  // selectedLaneId pointing at a lane outside the still-stale session
+  // filter — a value the Lane dropdown has no matching option for, which
+  // renders exactly like "All Lanes" was chosen even though it wasn't.
+  function applyDefaultSessionAndLane(allLanesData, assignedLanesData) {
+    const today = todayStr();
+    const todaysLanesData = allLanesData.filter((l) => l.claiming_date === today);
+
+    if (todaysLanesData.length === 0) {
+      setSessionFilter("");
+      setSelectedLaneId("");
+      return;
+    }
+
+    const myTodayLanes = assignedLanesData.filter((l) => l.claiming_date === today);
+    const preferredBatch = new Date().getHours() < 12 ? "morning" : "afternoon";
+
+    if (myTodayLanes.length > 0) {
+      const myLane =
+        myTodayLanes.find((l) => l.batch === preferredBatch) ?? myTodayLanes[0];
+      setSessionFilter(`${myLane.claiming_date}|${myLane.batch}`);
+      setSelectedLaneId(String(myLane.id));
+    } else {
+      const todaySession =
+        todaysLanesData.find((l) => l.batch === preferredBatch) ?? todaysLanesData[0];
+      setSessionFilter(`${todaySession.claiming_date}|${todaySession.batch}`);
+      setSelectedLaneId("");
+    }
+  }
+
   function fetchLanes() {
     setLanesError(false);
 
@@ -275,38 +313,9 @@ function VerifierClaiming() {
         setAllLanes(res.data.all_lanes ?? []);
         reconcileLaneRequest(res.data.all_lanes, res.data.assigned_lanes);
 
-        // Defaults the session/lane pickers to whatever's most relevant
-        // right now: today's session, and within it, the verifier's own
-        // lane if they have one today — falling back to "All Lanes" in
-        // today's session if they don't, or "All Sessions" / "All Lanes"
-        // outright if nothing is even scheduled for today.
         if (!laneAutoDefaultedRef.current) {
           laneAutoDefaultedRef.current = true;
-
-          const today = todayStr();
-          const allLanesData = res.data.all_lanes ?? [];
-          const assignedLanesData = res.data.assigned_lanes ?? [];
-          const todaysLanesData = allLanesData.filter((l) => l.claiming_date === today);
-
-          if (todaysLanesData.length === 0) {
-            setSessionFilter("");
-            setSelectedLaneId("");
-          } else {
-            const myTodayLanes = assignedLanesData.filter((l) => l.claiming_date === today);
-            const preferredBatch = new Date().getHours() < 12 ? "morning" : "afternoon";
-
-            if (myTodayLanes.length > 0) {
-              const myLane =
-                myTodayLanes.find((l) => l.batch === preferredBatch) ?? myTodayLanes[0];
-              setSessionFilter(`${myLane.claiming_date}|${myLane.batch}`);
-              setSelectedLaneId(String(myLane.id));
-            } else {
-              const todaySession =
-                todaysLanesData.find((l) => l.batch === preferredBatch) ?? todaysLanesData[0];
-              setSessionFilter(`${todaySession.claiming_date}|${todaySession.batch}`);
-              setSelectedLaneId("");
-            }
-          }
+          applyDefaultSessionAndLane(res.data.all_lanes ?? [], res.data.assigned_lanes ?? []);
         }
 
         setLateClaimingDates({
@@ -517,11 +526,7 @@ function VerifierClaiming() {
     setClaimError("");
     setClaimSuccess("");
 
-    if (assignedLane) {
-      setSelectedLaneId(
-        String(assignedLane.id)
-      );
-    }
+    applyDefaultSessionAndLane(allLanes, assignedLanes);
   }
 
   function switchToLateClaimingMode() {
@@ -1915,11 +1920,28 @@ function VerifierClaiming() {
                         <div className="verifier-claiming-context verifier-claiming-context-warning verifier-claiming-context-compact">
                           <i className="bi bi-calendar3"></i>
                           <strong>Late Claiming</strong>
-                          <span className="verifier-claiming-day-badge">
-                            Day{" "}
-                            {Math.max(1, daysBetween(lateClaimingDates.start, todayStr()) + 1)}/
-                            {daysBetween(lateClaimingDates.start, lateClaimingDates.end) + 1}
-                          </span>
+                          {/* Math.max(1, ...) used to clamp a negative
+                             "days since start" (today before start) up to
+                             1, which showed "Day 1" even when Late
+                             Claiming hadn't started yet. Handling
+                             before-start and after-end explicitly instead
+                             of clamping avoids implying it's already
+                             underway (or still running) when it isn't. */}
+                          {todayStr() < lateClaimingDates.start ? (
+                            <span className="verifier-claiming-day-badge">
+                              Not Started Yet
+                            </span>
+                          ) : todayStr() > lateClaimingDates.end ? (
+                            <span className="verifier-claiming-day-badge">
+                              Ended
+                            </span>
+                          ) : (
+                            <span className="verifier-claiming-day-badge">
+                              Day{" "}
+                              {daysBetween(lateClaimingDates.start, todayStr()) + 1}/
+                              {daysBetween(lateClaimingDates.start, lateClaimingDates.end) + 1}
+                            </span>
+                          )}
                           <span className="verifier-claiming-context-muted">
                             {formatDateDisplay(lateClaimingDates.start)} – {formatDateDisplay(lateClaimingDates.end)}
                           </span>
