@@ -78,43 +78,49 @@ class DemoDataSeeder extends Seeder
             return;
         }
 
-        // ── Historical Period 1: 2023-2024, completed, lower approval rate ──
+        // ── Historical Period 1: 2023-2024, completed, lower approval rate,
+        //    claimed/disbursed so its Disbursement Report has real data ──
         $config2023 = ApplicationConfiguration::create([
-            'school_year'  => '2023-2024',
-            'open_date'    => now()->subYears(3)->setMonth(7)->setDay(1)->startOfDay(),
-            'close_date'   => now()->subYears(3)->setMonth(7)->setDay(31)->endOfDay(),
-            'slot_limit'   => 100,
-            'slots_filled' => 62,
-            'is_unlimited' => false,
-            'is_active'    => false,
-            'created_by'   => $admin->id,
+            'school_year'        => '2023-2024',
+            'open_date'          => now()->subYears(3)->setMonth(7)->setDay(1)->startOfDay(),
+            'close_date'         => now()->subYears(3)->setMonth(7)->setDay(31)->endOfDay(),
+            'slot_limit'         => 100,
+            'slots_filled'       => 62,
+            'is_unlimited'       => false,
+            'is_active'          => false,
+            'assistance_amount'  => 1500,
+            'created_by'         => $admin->id,
         ]);
-        $this->seedApplicationsForPeriod($config2023, total: 78, approvedCount: 62, submittedAround: now()->subYears(3)->setMonth(7));
+        $this->seedApplicationsForPeriod($config2023, total: 78, approvedCount: 62, submittedAround: now()->subYears(3)->setMonth(7), withClaiming: true);
 
-        // ── Historical Period 2: 2024-2025, completed, mid approval rate ──
+        // ── Historical Period 2: 2024-2025, completed, mid approval rate,
+        //    claimed/disbursed so its Disbursement Report has real data ──
         $config2024 = ApplicationConfiguration::create([
-            'school_year'  => '2024-2025',
-            'open_date'    => now()->subYears(2)->setMonth(7)->setDay(1)->startOfDay(),
-            'close_date'   => now()->subYears(2)->setMonth(7)->setDay(31)->endOfDay(),
-            'slot_limit'   => 120,
-            'slots_filled' => 85,
-            'is_unlimited' => false,
-            'is_active'    => false,
-            'created_by'   => $admin->id,
+            'school_year'        => '2024-2025',
+            'open_date'          => now()->subYears(2)->setMonth(7)->setDay(1)->startOfDay(),
+            'close_date'         => now()->subYears(2)->setMonth(7)->setDay(31)->endOfDay(),
+            'slot_limit'         => 120,
+            'slots_filled'       => 85,
+            'is_unlimited'       => false,
+            'is_active'          => false,
+            'assistance_amount'  => 1800,
+            'created_by'         => $admin->id,
         ]);
-        $this->seedApplicationsForPeriod($config2024, total: 101, approvedCount: 85, submittedAround: now()->subYears(2)->setMonth(7));
+        $this->seedApplicationsForPeriod($config2024, total: 101, approvedCount: 85, submittedAround: now()->subYears(2)->setMonth(7), withClaiming: true);
 
         // ── Historical Period 3: 2025-2026, completed, higher approval rate,
-        //    fully claimed so this period powers Claiming Outcome Summary ──
+        //    fully claimed so this period powers Claiming Outcome Summary
+        //    AND the Disbursement Report ──
         $config2025 = ApplicationConfiguration::create([
-            'school_year'  => '2025-2026',
-            'open_date'    => now()->subYear()->setMonth(7)->setDay(1)->startOfDay(),
-            'close_date'   => now()->subYear()->setMonth(7)->setDay(31)->endOfDay(),
-            'slot_limit'   => 150,
-            'slots_filled' => 118,
-            'is_unlimited' => false,
-            'is_active'    => false,
-            'created_by'   => $admin->id,
+            'school_year'        => '2025-2026',
+            'open_date'          => now()->subYear()->setMonth(7)->setDay(1)->startOfDay(),
+            'close_date'         => now()->subYear()->setMonth(7)->setDay(31)->endOfDay(),
+            'slot_limit'         => 150,
+            'slots_filled'       => 118,
+            'is_unlimited'       => false,
+            'is_active'          => false,
+            'assistance_amount'  => 2000,
+            'created_by'         => $admin->id,
         ]);
         $this->seedApplicationsForPeriod($config2025, total: 133, approvedCount: 118, submittedAround: now()->subYear()->setMonth(7), withClaiming: true);
 
@@ -131,7 +137,7 @@ class DemoDataSeeder extends Seeder
         ]);
         $this->seedActivePeriodMix($configActive);
 
-        $this->command->info('Demo data seeded: 3 completed periods (one with full claiming data) + 1 active period with realistic status distribution, profiles, and verifier reason data.');
+        $this->command->info('Demo data seeded: 3 completed periods, all with full claiming/disbursement data (distinct assistance_amount per year) + 1 active period with realistic status distribution, profiles, and verifier reason data.');
     }
 
     private function seedApplicationsForPeriod(ApplicationConfiguration $config, int $total, int $approvedCount, $submittedAround, bool $withClaiming = false): void
