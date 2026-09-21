@@ -139,6 +139,40 @@ function AdminSettings() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Fetched only to derive the claiming phase shown alongside Application
+  // Period Status below — "Closed — Deadline Passed" on its own doesn't tell an
+  // admin whether Scheduled Claiming or Late Claiming is actually
+  // underway right now. 404s (no active config, or none set up yet) are
+  // expected and silently ignored — this is a nice-to-have annotation,
+  // not something worth surfacing as a page error.
+  const [claimingSchedule, setClaimingSchedule] = useState(null);
+  useEffect(() => {
+    api.get("/admin/claiming-schedule")
+      .then((res) => setClaimingSchedule(res.data.schedule ?? null))
+      .catch(() => setClaimingSchedule(null));
+  }, []);
+
+  const claimingPhase = (() => {
+    if (!claimingSchedule) return null;
+    if (!claimingSchedule.is_active) return "Schedule not yet activated";
+
+    // NOT toISOString().slice(0, 10) — that formats in UTC, which rolls
+    // local midnight back to the previous calendar day in any timezone
+    // ahead of UTC (e.g. Asia/Manila, UTC+8). See AdminSchedule.jsx's own
+    // version of this same helper.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const { late_claiming_date, late_claiming_end_date } = claimingSchedule;
+
+    if (late_claiming_date && today >= late_claiming_date && today <= late_claiming_end_date) {
+      return "Late Claiming open";
+    }
+    if (late_claiming_end_date && today > late_claiming_end_date) {
+      return "Late Claiming ended";
+    }
+    return "Scheduled Claiming";
+  })();
+
   const schoolYearOptions = generateSchoolYearOptions(config?.school_year);
 
   const hasStarted = config?.open_date
@@ -317,7 +351,7 @@ function AdminSettings() {
     ? [
       ["School Year", config.school_year],
       [
-        "Application Status",
+        "Application Period Status",
         !config.is_active
           ? "Superseded"
           : config.closed_at
@@ -349,7 +383,7 @@ function AdminSettings() {
         <line x1="3" y1="10" x2="21" y2="10" />
       </svg>
     ),
-    "Application Status": (
+    "Application Period Status": (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="1" y="6" width="22" height="12" rx="6" />
         <circle cx="8" cy="12" r="3" />
@@ -392,7 +426,7 @@ function AdminSettings() {
   };
   const settingIconColors = {
     "School Year": "gray",
-    "Application Status": "red",
+    "Application Period Status": "red",
     "Opening Date": "blue",
     "Closing Date": "blue",
     "Assistance Amount per Applicant": "green",
@@ -735,7 +769,7 @@ function AdminSettings() {
                   <thead>
                     <tr>
                       <th>Setting</th>
-                      <th>Current Value</th>
+                      <th>Value</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -757,8 +791,13 @@ function AdminSettings() {
                             </span>
                           </td>
                           <td>
-                            {setting === "Application Status" ? (
-                              <span className={statusBadgeClass(value)}>{value}</span>
+                            {setting === "Application Period Status" ? (
+                              <>
+                                <span className={statusBadgeClass(value)}>{value}</span>
+                                {claimingPhase && (
+                                  <div className="text-muted small mt-1">{claimingPhase}</div>
+                                )}
+                              </>
                             ) : (
                               value
                             )}
