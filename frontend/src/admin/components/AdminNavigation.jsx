@@ -166,6 +166,29 @@ function AdminNavigation({
           )}
           {!isItSupport && (
             <NavLink
+              to="/AdminSettings"
+              onClick={closeMobileMenu}
+              title="Application Settings"
+              className={({ isActive }) =>
+                isActive
+                  ? "admin-sidebar-link active"
+                  : "admin-sidebar-link"
+              }
+            >
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
+              </svg>
+              <span className="admin-sidebar-label">Application Settings</span>
+            </NavLink>
+          )}
+          {!isItSupport && (
+            <NavLink
               to="/AdminSchedule"
               onClick={closeMobileMenu}
               title="Schedules"
@@ -271,29 +294,10 @@ function AdminNavigation({
               <span className="admin-sidebar-label">Reports</span>
             </NavLink>
           )}
-          {!isItSupport && (
-            <NavLink
-              to="/AdminSettings"
-              onClick={closeMobileMenu}
-              title="Application Settings"
-              className={({ isActive }) =>
-                isActive
-                  ? "admin-sidebar-link active"
-                  : "admin-sidebar-link"
-              }
-            >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.65 1.65 0 004.6 15a1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06A1.65 1.65 0 009 4.6a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z" />
-              </svg>
-              <span className="admin-sidebar-label">Application Settings</span>
-            </NavLink>
-          )}
+          <div className="admin-sidebar-section-divider" />
+          <div className="admin-sidebar-section-title">
+            <span className="admin-sidebar-label">SYSTEM SETTINGS</span>
+          </div>
           {isSuperadmin && (
             <NavLink
               to="/AdminMasterActivityLog"
@@ -339,10 +343,6 @@ function AdminNavigation({
               <span className="admin-sidebar-label">System Maintenance</span>
             </NavLink>
           )}
-          <div className="admin-sidebar-section-divider" />
-          <div className="admin-sidebar-section-title">
-            <span className="admin-sidebar-label">SYSTEM SETTINGS</span>
-          </div>
           <button
             type="button"
             className="admin-sidebar-link admin-sidebar-btn"
