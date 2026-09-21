@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import AdminNavigation from "../components/AdminNavigation";
 import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
@@ -93,7 +94,20 @@ function AdminAnnouncements() {
   const categoryMenuRef = useRef(null);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const location = useLocation();
+  const navigate = useNavigate();
   useEffect(() => { loadAnnouncements(); }, []);
+  // Arrives from AdminSchedule's "create an announcement about this"
+  // prompt after a Late Claiming date change — prefills the form instead
+  // of making the admin retype what already changed. Cleared from
+  // location.state right after so refreshing this page, or navigating
+  // back to it later, doesn't keep re-prefilling the same draft.
+  useEffect(() => {
+    if (!location.state?.prefill) return;
+    setForm((f) => ({ ...f, ...location.state.prefill }));
+    navigate(location.pathname, { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state]);
   useEffect(() => {
     function handleClickOutside(e) {
       if (categoryMenuRef.current && !categoryMenuRef.current.contains(e.target)) {

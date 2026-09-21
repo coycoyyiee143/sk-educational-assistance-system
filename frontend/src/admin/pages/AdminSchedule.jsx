@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminNavigation from "../components/AdminNavigation";
 import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
@@ -108,6 +109,7 @@ function formatDateRange(dates) {
 }
 
 function AdminSchedule() {
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [config, setConfig] = useState(null);
   const [approvedCount, setApprovedCount] = useState(0);
@@ -129,8 +131,24 @@ function AdminSchedule() {
   const [lateClaimingList, setLateClaimingList] = useState(null);
   const [loadingLateClaimingList, setLoadingLateClaimingList] = useState(false);
   const [removeDayTarget, setRemoveDayTarget] = useState(null); // day index pending confirmation, or null
+  const [removeLaneTarget, setRemoveLaneTarget] = useState(null); // { dayIndex, session, laneIndex } pending confirmation, or null
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showActivateConfirm, setShowActivateConfirm] = useState(false);
+  // { laneId, laneName, verifierId, verifierName } pending confirmation,
+  // or null — verifierId/verifierName are null when the change unassigns
+  // the lane rather than assigning someone.
+  const [assignVerifierTarget, setAssignVerifierTarget] = useState(null);
+  // { type: 'approve' | 'dismiss', laneId, laneName, verifierId, verifierName }
+  // pending confirmation, or null.
+  const [laneRequestActionTarget, setLaneRequestActionTarget] = useState(null);
+  // Only offered after a Late Claiming date change — that's the one save
+  // path with no other way for applicants to find out the window moved
+  // (see updateLateClaiming() on the backend: it just updates the dates,
+  // nothing reads/notifies from it). The main schedule save doesn't need
+  // this: applicants aren't told to expect specific claiming dates ahead
+  // of being assigned a lane, so there's nothing there for them to have
+  // been counting on that just changed.
+  const [announceNudge, setAnnounceNudge] = useState(null);
 
   const loadLateClaimingList = useCallback(() => {
     setLoadingLateClaimingList(true);
@@ -243,10 +261,25 @@ function AdminSchedule() {
   }
 
   function removeLane(dayIndex, session, laneIndex) {
+    const lane = days[dayIndex]?.[session]?.lanes?.[laneIndex];
+    const hasContent = lane && (lane.lane_name.trim() || lane.capacity || lane.verifier_id);
+    if (hasContent) {
+      setRemoveLaneTarget({ dayIndex, session, laneIndex });
+      return;
+    }
     setDays((prev) => prev.map((d, i) => {
       if (i !== dayIndex) return d;
       return { ...d, [session]: { ...d[session], lanes: d[session].lanes.filter((_, li) => li !== laneIndex) } };
     }));
+  }
+
+  function confirmRemoveLane() {
+    const { dayIndex, session, laneIndex } = removeLaneTarget;
+    setDays((prev) => prev.map((d, i) => {
+      if (i !== dayIndex) return d;
+      return { ...d, [session]: { ...d[session], lanes: d[session].lanes.filter((_, li) => li !== laneIndex) } };
+    }));
+    setRemoveLaneTarget(null);
   }
 
   function setLaneField(dayIndex, session, laneIndex, key, value) {
@@ -335,12 +368,32 @@ function AdminSchedule() {
       setSuccess(res.data.message);
       if (res.data.schedule?.late_claiming_date) {
         loadLateClaimingList();
+        setAnnounceNudge({
+          start: res.data.schedule.late_claiming_date,
+          end: res.data.schedule.late_claiming_end_date,
+        });
       }
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update Late Claiming.");
     } finally {
       setSavingLateClaiming(false);
     }
+  }
+
+  function goAnnounceLateClaimingChange() {
+    const range = announceNudge.end && announceNudge.end !== announceNudge.start
+      ? `${announceNudge.start} to ${announceNudge.end}`
+      : announceNudge.start;
+    setAnnounceNudge(null);
+    navigate("/AdminAnnouncements", {
+      state: {
+        prefill: {
+          title: "Late Claiming Schedule Update",
+          category: "Schedule Update",
+          content: `The Late Claiming period has been updated to ${range}. Please take note of this change and plan your claiming accordingly.`,
+        },
+      },
+    });
   }
 
   function handleActivate() {
@@ -396,6 +449,38 @@ function AdminSchedule() {
       setError(err.response?.data?.message || "Failed to dismiss request.");
     } finally {
       setAssigningLaneId(null);
+    }
+  }
+
+  // Reassigning a verifier also silently bumps them off any other lane
+  // they hold in the same claiming_date + batch session (see
+  // assignVerifier() on the backend) — worth a confirmation rather than
+  // acting the instant the dropdown changes.
+  function requestAssignVerifier(lane, verifierId) {
+    const verifier = verifierId
+      ? verifiers.find((v) => String(v.id) === String(verifierId))
+      : null;
+    setAssignVerifierTarget({
+      laneId: lane.id,
+      laneName: lane.lane_name,
+      verifierId: verifierId || null,
+      verifierName: verifier ? `${verifier.first_name} ${verifier.last_name}` : null,
+    });
+  }
+
+  function confirmAssignVerifier() {
+    const { laneId, verifierId } = assignVerifierTarget;
+    setAssignVerifierTarget(null);
+    handleAssignVerifier(laneId, verifierId);
+  }
+
+  function confirmLaneRequestAction() {
+    const { type, laneId, verifierId } = laneRequestActionTarget;
+    setLaneRequestActionTarget(null);
+    if (type === "approve") {
+      handleAssignVerifier(laneId, verifierId);
+    } else {
+      handleDismissRequest(laneId);
     }
   }
 
@@ -956,7 +1041,7 @@ function AdminSchedule() {
                             <select
                               className="form-select form-select-sm"
                               value={lane.verifier_id ?? ""}
-                              onChange={(e) => handleAssignVerifier(lane.id, e.target.value)}
+                              onChange={(e) => requestAssignVerifier(lane, e.target.value)}
                               disabled={assigningLaneId === lane.id}
                             >
                               <option value="">Unassigned</option>
@@ -984,7 +1069,13 @@ function AdminSchedule() {
                                       type="button"
                                       className="lane-request-action-btn lane-request-action-approve"
                                       disabled={assigningLaneId === lane.id}
-                                      onClick={() => handleAssignVerifier(lane.id, lane.requested_verifier_id)}
+                                      onClick={() => setLaneRequestActionTarget({
+                                        type: "approve",
+                                        laneId: lane.id,
+                                        laneName: lane.lane_name,
+                                        verifierId: lane.requested_verifier_id,
+                                        verifierName: lane.requested_verifier ? `${lane.requested_verifier.first_name} ${lane.requested_verifier.last_name}` : "This verifier",
+                                      })}
                                     >
                                       Approve
                                     </button>
@@ -992,7 +1083,12 @@ function AdminSchedule() {
                                       type="button"
                                       className="lane-request-action-btn lane-request-action-dismiss"
                                       disabled={assigningLaneId === lane.id}
-                                      onClick={() => handleDismissRequest(lane.id)}
+                                      onClick={() => setLaneRequestActionTarget({
+                                        type: "dismiss",
+                                        laneId: lane.id,
+                                        laneName: lane.lane_name,
+                                        verifierName: lane.requested_verifier ? `${lane.requested_verifier.first_name} ${lane.requested_verifier.last_name}` : "This verifier",
+                                      })}
                                     >
                                       Dismiss
                                     </button>
@@ -1104,8 +1200,16 @@ function AdminSchedule() {
                     </button>
                   </div>
                 </div>
-                <p className="text-muted small mb-3">
+                <p className="text-muted small mb-1">
                   Everyone expected during Late Claiming — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
+                </p>
+                <p className="text-muted small mb-3">
+                  <strong>Claiming Days:</strong> {formatDateRange(claimingDates)}
+                  {" · "}
+                  <strong>Late Claiming:</strong>{" "}
+                  {schedule.late_claiming_end_date && schedule.late_claiming_end_date !== schedule.late_claiming_date
+                    ? `${schedule.late_claiming_date} to ${schedule.late_claiming_end_date}`
+                    : schedule.late_claiming_date}
                 </p>
                 <div className="table-responsive">
                   <table className="table table-bordered table-striped align-middle announcement-table">
@@ -1130,7 +1234,11 @@ function AdminSchedule() {
                       ) : (
                         <tr>
                           <td colSpan={4} className="text-muted">
-                            {loadingLateClaimingList ? "Loading..." : "No applicants expected during Late Claiming for this period."}
+                            {loadingLateClaimingList
+                              ? "Loading..."
+                              : latestClaimingDateStr && latestClaimingDateStr >= todayStr()
+                                ? `Claiming days for this period run through ${latestClaimingDateStr} — Late Claiming eligibility (no-shows and waitlist promotions) can't be determined until they conclude.`
+                                : "No applicants expected during Late Claiming for this period so far — this list updates live."}
                           </td>
                         </tr>
                       )}
@@ -1163,6 +1271,107 @@ function AdminSchedule() {
                 </button>
                 <button type="button" className="btn btn-danger" onClick={confirmRemoveDay}>
                   Yes, Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {removeLaneTarget !== null && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Remove This Lane?</h5>
+                <button type="button" className="btn-close" onClick={() => setRemoveLaneTarget(null)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">Its name, capacity, and verifier assignment will be lost.</p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setRemoveLaneTarget(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmRemoveLane}>
+                  Yes, Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assignVerifierTarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {assignVerifierTarget.verifierId ? "Assign This Verifier?" : "Unassign This Lane's Verifier?"}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setAssignVerifierTarget(null)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  {assignVerifierTarget.verifierId ? (
+                    <>
+                      {assignVerifierTarget.verifierName} will be assigned to {assignVerifierTarget.laneName}.
+                      If they're already on another lane in this same session, they'll be removed from it.
+                    </>
+                  ) : (
+                    <>{assignVerifierTarget.laneName} will be left without an assigned verifier.</>
+                  )}
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setAssignVerifierTarget(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-custom" onClick={confirmAssignVerifier}>
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {laneRequestActionTarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {laneRequestActionTarget.type === "approve" ? "Approve This Lane Request?" : "Dismiss This Lane Request?"}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setLaneRequestActionTarget(null)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  {laneRequestActionTarget.type === "approve" ? (
+                    <>
+                      {laneRequestActionTarget.verifierName} will be assigned to {laneRequestActionTarget.laneName}.
+                      If they're already on another lane in this same session, they'll be removed from it.
+                    </>
+                  ) : (
+                    <>
+                      {laneRequestActionTarget.verifierName}'s request for {laneRequestActionTarget.laneName} will be
+                      dismissed. The lane's current verifier, if any, is left unchanged.
+                    </>
+                  )}
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setLaneRequestActionTarget(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={laneRequestActionTarget.type === "approve" ? "btn btn-custom" : "btn btn-danger"}
+                  onClick={confirmLaneRequestAction}
+                >
+                  {laneRequestActionTarget.type === "approve" ? "Yes, Approve" : "Yes, Dismiss"}
                 </button>
               </div>
             </div>
@@ -1216,6 +1425,36 @@ function AdminSchedule() {
                   {activating ? "Activating..." : "Yes, Activate"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {announceNudge && (
+        <div className="feedback-popup-backdrop">
+          <div className="feedback-popup feedback-popup-success">
+            <div className="feedback-popup-icon-wrap">
+              <span className="feedback-popup-icon">✓</span>
+            </div>
+            <h4 className="feedback-popup-title">Late Claiming Window Updated</h4>
+            <p className="feedback-popup-message">
+              Applicants aren't notified of this change automatically. Want to post an
+              announcement about the new Late Claiming dates?
+            </p>
+            <div className="feedback-popup-confirm-actions">
+              <button
+                type="button"
+                className="feedback-popup-cancel"
+                onClick={() => setAnnounceNudge(null)}
+              >
+                Not Now
+              </button>
+              <button
+                type="button"
+                className="feedback-popup-proceed"
+                onClick={goAnnounceLateClaimingChange}
+              >
+                Create Announcement
+              </button>
             </div>
           </div>
         </div>
