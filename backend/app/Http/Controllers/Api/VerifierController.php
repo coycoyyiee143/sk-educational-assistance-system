@@ -30,6 +30,7 @@ class VerifierController extends Controller
                 'pending'   => 0,
                 'review'    => 0,
                 'approved'  => 0,
+                'claimed'   => 0,
                 'rejected'  => 0,
                 'failed_ocr' => 0,
                 'appeal_requested' => 0,
@@ -37,11 +38,20 @@ class VerifierController extends Controller
             ]);
         }
 
+        // Same sk_verifier role handles both online review and claiming-day
+        // lanes (see routes/api.php), so "Approved"/"Rejected" here should
+        // stay consistent with the admin-side definitions: approved =
+        // approved+claimed+unclaimed (still holds/held a slot this verifier
+        // granted), rejected = rejected+not_cleared (never got funded,
+        // whether that was decided online or at claiming). Otherwise an
+        // applicant a verifier approved would silently drop out of their
+        // own "Approved" count the moment claiming day resolves them.
         return response()->json([
             'pending'   => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening', 'auto_reupload_requested', 'reupload_requested'])->whereHas('documents')->count(),
             'review'    => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
-            'approved'  => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
-            'rejected'  => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
+            'approved'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['approved', 'claimed', 'unclaimed'])->count(),
+            'claimed'   => Application::where('config_id', $activeConfig->id)->where('status', 'claimed')->count(),
+            'rejected'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['rejected', 'not_cleared'])->count(),
             // Applications sitting on at least one OCR-failed document —
             // previously invisible from the dashboard entirely.
             'failed_ocr' => Application::where('config_id', $activeConfig->id)

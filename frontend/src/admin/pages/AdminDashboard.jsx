@@ -16,7 +16,7 @@ function AdminDashboard() {
   }, []);
   const cards = [
     {
-      label: "Total Applications",
+      label: "Total",
       value: stats.total,
       accent: "orange",
       icon: (
@@ -26,7 +26,7 @@ function AdminDashboard() {
       ),
     },
     {
-      label: "Pending Review",
+      label: "Pending",
       value: stats.pending,
       accent: "red",
       icon: (
@@ -37,7 +37,7 @@ function AdminDashboard() {
       ),
     },
     {
-      label: "Approved Applications",
+      label: "Approved",
       value: stats.approved,
       accent: "green",
       icon: (
@@ -58,7 +58,7 @@ function AdminDashboard() {
       ),
     },
     {
-      label: "Rejected Applications",
+      label: "Rejected",
       value: stats.rejected,
       accent: "gray",
       icon: (
@@ -162,14 +162,18 @@ function AdminDashboard() {
           <div className="container-fluid">
             <div className="page-card">
               <h3 className="section-title mb-2">Admin Dashboard</h3>
-              <p className="text-muted mb-0">Overview of application statistics and quick access to system management tools.</p>
+              <p className="text-muted mb-0">
+                {stats.school_year
+                  ? `Overview of application statistics for the current application period (${stats.school_year}) and quick access to system management tools.`
+                  : "Overview of application statistics and quick access to system management tools."}
+              </p>
             </div>
             {!loading && stats.no_active_period && (
               <div className="alert alert-warning">No active application period is currently configured. Statistics will show once a period is activated.</div>
             )}
-            <div className="row g-4">
+            <div className="row g-3 row-cols-2 row-cols-md-5">
               {cards.map(({ label, value, accent, icon }) => (
-                <div className="col-md-3" key={label}>
+                <div className="col" key={label}>
                   <div className={`admin-stat-card admin-stat-${accent}`}>
                     <div className="admin-stat-top">
                       <h2>{loading ? "..." : value}</h2>

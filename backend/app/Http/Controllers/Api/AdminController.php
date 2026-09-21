@@ -60,6 +60,7 @@ class AdminController extends Controller
         // prescreening rejection with the claiming-day not_cleared outcome,
         // since both mean "did not receive funding."
         return response()->json([
+            'school_year' => $activeConfig->school_year,
             'total'      => Application::where('config_id', $activeConfig->id)->whereHas('documents')->count(),
             'incomplete' => Application::where('config_id', $activeConfig->id)->whereDoesntHave('documents')->count(),
             'pending'    => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening', 'for_review'])->count(),

@@ -27,6 +27,7 @@ function VerifierDashboard() {
     pending: 0,
     review: 0,
     approved: 0,
+    claimed: 0,
     rejected: 0,
     failed_ocr: 0,
     appeal_requested: 0,
@@ -130,6 +131,21 @@ function VerifierDashboard() {
             r="10"
           />
           <path d="M8 12l3 3 5-6" />
+        </svg>
+      ),
+    },
+    {
+      label: "Claimed",
+      value: stats.claimed,
+      accent: "blue",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M20 6L9 17l-5-5" />
         </svg>
       ),
     },
@@ -273,7 +289,7 @@ function VerifierDashboard() {
               )}
 
             {/* STATISTICS */}
-            <div className="row g-4 verifier-stats-row">
+            <div className="row g-3 row-cols-2 row-cols-md-5 verifier-stats-row">
               {cards.map(
                 ({
                   label,
@@ -282,7 +298,7 @@ function VerifierDashboard() {
                   icon,
                 }) => (
                   <div
-                    className="col-xl-3 col-md-6"
+                    className="col"
                     key={label}
                   >
                     <div

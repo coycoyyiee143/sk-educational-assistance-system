@@ -4812,12 +4812,12 @@ a:hover {
 .admin-stat-card {
   background: #ffffff;
   border-radius: 14px;
-  padding: 38px 32px 34px;
+  padding: 26px 20px 22px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   height: 100%;
   display: flex;
   flex-direction: column;
-  min-height: 200px;
+  min-height: 150px;
 }
 
 .admin-stat-top {
@@ -4828,16 +4828,16 @@ a:hover {
 
 .admin-stat-top h2 {
   font-family: 'Hanken Grotesk', Arial, sans-serif;
-  font-size: 40px;
+  font-size: 30px;
   font-weight: 700;
   color: #1a1a1a;
   margin: 0;
 }
 
 .admin-stat-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 15px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4845,8 +4845,8 @@ a:hover {
 }
 
 .admin-stat-icon svg {
-  width: 25px;
-  height: 25px;
+  width: 20px;
+  height: 20px;
 }
 
 .admin-stat-icon-orange {
@@ -4864,6 +4864,11 @@ a:hover {
   color: #1e7e42;
 }
 
+.admin-stat-icon-blue {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
 .admin-stat-icon-gray {
   background: #eeeeee;
   color: #777777;
@@ -4871,13 +4876,13 @@ a:hover {
 
 .admin-stat-label {
   font-family: 'Hanken Grotesk', Arial, sans-serif;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   margin: 10px 0 0;
   margin-top: auto;
-  padding-top: 20px;
+  padding-top: 14px;
 }
 
 .admin-stat-label-orange {
@@ -4890,6 +4895,10 @@ a:hover {
 
 .admin-stat-label-green {
   color: #1e7e42;
+}
+
+.admin-stat-label-blue {
+  color: #1d4ed8;
 }
 
 .admin-stat-label-gray {
@@ -7666,13 +7675,13 @@ a:hover {
 
 .verifier-stat-label {
   font-family: 'Hanken Grotesk', Arial, sans-serif;
-  font-size: 18px;
+  font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   margin: 10px 0 0;
   margin-top: auto;
-  padding-top: 20px;
+  padding-top: 14px;
 }
 
 .verifier-stat-label-orange {
@@ -7687,6 +7696,10 @@ a:hover {
   color: #1e7e42;
 }
 
+.verifier-stat-label-blue {
+  color: #1d4ed8;
+}
+
 .verifier-stat-label-gray {
   color: #777777;
 }
@@ -7695,7 +7708,7 @@ a:hover {
 .verifier-stat-card {
   background: #ffffff;
   border-radius: 14px;
-  padding: 26px 32px 22px;
+  padding: 26px 20px 22px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   height: 100%;
   display: flex;
@@ -7711,16 +7724,16 @@ a:hover {
 
 .verifier-stat-top h2 {
   font-family: 'Hanken Grotesk', Arial, sans-serif;
-  font-size: 40px;
+  font-size: 30px;
   font-weight: 700;
   color: #1a1a1a;
   margin: 0;
 }
 
 .verifier-stat-icon {
-  width: 50px;
-  height: 50px;
-  border-radius: 15px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -7728,8 +7741,8 @@ a:hover {
 }
 
 .verifier-stat-icon svg {
-  width: 25px;
-  height: 25px;
+  width: 20px;
+  height: 20px;
 }
 
 .verifier-stat-icon-orange {
@@ -7745,6 +7758,11 @@ a:hover {
 .verifier-stat-icon-green {
   background: #dcf5e3;
   color: #1e7e42;
+}
+
+.verifier-stat-icon-blue {
+  background: #dbeafe;
+  color: #1d4ed8;
 }
 
 .verifier-stat-icon-gray {
