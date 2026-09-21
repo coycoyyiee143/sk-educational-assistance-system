@@ -16,16 +16,24 @@ function formatDateTime(value) {
   });
 }
 
-function generateSchoolYearOptions() {
+// Covers a couple of years back (setting up a slightly-delayed period,
+// or just referencing a recent one) through a handful ahead (planning
+// room), without the original 26-year span (current -5 to +20) that was
+// mostly dead weight to scroll through. `extraYear` keeps whatever's
+// already saved on a loaded config in the list even if it falls outside
+// this window, so editing an older period never leaves the <select>
+// without a match for its own current value.
+function generateSchoolYearOptions(extraYear) {
   const currentYear = new Date().getFullYear();
   const years = [];
-  for (let y = currentYear - 5; y <= currentYear + 20; y++) {
+  for (let y = currentYear - 2; y <= currentYear + 3; y++) {
     years.push(`${y}-${y + 1}`);
+  }
+  if (extraYear && !years.includes(extraYear)) {
+    years.unshift(extraYear);
   }
   return years;
 }
-
-const SCHOOL_YEAR_OPTIONS = generateSchoolYearOptions();
 
 function nowDateTimeLocal() {
   const d = new Date();
@@ -75,6 +83,11 @@ function AdminSettings() {
   const [extending, setExtending] = useState(false);
   const [extendError, setExtendError] = useState("");
   const [showClosePeriodModal, setShowClosePeriodModal] = useState(false);
+  // Scoped to the Close Period modal itself, same as extendError above —
+  // the shared `error` state renders at the top of the page, far from
+  // this button/modal near the bottom, so a failure there was easy to
+  // miss entirely.
+  const [closePeriodError, setClosePeriodError] = useState("");
   // Offered after the two events applicants have no other way of hearing
   // about: a brand new period opening, or the deadline they're relying on
   // moving later. { title, category, content } for the prefilled
@@ -107,6 +120,8 @@ function AdminSettings() {
       .finally(() => setLoading(false));
   }, []);
 
+  const schoolYearOptions = generateSchoolYearOptions(config?.school_year);
+
   const hasStarted = config?.open_date
     ? new Date() >= new Date(config.open_date)
     : false;
@@ -114,7 +129,7 @@ function AdminSettings() {
     ? new Date() > new Date(config.close_date)
     : false;
   const isAtCapacity =
-    config && !config.is_unlimited && config.slots_filled >= config.slot_limit;
+    config && !config.closed_at && !config.is_unlimited && config.slots_filled >= config.slot_limit;
 
   // Close Date is only free-editable before a config exists at all (first
   // time setting up a period). Once a config record exists, it's locked
@@ -146,7 +161,7 @@ function AdminSettings() {
   async function handleClosePeriod() {
     if (!config) return;
     setClosing(true);
-    setError("");
+    setClosePeriodError("");
     setSuccess("");
     try {
       const res = await api.post(`/admin/application-configs/${config.id}/close`);
@@ -154,7 +169,7 @@ function AdminSettings() {
       setConfig((prev) => ({ ...prev, closed_at: res.data.config.closed_at }));
       setShowClosePeriodModal(false);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to close period.");
+      setClosePeriodError(err.response?.data?.message || "Failed to close period.");
     } finally {
       setClosing(false);
     }
@@ -380,7 +395,7 @@ function AdminSettings() {
             <div className="page-card">
               <h4 className="sub-title sub-title-dark">Program Configuration</h4>
 
-              {hasStarted && !hasClosed && (
+              {hasStarted && !hasClosed && !config?.closed_at && (
                 <div className="schedule-notice schedule-notice-yellow mb-3">
                   <div className="schedule-notice-icon">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -426,8 +441,8 @@ function AdminSettings() {
                     </div>
                     <div>
                       <strong>This application period has closed.</strong> Applicants can no longer submit new
-                      applications. Extend the Closing Date below to reopen submissions under this same period,
-                      or start a new period entirely for a different school year.
+                      applications, and this period can no longer be extended or reopened — it's a final,
+                      settled state. Start a new application period for a different school year when ready.
                     </div>
                   </div>
                   <button
@@ -485,7 +500,7 @@ function AdminSettings() {
                             required
                           >
                             <option value="" disabled>Select school year</option>
-                            {SCHOOL_YEAR_OPTIONS.map((sy) => (
+                            {schoolYearOptions.map((sy) => (
                               <option key={sy} value={sy}>{sy}</option>
                             ))}
                           </select>
@@ -495,7 +510,14 @@ function AdminSettings() {
                           <input
                             type="datetime-local"
                             className="form-control"
-                            value={form.open_date ? form.open_date.slice(0, 16) : ""}
+                            // <input type="datetime-local"> requires a
+                            // literal "T" separator to accept a value —
+                            // the backend serializes dates as "YYYY-MM-DD
+                            // HH:mm:ss" (space, see
+                            // ApplicationConfiguration::serializeDate()),
+                            // so an existing period's open_date silently
+                            // rendered as a blank field without this.
+                            value={form.open_date ? form.open_date.slice(0, 16).replace(" ", "T") : ""}
                             onChange={set("open_date")}
                             disabled={hasStarted}
                             required
@@ -720,7 +742,10 @@ function AdminSettings() {
                   <button
                     type="button"
                     className="btn btn-outline-danger"
-                    onClick={() => setShowClosePeriodModal(true)}
+                    onClick={() => {
+                      setClosePeriodError("");
+                      setShowClosePeriodModal(true);
+                    }}
                     disabled={closing}
                   >
                     {closing ? "Closing..." : "Close Period"}
@@ -842,6 +867,7 @@ function AdminSettings() {
                   This will mark every remaining waitlisted applicant as not
                   selected. This cannot be undone.
                 </p>
+                {closePeriodError && <div className="alert alert-danger mt-3 mb-0">{closePeriodError}</div>}
               </div>
               <div className="d-flex justify-content-end gap-2 p-3 border-top">
                 <button
