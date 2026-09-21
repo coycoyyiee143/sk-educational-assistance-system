@@ -157,6 +157,11 @@ function VerifierClaiming() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const modeManuallySetRef = useRef(false);
+  // Runs the session/lane auto-default (see fetchLanes) exactly once —
+  // on whichever fetchLanes() call first succeeds — so a later manual
+  // Retry after a failed load doesn't stomp a selection the verifier
+  // may have already made in the meantime.
+  const laneAutoDefaultedRef = useRef(false);
 
   const perPage = 10;
 
@@ -263,10 +268,38 @@ function VerifierClaiming() {
         setAllLanes(res.data.all_lanes ?? []);
         reconcileLaneRequest(res.data.all_lanes, res.data.assigned_lanes);
 
-        if (res.data.assigned_lane) {
-          setSelectedLaneId(
-            String(res.data.assigned_lane.id)
-          );
+        // Defaults the session/lane pickers to whatever's most relevant
+        // right now: today's session, and within it, the verifier's own
+        // lane if they have one today — falling back to "All Lanes" in
+        // today's session if they don't, or "All Sessions" / "All Lanes"
+        // outright if nothing is even scheduled for today.
+        if (!laneAutoDefaultedRef.current) {
+          laneAutoDefaultedRef.current = true;
+
+          const today = todayStr();
+          const allLanesData = res.data.all_lanes ?? [];
+          const assignedLanesData = res.data.assigned_lanes ?? [];
+          const todaysLanesData = allLanesData.filter((l) => l.claiming_date === today);
+
+          if (todaysLanesData.length === 0) {
+            setSessionFilter("");
+            setSelectedLaneId("");
+          } else {
+            const myTodayLanes = assignedLanesData.filter((l) => l.claiming_date === today);
+            const preferredBatch = new Date().getHours() < 12 ? "morning" : "afternoon";
+
+            if (myTodayLanes.length > 0) {
+              const myLane =
+                myTodayLanes.find((l) => l.batch === preferredBatch) ?? myTodayLanes[0];
+              setSessionFilter(`${myLane.claiming_date}|${myLane.batch}`);
+              setSelectedLaneId(String(myLane.id));
+            } else {
+              const todaySession =
+                todaysLanesData.find((l) => l.batch === preferredBatch) ?? todaysLanesData[0];
+              setSessionFilter(`${todaySession.claiming_date}|${todaySession.batch}`);
+              setSelectedLaneId("");
+            }
+          }
         }
 
         setLateClaimingDates({
@@ -303,15 +336,15 @@ function VerifierClaiming() {
   useEffect(() => {
     if (!lanesLoaded) return;
 
-    if (lateClaimingMode) {
-      handleSearch({
-        preventDefault: () => { },
-      });
-    } else if (assignedLane) {
-      handleSearch({
-        preventDefault: () => { },
-      });
-    }
+    // Always searches once lanes are loaded, not just when the verifier
+    // has an assigned lane — the session/lane defaulting above already
+    // resolved selectedLaneId to whatever's most relevant (their lane
+    // today, "All Lanes" in today's session, or fully open if nothing's
+    // scheduled today), so there's always something worth searching for
+    // now, even when that something is "everyone".
+    handleSearch({
+      preventDefault: () => { },
+    });
 
     // Keyed on the lane's id rather than the `assignedLane` object itself —
     // the background lane refresh below fetches a fresh object on every
@@ -1049,6 +1082,19 @@ function VerifierClaiming() {
     selected?.claiming_assignment?.claim_status
   );
 
+  // Flags when the applicant currently open belongs to a lane the
+  // verifier doesn't hold — e.g. browsed in via "All Lanes" or another
+  // verifier's lane — so it's obvious before they act on someone outside
+  // their own lane, not just back on the results list they came from.
+  // Scoped to Scheduled Claiming only: Late Claiming pools everyone
+  // together regardless of their original lane, so lane ownership isn't
+  // a meaningful distinction there.
+  const selectedApplicantLane = selected?.claiming_assignment?.lane;
+  const isSelectedLaneNotMine =
+    !lateClaimingMode &&
+    selectedApplicantLane &&
+    !myLaneIds.has(String(selectedApplicantLane.id));
+
   const sortedResults = [...results].sort(
     (a, b) => {
       const aPending =
@@ -1391,6 +1437,20 @@ function VerifierClaiming() {
                       </h4>
                     </div>
                   </div>
+
+                  {isSelectedLaneNotMine && (
+                    <div className="verifier-claiming-lane-warning-notice">
+                      <div className="verifier-claiming-lane-warning-icon">!</div>
+
+                      <div className="verifier-claiming-lane-warning-text">
+                        This applicant is assigned to{" "}
+                        <strong>{selectedApplicantLane.lane_name}</strong> (
+                        {selectedApplicantLane.batch === "morning" ? "Morning" : "Afternoon"},{" "}
+                        {selectedApplicantLane.claiming_date}) — not a lane you hold. Double-check
+                        this is who you meant to process before taking any action.
+                      </div>
+                    </div>
+                  )}
 
                   <div className="verifier-review-profile-area">
                     <div className="verifier-review-profile-main">
