@@ -135,6 +135,13 @@ function VerifierClaiming() {
   const [assigningLane, setAssigningLane] = useState(false);
   const [laneRequestMessage, setLaneRequestMessage] = useState("");
   const [pendingRequestLaneId, setPendingRequestLaneId] = useState(null);
+  // Surfaces the outcome of a request once an admin acts on it — approval
+  // is inferred from the lane showing up in assigned_lanes, rejection from
+  // requested_verifier_id going back to null WITHOUT that happening. Without
+  // this, the "waiting for an admin" message under pendingRequestLaneId had
+  // no way to ever clear itself once dismissed, since nothing polling the
+  // lane list was reconciling that piece of state against the fresh data.
+  const [laneRequestOutcome, setLaneRequestOutcome] = useState(null);
   const [lanesLoaded, setLanesLoaded] = useState(false);
   const [lanesError, setLanesError] = useState(false);
   // Set to { laneId, targetLane, conflictLane } while the "switch lane" /
@@ -159,6 +166,53 @@ function VerifierClaiming() {
   // is correctly recognized as "mine" rather than "another verifier's".
   const myLaneIds = new Set(assignedLanes.map((lane) => String(lane.id)));
 
+  // Read via ref rather than the pendingRequestLaneId state directly —
+  // reconcileLaneRequest is called from silentRefreshLanes, which is a
+  // useCallback memoized on [selected, submitting] and so does NOT get
+  // recreated when a request is sent; reading the state variable through
+  // that stale closure would keep seeing pendingRequestLaneId as it was
+  // when silentRefreshLanes was last recreated, not the current value.
+  const pendingRequestLaneIdRef = useRef(null);
+  useEffect(() => {
+    pendingRequestLaneIdRef.current = pendingRequestLaneId;
+  }, [pendingRequestLaneId]);
+
+  // Timestamp of the last request sent, so reconcileLaneRequest can ignore
+  // a background poll response for a few seconds after — the 15s poll can
+  // have a GET already in flight when a request is submitted, and if that
+  // stale response (fetched before the request existed) lands afterward,
+  // it looks identical to "an admin already dismissed it": no
+  // requested_verifier_id, lane not in assigned_lanes. Without this guard
+  // that race cleared pendingRequestLaneId and fired a false "declined"
+  // message within moments of every request.
+  const pendingRequestSentAtRef = useRef(0);
+
+  // Compares fresh lane data against whatever request this verifier is
+  // still waiting on and, if an admin has since acted on it, clears the
+  // pending state and surfaces what happened — approved (now in
+  // assigned_lanes) or rejected (requested_verifier_id was cleared without
+  // that happening). Called from both the initial load and the silent
+  // background poll so the outcome shows up without a manual refresh.
+  function reconcileLaneRequest(fetchedAllLanes, fetchedAssignedLanes) {
+    const currentPendingId = pendingRequestLaneIdRef.current;
+    if (!currentPendingId) return;
+    if (Date.now() - pendingRequestSentAtRef.current < 5000) return;
+
+    const lane = (fetchedAllLanes ?? []).find(
+      (l) => String(l.id) === String(currentPendingId)
+    );
+    if (!lane || lane.requested_verifier_id) return;
+
+    const approved = (fetchedAssignedLanes ?? []).some(
+      (l) => String(l.id) === String(currentPendingId)
+    );
+    setPendingRequestLaneId(null);
+    setLaneRequestOutcome({
+      status: approved ? "approved" : "rejected",
+      laneName: lane.lane_name,
+    });
+  }
+
   function fetchLanes() {
     setLanesError(false);
 
@@ -168,6 +222,7 @@ function VerifierClaiming() {
         setAssignedLane(res.data.assigned_lane ?? null);
         setAssignedLanes(res.data.assigned_lanes ?? []);
         setAllLanes(res.data.all_lanes ?? []);
+        reconcileLaneRequest(res.data.all_lanes, res.data.assigned_lanes);
 
         if (res.data.assigned_lane) {
           setSelectedLaneId(
@@ -233,6 +288,12 @@ function VerifierClaiming() {
     const t = setTimeout(() => setFileError(""), 6000);
     return () => clearTimeout(t);
   }, [fileError]);
+
+  useEffect(() => {
+    if (!laneRequestOutcome) return;
+    const t = setTimeout(() => setLaneRequestOutcome(null), 8000);
+    return () => clearTimeout(t);
+  }, [laneRequestOutcome]);
 
   // Silent background refresh — applicants get assigned to lanes in
   // real time as verifiers elsewhere approve applications (see
@@ -303,6 +364,7 @@ function VerifierClaiming() {
       setAssignedLane(res.data.assigned_lane ?? null);
       setAssignedLanes(res.data.assigned_lanes ?? []);
       setAllLanes(res.data.all_lanes ?? []);
+      reconcileLaneRequest(res.data.all_lanes, res.data.assigned_lanes);
       setLateClaimingDates({
         start: res.data.late_claiming_date ?? null,
         end: res.data.late_claiming_end_date ?? null,
@@ -456,7 +518,12 @@ function VerifierClaiming() {
       setLaneRequestMessage(res.data.message);
       // The lane was empty, so the backend assigned it immediately instead
       // of just recording a request — nothing left pending on it.
-      setPendingRequestLaneId(updatedLane?.requested_verifier_id ? String(laneId) : null);
+      if (updatedLane?.requested_verifier_id) {
+        pendingRequestSentAtRef.current = Date.now();
+        setPendingRequestLaneId(String(laneId));
+      } else {
+        setPendingRequestLaneId(null);
+      }
     } catch (err) {
       setSearchError(
         err.response?.data?.message ||
@@ -967,6 +1034,17 @@ function VerifierClaiming() {
       </div>
 
       {fileError && <div className="alert alert-danger">{fileError}</div>}
+
+      {laneRequestOutcome && (
+        <div
+          className={`alert ${laneRequestOutcome.status === "approved" ? "alert-success" : "alert-danger"
+            }`}
+        >
+          {laneRequestOutcome.status === "approved"
+            ? `Your request for ${laneRequestOutcome.laneName} was approved — it's now your lane.`
+            : `Your request for ${laneRequestOutcome.laneName} was declined by the admin.`}
+        </div>
+      )}
 
       <div className="verifier-waitlist-notice">
         <span className="verifier-waitlist-notice-icon">
