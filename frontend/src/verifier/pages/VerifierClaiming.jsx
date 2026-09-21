@@ -131,6 +131,10 @@ function VerifierClaiming() {
   });
 
   const [selectedLaneId, setSelectedLaneId] = useState("");
+  // Purely a client-side narrowing filter for the lane dropdown below
+  // ("date|batch", or "" for every session) — never sent to the backend
+  // itself, since the actual search filter is still selectedLaneId.
+  const [sessionFilter, setSessionFilter] = useState("");
   const [lateClaimingMode, setLateClaimingMode] = useState(false);
   const [assigningLane, setAssigningLane] = useState(false);
   const [laneRequestMessage, setLaneRequestMessage] = useState("");
@@ -160,16 +164,29 @@ function VerifierClaiming() {
     (lane) => lane.claiming_date === todayStr()
   );
 
-  // Lanes grouped by day for the chip picker below — replaces a plain
-  // <select> whose options were long concatenated strings ("2026-09-21 —
-  // Afternoon — Lane C (assigned to another verifier)"), which made scanning
-  // for "which lane is mine / free / taken" require reading every option's
-  // full text. Chips instead show that at a glance via tags and color.
-  const lanesByDate = allLanes.reduce((acc, lane) => {
-    (acc[lane.claiming_date] ??= []).push(lane);
-    return acc;
-  }, {});
-  const sortedLaneDates = Object.keys(lanesByDate).sort();
+  // Every distinct claiming_date + batch session across the schedule
+  // (e.g. "Sep 21 — Morning", "Sep 21 — Afternoon", "Sep 22 — Morning"...).
+  // With schedules running multiple days at 10+ lanes per session, listing
+  // every lane flat would mean 40+ options to scan through — picking a
+  // session first narrows the lane dropdown down to just that session's
+  // handful of lanes.
+  const BATCH_ORDER = { morning: 0, afternoon: 1 };
+  const sessionOptions = [
+    ...new Map(
+      allLanes.map((lane) => [
+        `${lane.claiming_date}|${lane.batch}`,
+        { key: `${lane.claiming_date}|${lane.batch}`, date: lane.claiming_date, batch: lane.batch },
+      ])
+    ).values(),
+  ].sort((a, b) =>
+    a.date === b.date
+      ? BATCH_ORDER[a.batch] - BATCH_ORDER[b.batch]
+      : a.date.localeCompare(b.date)
+  );
+
+  const laneDropdownOptions = sessionFilter
+    ? allLanes.filter((lane) => `${lane.claiming_date}|${lane.batch}` === sessionFilter)
+    : allLanes;
 
   // Lookup of every lane this verifier already holds — used instead of
   // comparing against the single `assignedLane` so a second lane held in
@@ -556,6 +573,53 @@ function VerifierClaiming() {
     }
   }
 
+  // Narrowing the session dropdown can leave selectedLaneId pointing at a
+  // lane that's no longer one of the options the lane dropdown is
+  // showing — clear it in that case rather than leaving a mismatched
+  // value the <select> can't actually display.
+  function handleSessionFilterChange(newSession) {
+    setSessionFilter(newSession);
+
+    if (!selectedLaneId || !newSession) return;
+
+    const currentLane = allLanes.find((l) => String(l.id) === selectedLaneId);
+    const currentSessionKey = currentLane ? `${currentLane.claiming_date}|${currentLane.batch}` : null;
+
+    if (currentSessionKey !== newSession) {
+      setSelectedLaneId("");
+    }
+  }
+
+  // Runs the search immediately with the newly picked lane instead of
+  // waiting for a separate "Search" click — picking a lane from a filter
+  // control reads as applying that filter right away, and previously it
+  // silently did nothing until the verifier either hit Search or
+  // reloaded the page.
+  function handleLaneSelectChange(newLaneId) {
+    setSelectedLaneId(newLaneId);
+    handleSearch({ preventDefault: () => {} }, { laneId: newLaneId });
+  }
+
+  // Clears just the text filters (control number / name) and re-runs the
+  // search immediately against whatever lane is still selected — mirrors
+  // the lane picker's "apply right away" behavior rather than leaving
+  // stale results up until the verifier hits Search again. Skips
+  // re-running it when there's nothing left to search by (no lane, not
+  // in Late Claiming), so clearing doesn't immediately throw the "select
+  // a lane or enter something" validation error back in the verifier's
+  // face.
+  function handleClearSearch() {
+    setControlNo("");
+    setApplicantName("");
+
+    if (lateClaimingMode || selectedLaneId) {
+      handleSearch({ preventDefault: () => {} }, { controlNo: "", applicantName: "" });
+    } else {
+      setSearchError("");
+      setResults([]);
+    }
+  }
+
   // Opens the switch/add confirmation modal instead of requesting the
   // lane immediately — self-assigning a lane in a session (claiming_date
   // + batch) the verifier already holds a lane in SWITCHES them onto the
@@ -583,27 +647,30 @@ function VerifierClaiming() {
     handleRequestLane(laneId);
   }
 
-  async function handleSearch(e) {
+  // `overrides` lets a filter control (lane picker, Clear button) run the
+  // search immediately with a value that hasn't landed in state yet —
+  // setSelectedLaneId/setControlNo/etc. are async, so reading straight
+  // from closure state on the very next line would still see the old
+  // value.
+  async function handleSearch(e, overrides = {}) {
     e.preventDefault();
+
+    const effectiveLaneId = overrides.laneId ?? selectedLaneId;
+    const effectiveControlNo = overrides.controlNo ?? controlNo;
+    const effectiveApplicantName = overrides.applicantName ?? applicantName;
 
     setSearchError("");
     setClaimError("");
     setClaimSuccess("");
     setSelected(null);
 
-    if (
-      !lateClaimingMode &&
-      !controlNo.trim() &&
-      !applicantName.trim() &&
-      !selectedLaneId
-    ) {
-      setSearchError(
-        "Please enter a control number, applicant name, or select a lane."
-      );
-
-      return;
-    }
-
+    // No longer blocks a fully-empty search: "All Lanes" (effectiveLaneId
+    // === "") is now a deliberate, selectable option meaning "show every
+    // applicant across every lane", not an accidental blank submit — this
+    // guard used to reject exactly that case with a "select a lane"
+    // error, so choosing All Lanes with no text filled in silently never
+    // reached the backend at all. Late Claiming has always allowed this
+    // same fully-open query; Scheduled Claiming now matches it.
     setSearching(true);
 
     try {
@@ -612,24 +679,24 @@ function VerifierClaiming() {
       if (lateClaimingMode) {
         params.late_claiming = 1;
 
-        if (controlNo.trim()) {
-          params.control_number = controlNo.trim();
+        if (effectiveControlNo.trim()) {
+          params.control_number = effectiveControlNo.trim();
         }
 
-        if (applicantName.trim()) {
-          params.name = applicantName.trim();
+        if (effectiveApplicantName.trim()) {
+          params.name = effectiveApplicantName.trim();
         }
       } else {
-        if (selectedLaneId) {
-          params.lane_id = selectedLaneId;
+        if (effectiveLaneId) {
+          params.lane_id = effectiveLaneId;
         }
 
-        if (controlNo.trim()) {
-          params.control_number = controlNo.trim();
+        if (effectiveControlNo.trim()) {
+          params.control_number = effectiveControlNo.trim();
         }
 
-        if (applicantName.trim()) {
-          params.name = applicantName.trim();
+        if (effectiveApplicantName.trim()) {
+          params.name = effectiveApplicantName.trim();
         }
       }
 
@@ -1807,7 +1874,7 @@ function VerifierClaiming() {
                   <div className={`verifier-claiming-split-card ${lateClaimingMode ? "verifier-claiming-split-card-single" : ""}`}>
                     {!lateClaimingMode && (
                       <div className="verifier-claiming-split-col">
-                          <label className="verifier-claiming-label">
+                          <label className="verifier-claiming-section-label">
                             Choose a Lane to View
                           </label>
 
@@ -1824,59 +1891,58 @@ function VerifierClaiming() {
                             </p>
                           )}
 
-                          <div className="verifier-claiming-lane-chip-list">
-                            <button
-                              type="button"
-                              className={`verifier-claiming-lane-chip ${!selectedLaneId ? "verifier-claiming-lane-chip-active" : ""}`}
-                              onClick={() => setSelectedLaneId("")}
-                            >
-                              All Lanes
-                            </button>
+                          <div className="verifier-claiming-lane-filter-row">
+                            <div className="verifier-claiming-lane-filter-field">
+                              <label className="verifier-claiming-sublabel">Day / Session</label>
 
-                            {sortedLaneDates.map((date) => (
-                              <div key={date} className="verifier-claiming-lane-chip-group">
-                                <div className="verifier-claiming-lane-chip-date">
-                                  {formatDateDisplay(date)}
-                                  {date === todayStr() && (
-                                    <span className="verifier-claiming-lane-chip-today-tag">Today</span>
-                                  )}
-                                  {date < todayStr() && (
-                                    <span className="verifier-claiming-lane-passed-badge">Passed</span>
-                                  )}
-                                </div>
+                              <select
+                                className="form-select verifier-claiming-select"
+                                value={sessionFilter}
+                                onChange={(e) => handleSessionFilterChange(e.target.value)}
+                              >
+                                <option value="">All Sessions</option>
 
-                                <div className="verifier-claiming-lane-chip-row">
-                                  {lanesByDate[date].map((lane) => {
-                                    const isMine = myLaneIds.has(String(lane.id));
-                                    const isSelected = String(lane.id) === selectedLaneId;
+                                {sessionOptions.map((session) => (
+                                  <option key={session.key} value={session.key}>
+                                    {formatDateDisplay(session.date)} — {session.batch === "morning" ? "Morning" : "Afternoon"}
+                                    {session.date === todayStr() ? " (Today)" : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
 
-                                    return (
-                                      <button
-                                        key={lane.id}
-                                        type="button"
-                                        className={`verifier-claiming-lane-chip ${isSelected ? "verifier-claiming-lane-chip-active" : ""} ${isMine ? "verifier-claiming-lane-chip-mine" : ""}`}
-                                        onClick={() => setSelectedLaneId(String(lane.id))}
-                                      >
-                                        {lane.lane_name} · {lane.batch === "morning" ? "AM" : "PM"}
-                                        {isMine ? (
-                                          <span className="verifier-claiming-lane-chip-tag verifier-claiming-lane-chip-tag-mine">
-                                            Yours
-                                          </span>
-                                        ) : lane.requested_verifier_id ? (
-                                          <span className="verifier-claiming-lane-chip-tag verifier-claiming-lane-chip-tag-pending">
-                                            Pending
-                                          </span>
-                                        ) : lane.verifier_id ? (
-                                          <span className="verifier-claiming-lane-chip-tag verifier-claiming-lane-chip-tag-taken">
-                                            Taken
-                                          </span>
-                                        ) : null}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            ))}
+                            <div className="verifier-claiming-lane-filter-field">
+                              <label className="verifier-claiming-sublabel">Lane</label>
+
+                              <select
+                                className="form-select verifier-claiming-select"
+                                value={selectedLaneId}
+                                onChange={(e) => handleLaneSelectChange(e.target.value)}
+                              >
+                                <option value="">
+                                  {sessionFilter ? "All Lanes (Any Session)" : "All Lanes"}
+                                </option>
+
+                                {laneDropdownOptions.map((lane) => {
+                                  const isMine = myLaneIds.has(String(lane.id));
+                                  const tag = isMine
+                                    ? " — Yours"
+                                    : lane.requested_verifier_id
+                                      ? " — Pending"
+                                      : lane.verifier_id
+                                        ? " — Taken"
+                                        : "";
+
+                                  return (
+                                    <option key={lane.id} value={lane.id}>
+                                      {sessionFilter
+                                        ? `${lane.lane_name}${tag}`
+                                        : `${formatDateDisplay(lane.claiming_date)} — ${lane.batch === "morning" ? "AM" : "PM"} — ${lane.lane_name}${tag}`}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
                           </div>
 
                           {selectedLaneId &&
@@ -1902,7 +1968,7 @@ function VerifierClaiming() {
                     )}
 
                     <div className={`verifier-claiming-split-col ${!lateClaimingMode ? "verifier-claiming-split-col-border" : ""}`}>
-                      <h4 className="verifier-claiming-search-title">
+                      <h4 className="verifier-claiming-section-label">
                         {lateClaimingMode
                           ? "Filter Late Claiming List"
                           : "Search Applicant"}
@@ -1915,45 +1981,88 @@ function VerifierClaiming() {
                           }
                         >
                           <fieldset className="verifier-claiming-search-fieldset verifier-claiming-search-row">
-                            <div className="verifier-claiming-search-field">
-                              <label className="verifier-claiming-label">
-                                Control Number
-                              </label>
+                            <div className="verifier-claiming-search-inputs-row">
+                              <div className="verifier-claiming-search-field">
+                                <label className="verifier-claiming-label">
+                                  Control Number
+                                </label>
 
-                              <input
-                                type="text"
-                                className="form-control verifier-claiming-input"
-                                placeholder="e.g. SK-2026-0001"
-                                value={controlNo}
-                                onChange={(e) => setControlNo(e.target.value)}
-                              />
+                                <input
+                                  type="text"
+                                  className="form-control verifier-claiming-input"
+                                  placeholder="e.g. SK-2026-0001"
+                                  value={controlNo}
+                                  onChange={(e) => setControlNo(e.target.value)}
+                                />
+                              </div>
+
+                              <div className="verifier-claiming-search-field">
+                                <label className="verifier-claiming-label">
+                                  Applicant Name
+                                </label>
+
+                                <input
+                                  type="text"
+                                  className="form-control verifier-claiming-input"
+                                  placeholder="Enter first or last name"
+                                  value={applicantName}
+                                  onChange={(e) => setApplicantName(e.target.value)}
+                                />
+                              </div>
+
+                              {/* Late Claiming keeps the buttons inline with the
+                                 inputs — there's no lane picker beside it to match
+                                 the height of, so an extra row would only add
+                                 height for no benefit. Scheduled Claiming puts them
+                                 on their own row below instead (see the block after
+                                 this row) — that row's height is already absorbed
+                                 by the taller lane picker column beside it. */}
+                              {lateClaimingMode && (
+                                <>
+                                  <button
+                                    type="submit"
+                                    className="verifier-claiming-search-btn verifier-claiming-search-row-btn"
+                                    disabled={searching}
+                                  >
+                                    {searching ? "Searching..." : "Filter"}
+                                  </button>
+
+                                  {(controlNo || applicantName) && (
+                                    <button
+                                      type="button"
+                                      className="verifier-claiming-clear-btn verifier-claiming-search-row-btn"
+                                      onClick={handleClearSearch}
+                                      disabled={searching}
+                                    >
+                                      Clear
+                                    </button>
+                                  )}
+                                </>
+                              )}
                             </div>
 
-                            <div className="verifier-claiming-search-field">
-                              <label className="verifier-claiming-label">
-                                Applicant Name
-                              </label>
+                            {!lateClaimingMode && (
+                              <div className="verifier-claiming-search-actions-row">
+                                <button
+                                  type="submit"
+                                  className="verifier-claiming-search-btn verifier-claiming-search-row-btn"
+                                  disabled={searching}
+                                >
+                                  {searching ? "Searching..." : "Search"}
+                                </button>
 
-                              <input
-                                type="text"
-                                className="form-control verifier-claiming-input"
-                                placeholder="Enter first or last name"
-                                value={applicantName}
-                                onChange={(e) => setApplicantName(e.target.value)}
-                              />
-                            </div>
-
-                            <button
-                              type="submit"
-                              className="verifier-claiming-search-btn verifier-claiming-search-row-btn"
-                              disabled={searching}
-                            >
-                              {searching
-                                ? "Searching..."
-                                : lateClaimingMode
-                                  ? "Filter"
-                                  : "Search"}
-                            </button>
+                                {(controlNo || applicantName) && (
+                                  <button
+                                    type="button"
+                                    className="verifier-claiming-clear-btn verifier-claiming-search-row-btn"
+                                    onClick={handleClearSearch}
+                                    disabled={searching}
+                                  >
+                                    Clear
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </fieldset>
                         </form>
 
