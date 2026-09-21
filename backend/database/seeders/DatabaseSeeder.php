@@ -16,7 +16,7 @@ class DatabaseSeeder extends Seeder
 
         //$this->call(FreshPeriodSeeder::class); // for testing admin settings / etc.
         //$this->call(ActivePeriodSeeder::class); // for testing ocr / etc.
-        //$this->call(DemoDataSeeder::class); // for testing reports / admin features / etc.
+        $this->call(DemoDataSeeder::class); // for testing reports / admin features / etc.
         //$this->call(BudgetScaleTestSeeder::class); // for budget forecasting
         //$this->call(WaitlistScenarioSeeder::class); // for testing waitlist / Late Claiming / promotion
         //$this->call(ClaimingFaceTestSeeder::class); // for testing face verification during claiming

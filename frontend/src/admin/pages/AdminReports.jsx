@@ -19,7 +19,13 @@ function AdminReports() {
       .then((res) => {
         setPeriods(res.data);
         const active = res.data.find((p) => p.is_active);
-        setSelectedConfigId(active ? String(active.id) : res.data[0] ? String(res.data[0].id) : "");
+        setSelectedConfigId(
+          active
+            ? String(active.id)
+            : res.data[0]
+              ? String(res.data[0].id)
+              : ""
+        );
       })
       .finally(() => setLoading(false));
   }, []);
@@ -34,7 +40,10 @@ function AdminReports() {
           <div className="admin-topbar">
             <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
           </div>
-          <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
+          <div
+            className="d-flex justify-content-center align-items-center"
+            style={{ height: "60vh" }}
+          >
             <div className="spinner-border text-danger" role="status" />
           </div>
           <PanelFooter />
@@ -58,18 +67,47 @@ function AdminReports() {
               <div className="reports-header-layout">
                 <div className="reports-header-content">
                   <h3 className="section-title mb-2">Reports</h3>
-                  <p className="text-muted mb-0">Applicant statistics, verification outcomes, and budget planning tools for the educational assistance program.</p>
+                  <p className="text-muted mb-0">
+                    Applicant statistics, verification outcomes, and budget
+                    planning tools for the educational assistance program.
+                  </p>
                   <div className="reports-period-field">
-                    <label className="form-label small text-muted mb-1">Viewing Period</label>
-                    <select className="form-select" value={selectedConfigId} onChange={(e) => setSelectedConfigId(e.target.value)}>
-                      {periods.map((p) => (
-                        <option key={p.id} value={p.id}>{p.school_year}{p.is_active ? " (Active)" : ""}</option>
-                      ))}
-                    </select>
+                    <label htmlFor="reports-viewing-period">
+                      VIEWING PERIOD
+                    </label>
+                    <div className="reports-period-select-wrap">
+                      <select
+                        id="reports-viewing-period"
+                        value={selectedConfigId}
+                        onChange={(e) => setSelectedConfigId(e.target.value)}
+                      >
+                        {periods.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.school_year}
+                            {p.is_active ? " (Active)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <svg
+                        className="reports-period-chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m7 10 5 5 5-5" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
                 {user?.role === "superadmin" && (
-                  <a href="/AdminBudgetPlanning" className="report-records-preview-btn reports-budget-btn">
+                  <a
+                    href="/AdminBudgetPlanning"
+                    className="report-records-preview-btn reports-budget-btn"
+                  >
                     Go to Budget Planning
                   </a>
                 )}
@@ -77,12 +115,27 @@ function AdminReports() {
             </div>
             <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
             <div className="report-profile-layout-grid">
-              <ApplicantProfileSection selectedConfigId={selectedConfigId} section="school" />
-              <ApplicantProfileSection selectedConfigId={selectedConfigId} section="age" />
-              <VerificationOutcomesSection selectedConfigId={selectedConfigId} section="issues" />
-              <ApplicantProfileSection selectedConfigId={selectedConfigId} section="purok" />
+              <ApplicantProfileSection
+                selectedConfigId={selectedConfigId}
+                section="school"
+              />
+              <ApplicantProfileSection
+                selectedConfigId={selectedConfigId}
+                section="age"
+              />
+              <VerificationOutcomesSection
+                selectedConfigId={selectedConfigId}
+                section="issues"
+              />
+              <ApplicantProfileSection
+                selectedConfigId={selectedConfigId}
+                section="purok"
+              />
             </div>
-            <VerificationOutcomesSection selectedConfigId={selectedConfigId} section="claiming" />
+            <VerificationOutcomesSection
+              selectedConfigId={selectedConfigId}
+              section="claiming"
+            />
             <DisbursementReportSection selectedConfigId={selectedConfigId} />
           </div>
         </section>
