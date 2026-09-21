@@ -32,6 +32,17 @@ const Requirements = () => {
     });
   };
 
+  // config.is_active only means "this is the current config record," not
+  // "the submission window is actually open" — see Home.jsx's identical
+  // fix for the same bug (a period whose deadline already passed, or one
+  // scheduled to open later, still stays is_active).
+  const now = new Date();
+  const hasStarted = config?.open_date ? now >= new Date(config.open_date) : false;
+  const hasClosed = config
+    ? Boolean(config.closed_at) || (config.close_date ? now > new Date(config.close_date) : false)
+    : false;
+  const isOpen = Boolean(config?.is_active) && hasStarted && !hasClosed;
+
   const availableSlots =
     config && !config.is_unlimited
       ? Math.max(
@@ -228,7 +239,7 @@ const Requirements = () => {
       </section>
 
       {/* ========================================
-          APPLICATION STATUS
+          APPLICATION PERIOD STATUS
       ======================================== */}
 
       <section className="requirements-status-section">
@@ -246,33 +257,33 @@ const Requirements = () => {
 
               <div className="status-window-left">
                 <span className="status-window-label">
-                  APPLICATION STATUS
+                  APPLICATION PERIOD STATUS
                 </span>
 
                 <h2 className="status-window-title">
                   Application is{" "}
                   <span
                     className={
-                      config.is_active
+                      isOpen
                         ? "status-window-open"
                         : "status-window-closed"
                     }
                   >
-                    {config.is_active
-                      ? "Open"
-                      : "Closed"}
+                    {!hasStarted
+                      ? "Opening Soon"
+                      : (isOpen ? "Open" : "Closed")}
                   </span>
                 </h2>
 
                 <div className="status-window-meta-row">
                   <span
                     className={`status-window-pill ${
-                      config.is_active
+                      isOpen
                         ? "status-window-pill-open"
                         : "status-window-pill-closed"
                     }`}
                   >
-                    {config.is_active
+                    {isOpen
                       ? "Accepting Submissions"
                       : "Not Accepting Submissions"}
                   </span>
@@ -388,7 +399,7 @@ const Requirements = () => {
                     </div>
                   </div>
 
-                  {config.is_active && (
+                  {isOpen && (
                     <a
                       href="/register"
                       className="status-window-apply-btn"

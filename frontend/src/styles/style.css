@@ -789,6 +789,17 @@ a:hover {
   font-weight: 600;
 }
 
+.home-slot-main-closed {
+  align-items: flex-start;
+}
+
+.home-slot-main-closed .home-slot-label {
+  color: #5f6368;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.7;
+}
+
 .home-slot-progress {
   width: 100%;
   height: 7px;
@@ -978,6 +989,35 @@ a:hover {
 
 .schedule-date-list {
   margin-top: 25px;
+}
+
+.schedule-slot-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.schedule-slot-closed-note {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  margin-top: 20px;
+  color: #83878d;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.schedule-slot-closed-note p {
+  margin: 0;
+}
+
+.schedule-slot-closed-note a {
+  color: #b71c1c;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.schedule-slot-closed-note a:hover {
+  text-decoration: underline;
 }
 
 .schedule-date-row {

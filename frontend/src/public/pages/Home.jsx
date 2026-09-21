@@ -22,6 +22,19 @@ const Home = () => {
       .finally(() => setLoading(false));
   }, []);
 
+  // config.is_active only means "this is the current config record," not
+  // "the submission window is actually open" — a period whose deadline
+  // already passed (or one scheduled to open in the future) still stays
+  // is_active until a new one is created or it's officially closed. The
+  // real submission window is is_active AND started AND not yet closed.
+  const now = new Date();
+  const hasStarted = config?.open_date ? now >= new Date(config.open_date) : false;
+  const hasClosed = config
+    ? Boolean(config.closed_at) || (config.close_date ? now > new Date(config.close_date) : false)
+    : false;
+  const isOpen = Boolean(config?.is_active) && hasStarted && !hasClosed;
+  const periodStatusLabel = !hasStarted ? "Opening Soon" : (isOpen ? "Open" : "Closed");
+
   const slotsRemaining =
     config && !config.is_unlimited
       ? Math.max(0, config.slot_limit - config.slots_filled)
@@ -155,7 +168,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ABOUT + APPLICATION STATUS */}
+      {/* ABOUT + APPLICATION PERIOD STATUS */}
 
       <section className="home-about-section">
         <div className="container">
@@ -208,31 +221,39 @@ const Home = () => {
                   <div className="home-status-header">
                     <div>
                       <span className="home-status-eyebrow">
-                        Application Status
+                        Application Period Status
                       </span>
 
                       <h3>
-                        {config.is_active
-                          ? "Applications are open"
-                          : "Applications are closed"}
+                        {!hasStarted
+                          ? "Applications open soon"
+                          : (isOpen ? "Applications are open" : "Applications are closed")}
                       </h3>
                     </div>
 
                     <span
-                      className={`home-status-badge ${config.is_active
+                      className={`home-status-badge ${isOpen
                         ? "home-status-badge-open"
                         : "home-status-badge-closed"
                         }`}
                     >
                       <span className="home-status-dot" />
 
-                      {config.is_active ? "Open" : "Closed"}
+                      {periodStatusLabel}
                     </span>
                   </div>
 
                   <div className="home-status-divider" />
 
-                  {config.is_unlimited ? (
+                  {hasClosed ? (
+                    <div className="home-slot-main home-slot-main-closed">
+                      <span className="home-slot-label">
+                        Claiming for this period is starting or already
+                        underway — check our Announcements page for schedule
+                        details.
+                      </span>
+                    </div>
+                  ) : config.is_unlimited ? (
                     <div className="home-slot-main">
                       <span className="home-slot-number">∞</span>
                       <span className="home-slot-label">
@@ -293,7 +314,7 @@ const Home = () => {
                     </div>
                   </div>
 
-                  {config.is_active ? (
+                  {isOpen ? (
                     <a href="/register" className="home-status-btn">
                       Apply for Assistance
 
@@ -310,16 +331,33 @@ const Home = () => {
                         />
                       </svg>
                     </a>
+                  ) : hasClosed ? (
+                    <a href="/announcements" className="home-status-btn">
+                      See Announcements
+
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.3"
+                      >
+                        <path
+                          d="M5 12h14M13 5l7 7-7 7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </a>
                   ) : (
                     <span className="home-status-btn home-status-btn-disabled">
-                      Application Period Closed
+                      Application Period Not Yet Open
                     </span>
                   )}
                 </>
               ) : (
                 <div className="home-no-period">
                   <span className="home-status-eyebrow">
-                    Application Status
+                    Application Period Status
                   </span>
 
                   <h3>No active application period</h3>
@@ -434,16 +472,23 @@ const Home = () => {
                     </div>
 
                     <span
-                      className={`schedule-status-badge ${config.is_active
+                      className={`schedule-status-badge ${isOpen
                         ? "schedule-status-open"
                         : "schedule-status-closed"
                         }`}
                     >
-                      {config.is_active ? "Open" : "Closed"}
+                      {periodStatusLabel}
                     </span>
                   </div>
 
-                  {config.is_unlimited ? (
+                  {hasClosed ? (
+                    <div className="schedule-slot-closed-note">
+                      <p>
+                        Claiming for this period is starting or already
+                        underway — see <a href="/announcements">Announcements</a> for schedule details.
+                      </p>
+                    </div>
+                  ) : config.is_unlimited ? (
                     <div className="schedule-slot-number">
                       Unlimited
                     </div>
