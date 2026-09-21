@@ -384,7 +384,7 @@ class AuthController extends Controller
             \App\Models\AuditLog::create([
                 'user_id'     => $user->id ?? null,
                 'action'      => 'login_failed',
-                'description' => "An unsuccessful login attempt was made on your account.",
+                'description' => "An unsuccessful login attempt was made on this account.",
                 'ip_address'  => $request->ip(),
             ]);
     

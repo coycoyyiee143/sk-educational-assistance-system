@@ -122,7 +122,7 @@ class ApplicationController extends Controller
         \App\Models\AuditLog::record(
             'application_submitted',
             $application,
-            "You submitted an application."
+            "Submitted an application."
         );
         return response()->json([
             'message'     => 'Application submitted.',

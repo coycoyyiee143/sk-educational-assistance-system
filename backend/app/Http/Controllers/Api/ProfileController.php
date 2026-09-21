@@ -99,7 +99,7 @@ class ProfileController extends Controller
             \App\Models\AuditLog::record(
                 'profile_updated',
                 $profile,
-                "You updated your profile information"
+                "Updated profile information ({$fieldList})"
             );
         }
         return response()->json([
@@ -135,7 +135,7 @@ class ProfileController extends Controller
             \App\Models\AuditLog::record(
                 'account_updated',
                 $user,
-                "You updated your profile information"
+                "Updated account information ({$fieldList})"
             );
         }
 
@@ -173,7 +173,7 @@ class ProfileController extends Controller
         \App\Models\AuditLog::record(
             'account_updated',
             $user,
-            'You updated your profile photo'
+            'Updated profile photo'
         );
 
         return response()->json(['message' => 'Profile photo updated.', 'user' => $user->fresh()]);
