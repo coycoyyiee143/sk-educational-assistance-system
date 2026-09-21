@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
+use App\Models\ApplicationDocument;
 use App\Models\ClaimingLane;
 use App\Models\ClaimingSchedule;
 use App\Models\StudentProfile;
@@ -193,7 +194,7 @@ class OpenApplicationPeriodSeeder extends Seeder
     {
         $applicant = $this->makeApplicant();
 
-        return Application::create(array_merge([
+        $app = Application::create(array_merge([
             'user_id'           => $applicant->id,
             'config_id'         => $config->id,
             'school_name'       => $this->schools[array_rand($this->schools)],
@@ -202,6 +203,28 @@ class OpenApplicationPeriodSeeder extends Seeder
             'student_id_number' => '2026-' . str_pad((string) $this->counter, 4, '0', STR_PAD_LEFT),
             'submitted_at'      => now()->subHours(rand(1, 72)),
         ], $overrides));
+
+        // AdminController::stats()'s "Total" count is whereHas('documents')
+        // — everything without at least one document row falls under
+        // "Incomplete" instead, regardless of its actual status. Every
+        // status here implies real documents were submitted except a
+        // genuine draft_incomplete, which by definition hasn't finished
+        // uploading yet.
+        if (($overrides['status'] ?? null) !== 'draft_incomplete') {
+            foreach (['registration_form', 'school_id', 'voters_certificate'] as $docType) {
+                ApplicationDocument::create([
+                    'application_id' => $app->id,
+                    'document_type'  => $docType,
+                    'file_path'      => "documents/{$app->id}/seeded_placeholder_{$docType}.jpg",
+                    'file_name'      => "seeded_placeholder_{$docType}.jpg",
+                    'mime_type'      => 'image/jpeg',
+                    'version'        => 1,
+                    'status'         => 'processed',
+                ]);
+            }
+        }
+
+        return $app;
     }
 
     private function seedPlainStatus(ApplicationConfiguration $config, string $status, int $count): void
