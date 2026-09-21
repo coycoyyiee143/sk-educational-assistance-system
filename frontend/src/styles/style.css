@@ -12633,10 +12633,6 @@ body {
   margin-bottom: 18px;
 }
 
-.verifier-claiming-phase {
-  margin-bottom: 18px;
-}
-
 .verifier-claiming-mode-tabs {
   display: inline-flex;
   align-items: center;
@@ -12684,9 +12680,8 @@ body {
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  min-height: 48px;
-  padding: 12px 14px;
-  margin-bottom: 18px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
   border-radius: 8px;
   font-family: 'Inter', Arial, sans-serif;
   font-size: 14px;
@@ -12704,11 +12699,6 @@ body {
   color: #6f4a00;
 }
 
-.verifier-claiming-context-info .verifier-claiming-context-icon {
-  background: #dceefc;
-  color: #1f5688;
-}
-
 .verifier-claiming-context-neutral {
   background: #fce4e4;
   border: 1px solid #efc4c4;
@@ -12716,44 +12706,40 @@ body {
   font-family: 'Inter', Arial, sans-serif;
 }
 
-.verifier-claiming-context-icon {
-  width: 26px;
-  height: 26px;
-  flex-shrink: 0;
-  border-radius: 6px;
-  background: #fff0bd;
-  color: #b87900;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-}
-
-.verifier-claiming-context-content {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  min-width: 0;
-  width: 100%;
-}
-
-.verifier-claiming-context-content strong {
+.verifier-claiming-context strong {
   color: #3a3429;
   font-weight: 700;
-}
-
-.verifier-claiming-context-headline {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
 }
 
 .verifier-claiming-context-muted {
   color: inherit;
   opacity: 0.75;
   font-size: 13px;
+}
+
+/* Single-line variant that sits inside the toolbar row beside the mode
+   tabs, instead of a full-width block stacked above/below them — folds
+   the old icon-box + headline layout down to one row of inline text. */
+.verifier-claiming-context-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 240px;
+  margin-bottom: 0;
+  min-height: 36px;
+}
+
+.verifier-claiming-context-compact i {
+  font-size: 15px;
+  flex-shrink: 0;
+}
+
+.verifier-claiming-toolbar-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 14px;
 }
 
 .verifier-claiming-day-badge {
@@ -12765,17 +12751,6 @@ body {
   font-size: 12.5px;
   font-weight: 700;
   white-space: nowrap;
-}
-
-.verifier-claiming-current-lane {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  width: 100%;
-  margin-top: 4px;
-  padding-top: 8px;
-  border-top: 1px dashed rgba(0, 0, 0, 0.15);
 }
 
 .verifier-claiming-lane-passed-badge {
@@ -12790,9 +12765,34 @@ body {
   white-space: nowrap;
 }
 
-.verifier-claiming-lane-section {
-  width: 100%;
-  padding-bottom: 8px;
+.verifier-claiming-not-mine-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #fff1bd;
+  color: #8a6500;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.verifier-claiming-viewing-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+  border-radius: 7px;
+  background: #f2f4f6;
+  color: #4b5963;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+}
+
+.verifier-claiming-viewing-bar strong {
+  color: #1a1a1a;
 }
 
 .verifier-claiming-label {
@@ -12837,6 +12837,129 @@ body {
   font-size: 12px;
 }
 
+
+.verifier-claiming-lane-chip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.verifier-claiming-lane-chip-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.verifier-claiming-lane-chip-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7680;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.verifier-claiming-lane-chip-today-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: #dceefc;
+  color: #1f5688;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.verifier-claiming-lane-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.verifier-claiming-lane-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid #d6dce2;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #3a4550;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+
+.verifier-claiming-lane-chip:hover {
+  border-color: #b8c1ca;
+  background: #f5f7f9;
+}
+
+.verifier-claiming-lane-chip-mine {
+  border-color: #a9d6b6;
+  background: #f2faf4;
+  color: #2c6b3f;
+}
+
+.verifier-claiming-lane-chip-mine:hover {
+  border-color: #8fc9a0;
+  background: #e9f7ed;
+}
+
+.verifier-claiming-lane-chip-active {
+  border-color: #2e8b47;
+  background: #2e8b47;
+  color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+}
+
+.verifier-claiming-lane-chip-active:hover {
+  border-color: #237038;
+  background: #237038;
+  color: #ffffff;
+}
+
+.verifier-claiming-lane-chip-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.verifier-claiming-lane-chip-tag-mine {
+  background: rgba(46, 139, 71, 0.15);
+  color: #1e6b34;
+}
+
+.verifier-claiming-lane-chip-active .verifier-claiming-lane-chip-tag-mine {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+
+.verifier-claiming-lane-chip-tag-pending {
+  background: #fff1bd;
+  color: #8a6500;
+}
+
+.verifier-claiming-lane-chip-tag-taken {
+  background: #ececec;
+  color: #666666;
+}
+
 .verifier-claiming-mode-card {
   font-family: 'Inter', Arial, sans-serif;
   padding-bottom: 28px;
@@ -12844,14 +12967,41 @@ body {
 
 .verifier-claiming-mode-title {
   font-family: 'Hanken Grotesk', Arial, sans-serif;
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 600;
   color: #1a1a1a;
-  margin: 0 0 22px;
+  margin: 0 0 12px;
 }
 
 .verifier-claiming-search-box {
   font-family: 'Inter', Arial, sans-serif;
+}
+
+.verifier-claiming-search-title {
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: #303942;
+  margin: 0 0 7px;
+}
+
+/* Inputs side by side with the button trailing, instead of each field
+   and the button stacked on its own line — the biggest single source of
+   extra height in this card, since it was 3 stacked rows before. */
+.verifier-claiming-search-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.verifier-claiming-search-field {
+  flex: 1 1 150px;
+  min-width: 140px;
+}
+
+.verifier-claiming-search-row-btn {
+  flex: 0 0 auto;
 }
 
 .verifier-claiming-search-box .verifier-claiming-label {
@@ -19723,7 +19873,7 @@ body {
    ============================================ */
 
 .verifier-claiming-combined-card {
-  padding: 25px;
+  padding: 20px 25px;
 }
 
 .verifier-claiming-split-card {
