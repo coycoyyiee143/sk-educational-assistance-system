@@ -116,6 +116,13 @@ function VerifierClaiming() {
   ] = useState("idle");
 
   const [assignedLane, setAssignedLane] = useState(null);
+  // Full set of lanes this verifier holds — kept separately from
+  // `assignedLane` (which is just the first of these) because a verifier
+  // can legitimately be assigned to more than one lane at once (a
+  // morning lane AND a separate afternoon lane on the same day). Used to
+  // correctly tell "a lane I already have" apart from "someone else's
+  // lane" instead of only ever recognizing the single `assignedLane`.
+  const [assignedLanes, setAssignedLanes] = useState([]);
   const [allLanes, setAllLanes] = useState([]);
 
   const [lateClaimingDates, setLateClaimingDates] = useState({
@@ -130,6 +137,11 @@ function VerifierClaiming() {
   const [pendingRequestLaneId, setPendingRequestLaneId] = useState(null);
   const [lanesLoaded, setLanesLoaded] = useState(false);
   const [lanesError, setLanesError] = useState(false);
+  // Set to { laneId, targetLane, conflictLane } while the "switch lane" /
+  // "add lane" confirmation modal is open. `conflictLane` is the lane
+  // this would vacate (same claiming_date + batch as targetLane), or
+  // null if this is a genuinely separate/additional lane.
+  const [laneConfirm, setLaneConfirm] = useState(null);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -141,6 +153,12 @@ function VerifierClaiming() {
     (lane) => lane.claiming_date === todayStr()
   );
 
+  // Lookup of every lane this verifier already holds — used instead of
+  // comparing against the single `assignedLane` so a second lane held in
+  // a different session (e.g. an afternoon lane alongside a morning one)
+  // is correctly recognized as "mine" rather than "another verifier's".
+  const myLaneIds = new Set(assignedLanes.map((lane) => String(lane.id)));
+
   function fetchLanes() {
     setLanesError(false);
 
@@ -148,6 +166,7 @@ function VerifierClaiming() {
       .get("/verifier/claiming/lanes")
       .then((res) => {
         setAssignedLane(res.data.assigned_lane ?? null);
+        setAssignedLanes(res.data.assigned_lanes ?? []);
         setAllLanes(res.data.all_lanes ?? []);
 
         if (res.data.assigned_lane) {
@@ -200,8 +219,14 @@ function VerifierClaiming() {
       });
     }
 
+    // Keyed on the lane's id rather than the `assignedLane` object itself —
+    // the background lane refresh below fetches a fresh object on every
+    // tick even when nothing actually changed, and re-running a "loud"
+    // handleSearch() (which resets selected/errors and flashes the
+    // Search button) on every one of those ticks would be exactly the
+    // disruption the silent poll below is trying to avoid.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lanesLoaded, lateClaimingMode, assignedLane]);
+  }, [lanesLoaded, lateClaimingMode, assignedLane?.id]);
 
   useEffect(() => {
     if (!fileError) return;
@@ -258,6 +283,37 @@ function VerifierClaiming() {
   // inside silentRefreshResults above; only the timer mechanics moved.
   usePolling(silentRefreshResults, {
     intervalMs: 10000,
+    enabled: lanesLoaded,
+  });
+
+  // Silent background refresh for the lane/schedule data itself — an
+  // admin can change lane times/dates or approve a lane-change request
+  // while a verifier is already on this page, and until now none of
+  // that reflected here without a manual page reload. Mirrors
+  // silentRefreshResults above: skipped whenever an applicant is
+  // selected or a claim is mid-submit, and deliberately leaves
+  // selectedLaneId/lateClaimingMode/lanesError alone so it never
+  // clobbers a lane the verifier is actively browsing or a mode they
+  // manually switched to.
+  const silentRefreshLanes = useCallback(async () => {
+    if (selected || submitting) return;
+
+    try {
+      const res = await api.get("/verifier/claiming/lanes");
+      setAssignedLane(res.data.assigned_lane ?? null);
+      setAssignedLanes(res.data.assigned_lanes ?? []);
+      setAllLanes(res.data.all_lanes ?? []);
+      setLateClaimingDates({
+        start: res.data.late_claiming_date ?? null,
+        end: res.data.late_claiming_end_date ?? null,
+      });
+    } catch {
+      // Silent poll — a dropped tick isn't worth surfacing an error over.
+    }
+  }, [selected, submitting]);
+
+  usePolling(silentRefreshLanes, {
+    intervalMs: 15000,
     enabled: lanesLoaded,
   });
 
@@ -359,12 +415,41 @@ function VerifierClaiming() {
       // hiding the "request sent" message moments after it appeared —
       // it only renders while selectedLaneId differs from assignedLane.
       setAllLanes((prev) =>
-        prev.map((l) => (String(l.id) === String(laneId) ? { ...l, ...updatedLane } : l))
+        prev.map((l) => {
+          if (String(l.id) === String(laneId)) return { ...l, ...updatedLane };
+
+          // Backend vacates any other lane this verifier held in the same
+          // claiming_date + batch session before assigning them here (see
+          // selfAssignLane()) — mirror that locally so the dropdown and
+          // assignedLanes stay accurate without a full refetch.
+          if (
+            !updatedLane?.requested_verifier_id &&
+            l.verifier_id === updatedLane?.verifier_id &&
+            l.claiming_date === updatedLane?.claiming_date &&
+            l.batch === updatedLane?.batch
+          ) {
+            return { ...l, verifier_id: null };
+          }
+
+          return l;
+        })
       );
       if (!updatedLane?.requested_verifier_id) {
         // Lane was empty, so this was an immediate assignment, not just
         // a request — assignedLane genuinely changed.
         setAssignedLane(updatedLane);
+        setAssignedLanes((prev) => {
+          const sameSessionVacated = prev.filter(
+            (l) =>
+              String(l.id) === String(laneId) ||
+              l.claiming_date !== updatedLane.claiming_date ||
+              l.batch !== updatedLane.batch
+          );
+          return [
+            ...sameSessionVacated.filter((l) => String(l.id) !== String(laneId)),
+            updatedLane,
+          ];
+        });
       }
 
       setSelectedLaneId(String(laneId));
@@ -380,6 +465,33 @@ function VerifierClaiming() {
     } finally {
       setAssigningLane(false);
     }
+  }
+
+  // Opens the switch/add confirmation modal instead of requesting the
+  // lane immediately — self-assigning a lane in a session (claiming_date
+  // + batch) the verifier already holds a lane in SWITCHES them onto the
+  // new one (see selfAssignLane() vacating the old one), which used to
+  // happen with no warning at all. A lane in a different session is a
+  // harmless addition instead, so that gets a lighter confirmation.
+  function openLaneConfirm(laneId) {
+    const targetLane = allLanes.find((l) => String(l.id) === String(laneId));
+    if (!targetLane) return;
+
+    const conflictLane = assignedLanes.find(
+      (l) =>
+        String(l.id) !== String(laneId) &&
+        l.claiming_date === targetLane.claiming_date &&
+        l.batch === targetLane.batch
+    );
+
+    setLaneConfirm({ laneId, targetLane, conflictLane: conflictLane ?? null });
+  }
+
+  function confirmLaneRequest() {
+    if (!laneConfirm) return;
+    const { laneId } = laneConfirm;
+    setLaneConfirm(null);
+    handleRequestLane(laneId);
   }
 
   async function handleSearch(e) {
@@ -1710,24 +1822,18 @@ function VerifierClaiming() {
                               Lane / Schedule
                             </label>
 
-                            {assignedLane && (
+                            {assignedLanes.length > 0 && (
                               <div className="verifier-claiming-assigned-lane">
                                 You&apos;re currently assigned to{" "}
-                                <strong>
-                                  {
-                                    assignedLane.lane_name
-                                  }
-                                </strong>{" "}
-                                (
-                                {assignedLane.batch ===
-                                  "morning"
-                                  ? "Morning"
-                                  : "Afternoon"}
-                                ,{" "}
-                                {
-                                  assignedLane.claiming_date
-                                }
-                                ).
+                                {assignedLanes.map((lane, index) => (
+                                  <span key={lane.id}>
+                                    {index > 0 && (index === assignedLanes.length - 1 ? " and " : ", ")}
+                                    <strong>{lane.lane_name}</strong> (
+                                    {lane.batch === "morning" ? "Morning" : "Afternoon"},{" "}
+                                    {lane.claiming_date})
+                                  </span>
+                                ))}
+                                .
                               </div>
                             )}
 
@@ -1772,8 +1878,9 @@ function VerifierClaiming() {
                                       lane.lane_name
                                     }
                                     {lane.verifier_id &&
-                                      lane.id !==
-                                      assignedLane?.id
+                                      !myLaneIds.has(
+                                        String(lane.id)
+                                      )
                                       ? " (assigned to another verifier)"
                                       : ""}
                                     {lane.requested_verifier_id
@@ -1785,11 +1892,7 @@ function VerifierClaiming() {
                             </select>
 
                             {selectedLaneId &&
-                              (!assignedLane ||
-                                String(
-                                  assignedLane.id
-                                ) !==
-                                selectedLaneId) && (
+                              !myLaneIds.has(selectedLaneId) && (
                                 pendingRequestLaneId === selectedLaneId ? (
                                   <p className="text-muted small mt-2 mb-0">
                                     {laneRequestMessage || "Request sent — waiting for an admin to approve it."}
@@ -1799,7 +1902,7 @@ function VerifierClaiming() {
                                     type="button"
                                     className="verifier-waitlist-action-btn mt-2"
                                     onClick={() =>
-                                      handleRequestLane(
+                                      openLaneConfirm(
                                         selectedLaneId
                                       )
                                     }
@@ -2793,6 +2896,72 @@ function VerifierClaiming() {
                   className="verifier-preview-modal-pdf"
                 />
               )}
+            </div>
+          </div>
+        )}
+
+        {laneConfirm && (
+          <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    {laneConfirm.conflictLane ? "Switch Lanes?" : "Add Lane?"}
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setLaneConfirm(null)}
+                    disabled={assigningLane}
+                  />
+                </div>
+                <div className="modal-body">
+                  {laneConfirm.conflictLane ? (
+                    <p className="mb-0">
+                      You&apos;re currently assigned to{" "}
+                      <strong>{laneConfirm.conflictLane.lane_name}</strong> for this same session (
+                      {laneConfirm.conflictLane.batch === "morning" ? "Morning" : "Afternoon"},{" "}
+                      {laneConfirm.conflictLane.claiming_date}). Requesting{" "}
+                      <strong>{laneConfirm.targetLane.lane_name}</strong> will{" "}
+                      <strong>switch</strong> you onto it — you will no longer be assigned to{" "}
+                      {laneConfirm.conflictLane.lane_name}. Continue?
+                    </p>
+                  ) : (
+                    <p className="mb-0">
+                      This will assign you to{" "}
+                      <strong>{laneConfirm.targetLane.lane_name}</strong> (
+                      {laneConfirm.targetLane.batch === "morning" ? "Morning" : "Afternoon"},{" "}
+                      {laneConfirm.targetLane.claiming_date})
+                      {assignedLanes.length > 0
+                        ? " in addition to your current lane — you'll hold both."
+                        : "."}{" "}
+                      Continue?
+                    </p>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setLaneConfirm(null)}
+                    disabled={assigningLane}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-custom"
+                    onClick={confirmLaneRequest}
+                    disabled={assigningLane}
+                  >
+                    {assigningLane
+                      ? "Requesting..."
+                      : laneConfirm.conflictLane
+                        ? "Yes, Switch"
+                        : "Yes, Add Lane"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

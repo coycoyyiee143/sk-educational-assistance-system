@@ -14,6 +14,7 @@ import VerifyEmail from "./public/pages/VerifyEmail.jsx";
 import VerifyEmailNotice from "./public/pages/VerifyEmailNotice";
 import ForgotPassword from "./public/pages/ForgotPassword";
 import PersonnelSetup from "./public/pages/PersonnelSetup";
+import NotFound from "./public/pages/NotFound";
 
 import AdminDashboard from "./admin/pages/AdminDashboard";
 import AdminUsers from "./admin/pages/AdminUsers";
@@ -205,6 +206,9 @@ function App() {
             <ApplicantClaimingSchedule />
           </ProtectedRoute>
         } />
+
+        {/* Catch-all */}
+        <Route path="*" element={<NotFound />} />
 
       </Routes>
     </BrowserRouter>

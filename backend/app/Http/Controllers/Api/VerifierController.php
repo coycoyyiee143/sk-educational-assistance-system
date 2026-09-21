@@ -758,7 +758,7 @@ class VerifierController extends Controller
     {
         $config = ApplicationConfiguration::where('is_active', true)->first();
         if (!$config) {
-            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+            return response()->json(['assigned_lane' => null, 'assigned_lanes' => [], 'all_lanes' => []]);
         }
 
         $schedule = \App\Models\ClaimingSchedule::where('config_id', $config->id)
@@ -767,7 +767,7 @@ class VerifierController extends Controller
             ->first();
 
         if (!$schedule) {
-            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+            return response()->json(['assigned_lane' => null, 'assigned_lanes' => [], 'all_lanes' => []]);
         }
 
         $allLanes = $schedule->lanes()
@@ -776,10 +776,19 @@ class VerifierController extends Controller
             ->orderBy('lane_name')
             ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id', 'requested_verifier_id']);
 
-        $assignedLane = $allLanes->firstWhere('verifier_id', $request->user()->id);
+        // A verifier can legitimately hold more than one lane at once (one
+        // per claiming_date + batch session — e.g. a morning lane AND a
+        // separate afternoon lane on the same day, see selfAssignLane()).
+        // `assigned_lane` below is kept only for whatever still reads it
+        // as a single value; `assigned_lanes` is the full set and is what
+        // the frontend uses to correctly tell "my other lane" apart from
+        // "someone else's lane".
+        $assignedLanes = $allLanes->where('verifier_id', $request->user()->id)->values();
+        $assignedLane = $assignedLanes->first();
 
         return response()->json([
             'assigned_lane'         => $assignedLane,
+            'assigned_lanes'        => $assignedLanes,
             'all_lanes'             => $allLanes,
             // So the frontend can auto-default to whichever mode actually
             // matches today, instead of always opening on Scheduled Claiming

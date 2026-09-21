@@ -3,6 +3,7 @@ import AdminNavigation from "../components/AdminNavigation";
 import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
+import { usePolling } from "../../hooks/usePolling";
 
 const emptyForm = {
   location: "Barangay Mamatid Hall",
@@ -435,6 +436,21 @@ function AdminSchedule() {
   }
 
   const isActive = schedule?.is_active;
+
+  // Silent background refresh — once a schedule is active, lane
+  // assignments and verifier lane requests can change from other users
+  // (verifiers self-assigning/requesting a lane, applicants getting
+  // auto-assigned) while an admin is sitting on this page, and without
+  // this they'd only see it after a manual Refresh. Only enabled once
+  // active: the lane/day editing form above is disabled at that point
+  // (see `disabled={isActive}` on the fieldset), so there's no
+  // in-progress draft this could ever overwrite. Before activation, the
+  // admin is actively composing the schedule, so this stays off to
+  // avoid silently wiping unsaved edits mid-edit.
+  usePolling(() => loadSchedule(true), {
+    intervalMs: 20000,
+    enabled: Boolean(isActive) && !loading,
+  });
   // Late Claiming's own window stays editable even once the schedule is
   // active (store() blocks the rest of the form since it fully replaces
   // the lane list, which is unsafe once real assignments exist — but

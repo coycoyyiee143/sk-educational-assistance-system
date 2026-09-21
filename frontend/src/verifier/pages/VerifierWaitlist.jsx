@@ -136,6 +136,26 @@ function VerifierWaitlist() {
 
             {message && <div className="alert alert-success">{message}</div>}
 
+            {!loading && !configId ? (
+              <div className="page-card">
+                <div className="visibility-notice">
+                  <div className="visibility-notice-icon">!</div>
+
+                  <div className="visibility-notice-body">
+                    <strong className="visibility-notice-title">
+                      No Active Application Period
+                    </strong>
+
+                    <p className="visibility-notice-text">
+                      There is no active application period right now, so
+                      there's no waitlist to manage. Check back once the SK
+                      Admin opens a new period.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+            <>
             <div className="page-card verifier-waitlist-summary-card">
               <h4 className="verifier-application-list-title">Waitlist Summary</h4>
 
@@ -356,6 +376,8 @@ function VerifierWaitlist() {
                 </div>
               )}
             </div>
+            </>
+            )}
           </div>
         </section>
 

@@ -27,6 +27,7 @@ function AdminReports() {
               : ""
         );
       })
+      .catch(() => setPeriods([]))
       .finally(() => setLoading(false));
   }, []);
   if (loading) {
@@ -113,30 +114,52 @@ function AdminReports() {
                 )}
               </div>
             </div>
-            <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
-            <div className="report-profile-layout-grid">
-              <ApplicantProfileSection
-                selectedConfigId={selectedConfigId}
-                section="school"
-              />
-              <ApplicantProfileSection
-                selectedConfigId={selectedConfigId}
-                section="age"
-              />
-              <VerificationOutcomesSection
-                selectedConfigId={selectedConfigId}
-                section="issues"
-              />
-              <ApplicantProfileSection
-                selectedConfigId={selectedConfigId}
-                section="purok"
-              />
-            </div>
-            <VerificationOutcomesSection
-              selectedConfigId={selectedConfigId}
-              section="claiming"
-            />
-            <DisbursementReportSection selectedConfigId={selectedConfigId} />
+            {periods.length === 0 ? (
+              <div className="page-card">
+                <div className="visibility-notice">
+                  <div className="visibility-notice-icon">!</div>
+
+                  <div className="visibility-notice-body">
+                    <strong className="visibility-notice-title">
+                      No Viewing Period Available
+                    </strong>
+
+                    <p className="visibility-notice-text">
+                      There is no application period set up yet. Reports will
+                      appear here once an application configuration is
+                      created.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
+                <div className="report-profile-layout-grid">
+                  <ApplicantProfileSection
+                    selectedConfigId={selectedConfigId}
+                    section="school"
+                  />
+                  <ApplicantProfileSection
+                    selectedConfigId={selectedConfigId}
+                    section="age"
+                  />
+                  <VerificationOutcomesSection
+                    selectedConfigId={selectedConfigId}
+                    section="issues"
+                  />
+                  <ApplicantProfileSection
+                    selectedConfigId={selectedConfigId}
+                    section="purok"
+                  />
+                </div>
+                <VerificationOutcomesSection
+                  selectedConfigId={selectedConfigId}
+                  section="claiming"
+                />
+                <DisbursementReportSection selectedConfigId={selectedConfigId} />
+              </>
+            )}
           </div>
         </section>
         <PanelFooter />
