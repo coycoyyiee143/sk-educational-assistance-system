@@ -63,6 +63,23 @@ class AdminFeatureDemoSeeder extends Seeder
 
     private array $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 
+    private array $firstNames = [
+        'Juan', 'Maria', 'Jose', 'Ana', 'Pedro', 'Carla', 'Miguel', 'Angelica',
+        'Ramon', 'Grace', 'Carlo', 'Bea', 'Paolo', 'Jasmine', 'Ricardo', 'Faith',
+        'Emmanuel', 'Joy', 'Vincent', 'Cristina',
+    ];
+
+    private array $middleNames = [
+        'Santos', 'Reyes', 'Cruz', 'Bautista', 'Garcia', 'Torres', 'Ramos',
+        'Mendoza', 'Flores', 'Rivera',
+    ];
+
+    private array $lastNames = [
+        'Dela Cruz', 'Aquino', 'Castillo', 'Villanueva', 'Gonzales',
+        'Del Rosario', 'Fernandez', 'Domingo', 'Pascual', 'De Guzman',
+        'Aguilar', 'Ramirez', 'Navarro', 'Salazar', 'Marquez',
+    ];
+
     private array $rejectionReasons = [
         'Name does not match other submitted documents.',
         'Not a registered voter in Barangay Mamatid.',
@@ -191,9 +208,9 @@ class AdminFeatureDemoSeeder extends Seeder
         $n = $this->counter;
 
         $user = User::create([
-            'first_name'        => 'Demo',
-            'middle_name'       => 'Feature',
-            'last_name'         => 'Applicant' . $n,
+            'first_name'        => $this->firstNames[array_rand($this->firstNames)],
+            'middle_name'       => $this->middleNames[array_rand($this->middleNames)],
+            'last_name'         => $this->lastNames[array_rand($this->lastNames)],
             'email'             => "featuredemo{$n}@test.com",
             'mobile_number'     => '09' . str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT),
             'password'          => Hash::make('applicant123'),
