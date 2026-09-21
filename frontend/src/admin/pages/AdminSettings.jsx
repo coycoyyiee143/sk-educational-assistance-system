@@ -42,6 +42,20 @@ function nowDateTimeLocal() {
   return d.toISOString().slice(0, 16);
 }
 
+// NOT toISOString().slice(0, 10) — that formats in UTC, which rolls local
+// midnight back to the previous calendar day in any timezone ahead of UTC
+// (e.g. Asia/Manila, UTC+8) — see AdminSchedule.jsx's own version of this
+// exact helper. Backend requires close_date strictly after open_date, so
+// the day right after is the earliest valid default.
+function nextDayStr(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // Pre-selects the common case (setting up this year's period) so the
 // admin doesn't have to hunt for it in a 25-year dropdown — still just a
 // default, not a restriction, since picking a future year to plan ahead
@@ -51,12 +65,17 @@ function defaultSchoolYear() {
   return `${currentYear}-${currentYear + 1}`;
 }
 
-function emptyForm() {
+// Carries the previous period's slot count forward as a starting point
+// (most periods don't change scale year to year) instead of leaving the
+// admin to retype it from scratch; falls back to 1000 when there's no
+// prior period to reference at all (a fresh deployment, or the prior one
+// was unlimited and has nothing reusable here).
+function emptyForm(lastSlotLimit) {
   return {
     school_year: defaultSchoolYear(),
     open_date: nowDateTimeLocal(),
     close_date: "",
-    slot_limit: "",
+    slot_limit: lastSlotLimit || 1000,
     is_unlimited: false,
     assistance_amount: "2000",
   };
@@ -142,6 +161,20 @@ function AdminSettings() {
       [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
     }));
 
+  // Defaults Closing Date to the day after Opening Date while setting up
+  // a brand new period — only fills it in while it's still blank, so
+  // this never overwrites a date the admin already picked (matches the
+  // same "default once, don't clobber a manual choice" pattern
+  // AdminSchedule.jsx uses for its own date defaults). No-op once a
+  // config exists, since Closing Date is locked by then anyway.
+  useEffect(() => {
+    if (closeDateLocked || !form.open_date) return;
+    setForm((f) => {
+      if (f.close_date) return f;
+      return { ...f, close_date: nextDayStr(f.open_date.slice(0, 10)) };
+    });
+  }, [form.open_date, closeDateLocked]);
+
   function needsConfirmation() {
     return !hasStarted;
   }
@@ -152,8 +185,10 @@ function AdminSettings() {
 
   function confirmStartNewPeriod() {
     setShowStartNewModal(false);
+    // Read before clearing config below — carries the just-closed
+    // period's slot count forward as the new form's starting point.
+    setForm(emptyForm(config?.slot_limit));
     setConfig(null);
-    setForm(emptyForm);
     setSuccess("");
     setError("");
   }
@@ -646,7 +681,7 @@ function AdminSettings() {
                     </div>
                   </div>
                   <div className="d-flex justify-content-end gap-2">
-                    <button type="button" className="btn btn-clear-dark" onClick={() => setForm(emptyForm)} disabled={hasStarted}>
+                    <button type="button" className="btn btn-clear-dark" onClick={() => setForm(emptyForm(config?.slot_limit))} disabled={hasStarted}>
                       Clear
                     </button>
                     <button type="submit" className="btn btn-save-green" disabled={saving}>
