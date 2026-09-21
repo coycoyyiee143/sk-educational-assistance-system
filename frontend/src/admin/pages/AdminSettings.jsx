@@ -576,8 +576,8 @@ function AdminSettings() {
                           />
                           <div className="form-text">
                             {closeDateLocked
-                              ? 'Locked — use "Extend Application Period" below to change it.'
-                              : "Set once, at creation. After saving, only \"Extend Application Period\" can move it later."}
+                              ? 'Ends 11:59 PM. Locked — use "Extend Application Period" below to change it.'
+                              : 'Ends 11:59 PM. Set once — use "Extend Application Period" later to move it.'}
                           </div>
                         </div>
                       </div>
@@ -681,9 +681,20 @@ function AdminSettings() {
                     </div>
                   </div>
                   <div className="d-flex justify-content-end gap-2">
-                    <button type="button" className="btn btn-clear-dark" onClick={() => setForm(emptyForm(config?.slot_limit))} disabled={hasStarted}>
-                      Clear
-                    </button>
+                    {/* Only makes sense for a brand new, never-saved period —
+                        Closing Date reads from `config`, not `form`, once a
+                        config exists (see closeDateLocked below), so
+                        resetting `form` here would leave Closing Date
+                        showing the old saved value while everything else
+                        went blank, and a subsequent save would PUT those
+                        blanked-out defaults onto the EXISTING record
+                        instead of doing anything resembling "starting
+                        over". */}
+                    {!config && (
+                      <button type="button" className="btn btn-clear-dark" onClick={() => setForm(emptyForm())}>
+                        Clear
+                      </button>
+                    )}
                     <button type="submit" className="btn btn-save-green" disabled={saving}>
                       {saving ? "Saving..." : "Save Settings"}
                     </button>
@@ -865,6 +876,7 @@ function AdminSettings() {
                   min={config?.close_date ? new Date(new Date(config.close_date).getTime() + 86400000).toISOString().slice(0, 10) : undefined}
                   onChange={(e) => setExtendDate(e.target.value)}
                 />
+                <div className="form-text">Submissions will close at 11:59 PM on this date.</div>
                 {extendError && <div className="alert alert-danger mt-3 mb-0">{extendError}</div>}
               </div>
               <div className="d-flex justify-content-end gap-2 p-3 border-top">
