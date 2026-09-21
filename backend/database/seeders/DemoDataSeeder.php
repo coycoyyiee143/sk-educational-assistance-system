@@ -125,6 +125,14 @@ class DemoDataSeeder extends Seeder
         $this->seedApplicationsForPeriod($config2025, total: 133, approvedCount: 118, submittedAround: now()->subYear()->setMonth(7), withClaiming: true);
 
         // ── Active Period: 2026-2027, currently open, mixed live statuses ──
+        // Deactivate whatever was already active first — without this,
+        // running this seeder after another one that left a config active
+        // (e.g. ClaimingDayTestSeeder) leaves TWO rows both is_active=true,
+        // which breaks the "the active config" assumption every
+        // ApplicationConfiguration::where('is_active', true)->first()/
+        // ->find() call in the app relies on.
+        ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
+
         $configActive = ApplicationConfiguration::create([
             'school_year'  => '2026-2027',
             'open_date'    => now()->subDays(10)->startOfDay(),
