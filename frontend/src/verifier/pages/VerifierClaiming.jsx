@@ -349,14 +349,29 @@ function VerifierClaiming() {
       const res = await api.post(
         `/verifier/claiming/lanes/${laneId}/self-assign`
       );
+      const updatedLane = res.data.lane;
 
-      fetchLanes();
+      // Merge the updated lane in locally instead of calling fetchLanes()
+      // — that was a real bug: a pending REQUEST (lane already staffed)
+      // doesn't change assigned_lane at all, so fetchLanes()'s own
+      // "sync selectedLaneId to assigned_lane" effect immediately reset
+      // selectedLaneId back to the verifier's actual current lane,
+      // hiding the "request sent" message moments after it appeared —
+      // it only renders while selectedLaneId differs from assignedLane.
+      setAllLanes((prev) =>
+        prev.map((l) => (String(l.id) === String(laneId) ? { ...l, ...updatedLane } : l))
+      );
+      if (!updatedLane?.requested_verifier_id) {
+        // Lane was empty, so this was an immediate assignment, not just
+        // a request — assignedLane genuinely changed.
+        setAssignedLane(updatedLane);
+      }
 
       setSelectedLaneId(String(laneId));
       setLaneRequestMessage(res.data.message);
       // The lane was empty, so the backend assigned it immediately instead
       // of just recording a request — nothing left pending on it.
-      setPendingRequestLaneId(res.data.lane?.requested_verifier_id ? String(laneId) : null);
+      setPendingRequestLaneId(updatedLane?.requested_verifier_id ? String(laneId) : null);
     } catch (err) {
       setSearchError(
         err.response?.data?.message ||

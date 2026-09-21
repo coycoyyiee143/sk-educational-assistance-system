@@ -373,7 +373,7 @@ function AdminSchedule() {
       });
       setSchedule((prev) => ({
         ...prev,
-        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, verifier_id: res.data.lane.verifier_id, verifier: res.data.lane.verifier, requested_verifier_id: null, requestedVerifier: null } : l)),
+        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, verifier_id: res.data.lane.verifier_id, verifier: res.data.lane.verifier, requested_verifier_id: null, requested_verifier: null } : l)),
       }));
     } catch (err) {
       setError(err.response?.data?.message || "Failed to update lane assignment.");
@@ -389,7 +389,7 @@ function AdminSchedule() {
       const res = await api.post(`/admin/claiming-schedule/lanes/${laneId}/dismiss-request`);
       setSchedule((prev) => ({
         ...prev,
-        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, requested_verifier_id: res.data.lane.requested_verifier_id, requestedVerifier: null } : l)),
+        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, requested_verifier_id: res.data.lane.requested_verifier_id, requested_verifier: null } : l)),
       }));
     } catch (err) {
       setError(err.response?.data?.message || "Failed to dismiss request.");
@@ -953,7 +953,7 @@ function AdminSchedule() {
                             {lane.requested_verifier_id && (
                               <div className="mt-1 small">
                                 <span className="text-warning">
-                                  Requested by {lane.requestedVerifier ? `${lane.requestedVerifier.first_name} ${lane.requestedVerifier.last_name}` : "a verifier"}
+                                  Requested by {lane.requested_verifier ? `${lane.requested_verifier.first_name} ${lane.requested_verifier.last_name}` : "a verifier"}
                                 </span>
                                 <button
                                   type="button"

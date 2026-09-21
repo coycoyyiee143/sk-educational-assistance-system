@@ -175,7 +175,10 @@ class AdminScheduleController extends Controller
         }
 
         $schedule->load(['lanes' => function ($q) {
-            $q->withCount('assignments')->with('assignments.application:id,control_number');
+            $q->withCount('assignments')
+                ->with('verifier:id,first_name,last_name')
+                ->with('requestedVerifier:id,first_name,last_name')
+                ->with('assignments.application:id,control_number');
         }]);
         $schedule->lanes->each->append('control_number_range');
 
@@ -222,7 +225,10 @@ class AdminScheduleController extends Controller
             : "Schedule activated. New approvals will now be assigned automatically.";
 
         $schedule->load(['lanes' => function ($q) {
-            $q->withCount('assignments')->with('assignments.application:id,control_number');
+            $q->withCount('assignments')
+                ->with('verifier:id,first_name,last_name')
+                ->with('requestedVerifier:id,first_name,last_name')
+                ->with('assignments.application:id,control_number');
         }]);
         $schedule->lanes->each->append('control_number_range');
 
@@ -294,7 +300,7 @@ class AdminScheduleController extends Controller
 
     public function printableLane($laneId)
     {
-        $lane = ClaimingLane::with(['assignments.application.user'])->findOrFail($laneId);
+        $lane = ClaimingLane::with(['assignments.application.user', 'verifier:id,first_name,last_name'])->findOrFail($laneId);
         $list = $lane->assignments
             ->map(function ($a) {
                 return [
@@ -308,6 +314,7 @@ class AdminScheduleController extends Controller
             'lane_name'     => $lane->lane_name,
             'batch'         => $lane->batch,
             'claiming_date' => $lane->claiming_date,
+            'verifier_name' => $lane->verifier ? trim($lane->verifier->first_name . ' ' . $lane->verifier->last_name) : 'Unassigned',
             'applicants'    => $list,
         ]);
     }
@@ -379,7 +386,7 @@ class AdminScheduleController extends Controller
      */
     public function printableLanePdf($laneId)
     {
-        $lane = ClaimingLane::with(['assignments.application.user'])->findOrFail($laneId);
+        $lane = ClaimingLane::with(['assignments.application.user', 'verifier:id,first_name,last_name'])->findOrFail($laneId);
         $list = $lane->assignments
             ->map(function ($a) {
                 return [
@@ -390,10 +397,15 @@ class AdminScheduleController extends Controller
             ->sortBy('control_number')
             ->values();
 
+            // SK prints these physically for the verifier running that lane
+            // to use on claiming day — the verifier's name needs to be ON
+            // the sheet itself so it's identifiable once printed, not just
+            // visible in the admin UI beforehand.
             $pdf = Pdf::loadView('claiming.lane-claiming-list', [
                 'title'        => $lane->lane_name . ' — Claiming List',
                 'batch'        => $lane->batch,
                 'claimingDate' => $lane->claiming_date,
+                'verifierName' => $lane->verifier ? trim($lane->verifier->first_name . ' ' . $lane->verifier->last_name) : 'Unassigned',
                 'applicants'   => $list,
             ]);
 
