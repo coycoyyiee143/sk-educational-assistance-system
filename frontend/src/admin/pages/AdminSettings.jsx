@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminNavigation from "../components/AdminNavigation";
 import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
@@ -45,6 +46,7 @@ function emptyForm() {
 }
 
 function AdminSettings() {
+  const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [config, setConfig] = useState(null);
   const [form, setForm] = useState(emptyForm);
@@ -64,6 +66,17 @@ function AdminSettings() {
   const [extending, setExtending] = useState(false);
   const [extendError, setExtendError] = useState("");
   const [showClosePeriodModal, setShowClosePeriodModal] = useState(false);
+  // Offered after the two events applicants have no other way of hearing
+  // about: a brand new period opening, or the deadline they're relying on
+  // moving later. { title, category, content } for the prefilled
+  // announcement, or null.
+  const [announceNudge, setAnnounceNudge] = useState(null);
+
+  function goAnnounce() {
+    const prefill = announceNudge;
+    setAnnounceNudge(null);
+    navigate("/AdminAnnouncements", { state: { prefill } });
+  }
 
   useEffect(() => {
     api.get("/admin/application-configs")
@@ -160,6 +173,11 @@ function AdminSettings() {
       setForm((f) => ({ ...f, close_date: res.data.config.close_date }));
       setShowExtendModal(false);
       setSuccess("Application period extended.");
+      setAnnounceNudge({
+        title: "Application Deadline Extended",
+        category: "Schedule Update",
+        content: `The application deadline for school year ${res.data.config.school_year} has been extended to ${formatDateTime(res.data.config.close_date)}. Please take note of this change.`,
+      });
     } catch (err) {
       setExtendError(err.response?.data?.message || "Failed to extend application period.");
     } finally {
@@ -200,6 +218,7 @@ function AdminSettings() {
         slot_limit: form.is_unlimited ? null : form.slot_limit,
         assistance_amount: form.assistance_amount,
       };
+      const isNewPeriod = !config;
       let response;
       if (config) {
         response = await api.put(`/admin/application-configs/${config.id}`, payload);
@@ -208,6 +227,13 @@ function AdminSettings() {
       }
       const updated = response.data.config;
       setConfig(updated);
+      if (isNewPeriod) {
+        setAnnounceNudge({
+          title: `Applications Now Open for School Year ${updated.school_year}`,
+          category: "Educational Assistance",
+          content: `Applications for the educational assistance program (school year ${updated.school_year}) are now open, from ${formatDateTime(updated.open_date)} to ${formatDateTime(updated.close_date)}.`,
+        });
+      }
       setForm({
         school_year: updated.school_year,
         open_date: updated.open_date,
@@ -812,6 +838,37 @@ function AdminSettings() {
                   {closing ? "Closing..." : "Yes, Close Period"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {announceNudge && (
+        <div className="feedback-popup-backdrop">
+          <div className="feedback-popup feedback-popup-success">
+            <div className="feedback-popup-icon-wrap">
+              <span className="feedback-popup-icon">✓</span>
+            </div>
+            <h4 className="feedback-popup-title">{announceNudge.title}</h4>
+            <p className="feedback-popup-message">
+              Applicants aren't notified of this automatically. Want to post an
+              announcement about it?
+            </p>
+            <div className="feedback-popup-confirm-actions">
+              <button
+                type="button"
+                className="feedback-popup-cancel"
+                onClick={() => setAnnounceNudge(null)}
+              >
+                Not Now
+              </button>
+              <button
+                type="button"
+                className="feedback-popup-proceed"
+                onClick={goAnnounce}
+              >
+                Create Announcement
+              </button>
             </div>
           </div>
         </div>
