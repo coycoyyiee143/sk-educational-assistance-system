@@ -96,6 +96,12 @@ function VerifierClaiming() {
   const [notClearedReasons, setNotClearedReasons] = useState([]);
   const [notClearedOtherText, setNotClearedOtherText] = useState("");
   const [searching, setSearching] = useState(false);
+  // Separate from `searching` — that flag also covers the automatic
+  // searches (page load, lane-picker change) that never came from this
+  // button being clicked, and flashing "Searching..." on a button the
+  // verifier never touched (e.g. right as the page loads) reads as a
+  // bug. This only tracks the actual Search/Filter button submission.
+  const [manualSearching, setManualSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [claimError, setClaimError] = useState("");
@@ -106,6 +112,7 @@ function VerifierClaiming() {
   const [fileError, setFileError] = useState("");
 
   const claimingActionRef = useRef(null);
+  const resultsRef = useRef(null);
 
   const [registrationPhotoUrl, setRegistrationPhotoUrl] =
     useState(null);
@@ -753,6 +760,25 @@ function VerifierClaiming() {
     } finally {
       setSearching(false);
     }
+  }
+
+  // Wraps handleSearch specifically for the actual Search/Filter button
+  // (form submit) — not for the lane-picker/Clear auto-search calls,
+  // which already update results in place without the verifier needing
+  // to go looking for them, and not for the initial auto-search on page
+  // load, which shouldn't yank the viewport down before they've even
+  // seen the lane picker. A real submit means "find it for me", so the
+  // results card scrolls into view once there's something to show.
+  function handleSearchSubmit(e) {
+    setManualSearching(true);
+    handleSearch(e).finally(() => setManualSearching(false));
+
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
   }
 
   function selectApplicant(app) {
@@ -2037,7 +2063,7 @@ function VerifierClaiming() {
                       <div className="verifier-claiming-search-box">
                         <form
                           onSubmit={
-                            handleSearch
+                            handleSearchSubmit
                           }
                         >
                           <fieldset className="verifier-claiming-search-fieldset verifier-claiming-search-row">
@@ -2084,7 +2110,7 @@ function VerifierClaiming() {
                                     className="verifier-claiming-search-btn verifier-claiming-search-row-btn"
                                     disabled={searching}
                                   >
-                                    {searching ? "Searching..." : "Filter"}
+                                    {manualSearching ? "Searching..." : "Filter"}
                                   </button>
 
                                   {(controlNo || applicantName) && (
@@ -2108,7 +2134,7 @@ function VerifierClaiming() {
                                   className="verifier-claiming-search-btn verifier-claiming-search-row-btn"
                                   disabled={searching}
                                 >
-                                  {searching ? "Searching..." : "Search"}
+                                  {manualSearching ? "Searching..." : "Search"}
                                 </button>
 
                                 {(controlNo || applicantName) && (
@@ -2144,7 +2170,7 @@ function VerifierClaiming() {
                 </div>
 
                 {showResultsCard && (
-                  <div className="page-card verifier-attention-card verifier-claiming-results-card">
+                  <div className="page-card verifier-attention-card verifier-claiming-results-card" ref={resultsRef}>
                     <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                       <h4 className="verifier-claiming-results-title mb-0">
                         {lateClaimingMode
