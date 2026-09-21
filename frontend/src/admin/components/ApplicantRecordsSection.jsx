@@ -32,20 +32,14 @@ function formatDate(dateStr) {
   });
 }
 function getPageNumbers(currentPage, totalPages) {
-  const pages = [];
-  const maxVisible = 5;
-  if (totalPages <= maxVisible) {
-    for (let i = 1; i <= totalPages; i++) pages.push(i);
-    return pages;
+  if (totalPages <= 3) {
+    return Array.from({ length: totalPages }, (_, index) => index + 1);
   }
-  pages.push(1);
-  if (currentPage > 3) pages.push("...");
-  const start = Math.max(2, currentPage - 1);
-  const end = Math.min(totalPages - 1, currentPage + 1);
-  for (let i = start; i <= end; i++) pages.push(i);
-  if (currentPage < totalPages - 2) pages.push("...");
-  pages.push(totalPages);
-  return pages;
+  let startPage;
+  if (currentPage <= 2) startPage = 1;
+  else if (currentPage >= totalPages - 1) startPage = totalPages - 2;
+  else startPage = currentPage - 1;
+  return [startPage, startPage + 1, startPage + 2];
 }
 function ApplicantRecordsSection({ selectedConfigId }) {
   const [summary, setSummary] = useState(null);
@@ -127,8 +121,6 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     if (selectedConfigId) params.config_id = selectedConfigId;
     return params;
   }
-  // Export needs the on-screen record search folded in too, or "Export CSV"
-  // would silently include records the admin filtered out of view.
   function buildExportParams() {
     const params = buildParams();
     if (recordSearch.trim()) params.search = recordSearch.trim();
@@ -197,9 +189,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
   }
   async function handleApprovedListExport() {
     try {
-      const params = selectedConfigId
-        ? { config_id: selectedConfigId }
-        : {};
+      const params = selectedConfigId ? { config_id: selectedConfigId } : {};
       const res = await api.get("/admin/reports/approved-applicants/pdf", {
         params,
         responseType: "blob",
@@ -225,9 +215,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
   }
   async function handleApprovedListImageExport() {
     try {
-      const params = selectedConfigId
-        ? { config_id: selectedConfigId }
-        : {};
+      const params = selectedConfigId ? { config_id: selectedConfigId } : {};
       const res = await api.get("/admin/reports/approved-applicants/html", {
         params,
       });
@@ -354,10 +342,8 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     Math.min(100, Number(rates.under_review_rate) || 0)
   );
   const statusApprovedEnd = statusApprovalRate * 3.6;
-  const statusRejectedEnd =
-    statusApprovedEnd + statusRejectionRate * 3.6;
-  const statusPendingEnd =
-    statusRejectedEnd + statusPendingRate * 3.6;
+  const statusRejectedEnd = statusApprovedEnd + statusRejectionRate * 3.6;
+  const statusPendingEnd = statusRejectedEnd + statusPendingRate * 3.6;
   const statusDonutStyle = {
     "--report-approved-end": `${statusApprovedEnd}deg`,
     "--report-rejected-end": `${statusRejectedEnd}deg`,
@@ -374,12 +360,8 @@ function ApplicantRecordsSection({ selectedConfigId }) {
   );
   const historyRows = submissionVsApproval?.trend ?? [];
   const visibleHistoryRows = historyRows.slice(0, 3);
-  const historyActiveCount = historyRows.filter(
-    (row) => row.is_active
-  ).length;
-  const historyArchivedCount = historyRows.filter(
-    (row) => !row.is_active
-  ).length;
+  const historyActiveCount = historyRows.filter((row) => row.is_active).length;
+  const historyArchivedCount = historyRows.filter((row) => !row.is_active).length;
   const filteredHistoryRows = historyRows.filter((row) => {
     if (historyFilter === "active") return row.is_active;
     if (historyFilter === "archived") return !row.is_active;
@@ -408,9 +390,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
     rows.map((row) => (
       <tr key={row.config_id}>
         <td>
-          <span className="report-history-cycle">
-            {row.school_year}
-          </span>
+          <span className="report-history-cycle">{row.school_year}</span>
         </td>
         <td>
           <span
@@ -461,8 +441,10 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         {summary?.config && (
           <div className="report-overview-block-heading">
             <h4 className="report-overview-block-title">
-              Application Overview{" "}
-              <span>— {summary.config.school_year}</span>
+              Application Overview
+              <span className="report-overview-school-year">
+                {" "}— {summary.config.school_year}
+              </span>
             </h4>
             <p className="report-overview-block-description">
               Overview of applicant status distribution and application outcome rates for the selected period.
@@ -533,9 +515,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   <div className="report-overview-metric-text">
                     <span>Approval Rate</span>
                     <strong>{approvalRate}%</strong>
-                    <small>
-                      {approvedApplications} approved applications
-                    </small>
+                    <small>{approvedApplications} approved applications</small>
                   </div>
                   <div
                     className="report-overview-mini-ring report-overview-mini-ring-green"
@@ -548,13 +528,12 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        strokeWidth="2.2"
+                        strokeWidth="2.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
                       >
-                        <path
-                          d="M5 12.5l4 4L19 7"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                        <path d="M5 12.5l4 4L19 7" />
                       </svg>
                     </div>
                   </div>
@@ -563,9 +542,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   <div className="report-overview-metric-text">
                     <span>Rejection Rate</span>
                     <strong>{rejectionRate}%</strong>
-                    <small>
-                      {rejectedApplications} rejected applications
-                    </small>
+                    <small>{rejectedApplications} rejected applications</small>
                   </div>
                   <div
                     className="report-overview-mini-ring report-overview-mini-ring-red"
@@ -578,23 +555,14 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                         viewBox="0 0 24 24"
                         fill="none"
                         stroke="currentColor"
-                        strokeWidth="2.2"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
                       >
-                        <path
-                          d="M12 8v5"
-                          strokeLinecap="round"
-                        />
-                        <circle
-                          cx="12"
-                          cy="16.5"
-                          r=".8"
-                          fill="currentColor"
-                          stroke="none"
-                        />
-                        <path
-                          d="M10.2 4.8L3.7 17a2 2 0 001.8 3h13a2 2 0 001.8-3L13.8 4.8a2 2 0 00-3.6 0z"
-                          strokeLinejoin="round"
-                        />
+                        <path d="M12 8.5v4.5" />
+                        <path d="M12 16.5h.01" strokeWidth="2.8" />
+                        <path d="M10.3 4.8 3.8 17a2 2 0 0 0 1.8 3h12.8a2 2 0 0 0 1.8-3L13.7 4.8a1.95 1.95 0 0 0-3.4 0Z" />
                       </svg>
                     </div>
                   </div>
@@ -603,9 +571,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   <div className="report-overview-metric-text">
                     <span>Pending Rate</span>
                     <strong>{pendingRate}%</strong>
-                    <small>
-                      {pendingApplications} pending applications
-                    </small>
+                    <small>{pendingApplications} pending applications</small>
                   </div>
                   <div
                     className="report-overview-mini-ring report-overview-mini-ring-gray"
@@ -619,16 +585,12 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
                       >
-                        <path
-                          d="M8 3h8M8 21h8"
-                          strokeLinecap="round"
-                        />
-                        <path
-                          d="M9 3c0 4 1.5 5 3 6 1.5-1 3-2 3-6M9 21c0-4 1.5-5 3-6 1.5 1 3 2 3 6"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                        <circle cx="12" cy="12" r="7.5" />
+                        <path d="M12 8v4.5l3 2" />
                       </svg>
                     </div>
                   </div>
@@ -646,9 +608,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             </h4>
             <p className="report-approved-description">
               Generates the official list of approved applicants for{" "}
-              {selectedConfigId
-                ? "the selected period"
-                : "the active period"}{" "}
+              {selectedConfigId ? "the selected period" : "the active period"}{" "}
               — a printable PDF for the office copy and physical bulletin
               board, and images sized for posting straight to the SK's
               Facebook page.
@@ -778,10 +738,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             </button>
           </div>
         </div>
-        <form
-          id="applicant-records-filter-form"
-          onSubmit={handlePreview}
-        >
+        <form id="applicant-records-filter-form" onSubmit={handlePreview}>
           <div className="report-records-filter-grid">
             <div className="report-records-filter-field">
               <label className="form-label">Status</label>
@@ -809,9 +766,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               </select>
             </div>
             <div className="report-records-filter-field">
-              <label className="form-label">
-                Course / Program
-              </label>
+              <label className="form-label">Course / Program</label>
               <select
                 className="form-select"
                 value={filter.course}
@@ -836,9 +791,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               </select>
             </div>
             <div className="report-records-filter-field">
-              <label className="form-label">
-                Applicant Type
-              </label>
+              <label className="form-label">Applicant Type</label>
               <select
                 className="form-select"
                 value={filter.applicant_type}
@@ -887,14 +840,10 @@ function ApplicantRecordsSection({ selectedConfigId }) {
         </form>
         <div className="report-records-preview-header">
           <div>
-            <span className="report-records-preview-label">
-              Record Preview
-            </span>
+            <span className="report-records-preview-label">Record Preview</span>
             <span className="report-records-result-count">
               {filteredPreview.length}{" "}
-              {filteredPreview.length === 1
-                ? "record"
-                : "records"}
+              {filteredPreview.length === 1 ? "record" : "records"}
             </span>
           </div>
           <input
@@ -924,18 +873,18 @@ function ApplicantRecordsSection({ selectedConfigId }) {
             ))}
           </div>
         )}
-        <div className="table-responsive">
+        <div className="table-responsive announcement-table-wrap">
           <table className="table table-bordered table-striped align-middle announcement-table">
             <colgroup>
-              <col style={{ width: "9%" }} />
-              <col style={{ width: "11%" }} />
-              <col style={{ width: "16%" }} />
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "9%" }} />
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "13%" }} />
               <col style={{ width: "10%" }} />
-              <col style={{ width: "6%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "12%" }} />
+              <col style={{ width: "13%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "11%" }} />
+              <col style={{ width: "13%" }} />
+              <col style={{ width: "9%" }} />
             </colgroup>
             <thead>
               <tr>
@@ -957,7 +906,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                   <td>{record.control_number ?? "—"}</td>
                   <td>{record.name}</td>
                   <td>{formatDate(record.submitted_at)}</td>
-                  <td>
+                  <td className="report-status-cell">
                     <StatusBadge status={record.status} />
                   </td>
                   <td>{record.reviewed_by ?? "—"}</td>
@@ -968,10 +917,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
               ))}
               {pagedPreview.length === 0 && (
                 <tr>
-                  <td
-                    colSpan="9"
-                    className="text-center text-muted py-4"
-                  >
+                  <td colSpan="9" className="text-center text-muted py-4">
                     No records found.
                   </td>
                 </tr>
@@ -983,65 +929,53 @@ function ApplicantRecordsSection({ selectedConfigId }) {
           <div className="table-pagination-bar">
             <span className="table-pagination-info">
               Showing {previewStart + 1}–
-              {Math.min(
-                previewStart + perPage,
-                filteredPreview.length
-              )}{" "}
-              of {filteredPreview.length} records
+              {Math.min(previewStart + perPage, filteredPreview.length)} of{" "}
+              {filteredPreview.length} records
             </span>
             <div className="table-pagination-controls">
               <button
                 type="button"
                 className="table-pagination-arrow"
                 onClick={() =>
-                  setPreviewPage((page) =>
-                    Math.max(1, page - 1)
-                  )
+                  setPreviewPage((page) => Math.max(1, page - 1))
                 }
                 disabled={previewPage === 1}
               >
                 ‹
               </button>
-              {getPageNumbers(
-                previewPage,
-                previewTotalPages
-              ).map((page, index) =>
-                page === "..." ? (
-                  <span
-                    key={`preview-ellipsis-${index}`}
-                    className="table-pagination-ellipsis"
-                  >
-                    …
-                  </span>
-                ) : (
-                  <button
-                    type="button"
-                    key={page}
-                    className={`table-pagination-page ${
-                      page === previewPage
-                        ? "table-pagination-page-active"
-                        : ""
-                    }`}
-                    onClick={() => setPreviewPage(page)}
-                  >
-                    {page}
-                  </button>
-                )
+              {getPageNumbers(previewPage, previewTotalPages).map(
+                (page, index) =>
+                  page === "..." ? (
+                    <span
+                      key={`preview-ellipsis-${index}`}
+                      className="table-pagination-ellipsis"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      key={page}
+                      className={`table-pagination-page ${
+                        page === previewPage
+                          ? "table-pagination-page-active"
+                          : ""
+                      }`}
+                      onClick={() => setPreviewPage(page)}
+                    >
+                      {page}
+                    </button>
+                  )
               )}
               <button
                 type="button"
                 className="table-pagination-arrow"
                 onClick={() =>
                   setPreviewPage((page) =>
-                    Math.min(
-                      previewTotalPages,
-                      page + 1
-                    )
+                    Math.min(previewTotalPages, page + 1)
                   )
                 }
-                disabled={
-                  previewPage === previewTotalPages
-                }
+                disabled={previewPage === previewTotalPages}
               >
                 ›
               </button>
@@ -1094,15 +1028,13 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     <th>Distribution</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {renderHistoryRows(visibleHistoryRows)}
-                </tbody>
+                <tbody>{renderHistoryRows(visibleHistoryRows)}</tbody>
               </table>
             </div>
             <div className="report-history-footer">
               <span>
-                Showing {visibleHistoryRows.length} of{" "}
-                {historyRows.length} application cycles
+                Showing {visibleHistoryRows.length} of {historyRows.length}{" "}
+                application cycles
               </span>
               <button
                 type="button"
@@ -1163,8 +1095,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                     Submission &amp; Approval History
                   </h4>
                   <p>
-                    All application cycles and their approval
-                    distribution.
+                    All application cycles and their approval distribution.
                   </p>
                 </div>
               </div>
@@ -1214,9 +1145,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                       ? "report-history-filter-btn-active"
                       : ""
                   }`}
-                  onClick={() =>
-                    changeHistoryFilter("archived")
-                  }
+                  onClick={() => changeHistoryFilter("archived")}
                 >
                   <span>Archived</span>
                   <span className="report-history-filter-count report-history-filter-count-archived">
@@ -1243,10 +1172,7 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                       renderHistoryRows(pagedHistoryRows)
                     ) : (
                       <tr>
-                        <td
-                          colSpan="3"
-                          className="report-history-empty"
-                        >
+                        <td colSpan="3" className="report-history-empty">
                           No application cycles found.
                         </td>
                       </tr>
@@ -1273,56 +1199,37 @@ function ApplicantRecordsSection({ selectedConfigId }) {
                       type="button"
                       className="report-history-pagination-arrow"
                       onClick={() =>
-                        setHistoryPage((page) =>
-                          Math.max(1, page - 1)
-                        )
+                        setHistoryPage((page) => Math.max(1, page - 1))
                       }
                       disabled={historyPage === 1}
                     >
                       ‹
                     </button>
-                    {getPageNumbers(
-                      historyPage,
-                      historyTotalPages
-                    ).map((page, index) =>
-                      page === "..." ? (
-                        <span
-                          key={`history-ellipsis-${index}`}
-                          className="report-history-pagination-ellipsis"
-                        >
-                          …
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          key={page}
-                          className={`report-history-pagination-page ${
-                            page === historyPage
-                              ? "report-history-pagination-page-active"
-                              : ""
-                          }`}
-                          onClick={() =>
-                            setHistoryPage(page)
-                          }
-                        >
-                          {page}
-                        </button>
-                      )
-                    )}
+                    {getPageNumbers(historyPage, historyTotalPages).map((page) => (
+                      <button
+                        type="button"
+                        key={page}
+                        className={`report-history-pagination-page ${
+                          page === historyPage
+                            ? "report-history-pagination-page-active"
+                            : Math.abs(page - historyPage) === 1
+                              ? "report-history-pagination-page-near"
+                              : "report-history-pagination-page-far"
+                        }`}
+                        onClick={() => setHistoryPage(page)}
+                      >
+                        {page}
+                      </button>
+                    ))}
                     <button
                       type="button"
                       className="report-history-pagination-arrow"
                       onClick={() =>
                         setHistoryPage((page) =>
-                          Math.min(
-                            historyTotalPages,
-                            page + 1
-                          )
+                          Math.min(historyTotalPages, page + 1)
                         )
                       }
-                      disabled={
-                        historyPage === historyTotalPages
-                      }
+                      disabled={historyPage === historyTotalPages}
                     >
                       ›
                     </button>

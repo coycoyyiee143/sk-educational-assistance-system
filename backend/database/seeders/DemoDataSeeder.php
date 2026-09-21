@@ -387,9 +387,15 @@ class DemoDataSeeder extends Seeder
         // real variety instead of an all-adult population.
         $isMinor = rand(1, 100) <= 15;
 
+        $purokType = rand(1, 100) <= 60 ? 'purok' : 'phase';
+
         $profileData = [
             'user_id'             => $user->id,
             'barangay'            => 'Mamatid',
+            'purok_type'          => $purokType,
+            'purok'               => $purokType === 'purok'
+                ? 'Purok ' . rand(1, 5)
+                : 'Phase ' . rand(1, 3),
             'is_profile_complete' => true,
         ];
 

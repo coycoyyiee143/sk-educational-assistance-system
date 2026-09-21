@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
-function CategoryBar({ label, count, percentage, max }) {
+function CategoryBar({ label, count, percentage, max, modalRow = false }) {
   const pct = max > 0 ? Math.round((count / max) * 100) : 0;
   return (
-    <div className="profile-category-item">
+    <div className={`profile-category-item${modalRow ? " school-program-record-row" : ""}`}>
       <div className="profile-category-row">
         <span>{label}</span>
-        <span>{count} · {percentage ?? 0}%</span>
+        <span className={modalRow ? "school-program-record-stats" : "profile-category-stats"}><strong>{count}</strong><span> · {percentage ?? 0}%</span></span>
       </div>
       <div className="profile-category-progress">
         <div className="profile-category-progress-bar" style={{ width: `${pct}%` }} />
@@ -105,17 +105,21 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-    } catch {}
+    } catch (error) {
+      console.error("PDF export failed:", error);
+    }
   }
   const bySchool = distribution?.by_school ?? [];
   const byCourse = distribution?.by_course ?? [];
   const byYearLevel = distribution?.by_year_level ?? [];
   const byPurok = distribution?.by_purok ?? [];
+  const byPhase = distribution?.by_phase ?? [];
   const visibleSchools = bySchool.slice(0, 2);
   const visibleCourses = byCourse.slice(0, 2);
-  const visiblePurok = byPurok.slice(0, 3);
-  const phaseRecords = byPurok.filter((r) => r.purok_type === "phase");
-  const purokRecords = byPurok.filter((r) => r.purok_type === "purok" || r.purok_type === "unspecified");
+  const visiblePurok = byPurok.slice(0, 2);
+  const visiblePhase = byPhase.slice(0, 2);
+  const phaseRecords = byPhase;
+  const purokRecords = byPurok;
   const yearLevelOrder = ["1st Year", "3rd Year", "2nd Year", "4th Year"];
   const visibleYearLevels = yearLevelOrder.map((yearLevel) => {
     const found = byYearLevel.find((r) => r.year_level === yearLevel);
@@ -147,8 +151,7 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
   ];
   if (ageCounts.unknown > 0) ageCards.push({ key: "unknown", value: ageCounts.unknown, label: `Unknown (${ageRates.unknown_rate ?? 0}%)` });
   function formatPurokLabel(row) {
-    if (row.purok_type === "unspecified") return "Unspecified";
-    return `${row.purok_type.charAt(0).toUpperCase() + row.purok_type.slice(1)} ${row.purok}`;
+    return row.purok || "Unspecified";
   }
   function openSchoolProgramModal() {
     setSchoolProgramPage(1);
@@ -229,14 +232,22 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
                 </div>
               </div>
               <div className="report-history-modal-body">
-                <div className="row g-4">
+                <div className="row g-4 school-program-records-grid">
                   <div className="col-12 col-md-6">
-                    <h6 className="applicant-profile-label mb-3">Schools &amp; Universities</h6>
-                    {modalSchools.length === 0 ? <div className="applicant-profile-empty">No school data available.</div> : modalSchools.map((r) => <CategoryBar key={r.school_name} label={r.school_name} count={r.total} percentage={r.percentage} max={maxSchoolCount} />)}
+                    <div className="school-program-record-table">
+                      <div className="school-program-record-header">Schools &amp; Universities</div>
+                      <div className="school-program-record-body">
+                        {modalSchools.length === 0 ? <div className="applicant-profile-empty school-program-record-empty">No school data available.</div> : modalSchools.map((r) => <CategoryBar key={r.school_name} label={r.school_name} count={r.total} percentage={r.percentage} max={maxSchoolCount} modalRow />)}
+                      </div>
+                    </div>
                   </div>
                   <div className="col-12 col-md-6">
-                    <h6 className="applicant-profile-label mb-3">Degree Programs &amp; Majors</h6>
-                    {modalCourses.length === 0 ? <div className="applicant-profile-empty">No program data available.</div> : modalCourses.map((r) => <CategoryBar key={r.course} label={r.course} count={r.total} percentage={r.percentage} max={maxCourseCount} />)}
+                    <div className="school-program-record-table">
+                      <div className="school-program-record-header">Degree Programs &amp; Majors</div>
+                      <div className="school-program-record-body">
+                        {modalCourses.length === 0 ? <div className="applicant-profile-empty school-program-record-empty">No program data available.</div> : modalCourses.map((r) => <CategoryBar key={r.course} label={r.course} count={r.total} percentage={r.percentage} max={maxCourseCount} modalRow />)}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -322,7 +333,7 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
                   <div className="applicant-profile-section">
                     <h6 className="applicant-profile-label">Year Level</h6>
                     <div className="applicant-profile-year-grid">
-                      {visibleYearLevels.map((r) => <CategoryBar key={r.year_level} label={r.year_level} count={r.total} percentage={r.percentage} max={maxYearLevelCount} />)}
+                      {visibleYearLevels.map((r) => <CategoryBar key={r.year_level} label={r.year_level} count={r.total} percentage={r.percentage} max={maxYearLevelCount} modalRow />)}
                     </div>
                   </div>
                   <div className="applicant-profile-section">
@@ -366,20 +377,23 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
           </div>
           <div className="applicant-profile-card-body">
             <div className="applicant-profile-section">
-              <h6 className="applicant-profile-label">Purok / Phase</h6>
-              {visiblePurok.length === 0 ? <div className="applicant-profile-empty">No applicant data available for the selected period.</div> : visiblePurok.map((r) => <CategoryBar key={`${r.purok_type}-${r.purok}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxPurokCount} />)}
+              <h6 className="applicant-profile-label">Phase</h6>
+              {visiblePhase.length === 0 ? <div className="applicant-profile-empty">No phase data available.</div> : visiblePhase.map((r) => <CategoryBar key={`phase-${r.purok}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxPhaseCount} />)}
+            </div>
+            <div className="applicant-profile-section">
+              <h6 className="applicant-profile-label">Purok</h6>
+              {visiblePurok.length === 0 ? <div className="applicant-profile-empty">No purok data available.</div> : visiblePurok.map((r) => <CategoryBar key={`purok-${r.purok}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxPurokCount} />)}
             </div>
             <div className="purok-residency-note">
-              <div className="purok-residency-note-top">
-                <span className="purok-residency-check"><CheckIcon /></span>
+              <span className="purok-residency-check"><CheckIcon /></span>
+              <div className="purok-residency-content">
                 <strong>Brgy. Mamatid</strong>
-                <span className="purok-residency-badge">Verified Residency</span>
+                <p>Barangay Mamatid is the only eligible residency location.</p>
               </div>
-              <p>Barangay Mamatid is the only eligible residency location.</p>
             </div>
           </div>
           <div className="applicant-profile-card-footer purok-phase-footer">
-            <span className="applicant-profile-footer-info">Showing {visiblePurok.length} of {byPurok.length} purok / phase records</span>
+            <span className="applicant-profile-footer-info">Showing {visiblePhase.length} of {byPhase.length} phase · {visiblePurok.length} of {byPurok.length} purok records</span>
             <ViewAllButton onClick={openPurokPhaseModal} />
           </div>
         </div>
@@ -400,14 +414,22 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
                 </div>
               </div>
               <div className="report-history-modal-body">
-                <div className="row g-4">
+                <div className="row g-4 school-program-records-grid">
                   <div className="col-12 col-md-6">
-                    <h6 className="applicant-profile-label mb-3">Phase</h6>
-                    {modalPhases.length === 0 ? <div className="applicant-profile-empty">No phase data available.</div> : modalPhases.map((r) => <CategoryBar key={`phase-${r.purok}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxPhaseCount} />)}
+                    <div className="school-program-record-table">
+                      <div className="school-program-record-header">Phase</div>
+                      <div className="school-program-record-body">
+                        {modalPhases.length === 0 ? <div className="applicant-profile-empty school-program-record-empty">No phase data available.</div> : modalPhases.map((r) => <CategoryBar key={`phase-${r.purok}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxPhaseCount} modalRow />)}
+                      </div>
+                    </div>
                   </div>
                   <div className="col-12 col-md-6">
-                    <h6 className="applicant-profile-label mb-3">Purok</h6>
-                    {modalPuroks.length === 0 ? <div className="applicant-profile-empty">No purok data available.</div> : modalPuroks.map((r) => <CategoryBar key={`${r.purok_type}-${r.purok}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxModalPurokCount} />)}
+                    <div className="school-program-record-table">
+                      <div className="school-program-record-header">Purok</div>
+                      <div className="school-program-record-body">
+                        {modalPuroks.length === 0 ? <div className="applicant-profile-empty school-program-record-empty">No purok data available.</div> : modalPuroks.map((r) => <CategoryBar key={`purok-${r.purok}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxModalPurokCount} modalRow />)}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

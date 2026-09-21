@@ -1,7 +1,5 @@
 <?php
-
 namespace App\Http\Controllers\Api;
-
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
@@ -13,11 +11,9 @@ use App\Traits\LateClaimingEligibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Barryvdh\DomPDF\Facade\Pdf;
-
 class AdminReportController extends Controller
 {
     use LateClaimingEligibility;
-
     // "Approved" means currently eligible to claim, or already claimed —
     // approved (pre-claiming-day) + claimed (successfully received) +
     // unclaimed (slot still reserved for them per business rule).
@@ -30,12 +26,10 @@ class AdminReportController extends Controller
     {
         return ['approved', 'claimed', 'unclaimed'];
     }
-
     private function pendingStatuses(): array
     {
         return ['pending_prescreening', 'for_review', 'reupload_requested'];
     }
-
     private function resolveConfig(Request $request): ?ApplicationConfiguration
     {
         if ($request->filled('config_id')) {
@@ -43,7 +37,6 @@ class AdminReportController extends Controller
         }
         return ApplicationConfiguration::where('is_active', true)->first();
     }
-
     // Fallback only for rows/configs that predate the assistance_amount
     // column (should be rare — the migration backfills existing configs
     // to 2000, but this guards against a null slipping through anywhere).
@@ -51,7 +44,6 @@ class AdminReportController extends Controller
     {
         return $config->assistance_amount ?? 2000;
     }
-
     public function listPeriods()
     {
         return response()->json(
@@ -59,7 +51,6 @@ class AdminReportController extends Controller
                 ->get(['id', 'school_year', 'is_active'])
         );
     }
-
     public function filterOptions()
     {
         $verifiers = User::where('role', 'sk_verifier')
@@ -67,14 +58,12 @@ class AdminReportController extends Controller
             ->get()
             ->map(fn($v) => trim($v->first_name . ' ' . $v->last_name))
             ->values();
-
         return response()->json([
             'schools'   => Application::whereNotNull('school_name')->distinct()->orderBy('school_name')->pluck('school_name'),
             'courses'   => Application::whereNotNull('course')->distinct()->orderBy('course')->pluck('course'),
             'verifiers' => $verifiers,
         ]);
     }
-
     public function summary(Request $request)
     {
         $config = $this->resolveConfig($request);
@@ -101,7 +90,6 @@ class AdminReportController extends Controller
             ],
         ]);
     }
-
     private function applyFilters($query, Request $request)
     {
         $type = $request->query('type');
@@ -142,7 +130,6 @@ class AdminReportController extends Controller
             $query->where('year_level', $request->query('year_level'));
         }
     }
-
     private function filterByApplicantType($applications, Request $request)
     {
         if (!$request->filled('applicant_type')) {
@@ -153,7 +140,6 @@ class AdminReportController extends Controller
             fn($app) => ($app->user?->profile?->is_minor ?? false) === $wantMinor
         )->values();
     }
-
     /**
      * Resolves who's responsible for an application's current outcome, for
      * the "Reviewed By" column. Three cases:
@@ -172,20 +158,16 @@ class AdminReportController extends Controller
     private function resolveReviewedBy(Application $app): ?string
     {
         $approvedStatuses = ['approved', 'claimed', 'not_cleared', 'unclaimed'];
-
         $approvalAction = $app->verifierActions->firstWhere('action', 'approved');
         if ($approvalAction) {
             return trim($approvalAction->verifier->first_name . ' ' . $approvalAction->verifier->last_name);
         }
-
         if (in_array($app->status, $approvedStatuses)) {
             return 'System (Auto-Approved)';
         }
-
         $latest = $app->latestVerifierAction;
         return $latest?->verifier ? trim($latest->verifier->first_name . ' ' . $latest->verifier->last_name) : null;
     }
-
     public function applications(Request $request)
     {
         $query = Application::with('user.profile', 'verifierActions.verifier')
@@ -207,7 +189,6 @@ class AdminReportController extends Controller
                 'reviewed_by'    => $this->resolveReviewedBy($app),
             ];
         });
-
         // Reviewed By is computed, not a DB column — filter in-memory here.
         if ($request->filled('reviewed_by')) {
             $search = mb_strtolower($request->query('reviewed_by'));
@@ -215,10 +196,8 @@ class AdminReportController extends Controller
                 fn($row) => $row['reviewed_by'] && str_contains(mb_strtolower($row['reviewed_by']), $search)
             );
         }
-
         return response()->json($mapped->values());
     }
-
     public function export(Request $request)
     {
         $query = Application::with('user.profile', 'verifierActions.verifier')
@@ -227,7 +206,6 @@ class AdminReportController extends Controller
             ->orderBy('submitted_at');
         $this->applyFilters($query, $request);
         $applications = $this->filterByApplicantType($query->get(), $request);
-
         // Reviewed By is computed, not a DB column — filter in-memory here.
         if ($request->filled('reviewed_by')) {
             $search = mb_strtolower($request->query('reviewed_by'));
@@ -235,7 +213,6 @@ class AdminReportController extends Controller
                 fn($app) => ($reviewedBy = $this->resolveReviewedBy($app)) && str_contains(mb_strtolower($reviewedBy), $search)
             )->values();
         }
-
         // Mirrors the "Search name or control number" box on the Record
         // Preview table above the Export button — without this, exporting
         // while that search is narrowed to one applicant would silently
@@ -248,7 +225,6 @@ class AdminReportController extends Controller
                 return str_contains($name, $search) || str_contains(mb_strtolower((string) $app->control_number), $search);
             })->values();
         }
-
         $filename = 'applicant-records-' . now()->format('Y-m-d') . '.csv';
         $headers = [
             'Content-Type'        => 'text/csv',
@@ -282,7 +258,6 @@ class AdminReportController extends Controller
         };
         return response()->stream($callback, 200, $headers);
     }
-
     public function lateClaimingList(Request $request)
     {
         $config = $this->resolveConfig($request);
@@ -308,7 +283,6 @@ class AdminReportController extends Controller
             'promoted_count' => $list['promoted']->count(),
         ]);
     }
-
     private function buildApprovedApplicantsList(ApplicationConfiguration $config)
     {
         return Application::with('user')
@@ -328,36 +302,29 @@ class AdminReportController extends Controller
                 ];
             });
     }
-
     public function approvedApplicantsPdf(Request $request)
     {
         $config = $this->resolveConfig($request);
         if (!$config) {
             return response()->json(['message' => 'No active application period.'], 404);
         }
-
         $applicants = $this->buildApprovedApplicantsList($config);
         $perPage = (int) $request->query('per_page', 100);
-
         $pdf = Pdf::loadView('official-lists.approved-applicants', [
             'schoolYear' => $config->school_year,
             'applicants' => $applicants,
             'perPage'    => $perPage,
         ]);
-
         return $pdf->download('educational-assistance-' . $config->school_year . '-approved-list.pdf');
     }
-
     public function approvedApplicantsHtml(Request $request)
     {
         $config = $this->resolveConfig($request);
         if (!$config) {
             return response()->json(['message' => 'No active application period.'], 404);
         }
-
         $applicants = $this->buildApprovedApplicantsList($config);
         $perPage = (int) $request->query('per_page', 100);
-
         return view('official-lists.approved-applicants-content', [
             'schoolYear' => $config->school_year,
             'applicants' => $applicants,
@@ -365,7 +332,6 @@ class AdminReportController extends Controller
             'perPage'    => $perPage,
         ])->render();
     }
-
     private function buildLateClaimingList(ApplicationConfiguration $config)
     {
         $today = now()->toDateString();
@@ -373,13 +339,11 @@ class AdminReportController extends Controller
             ->whereHas('application', fn($q) => $q->where('config_id', $config->id))
             ->where(fn($q) => $this->applyLateClaimingEligibleCondition($q, $today))
             ->get();
-
         return [
             'retrying' => $assignments->filter(fn($a) => $this->lateClaimingType($a->source) === 'retrying')->values(),
             'promoted' => $assignments->filter(fn($a) => $this->lateClaimingType($a->source) === 'promoted')->values(),
         ];
     }
-
     public function lateClaimingListPdf(Request $request)
     {
         $config = $this->resolveConfig($request);
@@ -395,7 +359,6 @@ class AdminReportController extends Controller
         ]);
         return $pdf->stream('late-claiming-list-' . now()->format('Y-m-d') . '.pdf');
     }
-
     /**
      * DISBURSEMENT REPORT — the final list of who actually received the
      * money (claim_status = 'claimed'), alongside who disbursed it and
@@ -422,7 +385,6 @@ class AdminReportController extends Controller
             ->where('claim_status', 'claimed')
             ->orderBy('verified_at')
             ->get();
-
         $entries = $assignments->map(function ($a) {
             $amount = $a->amount ?? $this->assistanceAmountFor($a->application->configuration);
             $face = $a->latestFaceVerification;
@@ -448,7 +410,6 @@ class AdminReportController extends Controller
                 ] : null,
             ];
         });
-
         return response()->json([
             'config'          => $config,
             'entries'         => $entries,
@@ -456,16 +417,13 @@ class AdminReportController extends Controller
             'total_amount'    => $entries->sum('amount'),
         ]);
     }
-
     public function disbursementReportPdf(Request $request)
     {
         $config = $this->resolveConfig($request);
         if (!$config) {
             return response()->json(['message' => 'No active application period.'], 404);
         }
-
         $data = $this->disbursementReport($request)->getData(true);
-
         $pdf = Pdf::loadView('reports.disbursement-report', [
             'title'          => 'Disbursement Report',
             'config'         => (object) $data['config'],
@@ -473,25 +431,19 @@ class AdminReportController extends Controller
             'totalDisbursed' => $data['total_disbursed'],
             'totalAmount'    => $data['total_amount'],
         ]);
-
         return $pdf->download('disbursement-report-' . ($config->school_year ?? now()->format('Y-m-d')) . '.pdf');
     }
-
     public function unmetDemand(Request $request)
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
-
         $trend = $configs->map(function ($config) {
             $approved = Application::where('config_id', $config->id)
                 ->whereIn('status', $this->slotHoldingStatuses())
                 ->count();
-
             $waitlisted = Application::where('config_id', $config->id)
                 ->where('status', 'waitlisted')
                 ->count();
-
             $ratio = $approved > 0 ? round(($waitlisted / $approved) * 100, 1) : null;
-
             return [
                 'config_id'   => $config->id,
                 'school_year' => $config->school_year,
@@ -501,10 +453,8 @@ class AdminReportController extends Controller
                 'ratio'       => $ratio,
             ];
         });
-
         return response()->json(['trend' => $trend->values()]);
     }
-
     // ── OTHER REPORTS (JSON) ─────────────────────────────────────────
     public function claimingOutcomeSummary(Request $request)
     {
@@ -542,7 +492,6 @@ class AdminReportController extends Controller
             'not_cleared_reasons' => $notClearedReasons,
         ]);
     }
-
     public function documentFailureBreakdown(Request $request)
     {
         $config = $this->resolveConfig($request);
@@ -581,7 +530,6 @@ class AdminReportController extends Controller
             'automated_check_failures_by_document'   => $automatedFailuresByDocType,
         ]);
     }
-
         public function applicantDistribution(Request $request)
     {
         $config = $this->resolveConfig($request);
@@ -610,21 +558,29 @@ class AdminReportController extends Controller
             $query->clone()->selectRaw('year_level, COUNT(*) as total')
                 ->groupBy('year_level')->orderBy('year_level')->get()
         );
-        // Purok/Phase lives on student_profiles, not applications, so this
-        // one needs a join. Applicants who haven't set purok_type/purok yet
-        // are grouped under "Unspecified" rather than dropped, so the
-        // report total still reconciles with total_applications.
-        $purokQuery = $query->clone()
+        // Purok/Phase lives on student_profiles, not applications.
+        // Keep Purok and Phase as separate report distributions using
+        // the existing purok_type field; no profile or database changes needed.
+        $purokPhaseQuery = $query->clone()
             ->join('student_profiles', 'applications.user_id', '=', 'student_profiles.user_id')
             ->selectRaw("
-                COALESCE(student_profiles.purok_type, 'unspecified') as purok_type,
+                student_profiles.purok_type,
                 COALESCE(student_profiles.purok, 'Unspecified') as purok,
                 COUNT(*) as total
             ")
-            ->groupBy('purok_type', 'purok')
-            ->orderBy('purok_type')
-            ->orderBy('purok');
-        $byPurok = $addPercentage($purokQuery->get());
+            ->whereIn('student_profiles.purok_type', ['purok', 'phase'])
+            ->groupBy('student_profiles.purok_type', 'student_profiles.purok')
+            ->orderBy('student_profiles.purok');
+        $byPurok = $addPercentage(
+            (clone $purokPhaseQuery)
+                ->where('student_profiles.purok_type', 'purok')
+                ->get()
+        );
+        $byPhase = $addPercentage(
+            (clone $purokPhaseQuery)
+                ->where('student_profiles.purok_type', 'phase')
+                ->get()
+        );
         return response()->json([
             'config'        => $config,
             'total_applications' => $totalApplications,
@@ -632,9 +588,9 @@ class AdminReportController extends Controller
             'by_course'     => $byCourse,
             'by_year_level' => $byYearLevel,
             'by_purok'      => $byPurok,
+            'by_phase'      => $byPhase,
         ]);
     }
-
     public function submissionTrends(Request $request)
     {
         $config = $this->resolveConfig($request);
@@ -658,7 +614,6 @@ class AdminReportController extends Controller
             'weekly' => $trend,
         ]);
     }
-
     public function ageDistribution(Request $request)
     {
         $config = $this->resolveConfig($request);
@@ -696,7 +651,6 @@ class AdminReportController extends Controller
             ],
         ]);
     }
-
     public function submissionVsApprovalTrend(Request $request)
     {
         $configs = ApplicationConfiguration::orderBy('open_date')->get();
@@ -728,7 +682,6 @@ class AdminReportController extends Controller
             'trend' => $trend->values(),
         ]);
     }
-
     // ── PDF EXPORTS ──────────────────────────────────────────────────
     public function claimingOutcomesPdf(Request $request)
     {
@@ -742,7 +695,6 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('claiming-outcome-summary-' . now()->format('Y-m-d') . '.pdf');
     }
-
     public function documentFailuresPdf(Request $request)
     {
         $data = $this->documentFailureBreakdown($request)->getData(true);
@@ -756,7 +708,6 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('document-failure-breakdown-' . now()->format('Y-m-d') . '.pdf');
     }
-
         public function applicantDistributionPdf(Request $request)
     {
         $data = $this->applicantDistribution($request)->getData(true);
@@ -770,7 +721,6 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('applicant-distribution-' . now()->format('Y-m-d') . '.pdf');
     }
-    
     public function schoolProgramPdf(Request $request)
     {
         $data = $this->applicantDistribution($request)->getData(true);
@@ -782,7 +732,6 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('applicant-school-program-' . now()->format('Y-m-d') . '.pdf');
     }
-
     public function yearLevelAgePdf(Request $request)
     {
         $distData = $this->applicantDistribution($request)->getData(true);
@@ -796,7 +745,17 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('applicant-year-level-age-' . now()->format('Y-m-d') . '.pdf');
     }
-
+    public function purokPhasePdf(Request $request)
+    {
+        $data = $this->applicantDistribution($request)->getData(true);
+        $pdf = Pdf::loadView('reports.purok-phase', [
+            'title'   => 'Applicant Profile — Purok / Phase',
+            'config'  => $data['config'] ? (object) $data['config'] : null,
+            'byPurok' => collect($data['by_purok'])->map(fn($r) => (object) $r),
+            'byPhase' => collect($data['by_phase'])->map(fn($r) => (object) $r),
+        ]);
+        return $pdf->download('applicant-purok-phase-' . now()->format('Y-m-d') . '.pdf');
+    }
     public function submissionTrendsPdf(Request $request)
     {
         $data = $this->submissionTrends($request)->getData(true);
@@ -807,7 +766,6 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('submission-trends-' . now()->format('Y-m-d') . '.pdf');
     }
-
     public function ageDistributionPdf(Request $request)
     {
         $data = $this->ageDistribution($request)->getData(true);
@@ -819,7 +777,6 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('age-distribution-' . now()->format('Y-m-d') . '.pdf');
     }
-
     public function submissionVsApprovalPdf(Request $request)
     {
         $data = $this->submissionVsApprovalTrend($request)->getData(true);
@@ -830,7 +787,6 @@ class AdminReportController extends Controller
         ]);
         return $pdf->download('submission-vs-approval-trend-' . now()->format('Y-m-d') . '.pdf');
     }
-    
     /**
      * BUDGET FORECAST — isolates the approval-rate side only. Uses a
      * plain average for projected volume (same as Budget Estimation),
@@ -902,7 +858,6 @@ class AdminReportController extends Controller
             'periods_used' => $completed->count(),
         ]);
     }
-
     /**
      * BUDGET ESTIMATION — plain historical average, no statistical claim.
      *
@@ -961,7 +916,6 @@ class AdminReportController extends Controller
             ],
         ]);
     }
-
     /**
      * BUDGET ALLOCATION PLANNING — a decision-support calculator, not a
      * forecast. Uses the most recent COMPLETED period's own amount, since
@@ -985,7 +939,6 @@ class AdminReportController extends Controller
             'total_budget_used'  => $mostRecent->is_unlimited ? null : $mostRecent->slot_limit * $assistanceAmount,
         ]);
     }
-
     /**
      * OCR QUEUE HEALTH
      */
@@ -1011,7 +964,6 @@ class AdminReportController extends Controller
             'recent_failures' => $recentFailures,
         ]);
     }
-
     /**
      * SYSTEM STATUS — view-only health snapshot for IT Support/superadmin.
      * Generalizes ocrQueueHealth() to all queues, plus DB connectivity
@@ -1034,18 +986,15 @@ class AdminReportController extends Controller
                     'exception_summary' => mb_strimwidth($firstLine, 0, 200, '...'),
                 ];
             });
-
         $dbConnected = true;
         try {
             DB::connection()->getPdo();
         } catch (\Throwable $e) {
             $dbConnected = false;
         }
-
         $storagePath = storage_path();
         $totalBytes = @disk_total_space($storagePath) ?: 0;
         $freeBytes = @disk_free_space($storagePath) ?: 0;
-
         return response()->json([
             'failed_jobs' => [
                 'failed_count'    => $failedCount,
@@ -1062,7 +1011,6 @@ class AdminReportController extends Controller
             ],
         ]);
     }
-
     /**
      * List recent backups produced by scripts/backup.sh, newest first.
      * Reads the backup directory directly (no DB table involved) — each
@@ -1073,7 +1021,6 @@ class AdminReportController extends Controller
     public function backupStatus()
     {
         $backupPath = config('backup.path');
-
         if (!$backupPath || !is_dir($backupPath)) {
             return response()->json([
                 'configured' => false,
@@ -1081,7 +1028,6 @@ class AdminReportController extends Controller
                 'backups'    => [],
             ]);
         }
-
         $folders = collect(scandir($backupPath))
             ->reject(fn ($name) => in_array($name, ['.', '..']))
             ->filter(fn ($name) => is_dir($backupPath . DIRECTORY_SEPARATOR . $name))
@@ -1094,7 +1040,6 @@ class AdminReportController extends Controller
                 $filesFile = $dir . DIRECTORY_SEPARATOR . 'storage-private.tar.gz';
                 $dbOk = is_file($dbFile);
                 $filesOk = is_file($filesFile);
-
                 return [
                     'name'       => $name,
                     'complete'   => $dbOk && $filesOk,
@@ -1102,14 +1047,12 @@ class AdminReportController extends Controller
                     'size_bytes' => ($dbOk ? filesize($dbFile) : 0) + ($filesOk ? filesize($filesFile) : 0),
                 ];
             });
-
         return response()->json([
             'configured' => true,
             'path'       => $backupPath,
             'backups'    => $folders,
         ]);
     }
-
     /**
      * Trigger scripts/backup.sh immediately (manual "Run Backup Now").
      * Runs synchronously — a full backup of this app's data size is
@@ -1121,30 +1064,24 @@ class AdminReportController extends Controller
     public function runBackup(Request $request)
     {
         $scriptPath = config('backup.script_path');
-
         if (!$scriptPath || !is_file($scriptPath)) {
             return response()->json(['message' => 'Backup script not found on this server.'], 500);
         }
-
         $process = new \Symfony\Component\Process\Process([$scriptPath]);
         $process->setTimeout(300);
         $process->run();
-
         if (!$process->isSuccessful()) {
             \App\Models\AuditLog::record(
                 'backup_run_failed',
                 null,
                 'Manual backup failed: ' . mb_strimwidth(trim($process->getErrorOutput()), 0, 500, '...')
             );
-
             return response()->json([
                 'message' => 'Backup failed. Check server logs for details.',
                 'error'   => trim($process->getErrorOutput()),
             ], 500);
         }
-
         \App\Models\AuditLog::record('backup_run', null, 'Manual backup triggered from System Maintenance page');
-
         return response()->json(['message' => 'Backup completed.']);
     }
 }

@@ -3,21 +3,17 @@ import AdminNavigation from "../components/AdminNavigation";
 import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
-
 const categories = [
   "Educational Assistance",
   "Reminder",
   "Schedule Update",
   "SK Activity",
 ];
-
 const emptyForm = { title: "", category: "", content: "" };
-
 function formatDate(dateStr) {
   if (!dateStr) return "";
   return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
-
 function EditAnnouncementModal({ announcement, onClose, onSave, saving }) {
   const [form, setForm] = useState({
     title: announcement.title,
@@ -25,12 +21,10 @@ function EditAnnouncementModal({ announcement, onClose, onSave, saving }) {
     content: announcement.content,
   });
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
   function handleSubmit(e) {
     e.preventDefault();
     onSave(announcement.id, form);
   }
-
   return (
     <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
       <div className="modal-dialog modal-lg modal-dialog-centered">
@@ -82,7 +76,6 @@ function EditAnnouncementModal({ announcement, onClose, onSave, saving }) {
     </div>
   );
 }
-
 function AdminAnnouncements() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [announcements, setAnnouncements] = useState([]);
@@ -100,9 +93,7 @@ function AdminAnnouncements() {
   const categoryMenuRef = useRef(null);
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
-
   useEffect(() => { loadAnnouncements(); }, []);
-
   useEffect(() => {
     function handleClickOutside(e) {
       if (categoryMenuRef.current && !categoryMenuRef.current.contains(e.target)) {
@@ -112,7 +103,6 @@ function AdminAnnouncements() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
   useEffect(() => {
     if (!error && !success) return;
     setCountdown(3);
@@ -128,7 +118,6 @@ function AdminAnnouncements() {
       clearTimeout(dismiss);
     };
   }, [error, success]);
-
   function loadAnnouncements() {
     setLoading(true);
     api.get("/admin/announcements")
@@ -141,15 +130,12 @@ function AdminAnnouncements() {
       .catch(() => setError("Failed to load announcements."))
       .finally(() => setLoading(false));
   }
-
   const filteredAnnouncements = categoryFilter
     ? announcements.filter((a) => a.category === categoryFilter)
     : announcements;
-
   const totalPages = Math.max(1, Math.ceil(filteredAnnouncements.length / perPage));
   const pageStart = (currentPage - 1) * perPage;
   const pagedAnnouncements = filteredAnnouncements.slice(pageStart, pageStart + perPage);
-
   async function deleteAllAnnouncements() {
     setShowDeleteAllConfirm(false);
     if (announcements.length === 0) return;
@@ -164,31 +150,21 @@ function AdminAnnouncements() {
       setError(err.response?.data?.message || "Failed to delete all announcements.");
     }
   }
-
   function goToPage(page) {
     if (page < 1 || page > totalPages) return;
     setCurrentPage(page);
   }
-
   function getPageNumbers() {
-    const pages = [];
-    const maxVisible = 5;
-    if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-      return pages;
+    if (totalPages <= 3) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
     }
-    pages.push(1);
-    if (currentPage > 3) pages.push("...");
-    const start = Math.max(2, currentPage - 1);
-    const end = Math.min(totalPages - 1, currentPage + 1);
-    for (let i = start; i <= end; i++) pages.push(i);
-    if (currentPage < totalPages - 2) pages.push("...");
-    pages.push(totalPages);
-    return pages;
+    let startPage;
+    if (currentPage <= 2) startPage = 1;
+    else if (currentPage >= totalPages - 1) startPage = totalPages - 2;
+    else startPage = currentPage - 1;
+    return [startPage, startPage + 1, startPage + 2];
   }
-
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
@@ -207,7 +183,6 @@ function AdminAnnouncements() {
       setSaving(false);
     }
   }
-
   async function deleteAnnouncement(id) {
     setDeleteTarget(null);
     setError("");
@@ -219,7 +194,6 @@ function AdminAnnouncements() {
       setError(err.response?.data?.message || "Failed to delete announcement.");
     }
   }
-
   async function saveEdit(id, data) {
     setError("");
     setSuccess("");
@@ -236,7 +210,6 @@ function AdminAnnouncements() {
       setSaving(false);
     }
   }
-
   return (
     <div className="admin-layout">
       <AdminNavigation
@@ -247,17 +220,14 @@ function AdminAnnouncements() {
         <div className="admin-topbar">
           <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
-
         <section className="page-section">
           <div className="container-fluid">
-
             <div className="page-card page-card-accent-gold">
               <h3 className="section-title mb-2">Announcements Management</h3>
               <p className="text-muted mb-0">
                 Create, update, and manage announcements related to the educational assistance program and other SK activities.
               </p>
             </div>
-
             <div className="page-card">
               <h4 className="sub-title sub-title-dark">Create Announcement</h4>
               <div className="visibility-notice">
@@ -269,7 +239,6 @@ function AdminAnnouncements() {
                   </p>
                 </div>
               </div>
-
               <form onSubmit={handleSubmit}>
                 <div className="row g-3">
                   <div className="col-md-8">
@@ -296,7 +265,6 @@ function AdminAnnouncements() {
                 </div>
               </form>
             </div>
-
             <div className="page-card">
               <div className="table-header-row">
                 <h4 className="sub-title sub-title-dark mb-0">Announcement Management</h4>
@@ -341,8 +309,7 @@ function AdminAnnouncements() {
                   </button>
                 </div>
               </div>
-
-              <div className="table-responsive">
+              <div className="table-responsive announcement-table-wrap">
                 <table className="table table-bordered table-striped align-middle announcement-table">
                   <colgroup>
                     <col style={{ width: "20%" }} />
@@ -401,7 +368,6 @@ function AdminAnnouncements() {
                   </tbody>
                 </table>
               </div>
-
               {!loading && filteredAnnouncements.length > 0 && (
                 <div className="table-pagination-bar">
                   <span className="table-pagination-info">
@@ -441,12 +407,10 @@ function AdminAnnouncements() {
                 </div>
               )}
             </div>
-
           </div>
         </section>
         <PanelFooter />
       </div>
-
       {editTarget && (
         <EditAnnouncementModal
           announcement={editTarget}
@@ -455,7 +419,6 @@ function AdminAnnouncements() {
           saving={saving}
         />
       )}
-
       {deleteTarget && (
         <div className="feedback-popup-backdrop">
           <div className="feedback-popup feedback-popup-error">
@@ -481,7 +444,6 @@ function AdminAnnouncements() {
           </div>
         </div>
       )}
-
       {showDeleteAllConfirm && (
         <div className="feedback-popup-backdrop">
           <div className="feedback-popup feedback-popup-error">
@@ -511,7 +473,6 @@ function AdminAnnouncements() {
           </div>
         </div>
       )}
-
       {(error || success) && (
         <div className="feedback-popup-backdrop">
           <div className={`feedback-popup ${error ? "feedback-popup-error" : "feedback-popup-success"}`}>
@@ -535,5 +496,4 @@ function AdminAnnouncements() {
     </div>
   );
 }
-
 export default AdminAnnouncements;
