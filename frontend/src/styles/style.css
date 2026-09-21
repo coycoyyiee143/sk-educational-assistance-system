@@ -12778,7 +12778,13 @@ body {
   border: 1px solid #f0dfa0;
   border-radius: 10px;
   padding: 12px 16px;
-  margin: 0 0 16px;
+  /* .verifier-review-info-card has no padding of its own — each section
+     (header, profile area) carries its own 24px horizontal padding
+     instead. This notice sits between those sections but was only using
+     its own 16px box padding with no side margin, so it looked
+     narrower/misaligned against the 24px the header and profile area
+     line up to on either side. */
+  margin: 16px 24px 0;
 }
 
 .verifier-claiming-lane-warning-icon {
