@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminNavigation from "../components/AdminNavigation";
 import AdminTopbarUser from "../components/AdminTopbarUser";
@@ -91,6 +91,15 @@ function AdminSettings() {
   const [closing, setClosing] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  // Save actions can be far down the page (e.g. Extend, Close Period),
+  // but the resulting message renders at the top — easy to trigger and
+  // never actually see. Scroll it into view whenever it appears.
+  const messageRef = useRef(null);
+  useEffect(() => {
+    if ((error || success) && messageRef.current) {
+      messageRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [error, success]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showStartNewModal, setShowStartNewModal] = useState(false);
 
@@ -540,8 +549,10 @@ function AdminSettings() {
                 </div>
               )}
 
-              {success && <div className="alert alert-success">{success}</div>}
-              {error && <div className="alert alert-danger">{error}</div>}
+              <div ref={messageRef}>
+                {success && <div className="alert alert-success">{success}</div>}
+                {error && <div className="alert alert-danger">{error}</div>}
+              </div>
 
               {loading ? (
                 <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
