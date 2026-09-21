@@ -108,16 +108,26 @@ class AuthController extends Controller
             'last_name'     => 'required|string|max:255',
             'birthdate'     => 'required|date|before:today',
             'email'         => 'required|email',
-            'mobile_number' => 'nullable|string|unique:users,mobile_number',
+            'mobile_number' => 'required|string',
             'password'      => self::passwordRules(),
         ]);
 
+        // Both checked and collected together, rather than embedding
+        // mobile_number's check as a `unique:` validation rule (which
+        // throws immediately, before this method ever reaches the
+        // email check below) — that previously meant an applicant with
+        // BOTH a taken email and a taken mobile number only ever saw
+        // one of the two, fixed it, resubmitted, and only then
+        // discovered the other.
+        $errors = [];
         if (User::where('email', $request->email)->exists()) {
-            return response()->json([
-                'errors' => [
-                    'email' => ['This email is already taken.'],
-                ],
-            ], 422);
+            $errors['email'] = ['This email is already taken.'];
+        }
+        if (User::where('mobile_number', $request->mobile_number)->exists()) {
+            $errors['mobile_number'] = ['This mobile number is already taken.'];
+        }
+        if (!empty($errors)) {
+            return response()->json(['errors' => $errors], 422);
         }
 
         $duplicates = $this->findDuplicateApplicant(
@@ -183,7 +193,7 @@ class AuthController extends Controller
             'middle_name'   => 'nullable|string|max:255',
             'last_name'     => 'required|string|max:255',
             'email'         => 'required|email|unique:users,email',
-            'mobile_number' => 'nullable|string|unique:users,mobile_number',
+            'mobile_number' => 'required|string|unique:users,mobile_number',
             'password'      => self::passwordRules(),
             'birthdate'     => 'required|date|before:today',
             'barangay'      => 'required|string|max:255',

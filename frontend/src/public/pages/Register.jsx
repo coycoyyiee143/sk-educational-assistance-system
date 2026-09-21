@@ -42,8 +42,22 @@ const Register = () => {
   // duplicate check, network failures) still show as a top banner.
   const [generalError, setGeneralError] = useState("");
   // Per-field errors from Laravel's {errors: {field: [messages]}}
-  // shape, rendered directly under the matching input.
+  // shape, rendered directly under the matching input. Still used for
+  // pure client-side pre-checks (password length/match) that never hit
+  // the server at all.
   const [fieldErrors, setFieldErrors] = useState({});
+  // Server-side duplicate/validation errors from /register/check are
+  // shown in a modal instead of inline — collected together so every
+  // problem (email taken, mobile taken, etc.) surfaces at once rather
+  // than the applicant fixing one, resubmitting, and only then seeing
+  // the next.
+  const [duplicateErrorMessages, setDuplicateErrorMessages] = useState([]);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  // Which fields the duplicate-check response flagged — the modal shows
+  // the actual messages, this just drives the red border on the fields
+  // themselves so it's still obvious AT A GLANCE which inputs need
+  // fixing, not just buried in the modal's text list.
+  const [errorFieldNames, setErrorFieldNames] = useState([]);
 
   const [loading, setLoading] = useState(false);
 
@@ -78,6 +92,12 @@ const Register = () => {
   const setFieldRef = (key) => (el) => {
     fieldRefs.current[key] = el;
   };
+
+  // Red border on an input, whether the error came from the server
+  // (errorFieldNames, shown via the duplicate-check modal) or a pure
+  // client-side pre-check (fieldErrors, e.g. password mismatch).
+  const invalidClass = (field) =>
+    fieldErrors[field] || errorFieldNames.includes(field) ? " is-invalid" : "";
 
   /* ========================================
      FORM
@@ -164,6 +184,8 @@ const Register = () => {
 
     setGeneralError("");
     setFieldErrors({});
+    setDuplicateErrorMessages([]);
+    setErrorFieldNames([]);
 
     const passwordRule = /^(?=.*[a-z])(?=.*\d).{8,}$/;
     if (!passwordRule.test(form.password)) {
@@ -201,19 +223,12 @@ const Register = () => {
       const errors = err.response?.data?.errors;
 
       if (errors) {
-        setFieldErrors(errors);
-
-        // Scroll to the first field that actually has an error. A
-        // small delay lets React finish rendering the error text first
-        // — scrollIntoView needs the element (and its new height, now
-        // that the error message pushed things down) to already exist.
-        const firstErrorField = Object.keys(errors)[0];
-        setTimeout(() => {
-          fieldRefs.current[firstErrorField]?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }, 50);
+        // Every field's messages, flattened together — all shown at
+        // once in the modal instead of one field at a time across
+        // repeated submit attempts.
+        setDuplicateErrorMessages(Object.values(errors).flat());
+        setErrorFieldNames(Object.keys(errors));
+        setShowDuplicateModal(true);
       } else {
         setGeneralError(
           err.response?.data?.message ||
@@ -882,7 +897,7 @@ const Register = () => {
 
                       <input
                         name="firstName"
-                        className="form-control"
+                        className={`form-control${invalidClass("first_name")}`}
                         placeholder="First Name"
                         value={form.firstName}
                         onChange={handleChange}
@@ -898,7 +913,7 @@ const Register = () => {
 
                       <input
                         name="middleName"
-                        className="form-control"
+                        className={`form-control${invalidClass("middle_name")}`}
                         placeholder="Middle Name"
                         value={form.middleName}
                         onChange={handleChange}
@@ -916,7 +931,7 @@ const Register = () => {
 
                       <input
                         name="lastName"
-                        className="form-control"
+                        className={`form-control${invalidClass("last_name")}`}
                         placeholder="Last Name"
                         value={form.lastName}
                         onChange={handleChange}
@@ -929,15 +944,19 @@ const Register = () => {
                   <div className="row">
                     <div className="col-md-6 mb-3" ref={setFieldRef("mobile_number")}>
                       <label className="form-label">
-                        Mobile Number
+                        Mobile Number{" "}
+                        <span className="text-danger">
+                          *
+                        </span>
                       </label>
 
                       <input
                         name="mobile"
-                        className="form-control"
+                        className={`form-control${invalidClass("mobile_number")}`}
                         placeholder="Mobile Number"
                         value={form.mobile}
                         onChange={handleChange}
+                        required
                       />
                       <FieldError errors={fieldErrors} field="mobile_number" />
                     </div>
@@ -958,7 +977,7 @@ const Register = () => {
                         <input
                           type="email"
                           name="email"
-                          className="form-control"
+                          className={`form-control${invalidClass("email")}`}
                           placeholder="Email"
                           value={form.email}
                           onChange={handleChange}
@@ -1000,7 +1019,7 @@ const Register = () => {
                       <input
                         type="date"
                         name="birthdate"
-                        className="form-control"
+                        className={`form-control${invalidClass("birthdate")}`}
                         value={form.birthdate}
                         onChange={handleChange}
                         required
@@ -1037,7 +1056,7 @@ const Register = () => {
                       <input
                         type={showPass ? "text" : "password"}
                         name="password"
-                        className="form-control register-input-eye"
+                        className={`form-control register-input-eye${invalidClass("password")}`}
                         placeholder="Min 8 characters, with a lowercase letter and a number"
                         value={form.password}
                         onChange={handleChange}
@@ -1270,6 +1289,58 @@ const Register = () => {
                 }}
               >
                 I Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDuplicateModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            background: "rgba(17, 24, 39, 0.48)",
+            backdropFilter: "blur(3px)",
+            WebkitBackdropFilter: "blur(3px)",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "480px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "28px 26px",
+              borderRadius: "16px",
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.22)",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <h4 className="text-danger mb-3" style={{ fontWeight: 700 }}>
+              Please Fix the Following
+            </h4>
+
+            <ul style={{ fontSize: "14px", color: "#374151", lineHeight: 1.8, paddingLeft: "20px", margin: 0 }}>
+              {duplicateErrorMessages.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+
+            <div className="d-flex justify-content-end mt-3">
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => setShowDuplicateModal(false)}
+              >
+                Okay
               </button>
             </div>
           </div>

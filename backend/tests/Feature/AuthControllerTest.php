@@ -124,16 +124,57 @@ class AuthControllerTest extends TestCase
         User::factory()->create(['email' => 'existing@example.com']);
 
         $response = $this->postJson('/api/register/check', [
-            'first_name' => 'Maria',
-            'last_name'  => 'Santos',
-            'birthdate'  => '1999-05-05',
-            'email'      => 'existing@example.com',
-            'password'   => self::VALID_PASSWORD,
+            'first_name'    => 'Maria',
+            'last_name'     => 'Santos',
+            'birthdate'     => '1999-05-05',
+            'email'         => 'existing@example.com',
+            'mobile_number' => '09171234567',
+            'password'      => self::VALID_PASSWORD,
             'password_confirmation' => self::VALID_PASSWORD,
         ]);
 
         $response->assertStatus(422);
         $response->assertJsonValidationErrors(['email']);
+    }
+
+    public function test_check_duplicate_rejects_existing_email_and_mobile_together()
+    {
+        // Real bug, previously: mobile_number's uniqueness was enforced
+        // as a `unique:` validation rule, which throws immediately and
+        // never reaches the (separately hand-rolled) email check below
+        // it — an applicant with BOTH a taken email and a taken mobile
+        // number only ever saw one error, fixed it, resubmitted, and
+        // only then discovered the other. Both must come back together.
+        User::factory()->create(['email' => 'existing@example.com']);
+        User::factory()->create(['mobile_number' => '09171234567']);
+
+        $response = $this->postJson('/api/register/check', [
+            'first_name'    => 'Maria',
+            'last_name'     => 'Santos',
+            'birthdate'     => '1999-05-05',
+            'email'         => 'existing@example.com',
+            'mobile_number' => '09171234567',
+            'password'      => self::VALID_PASSWORD,
+            'password_confirmation' => self::VALID_PASSWORD,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['email', 'mobile_number']);
+    }
+
+    public function test_check_duplicate_requires_mobile_number()
+    {
+        $response = $this->postJson('/api/register/check', [
+            'first_name' => 'Maria',
+            'last_name'  => 'Santos',
+            'birthdate'  => '1999-05-05',
+            'email'      => 'new.maria@example.com',
+            'password'   => self::VALID_PASSWORD,
+            'password_confirmation' => self::VALID_PASSWORD,
+        ]);
+
+        $response->assertStatus(422);
+        $response->assertJsonValidationErrors(['mobile_number']);
     }
 
     public function test_check_duplicate_rejects_name_and_birthdate_match()
@@ -149,11 +190,12 @@ class AuthControllerTest extends TestCase
         ]);
 
         $response = $this->postJson('/api/register/check', [
-            'first_name' => 'Maria',
-            'last_name'  => 'Santos',
-            'birthdate'  => '1999-05-05',
-            'email'      => 'new.maria@example.com',
-            'password'   => self::VALID_PASSWORD,
+            'first_name'    => 'Maria',
+            'last_name'     => 'Santos',
+            'birthdate'     => '1999-05-05',
+            'email'         => 'new.maria@example.com',
+            'mobile_number' => '09171234567',
+            'password'      => self::VALID_PASSWORD,
             'password_confirmation' => self::VALID_PASSWORD,
         ]);
 
@@ -163,11 +205,12 @@ class AuthControllerTest extends TestCase
     public function test_check_duplicate_passes_for_new_valid_applicant()
     {
         $response = $this->postJson('/api/register/check', [
-            'first_name' => 'Pedro',
-            'last_name'  => 'Reyes',
-            'birthdate'  => '2001-03-20',
-            'email'      => 'pedro.reyes@example.com',
-            'password'   => self::VALID_PASSWORD,
+            'first_name'    => 'Pedro',
+            'last_name'     => 'Reyes',
+            'birthdate'     => '2001-03-20',
+            'email'         => 'pedro.reyes@example.com',
+            'mobile_number' => '09179876543',
+            'password'      => self::VALID_PASSWORD,
             'password_confirmation' => self::VALID_PASSWORD,
         ]);
 
