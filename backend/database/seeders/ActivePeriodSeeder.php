@@ -20,6 +20,14 @@ class ActivePeriodSeeder extends Seeder
             return;
         }
 
+        // Deactivate whatever was already active first — without this,
+        // running this seeder after another one that left a config active
+        // leaves TWO rows both is_active=true, which breaks the "the
+        // active config" assumption every
+        // ApplicationConfiguration::where('is_active', true)->first()/
+        // ->find() call in the app relies on.
+        ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
+
         $config = ApplicationConfiguration::create([
             'school_year'  => '2025-2026',
             'open_date'    => now()->subDays(1)->startOfDay(),

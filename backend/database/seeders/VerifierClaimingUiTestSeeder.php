@@ -79,6 +79,18 @@ class VerifierClaimingUiTestSeeder extends Seeder
         }
 
         // ── ACTIVE period (current, open Late Claiming) ────────────────
+        // Deactivate whatever else was already active first — without
+        // this, running this seeder after another one that left a config
+        // active leaves TWO rows both is_active=true, which breaks the
+        // "the active config" assumption every
+        // ApplicationConfiguration::where('is_active', true)->first()/
+        // ->find() call in the app relies on. Only when actually creating
+        // a new row — firstOrCreate() finding an existing match here
+        // shouldn't touch anyone else's active state.
+        if (!ApplicationConfiguration::where('school_year', '2025-2026-uitest')->exists()) {
+            ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
+        }
+
         $config = ApplicationConfiguration::firstOrCreate(
             ['school_year' => '2025-2026-uitest'],
             [
