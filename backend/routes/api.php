@@ -113,6 +113,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // preview or bulk-publish. activate() turns a schedule on and
         // runs a one-time catch-up pass for anyone already approved.
         Route::post('/admin/claiming-schedule/{id}/activate', [AdminScheduleController::class, 'activate']);
+        // Separate from store() on purpose: store() fully replaces the
+        // lane list and is blocked once a schedule is active (applicants
+        // are already being assigned in real time against it). Late
+        // Claiming's own window is still safe to adjust after that point
+        // — right up until it actually starts — since nothing depends on
+        // it existing until then.
+        Route::patch('/admin/claiming-schedule/{id}/late-claiming', [AdminScheduleController::class, 'updateLateClaiming']);
         Route::post('/admin/claiming-schedule/lanes/{laneId}/assign-verifier', [AdminScheduleController::class, 'assignVerifier']);
         Route::post('/admin/claiming-schedule/lanes/{laneId}/dismiss-request', [AdminScheduleController::class, 'dismissLaneRequest']);
         Route::get('/admin/claiming-schedule/lanes/{laneId}/printable', [AdminScheduleController::class, 'printableLane']);

@@ -37,11 +37,14 @@ class AdminScheduleController extends Controller
                 $q->withCount('assignments')
                     ->with('verifier:id,first_name,last_name')
                     ->with('requestedVerifier:id,first_name,last_name')
+                    ->with('assignments.application:id,control_number')
                     ->orderBy('claiming_date')->orderBy('lane_name');
             }])
             ->where('config_id', $config->id)
             ->latest()
             ->first();
+
+        $schedule?->lanes->each->append('control_number_range');
 
         // Active verifiers, for the "Assigned Verifier" picker on each lane
         // row — fetched here so the schedule page can offer it inline
@@ -171,11 +174,14 @@ class AdminScheduleController extends Controller
             $schedule->lanes()->create($lane);
         }
 
+        $schedule->load(['lanes' => function ($q) {
+            $q->withCount('assignments')->with('assignments.application:id,control_number');
+        }]);
+        $schedule->lanes->each->append('control_number_range');
+
         return response()->json([
             'message'  => 'Schedule saved.',
-            'schedule' => $schedule->load(['lanes' => function ($q) {
-                $q->withCount('assignments');
-            }]),
+            'schedule' => $schedule,
         ]);
     }
 
@@ -215,11 +221,74 @@ class AdminScheduleController extends Controller
             ? "Schedule activated. {$assignedCount} already-approved applicant(s) assigned and notified. New approvals will now be assigned automatically."
             : "Schedule activated. New approvals will now be assigned automatically.";
 
+        $schedule->load(['lanes' => function ($q) {
+            $q->withCount('assignments')->with('assignments.application:id,control_number');
+        }]);
+        $schedule->lanes->each->append('control_number_range');
+
         return response()->json([
             'message'  => $message,
-            'schedule' => $schedule->load(['lanes' => function ($q) {
-                $q->withCount('assignments');
-            }]),
+            'schedule' => $schedule,
+        ]);
+    }
+
+    /**
+     * Lets an admin adjust the Late Claiming window on an ALREADY-ACTIVE
+     * schedule, which store() otherwise blocks entirely (it fully
+     * replaces the lane list, which is unsafe once real assignments
+     * exist). Late Claiming itself has no such conflict — nothing reads
+     * or depends on its dates until Late Claiming actually opens — so
+     * it's safe to keep editable right up to that point, then locked:
+     * once it's started, LateClaimingEligibility and the
+     * claiming:sweep-unclaimed command both assume its start date is
+     * stable, since retries/promotions may already be sitting on it.
+     */
+    public function updateLateClaiming(Request $request, $id)
+    {
+        $request->validate([
+            'late_claiming_date'     => 'nullable|date',
+            'late_claiming_end_date' => 'nullable|date|after_or_equal:late_claiming_date',
+        ]);
+
+        $schedule = ClaimingSchedule::with('lanes')->findOrFail($id);
+
+        if ($schedule->late_claiming_date
+            && \Carbon\Carbon::parse($schedule->late_claiming_date)->startOfDay()->lte(now()->startOfDay())) {
+            return response()->json([
+                'message' => 'Late Claiming has already started and its window can no longer be changed.',
+            ], 400);
+        }
+
+        // Same rule store() enforces at creation time — Late Claiming
+        // must start after every scheduled claiming day, since
+        // LateClaimingEligibility assumes every original lane's date is
+        // already in the past by the time it opens.
+        if ($request->late_claiming_date && $schedule->lanes->isNotEmpty()) {
+            $latestClaimingDate = $schedule->lanes
+                ->map(fn ($lane) => \Carbon\Carbon::parse($lane->claiming_date)->startOfDay())
+                ->max();
+            $lateClaimingStart = \Carbon\Carbon::parse($request->late_claiming_date)->startOfDay();
+
+            if ($lateClaimingStart->lte($latestClaimingDate)) {
+                return response()->json([
+                    'message' => "Late Claiming must start after every claiming date. The latest claiming date is {$latestClaimingDate->toDateString()}, but Late Claiming is set to start {$lateClaimingStart->toDateString()}.",
+                ], 400);
+            }
+        }
+
+        $schedule->update($request->only(['late_claiming_date', 'late_claiming_end_date']));
+
+        $schedule->load(['lanes' => function ($q) {
+            $q->withCount('assignments')
+                ->with('verifier:id,first_name,last_name')
+                ->with('requestedVerifier:id,first_name,last_name')
+                ->with('assignments.application:id,control_number');
+        }]);
+        $schedule->lanes->each->append('control_number_range');
+
+        return response()->json([
+            'message'  => 'Late Claiming window updated.',
+            'schedule' => $schedule,
         ]);
     }
 

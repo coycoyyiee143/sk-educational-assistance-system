@@ -118,6 +118,7 @@ function AdminSchedule() {
   const [days, setDays] = useState([emptyDay()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingLateClaiming, setSavingLateClaiming] = useState(false);
   const [activating, setActivating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -317,6 +318,30 @@ function AdminSchedule() {
     }
   }
 
+  // Only reachable while the schedule is active — before that, Late
+  // Claiming's dates just save as part of the normal full-form submit
+  // above.
+  async function handleSaveLateClaiming() {
+    setError("");
+    setSuccess("");
+    setSavingLateClaiming(true);
+    try {
+      const res = await api.patch(`/admin/claiming-schedule/${schedule.id}/late-claiming`, {
+        late_claiming_date: form.late_claiming_date || null,
+        late_claiming_end_date: form.late_claiming_end_date || null,
+      });
+      setSchedule(res.data.schedule);
+      setSuccess(res.data.message);
+      if (res.data.schedule?.late_claiming_date) {
+        loadLateClaimingList();
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update Late Claiming.");
+    } finally {
+      setSavingLateClaiming(false);
+    }
+  }
+
   function handleActivate() {
     if (!schedule) return;
     setShowActivateConfirm(true);
@@ -410,6 +435,15 @@ function AdminSchedule() {
   }
 
   const isActive = schedule?.is_active;
+  // Late Claiming's own window stays editable even once the schedule is
+  // active (store() blocks the rest of the form since it fully replaces
+  // the lane list, which is unsafe once real assignments exist — but
+  // nothing depends on Late Claiming's dates until it actually opens).
+  // Locked only once today has reached the currently-saved start date.
+  const lateClaimingHasStarted = Boolean(
+    schedule?.late_claiming_date && schedule.late_claiming_date <= todayStr()
+  );
+  const canEditLateClaiming = !isActive || !lateClaimingHasStarted;
   const hasApproved = approvedCount > 0;
   const totalLanesCount = days.reduce((sum, d) =>
     sum + (d.morning.enabled ? d.morning.lanes.length : 0) + (d.afternoon.enabled ? d.afternoon.lanes.length : 0), 0);
@@ -763,21 +797,28 @@ function AdminSchedule() {
                           + Add Claiming Day
                         </button>
                       )}
+                    </fieldset>
 
-                      <hr className="my-4" />
-                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Late Claiming</h5>
+                    <hr className="my-4" />
+                    <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Late Claiming</h5>
 
-                      <div className="visibility-notice visibility-notice-compact mb-3">
-                        <div className="visibility-notice-icon">!</div>
-                        <div className="visibility-notice-body">
-                          <p className="visibility-notice-text mb-0">
-                            A second chance for applicants who missed their claiming day, and for anyone
-                            promoted from the waitlist after this schedule was set up. Leave both dates blank
-                            if this period won't have one.
-                          </p>
-                        </div>
+                    <div className="visibility-notice visibility-notice-compact mb-3">
+                      <div className="visibility-notice-icon">!</div>
+                      <div className="visibility-notice-body">
+                        <p className="visibility-notice-text mb-0">
+                          A second chance for applicants who missed their claiming day, and for anyone
+                          promoted from the waitlist after this schedule was set up. Leave both dates blank
+                          if this period won't have one.
+                          {isActive && (
+                            lateClaimingHasStarted
+                              ? " Late Claiming has already started, so its window is now locked."
+                              : " Unlike the rest of this schedule, this can still be changed while the schedule is active — right up until Late Claiming actually starts."
+                          )}
+                        </p>
                       </div>
+                    </div>
 
+                    <fieldset disabled={!canEditLateClaiming}>
                       <div className="row g-3 mb-3">
                         <div className="col-md-6">
                           <label className="form-label">Start Date</label>
@@ -818,6 +859,19 @@ function AdminSchedule() {
                         </button>
                         <button type="submit" className="btn btn-custom" disabled={saving}>
                           {saving ? "Saving..." : "Save Schedule"}
+                        </button>
+                      </div>
+                    )}
+
+                    {isActive && canEditLateClaiming && (
+                      <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          className="btn btn-custom"
+                          disabled={savingLateClaiming}
+                          onClick={handleSaveLateClaiming}
+                        >
+                          {savingLateClaiming ? "Saving..." : "Save Late Claiming"}
                         </button>
                       </div>
                     )}
