@@ -22,6 +22,21 @@ function FieldError({ errors, field }) {
   );
 }
 
+// Matches the form's actual visual top-to-bottom field order — NOT the
+// backend's own field order in checkDuplicate()'s validate() rules,
+// which lists email before mobile_number even though mobile_number
+// renders above email on screen. Used to pick which erroring field to
+// scroll to when several come back at once.
+const FIELD_ORDER = [
+  "first_name",
+  "middle_name",
+  "last_name",
+  "mobile_number",
+  "email",
+  "birthdate",
+  "password",
+];
+
 const Register = () => {
   const [form, setForm] = useState({
     firstName: "",
@@ -229,6 +244,22 @@ const Register = () => {
         setDuplicateErrorMessages(Object.values(errors).flat());
         setErrorFieldNames(Object.keys(errors));
         setShowDuplicateModal(true);
+
+        // Scroll to the TOPMOST erroring field, not just whichever key
+        // happens to come first in the backend's response object —
+        // FIELD_ORDER reflects the form's actual visual top-to-bottom
+        // layout, which doesn't match the backend's own field order
+        // (e.g. mobile_number appears above email on screen, but after
+        // it in the validate() rules).
+        const firstErrorField = FIELD_ORDER.find((f) => errors[f]);
+        if (firstErrorField) {
+          setTimeout(() => {
+            fieldRefs.current[firstErrorField]?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }, 50);
+        }
       } else {
         setGeneralError(
           err.response?.data?.message ||
