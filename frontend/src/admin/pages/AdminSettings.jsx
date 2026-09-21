@@ -428,7 +428,7 @@ function AdminSettings() {
             </div>
 
             <div className="page-card">
-              <h4 className="sub-title sub-title-dark">Program Configuration</h4>
+              <h4 className="sub-title sub-title-dark">Application Period Settings</h4>
 
               {hasStarted && !hasClosed && !config?.closed_at && (
                 <div className="schedule-notice schedule-notice-yellow mb-3">
