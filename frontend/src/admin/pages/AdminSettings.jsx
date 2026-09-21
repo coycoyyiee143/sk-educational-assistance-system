@@ -34,9 +34,18 @@ function nowDateTimeLocal() {
   return d.toISOString().slice(0, 16);
 }
 
+// Pre-selects the common case (setting up this year's period) so the
+// admin doesn't have to hunt for it in a 25-year dropdown — still just a
+// default, not a restriction, since picking a future year to plan ahead
+// is a perfectly normal, deliberate choice that needs no extra guarding.
+function defaultSchoolYear() {
+  const currentYear = new Date().getFullYear();
+  return `${currentYear}-${currentYear + 1}`;
+}
+
 function emptyForm() {
   return {
-    school_year: "",
+    school_year: defaultSchoolYear(),
     open_date: nowDateTimeLocal(),
     close_date: "",
     slot_limit: "",
@@ -167,7 +176,11 @@ function AdminSettings() {
     setExtendError("");
     try {
       const res = await api.post(`/admin/application-configs/${config.id}/extend`, {
-        close_date: extendDate,
+        // Matches saveSettings()'s own convention (close_date + " 23:59:59")
+        // — without this, the deadline silently lands at midnight/start of
+        // day instead of end of day, cutting the extension short by a full
+        // day of the date the admin actually picked.
+        close_date: `${extendDate} 23:59:59`,
       });
       setConfig(res.data.config);
       setForm((f) => ({ ...f, close_date: res.data.config.close_date }));
@@ -267,7 +280,6 @@ function AdminSettings() {
       ],
       ["Opening Date", formatDateTime(config.open_date)],
       ["Closing Date", formatDateTime(config.close_date)],
-      ["Slot Availability", config.is_unlimited ? "Unlimited" : "Limited"],
       [
         "Number of Available Slots",
         config.is_unlimited
@@ -312,16 +324,6 @@ function AdminSettings() {
         <line x1="14.5" y1="14.5" x2="9.5" y2="19.5" />
       </svg>
     ),
-    "Slot Availability": (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="4" y1="6" x2="20" y2="6" />
-        <line x1="4" y1="12" x2="20" y2="12" />
-        <line x1="4" y1="18" x2="20" y2="18" />
-        <circle cx="8" cy="6" r="1.5" fill="currentColor" />
-        <circle cx="16" cy="12" r="1.5" fill="currentColor" />
-        <circle cx="10" cy="18" r="1.5" fill="currentColor" />
-      </svg>
-    ),
     "Number of Available Slots": (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -330,13 +332,20 @@ function AdminSettings() {
         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
+    "Assistance Amount per Applicant": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.5 0-2.5 1-2.5 2s1 1.7 2.5 2 2.5 1 2.5 2-1 2-2.5 2A2.5 2.5 0 0 1 9.5 14" />
+        <line x1="12" y1="6" x2="12" y2="18" />
+      </svg>
+    ),
   };
   const settingIconColors = {
     "School Year": "gray",
     "Application Status": "red",
     "Opening Date": "blue",
     "Closing Date": "blue",
-    "Slot Availability": "orange",
+    "Assistance Amount per Applicant": "green",
     "Number of Available Slots": "red",
   };
 
@@ -370,47 +379,56 @@ function AdminSettings() {
 
             <div className="page-card">
               <h4 className="sub-title sub-title-dark">Program Configuration</h4>
-              <div className="visibility-notice">
-                <div className="visibility-notice-icon">!</div>
-                <div className="visibility-notice-body">
-                  <strong className="visibility-notice-title">Program Configuration Notice</strong>
-                  <p className="visibility-notice-text">
-                    These settings control the availability and basic parameters of the educational assistance application process.
-                  </p>
-                </div>
-              </div>
-
-              {config && (
-                <div className="alert alert-info">
-                  <strong>Closing Date is locked here.</strong>{" "}
-                  Use the "Extend Application Period" action below to move it later — it can never be edited
-                  through this form, whether or not the period has started.
-                </div>
-              )}
 
               {hasStarted && !hasClosed && (
-                <div className="alert alert-warning">
-                  <strong>This application period has already started.</strong>{" "}
-                  School Year, Opening Date, Number of Available Slots, Slot Type, and Assistance Amount
-                  can no longer be changed to protect data integrity for applicants who have already applied.
+                <div className="schedule-notice schedule-notice-yellow mb-3">
+                  <div className="schedule-notice-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 9v4" />
+                      <path d="M12 17h.01" />
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <strong>This period is already open.</strong> School Year, Opening Date, Slot settings,
+                    and Assistance Amount are locked to protect data integrity for applicants who've already
+                    applied.
+                  </div>
                 </div>
               )}
 
               {hasClosed && !config?.closed_at && (
-                <div className="alert alert-warning">
-                  <strong>The closing date has passed, but this period is still officially open.</strong>{" "}
-                  Applicants are no longer able to submit new applications, but the closing date can still be extended below to allow new submissions. Once the application period is officially closed, this warning will disappear.
+                <div className="schedule-notice schedule-notice-yellow mb-3">
+                  <div className="schedule-notice-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 9v4" />
+                      <path d="M12 17h.01" />
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <strong>The closing date has passed, but this period hasn't been officially closed yet.</strong>{" "}
+                    Applicants can no longer submit new applications. Extend the Closing Date below to reopen
+                    submissions — this warning clears once the period is officially closed.
+                  </div>
                 </div>
               )}
 
               {config?.closed_at && (
-                <div className="settings-warning-box d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <div>
-                    <strong>This application period has closed.</strong>{" "}
-                    Applicants can no longer submit new applications. Extend the
-                    Closing Date below to reopen submissions under this same
-                    period, or start a new period entirely for a different
-                    school year.
+                <div className="schedule-notice schedule-notice-yellow mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <div className="d-flex align-items-start gap-3">
+                    <div className="schedule-notice-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 9v4" />
+                        <path d="M12 17h.01" />
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <strong>This application period has closed.</strong> Applicants can no longer submit new
+                      applications. Extend the Closing Date below to reopen submissions under this same period,
+                      or start a new period entirely for a different school year.
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -423,9 +441,18 @@ function AdminSettings() {
               )}
 
               {isAtCapacity && (
-                <div className="alert alert-warning">
-                  This period is already at capacity ({config.slots_filled}/{config.slot_limit} slots filled).
-                  No new applicants can be accepted unless you increase the slot limit.
+                <div className="schedule-notice schedule-notice-yellow mb-3">
+                  <div className="schedule-notice-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 9v4" />
+                      <path d="M12 17h.01" />
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <strong>This period is at capacity</strong> ({config.slots_filled}/{config.slot_limit} slots
+                    filled) — no new applicants can be accepted unless you increase the slot limit.
+                  </div>
                 </div>
               )}
 
@@ -513,43 +540,12 @@ function AdminSettings() {
                       </h6>
                       <div className="row g-3">
                         <div className="col-12">
-                          <label className="form-label d-block">Slot Type</label>
-                          <div className="btn-group admin-settings-slot-toggle" role="group">
-                            <input
-                              type="radio"
-                              className="btn-check"
-                              name="slotType"
-                              id="slotLimited"
-                              autoComplete="off"
-                              checked={!form.is_unlimited}
-                              onChange={() =>
-                                setForm((f) => ({ ...f, is_unlimited: false, slot_limit: "" }))
-                              }
-                              disabled={hasStarted}
-                            />
-                            <label className="btn" htmlFor="slotLimited">
-                              Limited
-                            </label>
-                            <input
-                              type="radio"
-                              className="btn-check"
-                              name="slotType"
-                              id="slotUnlimited"
-                              autoComplete="off"
-                              checked={form.is_unlimited}
-                              onChange={() =>
-                                setForm((f) => ({ ...f, is_unlimited: true, slot_limit: "" }))
-                              }
-                              disabled={hasStarted}
-                            />
-                            <label className="btn" htmlFor="slotUnlimited">
-                              Unlimited
-                            </label>
-                          </div>
-                        </div>
-                        <div className="col-12">
                           <label className="form-label">Number of Available Slots</label>
                           {form.is_unlimited ? (
+                            // Only reachable when editing an existing period
+                            // that was already saved as unlimited before
+                            // this option was removed — there's no longer
+                            // any way to set a NEW period to unlimited.
                             <input
                               type="text"
                               className="form-control"
@@ -594,6 +590,36 @@ function AdminSettings() {
                             </div>
                           )}
                         </div>
+                      </div>
+
+                      <h6 className="settings-split-title mt-4">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.5 0-2.5 1-2.5 2s1 1.7 2.5 2 2.5 1 2.5 2-1 2-2.5 2A2.5 2.5 0 0 1 9.5 14" />
+                          <line x1="12" y1="6" x2="12" y2="18" />
+                        </svg>
+                        Assistance Amount
+                      </h6>
+                      <div className="row g-3">
+                        <div className="col-12">
+                          <label className="form-label">Amount per Applicant (₱)</label>
+                          <div className="input-group">
+                            <span className="input-group-text">₱</span>
+                            <input
+                              type="number"
+                              className="form-control"
+                              placeholder="e.g. 2000"
+                              value={form.assistance_amount}
+                              onChange={set("assistance_amount")}
+                              disabled={hasStarted}
+                              required
+                              min={0}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="form-text mt-2">
+                        Used for budget reports and disbursement calculations. Locked once this period opens.
                       </div>
                     </div>
                   </div>
@@ -665,8 +691,6 @@ function AdminSettings() {
                           <td>
                             {setting === "Application Status" ? (
                               <span className={statusBadgeClass(value)}>{value}</span>
-                            ) : setting === "Slot Availability" ? (
-                              <span className="settings-value-badge settings-value-badge-red">{value}</span>
                             ) : (
                               value
                             )}
@@ -734,7 +758,6 @@ function AdminSettings() {
                   <li>School Year</li>
                   <li>Opening Date</li>
                   <li>Number of Available Slots</li>
-                  <li>Slot Type (Limited / Unlimited)</li>
                   <li>Assistance Amount per Applicant</li>
                 </ul>
                 <p className="mb-0 text-muted small">

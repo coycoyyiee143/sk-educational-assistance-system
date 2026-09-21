@@ -38,6 +38,18 @@ function todayStr() {
   return toLocalDateStr(new Date());
 }
 
+// Matches ApplicantClaimingSchedule.jsx's own formatTime() — the native
+// <input type="time"> picker's displayed format follows the browser/OS
+// locale and can't be forced from here, but this label text is fully
+// under our control.
+function formatTime(timeStr) {
+  if (!timeStr) return "";
+  const [h, m] = timeStr.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+}
+
 function groupLanesIntoDays(lanesArr) {
   if (!lanesArr || lanesArr.length === 0) return [emptyDay()];
   const map = {};
@@ -342,9 +354,15 @@ function AdminSchedule() {
     const lanes = serializeLanes(days);
     setSaving(true);
     try {
-      const res = await api.post("/admin/claiming-schedule", { ...form, lanes });
+      // Late Claiming is a genuinely separate save action (its own button
+      // below) — deliberately not sent here, even if the admin already
+      // typed dates into those fields, so this button only ever touches
+      // claiming days/lanes. Whatever's in the Late Claiming fields stays
+      // in the form afterward, ready for that other button to save.
+      const { late_claiming_date, late_claiming_end_date, ...claimingDaysForm } = form;
+      const res = await api.post("/admin/claiming-schedule", { ...claimingDaysForm, lanes });
       setSchedule(res.data.schedule);
-      setSuccess("Schedule saved. Activate it below to start assigning approved applicants to lanes in real time.");
+      setSuccess("Scheduled Claiming saved. Save Late Claiming below if you want to set that window too, then activate when ready.");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save schedule.");
     } finally {
@@ -763,7 +781,7 @@ function AdminSchedule() {
                       </div>
 
                       <hr className="my-4" />
-                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Claiming Days</h5>
+                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Scheduled Claiming</h5>
 
                       {days.map((day, dayIdx) => (
                         <div className="sub-card schedule-day-card mb-3" key={dayIdx}>
@@ -807,8 +825,8 @@ function AdminSchedule() {
                                 />
                                 <label className="form-check-label fw-semibold" htmlFor={`day-${dayIdx}-${session}`}>
                                   {session === "morning"
-                                    ? `Morning Session (${form.morning_start} – ${form.morning_end})`
-                                    : `Afternoon Session (${form.afternoon_start} – ${form.afternoon_end})`}
+                                    ? `Morning Session (${formatTime(form.morning_start)} – ${formatTime(form.morning_end)})`
+                                    : `Afternoon Session (${formatTime(form.afternoon_start)} – ${formatTime(form.afternoon_end)})`}
                                 </label>
                               </div>
 
@@ -959,12 +977,12 @@ function AdminSchedule() {
                           Clear
                         </button>
                         <button type="submit" className="btn btn-custom" disabled={saving}>
-                          {saving ? "Saving..." : "Save Schedule"}
+                          {saving ? "Saving..." : "Save Scheduled Claiming"}
                         </button>
                       </div>
                     )}
 
-                    {isActive && canEditLateClaiming && (
+                    {schedule && canEditLateClaiming && (
                       <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
                         <button
                           type="button"
@@ -1204,7 +1222,7 @@ function AdminSchedule() {
                   Everyone expected during Late Claiming — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
                 </p>
                 <p className="text-muted small mb-3">
-                  <strong>Claiming Days:</strong> {formatDateRange(claimingDates)}
+                  <strong>Scheduled Claiming:</strong> {formatDateRange(claimingDates)}
                   {" · "}
                   <strong>Late Claiming:</strong>{" "}
                   {schedule.late_claiming_end_date && schedule.late_claiming_end_date !== schedule.late_claiming_date

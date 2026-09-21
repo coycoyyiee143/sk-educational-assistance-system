@@ -6269,6 +6269,11 @@ a:hover {
   color: #b95c00;
 }
 
+.settings-value-row-icon-circle-green {
+  background: #dcf5e3;
+  color: #1e7e42;
+}
+
 .settings-value-badge {
   display: inline-block;
   padding: 4px 14px;
