@@ -171,7 +171,11 @@ class VerifierReasonCategoriesTest extends TestCase
 
     // ── updateClaimStatus() ─────────────────────────────────────
 
-    protected function makeApprovedAssignment()
+    // $verifier scopes the lane to that verifier — required since
+    // updateClaimStatus() now checks the acting verifier is the lane's
+    // assigned verifier (not just any authenticated verifier) before
+    // allowing a claim update.
+    protected function makeApprovedAssignment(?User $verifier = null)
     {
         $config = ApplicationConfiguration::factory()->create();
         $app = Application::factory()->create([
@@ -193,6 +197,7 @@ class VerifierReasonCategoriesTest extends TestCase
             'capacity'             => 50,
             'batch'                => 'morning',
             'claiming_date'        => now()->addDays(1)->toDateString(),
+            'verifier_id'          => $verifier?->id,
         ]);
 
         $assignment = ClaimingAssignment::create([
@@ -208,7 +213,7 @@ class VerifierReasonCategoriesTest extends TestCase
     public function test_claimed_does_not_require_reason_categories()
     {
         $verifier = $this->makeVerifier();
-        [$app, $assignment] = $this->makeApprovedAssignment();
+        [$app, $assignment] = $this->makeApprovedAssignment($verifier);
 
         $response = $this->actingAs($verifier, 'sanctum')
             ->postJson("/api/verifier/claiming/{$app->id}/status", [
@@ -228,7 +233,7 @@ class VerifierReasonCategoriesTest extends TestCase
     public function test_unclaimed_is_rejected_when_submitted_directly_by_a_verifier()
     {
         $verifier = $this->makeVerifier();
-        [$app, $assignment] = $this->makeApprovedAssignment();
+        [$app, $assignment] = $this->makeApprovedAssignment($verifier);
 
         $response = $this->actingAs($verifier, 'sanctum')
             ->postJson("/api/verifier/claiming/{$app->id}/status", [
@@ -242,7 +247,7 @@ class VerifierReasonCategoriesTest extends TestCase
     public function test_not_cleared_requires_reason_categories()
     {
         $verifier = $this->makeVerifier();
-        [$app, $assignment] = $this->makeApprovedAssignment();
+        [$app, $assignment] = $this->makeApprovedAssignment($verifier);
 
         $response = $this->actingAs($verifier, 'sanctum')
             ->postJson("/api/verifier/claiming/{$app->id}/status", [
@@ -255,7 +260,7 @@ class VerifierReasonCategoriesTest extends TestCase
     public function test_not_cleared_stores_multiple_reason_categories()
     {
         $verifier = $this->makeVerifier();
-        [$app, $assignment] = $this->makeApprovedAssignment();
+        [$app, $assignment] = $this->makeApprovedAssignment($verifier);
 
         $response = $this->actingAs($verifier, 'sanctum')
             ->postJson("/api/verifier/claiming/{$app->id}/status", [
@@ -278,7 +283,7 @@ class VerifierReasonCategoriesTest extends TestCase
     public function test_reason_categories_cleared_when_marking_claimed_after_previous_not_cleared()
     {
         $verifier = $this->makeVerifier();
-        [$app, $assignment] = $this->makeApprovedAssignment();
+        [$app, $assignment] = $this->makeApprovedAssignment($verifier);
         $assignment->update([
             'claim_status' => 'not_cleared',
             'reason_categories' => ['Document appeared altered or invalid.'],

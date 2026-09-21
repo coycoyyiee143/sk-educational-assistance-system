@@ -565,14 +565,8 @@ class VerifierController extends Controller
             'notes'                 => 'nullable|string',
         ]);
 
-        $assignment = ClaimingAssignment::where('application_id', $id)->with(['application.configuration', 'latestFaceVerification'])->firstOrFail();
+        $assignment = ClaimingAssignment::where('application_id', $id)->with(['application.configuration', 'latestFaceVerification', 'lane'])->firstOrFail();
 
-        // Late Claiming claims are unscheduled walk-ins with no lane/time
-        // structure backing them up — face verification is the only real
-        // proof of identity available, so it's required here. Regular
-        // claiming already has a scheduled lane + control number + a verifier
-        // who selected them off that lane's list, so it stays optional there.
-        //
         // FIXED: this used to only check source IN ('waitlist_promotion',
         // 'late_claiming_retry') — but an applicant already visible in the
         // Late Claiming List because their lane day passed and Late
@@ -588,6 +582,28 @@ class VerifierController extends Controller
             ->where(fn($q) => $this->applyLateClaimingEligibleCondition($q, $today))
             ->exists();
 
+        // Regular scheduled claiming is scoped to whichever lane the
+        // applicant was assigned to — only THAT lane's verifier may mark
+        // them claimed/not_cleared. Without this, any authenticated
+        // verifier could update any applicant regardless of lane, and a
+        // verifier who's only REQUESTED a staffed lane (self-assign
+        // request pending admin approval — requested_verifier_id set but
+        // verifier_id still someone else's) could act on it before that
+        // approval ever happens. Late Claiming is deliberately exempt —
+        // it's an unscheduled walk-in queue with no fixed lane-verifier
+        // by design (see selfAssignLane()/claimingLanes() docblocks).
+        if (!$isLateClaiming
+            && (!$assignment->lane || $assignment->lane->verifier_id !== $request->user()->id)) {
+            return response()->json([
+                'message' => "You're not the assigned verifier for this applicant's lane.",
+            ], 403);
+        }
+
+        // Late Claiming claims are unscheduled walk-ins with no lane/time
+        // structure backing them up — face verification is the only real
+        // proof of identity available, so it's required here. Regular
+        // claiming already has a scheduled lane + control number + a verifier
+        // who selected them off that lane's list, so it stays optional there.
         if ($isLateClaiming && $request->claim_status === 'claimed') {
             $lastFace = $assignment->latestFaceVerification;
             if (!$lastFace || !$lastFace->matched) {
@@ -699,7 +715,16 @@ class VerifierController extends Controller
             if ($laneId) {
                 // Scheduled claiming day — scoped to one specific lane, so a
                 // verifier only ever sees the applicants assigned to the
-                // lane they're actually working.
+                // lane they're actually working. Verified against the
+                // CURRENT user's own assignment, not just whatever lane_id
+                // was passed in — otherwise a verifier could browse any
+                // lane's list by ID alone, including one they've only
+                // REQUESTED (self-assign pending admin approval) or one
+                // that belongs to someone else entirely.
+                $lane = \App\Models\ClaimingLane::find($laneId);
+                if (!$lane || $lane->verifier_id !== $request->user()->id) {
+                    return response()->json(['message' => 'You are not assigned to that lane.'], 403);
+                }
                 $query->whereHas('claimingAssignment', fn($q) => $q->where('claiming_lane_id', $laneId));
             }
         }
