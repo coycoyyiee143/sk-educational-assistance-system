@@ -7,7 +7,7 @@ import PanelFooter from "../../components/PanelFooter";
 import { usePolling } from "../../hooks/usePolling";
 
 const emptyForm = {
-  location: "Barangay Mamatid Hall",
+  location: "Barangay Mamatid Covered Court",
   morning_start: "08:00",
   morning_end: "12:00",
   afternoon_start: "13:00",
@@ -386,9 +386,17 @@ function AdminSchedule() {
       setSuccess(res.data.message);
       if (res.data.schedule?.late_claiming_date) {
         loadLateClaimingList();
+        const start = res.data.schedule.late_claiming_date;
+        const end = res.data.schedule.late_claiming_end_date;
+        const range = end && end !== start ? `${start} to ${end}` : start;
         setAnnounceNudge({
-          start: res.data.schedule.late_claiming_date,
-          end: res.data.schedule.late_claiming_end_date,
+          title: "Late Claiming Window Updated",
+          message: "Applicants aren't notified of this change automatically. Want to post an announcement about the new Late Claiming dates?",
+          prefill: {
+            title: "Late Claiming Schedule Update",
+            category: "Schedule Update",
+            content: `The Late Claiming period has been updated to ${range}. Please take note of this change and plan your claiming accordingly.`,
+          },
         });
       }
     } catch (err) {
@@ -398,20 +406,10 @@ function AdminSchedule() {
     }
   }
 
-  function goAnnounceLateClaimingChange() {
-    const range = announceNudge.end && announceNudge.end !== announceNudge.start
-      ? `${announceNudge.start} to ${announceNudge.end}`
-      : announceNudge.start;
+  function goAnnounce() {
+    const prefill = announceNudge?.prefill;
     setAnnounceNudge(null);
-    navigate("/AdminAnnouncements", {
-      state: {
-        prefill: {
-          title: "Late Claiming Schedule Update",
-          category: "Schedule Update",
-          content: `The Late Claiming period has been updated to ${range}. Please take note of this change and plan your claiming accordingly.`,
-        },
-      },
-    });
+    navigate("/AdminAnnouncements", { state: { prefill } });
   }
 
   function handleActivate() {
@@ -429,6 +427,20 @@ function AdminSchedule() {
       setSuccess(res.data.message);
       setSchedule(res.data.schedule);
       loadSchedule(true);
+
+      // Individual applicants already get a per-lane notification when
+      // assigned (see ClaimingAssignmentService::assignToLane()), but
+      // nothing tells the wider public the schedule is live at all —
+      // same "nothing else announces this" gap as the Late Claiming nudge.
+      setAnnounceNudge({
+        title: "Schedule Activated",
+        message: "Applicants are being assigned to lanes automatically now, but there's no general public notice. Want to post an announcement about the claiming schedule?",
+        prefill: {
+          title: "Claiming Schedule Now Available",
+          category: "Schedule Update",
+          content: `The claiming schedule for ${formatDateRange(claimingDates)} at ${form.location} is now live. Approved applicants will be assigned a lane and notified automatically — check your dashboard for your assigned date, time, and lane.`,
+        },
+      });
     } catch (err) {
       setError(err.response?.data?.message || "Failed to activate schedule.");
     } finally {
@@ -562,7 +574,6 @@ function AdminSchedule() {
   const lateClaimingHasStarted = Boolean(
     schedule?.late_claiming_date && schedule.late_claiming_date <= todayStr()
   );
-  const canEditLateClaiming = !isActive || !lateClaimingHasStarted;
   const hasApproved = approvedCount > 0;
   const totalLanesCount = days.reduce((sum, d) =>
     sum + (d.morning.enabled ? d.morning.lanes.length : 0) + (d.afternoon.enabled ? d.afternoon.lanes.length : 0), 0);
@@ -918,6 +929,17 @@ function AdminSchedule() {
                       )}
                     </fieldset>
 
+                    {!isActive && (
+                      <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
+                        <button type="button" className="btn btn-secondary" onClick={handleReset}>
+                          Clear
+                        </button>
+                        <button type="submit" className="btn btn-custom" disabled={saving}>
+                          {saving ? "Saving..." : "Save Scheduled Claiming"}
+                        </button>
+                      </div>
+                    )}
+
                     <hr className="my-4" />
                     <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Late Claiming</h5>
 
@@ -930,16 +952,16 @@ function AdminSchedule() {
                           if this period won't have one.
                           {isActive && (
                             lateClaimingHasStarted
-                              ? " Late Claiming has already started, so its window is now locked."
+                              ? " Late Claiming has already started, so its start date is now locked — but you can still push the end date later to extend it."
                               : " Unlike the rest of this schedule, this can still be changed while the schedule is active — right up until Late Claiming actually starts."
                           )}
                         </p>
                       </div>
                     </div>
 
-                    <fieldset disabled={!canEditLateClaiming}>
-                      <div className="row g-3 mb-3">
-                        <div className="col-md-6">
+                    <div className="row g-3 mb-3">
+                      <div className="col-md-6">
+                        <fieldset disabled={lateClaimingHasStarted}>
                           <label className="form-label">Start Date</label>
                           <input
                             type="date"
@@ -957,32 +979,30 @@ function AdminSchedule() {
                               Enter at least one claiming day above first.
                             </div>
                           )}
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label">End Date</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={form.late_claiming_end_date}
-                            onChange={set("late_claiming_end_date")}
-                            min={form.late_claiming_date || undefined}
-                          />
-                        </div>
+                        </fieldset>
                       </div>
-                    </fieldset>
-
-                    {!isActive && (
-                      <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
-                        <button type="button" className="btn btn-secondary" onClick={handleReset}>
-                          Clear
-                        </button>
-                        <button type="submit" className="btn btn-custom" disabled={saving}>
-                          {saving ? "Saving..." : "Save Scheduled Claiming"}
-                        </button>
+                      <div className="col-md-6">
+                        <label className="form-label">End Date</label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={form.late_claiming_end_date}
+                          onChange={set("late_claiming_end_date")}
+                          min={
+                            lateClaimingHasStarted
+                              ? (schedule?.late_claiming_end_date || form.late_claiming_date || undefined)
+                              : (form.late_claiming_date || undefined)
+                          }
+                        />
+                        {lateClaimingHasStarted && (
+                          <div className="form-text">
+                            Can only be moved later, not earlier, since Late Claiming has already started.
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
 
-                    {schedule && canEditLateClaiming && (
+                    {schedule && (
                       <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
                         <button
                           type="button"
@@ -1453,10 +1473,9 @@ function AdminSchedule() {
             <div className="feedback-popup-icon-wrap">
               <span className="feedback-popup-icon">✓</span>
             </div>
-            <h4 className="feedback-popup-title">Late Claiming Window Updated</h4>
+            <h4 className="feedback-popup-title">{announceNudge.title}</h4>
             <p className="feedback-popup-message">
-              Applicants aren't notified of this change automatically. Want to post an
-              announcement about the new Late Claiming dates?
+              {announceNudge.message}
             </p>
             <div className="feedback-popup-confirm-actions">
               <button
@@ -1469,7 +1488,7 @@ function AdminSchedule() {
               <button
                 type="button"
                 className="feedback-popup-proceed"
-                onClick={goAnnounceLateClaimingChange}
+                onClick={goAnnounce}
               >
                 Create Announcement
               </button>
