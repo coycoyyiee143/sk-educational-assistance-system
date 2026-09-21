@@ -113,11 +113,23 @@ function firstValidDayDate(closeDate) {
   return dayAfterClose > todayStr() ? dayAfterClose : todayStr();
 }
 
+// "2026-09-28" -> "Sep 28" — the raw ISO strings read as a wall of
+// numbers in the summary cards, especially once paired with a second
+// date in a range. Year is dropped since these dates are always within
+// the current school year and adding it is just noise.
+function formatNiceDate(dateStr) {
+  if (!dateStr) return "—";
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 function formatDateRange(dates) {
   const unique = [...new Set(dates.filter(Boolean))].sort();
   if (unique.length === 0) return "—";
-  if (unique.length === 1) return unique[0];
-  return `${unique[0]} to ${unique[unique.length - 1]}`;
+  if (unique.length === 1) return formatNiceDate(unique[0]);
+  return `${formatNiceDate(unique[0])} – ${formatNiceDate(unique[unique.length - 1])}`;
 }
 
 function AdminSchedule() {
@@ -577,6 +589,41 @@ function AdminSchedule() {
   const hasApproved = approvedCount > 0;
   const totalLanesCount = days.reduce((sum, d) =>
     sum + (d.morning.enabled ? d.morning.lanes.length : 0) + (d.afternoon.enabled ? d.afternoon.lanes.length : 0), 0);
+  // Helps SK size lane capacities against actual demand while still
+  // drafting the form — without this, it's easy to under-provision
+  // (leaving people stuck "Awaiting a Lane" once activated) or
+  // over-provision with no way to tell without doing the math
+  // themselves. Compared against the period's slot_limit rather than
+  // just how many are approved SO FAR — SK reliably fills every slot
+  // they open up (same as when they've expanded slot_limit before), so
+  // the real target is the full limit, not just today's approved count.
+  // Only approvedCount itself is a meaningful target for an unlimited
+  // period, since there's no ceiling to plan against there.
+  const totalCapacityCount = days.reduce((sum, d) => {
+    const sumSession = (session) => session.enabled
+      ? session.lanes.reduce((s, l) => s + (Number(l.capacity) || 0), 0)
+      : 0;
+    return sum + sumSession(d.morning) + sumSession(d.afternoon);
+  }, 0);
+  const targetSlotCount = config?.is_unlimited ? approvedCount : (config?.slot_limit ?? approvedCount);
+  // A slot_limit this large (SK's has run 2000-3000) divided across
+  // however few lanes happen to be drafted right now can suggest an
+  // impossible per-lane number — a single lane realistically maxes out
+  // around 100 (SK's own past max), not the 1000+ a naive split could
+  // suggest. Past this ceiling, suggest adding more lanes/days instead,
+  // framed in SK's usual unit — 10 lanes per batch (a morning or
+  // afternoon session) — rather than a raw, harder-to-plan-around count.
+  const MAX_REASONABLE_LANE_CAPACITY = 100;
+  const LANES_PER_BATCH = 10;
+  // Only worth suggesting a split while capacity hasn't actually met the
+  // target yet — once it already has, showing "divide the target evenly"
+  // reads as "you should change this" even though nothing needs fixing.
+  const stillUnderTarget = totalCapacityCount < targetSlotCount;
+  const naivePerLane = stillUnderTarget && totalLanesCount > 0 ? Math.ceil(targetSlotCount / totalLanesCount) : null;
+  const suggestedCapacityPerLane = naivePerLane && naivePerLane <= MAX_REASONABLE_LANE_CAPACITY ? naivePerLane : null;
+  const suggestedLaneCount = naivePerLane && naivePerLane > MAX_REASONABLE_LANE_CAPACITY
+    ? Math.ceil(targetSlotCount / MAX_REASONABLE_LANE_CAPACITY)
+    : null;
   const claimingDates = days.map(d => d.date).filter(Boolean);
   const latestClaimingDateStr = claimingDates.length > 0
     ? claimingDates.slice().sort().slice(-1)[0]
@@ -604,8 +651,8 @@ function AdminSchedule() {
       label: "Late Claiming",
       value: form.late_claiming_date
         ? (form.late_claiming_end_date
-          ? `${form.late_claiming_date} to ${form.late_claiming_end_date}`
-          : form.late_claiming_date)
+          ? `${formatNiceDate(form.late_claiming_date)} – ${formatNiceDate(form.late_claiming_end_date)}`
+          : formatNiceDate(form.late_claiming_date))
         : "Not set",
     },
   ] : [];
@@ -793,6 +840,37 @@ function AdminSchedule() {
 
                       <hr className="my-4" />
                       <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Scheduled Claiming</h5>
+
+                      <div className={`schedule-notice mb-3 ${totalCapacityCount >= targetSlotCount ? "schedule-notice-green" : "schedule-notice-yellow"}`}>
+                        <div className="schedule-notice-icon">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                        </div>
+                        <div>
+                          <strong>{totalCapacityCount} total slot{totalCapacityCount === 1 ? "" : "s"}</strong> allocated across {totalLanesCount} lane{totalLanesCount === 1 ? "" : "s"} —{" "}
+                          {config?.is_unlimited
+                            ? `${approvedCount} approved applicant${approvedCount === 1 ? "" : "s"} currently need${approvedCount === 1 ? "s" : ""} one (unlimited period, no fixed target).`
+                            : `this period's slot limit is ${targetSlotCount}.`}{" "}
+                          {totalCapacityCount < targetSlotCount
+                            ? `Add ${targetSlotCount - totalCapacityCount} more slot(s) to cover the full ${config?.is_unlimited ? "current" : "slot limit"}.`
+                            : `Capacity covers the full ${config?.is_unlimited ? "current approved count" : "slot limit"}.`}{" "}
+                          {suggestedCapacityPerLane && (
+                            <div className="mt-2">
+                              <strong>Suggested:</strong> about {suggestedCapacityPerLane} per lane to divide {targetSlotCount} slots evenly across {totalLanesCount} lane{totalLanesCount === 1 ? "" : "s"}.
+                            </div>
+                          )}
+                          {suggestedLaneCount && (
+                            <div className="mt-2">
+                              {targetSlotCount} slots across just {totalLanesCount} lane{totalLanesCount === 1 ? "" : "s"} would mean an unrealistic {naivePerLane} per lane.{" "}
+                              <strong>Suggested:</strong> around {suggestedLaneCount} lane{suggestedLaneCount === 1 ? "" : "s"} total (about {Math.ceil(suggestedLaneCount / LANES_PER_BATCH)} batch{Math.ceil(suggestedLaneCount / LANES_PER_BATCH) === 1 ? "" : "es"} of {LANES_PER_BATCH} lanes) spread across your claiming days, at up to {MAX_REASONABLE_LANE_CAPACITY} each.
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
                       {days.map((day, dayIdx) => (
                         <div className="sub-card schedule-day-card mb-3" key={dayIdx}>
@@ -1076,6 +1154,21 @@ function AdminSchedule() {
                             {lane.capacity ? ` / ${lane.capacity}` : ""}
                           </td>
                           <td>
+                            {/* Before activation, verifiers are set via the
+                                Claiming Days form above + Save Scheduled
+                                Claiming — editing here too would let a
+                                live change get silently overwritten the
+                                next time that form is saved, since saving
+                                fully recreates every lane from the form's
+                                own state. This becomes the only way to
+                                reassign once active, since the form itself
+                                locks at that point. */}
+                            {!isActive ? (
+                              <span className="text-muted small">
+                                {lane.verifier ? `${lane.verifier.first_name} ${lane.verifier.last_name}` : "Unassigned"}
+                              </span>
+                            ) : (
+                            <>
                             <select
                               className="form-select form-select-sm"
                               value={lane.verifier_id ?? ""}
@@ -1133,6 +1226,8 @@ function AdminSchedule() {
                                   </div>
                                 </div>
                               </div>
+                            )}
+                            </>
                             )}
                           </td>
                           {isActive && (
@@ -1246,8 +1341,8 @@ function AdminSchedule() {
                   {" · "}
                   <strong>Late Claiming:</strong>{" "}
                   {schedule.late_claiming_end_date && schedule.late_claiming_end_date !== schedule.late_claiming_date
-                    ? `${schedule.late_claiming_date} to ${schedule.late_claiming_end_date}`
-                    : schedule.late_claiming_date}
+                    ? `${formatNiceDate(schedule.late_claiming_date)} – ${formatNiceDate(schedule.late_claiming_end_date)}`
+                    : formatNiceDate(schedule.late_claiming_date)}
                 </p>
                 <div className="table-responsive">
                   <table className="table table-bordered table-striped align-middle announcement-table">

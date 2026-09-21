@@ -61,6 +61,23 @@ class OpenApplicationPeriodSeeder extends Seeder
 
     private array $yearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 
+    private array $firstNames = [
+        'Juan', 'Maria', 'Jose', 'Ana', 'Pedro', 'Carla', 'Miguel', 'Angelica',
+        'Ramon', 'Grace', 'Carlo', 'Bea', 'Paolo', 'Jasmine', 'Ricardo', 'Faith',
+        'Emmanuel', 'Joy', 'Vincent', 'Cristina',
+    ];
+
+    private array $middleNames = [
+        'Santos', 'Reyes', 'Cruz', 'Bautista', 'Garcia', 'Torres', 'Ramos',
+        'Mendoza', 'Flores', 'Rivera',
+    ];
+
+    private array $lastNames = [
+        'Dela Cruz', 'Aquino', 'Castillo', 'Villanueva', 'Gonzales',
+        'Del Rosario', 'Fernandez', 'Domingo', 'Pascual', 'De Guzman',
+        'Aguilar', 'Ramirez', 'Navarro', 'Salazar', 'Marquez',
+    ];
+
     private array $rejectionReasons = [
         'Name does not match other submitted documents.',
         'Not a registered voter in Barangay Mamatid.',
@@ -169,9 +186,9 @@ class OpenApplicationPeriodSeeder extends Seeder
         $n = $this->counter;
 
         $user = User::create([
-            'first_name'        => 'Open',
-            'middle_name'       => 'Period',
-            'last_name'         => 'Applicant' . $n,
+            'first_name'        => $this->firstNames[array_rand($this->firstNames)],
+            'middle_name'       => $this->middleNames[array_rand($this->middleNames)],
+            'last_name'         => $this->lastNames[array_rand($this->lastNames)],
             'email'             => "openperiod.demo{$n}@test.com",
             'mobile_number'     => '09' . str_pad((string) random_int(0, 999999999), 9, '0', STR_PAD_LEFT),
             'password'          => Hash::make('applicant123'),
@@ -364,6 +381,11 @@ class OpenApplicationPeriodSeeder extends Seeder
             'late_claiming_end_date' => '2026-10-09',
         ]);
 
+        // Capacities sum to exactly 50, matching this config's slot_limit
+        // — over-provisioning even by a few slots is exactly the "why is
+        // this more than the limit" confusion the capacity notice on this
+        // page is meant to flag, so the seed data shouldn't trigger it
+        // itself.
         ClaimingLane::create([
             'claiming_schedule_id' => $schedule->id,
             'lane_name'            => 'Lane A',
@@ -376,7 +398,7 @@ class OpenApplicationPeriodSeeder extends Seeder
         ClaimingLane::create([
             'claiming_schedule_id' => $schedule->id,
             'lane_name'            => 'Lane B',
-            'capacity'             => 20,
+            'capacity'             => 15,
             'batch'                => 'afternoon',
             'claiming_date'        => '2026-09-28',
             'verifier_id'          => null,
