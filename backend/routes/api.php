@@ -1,5 +1,4 @@
 <?php
-
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ProfileController;
@@ -15,7 +14,6 @@ use App\Http\Controllers\Api\VerifierController;
 use App\Http\Controllers\Api\FaceVerificationController;
 use App\Http\Controllers\Api\PasswordResetController;
 use App\Http\Controllers\Api\PersonnelSetupController;
-
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/register/check', [AuthController::class, 'checkDuplicate']);
@@ -24,37 +22,31 @@ Route::post('/email/verify/{id}/{hash}', [AuthController::class, 'verifyEmail'])
     ->name('verification.verify');
 Route::post('/email/resend', [AuthController::class, 'resendVerification']);
 Route::post('/email/verify-by-code', [AuthController::class, 'verifyEmailByCode']);
-
 // 2FA — called right after /login returns a "2fa_required" response,
 // using a short-lived pending token instead of a session (stateless API).
 // Both handled inside AuthController — no separate TwoFactorController.
 Route::post('/2fa/setup/confirm', [AuthController::class, 'confirmTwoFactorSetup']); // activates + logs in
 Route::post('/2fa/verify', [AuthController::class, 'verifyTwoFactor']);              // normal login 2FA step
-
 // Forgot Password
 Route::post('/password/forgot', [PasswordResetController::class, 'sendResetCode']);
 Route::post('/password/verify-code', [PasswordResetController::class, 'verifyResetCode']);
 Route::post('/password/reset', [PasswordResetController::class, 'resetPassword']);
-
 // Personnel account setup / admin-initiated reset — public, since the
 // person clicking this link from their email isn't logged in yet.
 Route::get('/personnel/setup/{token}', [PersonnelSetupController::class, 'show']);
 Route::post('/personnel/setup/{token}', [PersonnelSetupController::class, 'store']);
-
 // Public info routes
 Route::get('/announcements', [AnnouncementController::class, 'index']);
 Route::get('/announcements/{id}', [AnnouncementController::class, 'show']);
 Route::get('/events', [SkEventController::class, 'index']);
 Route::get('/events/{id}', [SkEventController::class, 'show']);
 Route::get('/application-config/active', [ApplicationConfigurationController::class, 'active']);
-
 // Authenticated routes
 // SECURITY FIX: Previously these routes only required authentication
 // (any logged-in user, regardless of role, could call them). Now
 // wrapped in role:sk_admin so only users with role = 'sk_admin' can
 // access admin endpoints (user management, app config, schedules,
 // announcements, events, reports).
-
 Route::middleware(['auth:sanctum'])->group(function () {
     // ── Admin routes ────────────────────────────────────────────────
     // Account/personnel management — superadmin (full) + it_support
@@ -72,7 +64,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // self-service.
         Route::post('/admin/users/{id}/reset-2fa', [AdminController::class, 'resetTwoFactor']);
     });
-
     // View-only system status (failed jobs, DB connectivity, storage) —
     // available to superadmin and it_support, not sk_admin.
     Route::middleware(['role:superadmin,it_support'])->group(function () {
@@ -83,7 +74,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // Restore is deliberately NOT exposed here — CLI-only, see BACKUP.md.
         Route::post('/admin/backup-run', [AdminReportController::class, 'runBackup']);
     });
-
     // Master activity log and budget forecasting — superadmin only.
     Route::middleware(['role:superadmin'])->group(function () {
         Route::get('/admin/master-activity-log', [AdminController::class, 'masterActivityLog']);
@@ -92,7 +82,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/unmet-demand', [AdminReportController::class, 'unmetDemand']);
         Route::get('/admin/reports/last-cycle-actuals', [AdminReportController::class, 'lastCycleActuals']);
     });
-
     Route::middleware(['role:superadmin,sk_admin'])->group(function () {
         Route::get('/admin/stats', [AdminController::class, 'stats']);
         Route::get('/admin/application-configs', [ApplicationConfigurationController::class, 'index']);
@@ -138,6 +127,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/applicant-distribution/pdf', [AdminReportController::class, 'applicantDistributionPdf']);
         Route::get('/admin/reports/school-program/pdf', [AdminReportController::class, 'schoolProgramPdf']);
         Route::get('/admin/reports/year-level-age/pdf', [AdminReportController::class, 'yearLevelAgePdf']);
+        Route::get('/admin/reports/purok-phase/pdf', [AdminReportController::class, 'purokPhasePdf']);
         Route::get('/admin/reports/submission-trends/pdf', [AdminReportController::class, 'submissionTrendsPdf']);
         Route::get('/admin/reports/submission-vs-approval/pdf', [AdminReportController::class, 'submissionVsApprovalPdf']);
         Route::get('/admin/reports/late-claiming-list/pdf', [AdminReportController::class, 'lateClaimingListPdf']);
@@ -148,24 +138,18 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/admin/reports/disbursement/pdf', [AdminReportController::class, 'disbursementReportPdf']);
         Route::get('/admin/reports/ocr-queue-health', [AdminReportController::class, 'ocrQueueHealth']);
         Route::get('/admin/activity-log', [AdminController::class, 'activityLog']);
-
     });
-
     Route::middleware(['auth:sanctum', 'log.visit'])->group(function () {
         // ── Admin routes ────────────────────────────────────────────────
         Route::middleware(['role:sk_admin'])->group(function () {
         });
-
         // ── Verifier routes ─────────────────────────────────────────────
         Route::middleware(['role:sk_verifier'])->group(function () {
         });
-
         // ── Applicant routes ────────────────────────────────────────────
         Route::middleware(['role:applicant'])->group(function () {
         });
-
     });
-
     // ── Verifier routes ─────────────────────────────────────────────
     Route::middleware(['role:sk_verifier'])->group(function () {
         Route::get('/verifier/applications', [VerifierController::class, 'index']);
@@ -187,7 +171,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/verifier/claiming/{applicationId}/face-verification', [FaceVerificationController::class, 'latestClaimingVerification']);
         Route::post('/verifier/claiming/{applicationId}/verify-face', [FaceVerificationController::class, 'verifyClaiming']);
     });
-
     // ── Applicant routes ────────────────────────────────────────────
     Route::middleware(['role:applicant'])->group(function () {
         Route::get('/applications', [ApplicationController::class, 'index']);
@@ -204,9 +187,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/face-verification', [FaceVerificationController::class, 'show']);
         Route::get('/face-verification/photo', [FaceVerificationController::class, 'myPhoto'])
             ->name('face-verification.my-photo');
-
     });
-
     // ── Shared routes (any authenticated role) ─────────────────────
     Route::put('/user/profile', [ProfileController::class, 'updateAccount']);
     Route::put('/user/password', [ProfileController::class, 'updatePassword']);
@@ -217,11 +198,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/claiming/face-verifications/{id}/photo', [FaceVerificationController::class, 'showClaimingPhoto'])->name('claiming.face-photo');
     Route::get('/claiming/applications/{applicationId}/registration-photo', [FaceVerificationController::class, 'registrationPhoto']);
     Route::get('/users/{userId}/profile-photo', [FaceVerificationController::class, 'profilePhoto']);
-
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/user', [AuthController::class, 'user']);
-
     // Profile
     Route::get('/profile', [ProfileController::class, 'show']);
     Route::post('/profile', [ProfileController::class, 'store']);

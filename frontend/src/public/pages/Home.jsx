@@ -1003,7 +1003,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member6.png"
+                  src="/officials/secretary.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -1041,7 +1041,7 @@ const Home = () => {
             <div className="org-row org-row-2">
               <div className="org-card">
                 <img
-                  src="/officials/secretary.png"
+                  src="/officials/member6.png"
                   alt="SK Secretary"
                   className="org-photo"
                 />
