@@ -74,13 +74,17 @@ class AdminReportController extends Controller
         $total    = $query->clone()->count();
         $pending  = $query->clone()->whereIn('status', $this->pendingStatuses())->count();
         $approved = $query->clone()->whereIn('status', $this->slotHoldingStatuses())->count();
-        $rejected = $query->clone()->where('status', 'rejected')->count();
+        $claimed  = $query->clone()->where('status', 'claimed')->count();
+        // Combined with not_cleared — both mean "did not receive funding,"
+        // just at different stages (online prescreening vs claiming day).
+        $rejected = $query->clone()->whereIn('status', ['rejected', 'not_cleared'])->count();
         return response()->json([
             'config' => $config,
             'summary' => [
                 'total_applicants'      => $total,
                 'pending_applications'  => $pending,
                 'approved_applications' => $approved,
+                'claimed_applications'  => $claimed,
                 'rejected_applications' => $rejected,
             ],
             'rates' => [
@@ -102,7 +106,7 @@ class AdminReportController extends Controller
             'Claimed'              => ['claimed'],
             'Not Cleared'          => ['not_cleared'],
             'Unclaimed'            => ['unclaimed'],
-            'Not Selected'         => ['not_selected'],
+            'Not Accommodated'     => ['not_selected'],
             'Rejected'             => ['rejected'],
         ];
         if ($type && isset($map[$type])) {
@@ -443,14 +447,25 @@ class AdminReportController extends Controller
             $waitlisted = Application::where('config_id', $config->id)
                 ->where('status', 'waitlisted')
                 ->count();
-            $ratio = $approved > 0 ? round(($waitlisted / $approved) * 100, 1) : null;
+            // Once a period closes, anyone still waitlisted converts to
+            // not_selected (AdminScheduleController::closePeriod()) — so
+            // for a completed period, waitlisted alone undercounts unmet
+            // demand down to ~0. Combine both so the tracker stays accurate
+            // whether the period is still open or already closed.
+            $notSelected = Application::where('config_id', $config->id)
+                ->where('status', 'not_selected')
+                ->count();
+            $unmetDemand = $waitlisted + $notSelected;
+            $ratio = $approved > 0 ? round(($unmetDemand / $approved) * 100, 1) : null;
             return [
-                'config_id'   => $config->id,
-                'school_year' => $config->school_year,
-                'is_active'   => $config->is_active,
-                'approved'    => $approved,
-                'waitlisted'  => $waitlisted,
-                'ratio'       => $ratio,
+                'config_id'    => $config->id,
+                'school_year'  => $config->school_year,
+                'is_active'    => $config->is_active,
+                'approved'     => $approved,
+                'waitlisted'   => $waitlisted,
+                'not_selected' => $notSelected,
+                'unmet_demand' => $unmetDemand,
+                'ratio'        => $ratio,
             ];
         });
         return response()->json(['trend' => $trend->values()]);

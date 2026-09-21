@@ -6,7 +6,7 @@ import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 function AdminDashboard() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [stats, setStats] = useState({ total: 0, incomplete: 0, pending: 0, approved: 0, rejected: 0, no_active_period: false });
+  const [stats, setStats] = useState({ total: 0, incomplete: 0, pending: 0, approved: 0, claimed: 0, rejected: 0, no_active_period: false });
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     api.get("/admin/stats")
@@ -44,6 +44,16 @@ function AdminDashboard() {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" />
           <path d="M8 12l3 3 5-6" />
+        </svg>
+      ),
+    },
+    {
+      label: "Claimed",
+      value: stats.claimed,
+      accent: "blue",
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6L9 17l-5-5" />
         </svg>
       ),
     },

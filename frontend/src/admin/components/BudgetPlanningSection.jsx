@@ -1035,6 +1035,15 @@ function BudgetPlanningSection() {
                         <br />
                         <br />
 
+                        Combines applicants currently on the
+                        waitlist with applicants who stayed
+                        waitlisted until the period closed
+                        (Not Accommodated) — otherwise a closed
+                        period would understate demand once its
+                        waitlist empties out.
+                        <br />
+                        <br />
+
                         This is a <strong>lower bound</strong>,
                         not the true demand, because qualified
                         applicants who never apply are not included.
@@ -1062,9 +1071,9 @@ function BudgetPlanningSection() {
                                     <th>School Year</th>
                                     <th>Applicants Funded</th>
                                     <th>
-                                        Waitlisted (Unmet Demand)
+                                        Unmet Demand (Waitlisted + Not Accommodated)
                                     </th>
-                                    <th>Waitlisted ÷ Funded</th>
+                                    <th>Unmet Demand ÷ Funded</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -1091,7 +1100,7 @@ function BudgetPlanningSection() {
                                             </td>
 
                                             <td>
-                                                {row.waitlisted}
+                                                {row.unmet_demand}
                                             </td>
 
                                             <td>

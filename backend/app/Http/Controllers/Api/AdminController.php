@@ -47,17 +47,25 @@ class AdminController extends Controller
                 'incomplete' => 0,
                 'pending'    => 0,
                 'approved'   => 0,
+                'claimed'    => 0,
                 'rejected'   => 0,
                 'no_active_period' => true,
             ]);
         }
-    
+
+        // "Approved" = holds/held a slot at any point in the pipeline
+        // (approved, claimed, or unclaimed) — matches slotHoldingStatuses()
+        // in AdminReportController. "Claimed" is a subset shown alongside
+        // it, not a replacement for it. "Rejected" combines the online
+        // prescreening rejection with the claiming-day not_cleared outcome,
+        // since both mean "did not receive funding."
         return response()->json([
             'total'      => Application::where('config_id', $activeConfig->id)->whereHas('documents')->count(),
             'incomplete' => Application::where('config_id', $activeConfig->id)->whereDoesntHave('documents')->count(),
             'pending'    => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening', 'for_review'])->count(),
-            'approved'   => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
-            'rejected'   => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
+            'approved'   => Application::where('config_id', $activeConfig->id)->whereIn('status', ['approved', 'claimed', 'unclaimed'])->count(),
+            'claimed'    => Application::where('config_id', $activeConfig->id)->where('status', 'claimed')->count(),
+            'rejected'   => Application::where('config_id', $activeConfig->id)->whereIn('status', ['rejected', 'not_cleared'])->count(),
             'no_active_period' => false,
         ]);
     }

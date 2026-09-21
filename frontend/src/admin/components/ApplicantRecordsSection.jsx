@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import api from "../../services/api";
-const reportTypes = ["All Applications", "Pending Prescreening", "For Review", "Reupload Requested", "Approved", "Waitlisted", "Claimed", "Not Cleared", "Unclaimed", "Not Selected", "Rejected"];
+const reportTypes = ["All Applications", "Pending Prescreening", "For Review", "Reupload Requested", "Approved", "Waitlisted", "Claimed", "Not Cleared", "Unclaimed", "Not Accommodated", "Rejected"];
 const applicantTypes = ["All Applicants", "Minor", "Adult"];
 const yearLevelOptions = ["All Year Levels", "1st Year", "2nd Year", "3rd Year", "4th Year"];
 const emptyFilter = {

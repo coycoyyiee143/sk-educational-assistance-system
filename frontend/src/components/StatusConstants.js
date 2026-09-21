@@ -240,8 +240,8 @@ export const STATUS_CONFIG = {
     // person was never found ineligible, they simply ran out of room by
     // the time the period closed. Set only by AdminScheduleController::closePeriod().
     not_selected: {
-        applicantLabel: "Not Selected",
-        verifierLabel: "Not Selected",
+        applicantLabel: "Not Accommodated",
+        verifierLabel: "Not Accommodated — Slots Full",
         boxClass: "status-box-rejected",
         badgeClass: "status-rejected",
         applicantMessage: "You met all requirements and were on the waitlist, but no slot became available before the application period closed. This is not a rejection of your eligibility — please watch for the next application period.",
