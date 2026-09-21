@@ -22,12 +22,20 @@ class ApplicationConfigurationController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/'],
+            // unique — a school year should map to exactly one period ever.
+            // "Start New Application Period" already assumes a fresh one is
+            // for a DIFFERENT school year; without this, a mistyped or
+            // reused label could silently create a second "2025-2026"
+            // alongside an existing one, confusing every report that
+            // groups by school_year.
+            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/', 'unique:application_configurations,school_year'],
             'open_date'          => 'required|date',
             'close_date'         => 'required|date|after:open_date',
             'is_unlimited'       => 'boolean',
             'slot_limit'         => 'required_if:is_unlimited,false|nullable|integer|min:1',
             'assistance_amount'  => 'required|integer|min:0',
+        ], [
+            'school_year.unique' => 'An application period for ' . $request->school_year . ' already exists in the records. Each school year can only be used once.',
         ]);
 
         ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
@@ -63,14 +71,18 @@ class ApplicationConfigurationController extends Controller
 
         $data = $request->validate([
             // Same format guarantee as store() above — see that comment
-            // for why this matters beyond just input tidiness.
-            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/'],
+            // for why this matters beyond just input tidiness. unique
+            // ignores this same row, so re-saving a config without
+            // touching its own school_year isn't rejected against itself.
+            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/', 'unique:application_configurations,school_year,' . $config->id],
             'open_date'          => 'required|date',
             'close_date'         => 'required|date|after:open_date',
             'is_unlimited'       => 'boolean',
             'slot_limit'         => 'required_if:is_unlimited,false|nullable|integer|min:1',
             'assistance_amount'  => 'required|integer|min:0',
             'is_active'          => 'boolean',
+        ], [
+            'school_year.unique' => 'An application period for ' . $request->school_year . ' already exists in the records. Each school year can only be used once.',
         ]);
 
         // close_date is NOT editable through this general-purpose form,
