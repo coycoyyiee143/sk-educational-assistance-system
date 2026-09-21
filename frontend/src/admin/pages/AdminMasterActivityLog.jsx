@@ -5,20 +5,55 @@ import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import PanelFooter from "../../components/PanelFooter";
 
+// Every action string actually passed to AuditLog::record() (or logged
+// via the equivalent plain-array pattern in AuthController/
+// PasswordResetController) across the backend — kept in sync with that
+// so a new action never silently falls back to ActionBadge's raw
+// snake_case + gray-badge default.
 const ACTION_CONFIG = {
   login: { label: "Logged In", badge: "bg-primary" },
   logout: { label: "Logged Out", badge: "bg-secondary" },
   login_failed: { label: "Failed Login", badge: "bg-danger" },
   page_visited: { label: "Page Visit", badge: "bg-secondary" },
   password_changed: { label: "Password Changed", badge: "bg-warning text-dark" },
+  password_reset: { label: "Password Reset", badge: "bg-warning text-dark" },
+  account_updated: { label: "Account Updated", badge: "bg-primary" },
+  profile_completed: { label: "Profile Completed", badge: "bg-success" },
+  profile_updated: { label: "Profile Updated", badge: "bg-primary" },
+  consent: { label: "Consent Recorded", badge: "bg-secondary" },
+  application_submitted: { label: "Application Submitted", badge: "bg-success" },
+  application_updated: { label: "Application Updated", badge: "bg-primary" },
   application_approved: { label: "Application Approved", badge: "bg-success" },
   application_rejected: { label: "Application Rejected", badge: "bg-danger" },
   application_reupload_requested: { label: "Re-upload Requested", badge: "bg-warning text-dark" },
+  application_not_selected: { label: "Not Selected (Waitlist)", badge: "bg-secondary" },
+  application_appeal_requested: { label: "Appeal Requested", badge: "bg-warning text-dark" },
+  application_appeal_approved: { label: "Appeal Approved", badge: "bg-success" },
+  application_appeal_denied: { label: "Appeal Denied", badge: "bg-danger" },
+  auto_reupload_flagged: { label: "Auto Re-upload Flagged", badge: "bg-warning text-dark" },
+  document_reuploaded: { label: "Document Re-uploaded", badge: "bg-primary" },
+  face_verification_registered: { label: "Face Verification (Registered)", badge: "bg-success" },
+  face_verification_claiming: { label: "Face Verification (Claiming)", badge: "bg-primary" },
+  face_verification_reverified: { label: "Face Re-verified", badge: "bg-primary" },
   claim_status_updated: { label: "Claim Status Updated", badge: "bg-primary" },
+  claiming_missed_slot: { label: "Missed Claiming Slot", badge: "bg-danger" },
+  claiming_unclaimed_final: { label: "Marked Unclaimed", badge: "bg-danger" },
+  application_period_created: { label: "Application Period Created", badge: "bg-success" },
+  application_period_updated: { label: "Application Period Updated", badge: "bg-primary" },
+  application_period_extended: { label: "Application Period Extended", badge: "bg-primary" },
+  schedule_saved: { label: "Scheduled Claiming Saved", badge: "bg-primary" },
+  schedule_activated: { label: "Schedule Activated", badge: "bg-success" },
+  late_claiming_updated: { label: "Late Claiming Updated", badge: "bg-primary" },
+  lane_verifier_assigned: { label: "Lane Verifier Assigned", badge: "bg-primary" },
+  lane_request_dismissed: { label: "Lane Request Dismissed", badge: "bg-secondary" },
   personnel_created: { label: "Personnel Created", badge: "bg-success" },
   personnel_updated: { label: "Personnel Updated", badge: "bg-primary" },
   personnel_status_changed: { label: "Status Changed", badge: "bg-warning text-dark" },
   personnel_deleted: { label: "Personnel Deleted", badge: "bg-danger" },
+  personnel_password_reset: { label: "Personnel Password Reset", badge: "bg-warning text-dark" },
+  personnel_account_activated: { label: "Account Activated", badge: "bg-success" },
+  backup_run: { label: "Backup Run", badge: "bg-secondary" },
+  backup_run_failed: { label: "Backup Failed", badge: "bg-danger" },
 };
 
 const ROLE_LABELS = {
@@ -30,7 +65,11 @@ const ROLE_LABELS = {
 
 function ActionBadge({ action }) {
   const config = ACTION_CONFIG[action] || { label: action, badge: "bg-secondary" };
-  return <span className={`badge ${config.badge}`}>{config.label}</span>;
+  // Bootstrap's .badge forces white-space: nowrap, which made a long
+  // label (e.g. "Application Period Extended") spill past its cell into
+  // the Description column instead of wrapping — several labels here are
+  // long enough to hit this, not just that one.
+  return <span className={`badge ${config.badge}`} style={{ whiteSpace: "normal" }}>{config.label}</span>;
 }
 
 function RoleBadge({ role }) {
@@ -53,20 +92,6 @@ function formatTimestamp(dateString) {
   } catch {
     return dateString;
   }
-}
-
-// Replaces the user's full name at the start of the description with "You"
-// when the log entry belongs to the currently logged-in admin.
-function formatDescription(log, currentUser) {
-  if (!log.description || !log.user || !currentUser) return log.description;
-  if (log.user.id !== currentUser.id) return log.description;
-
-  const fullName = `${log.user.first_name} ${log.user.last_name}`;
-  if (log.description.startsWith(fullName)) {
-    return "You" + log.description.slice(fullName.length);
-  }
-
-  return log.description;
 }
 
 // Combined activity log for Admin and Verifier accounts only.
@@ -98,7 +123,6 @@ function AdminMasterActivityLog() {
       const matchesQuery =
         query.trim() === "" ||
         log.description?.toLowerCase().includes(query.toLowerCase()) ||
-        log.ip_address?.includes(query) ||
         `${log.user?.first_name} ${log.user?.last_name}`.toLowerCase().includes(query.toLowerCase());
       const matchesAction = actionFilter === "all" || log.action === actionFilter;
       const matchesRole =
@@ -168,7 +192,7 @@ function AdminMasterActivityLog() {
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Search by username, description, or IP address"
+                    placeholder="Search by username or description"
                     value={query}
                     onChange={(e) => {
                       setQuery(e.target.value);
@@ -221,12 +245,11 @@ function AdminMasterActivityLog() {
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle announcement-table">
                   <colgroup>
-                    <col style={{ width: "16%" }} />
-                    <col style={{ width: "15%" }} />
-                    <col style={{ width: "10%" }} />
-                    <col style={{ width: "16%" }} />
-                    <col style={{ width: "31%" }} />
+                    <col style={{ width: "13%" }} />
                     <col style={{ width: "12%" }} />
+                    <col style={{ width: "13%" }} />
+                    <col style={{ width: "20%" }} />
+                    <col style={{ width: "42%" }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -235,19 +258,18 @@ function AdminMasterActivityLog() {
                       <th>Role</th>
                       <th>Action</th>
                       <th>Description</th>
-                      <th>IP Address</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan={6} className="text-center py-4">
+                        <td colSpan={5} className="text-center py-4">
                           <div className="spinner-border text-danger" role="status" />
                         </td>
                       </tr>
                     ) : filteredLogs.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="text-center text-muted py-4">
+                        <td colSpan={5} className="text-center text-muted py-4">
                           No activity found.
                         </td>
                       </tr>
@@ -257,15 +279,12 @@ function AdminMasterActivityLog() {
                           <td>{formatTimestamp(log.created_at)}</td>
                           <td>
                             {log.user
-                              ? (log.user.id === currentUser?.id
-                                ? "You"
-                                : `${log.user.first_name} ${log.user.last_name}`)
+                              ? `${log.user.first_name} ${log.user.last_name}`
                               : <span className="text-muted fst-italic">Deleted user</span>}
                           </td>
                           <td>{log.user && <RoleBadge role={log.user.role} />}</td>
                           <td><ActionBadge action={log.action} /></td>
-                          <td>{formatDescription(log, currentUser)}</td>
-                          <td><code className="small">{log.ip_address}</code></td>
+                          <td>{log.description}</td>
                         </tr>
                       ))
                     )}

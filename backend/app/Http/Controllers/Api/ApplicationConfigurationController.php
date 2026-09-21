@@ -54,6 +54,12 @@ class ApplicationConfigurationController extends Controller
             'created_by'         => $request->user()->id,
         ]);
 
+        \App\Models\AuditLog::record(
+            'application_period_created',
+            $config,
+            "Created and activated application period #{$config->id} for school year {$config->school_year}"
+        );
+
         return response()->json([
             'message' => 'Application period activated.',
             'config'  => $config,
@@ -147,6 +153,12 @@ class ApplicationConfigurationController extends Controller
         }
 
         $config->update($data);
+
+        \App\Models\AuditLog::record(
+            'application_period_updated',
+            $config,
+            "Updated application period #{$config->id} settings"
+        );
 
         return response()->json(['message' => 'Configuration updated.', 'config' => $config]);
     }

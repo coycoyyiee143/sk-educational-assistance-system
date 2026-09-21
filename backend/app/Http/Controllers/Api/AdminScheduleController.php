@@ -182,6 +182,12 @@ class AdminScheduleController extends Controller
         }]);
         $schedule->lanes->each->append('control_number_range');
 
+        \App\Models\AuditLog::record(
+            'schedule_saved',
+            $schedule,
+            "Saved Scheduled Claiming for config #{$config->id} — {$schedule->lanes->count()} lane(s)"
+        );
+
         return response()->json([
             'message'  => 'Schedule saved.',
             'schedule' => $schedule,
@@ -232,6 +238,12 @@ class AdminScheduleController extends Controller
         }]);
         $schedule->lanes->each->append('control_number_range');
 
+        \App\Models\AuditLog::record(
+            'schedule_activated',
+            $schedule,
+            "Activated schedule #{$schedule->id} — {$assignedCount} already-approved applicant(s) assigned"
+        );
+
         return response()->json([
             'message'  => $message,
             'schedule' => $schedule,
@@ -244,10 +256,15 @@ class AdminScheduleController extends Controller
      * replaces the lane list, which is unsafe once real assignments
      * exist). Late Claiming itself has no such conflict — nothing reads
      * or depends on its dates until Late Claiming actually opens — so
-     * it's safe to keep editable right up to that point, then locked:
-     * once it's started, LateClaimingEligibility and the
-     * claiming:sweep-unclaimed command both assume its start date is
-     * stable, since retries/promotions may already be sitting on it.
+     * it's safe to keep editable right up to that point.
+     *
+     * Once it's started, the START date specifically is locked —
+     * LateClaimingEligibility and the claiming:sweep-unclaimed command
+     * both assume it's stable, since retries/promotions may already be
+     * sitting on it. The END date has no such dependency, so it can
+     * still be pushed later (never earlier) even after Late Claiming has
+     * started or already ended — same "extend, never shrink" shape as
+     * ApplicationConfigurationController::extend().
      */
     public function updateLateClaiming(Request $request, $id)
     {
@@ -258,11 +275,31 @@ class AdminScheduleController extends Controller
 
         $schedule = ClaimingSchedule::with('lanes')->findOrFail($id);
 
-        if ($schedule->late_claiming_date
-            && \Carbon\Carbon::parse($schedule->late_claiming_date)->startOfDay()->lte(now()->startOfDay())) {
-            return response()->json([
-                'message' => 'Late Claiming has already started and its window can no longer be changed.',
-            ], 400);
+        $startAlreadyPassed = $schedule->late_claiming_date
+            && \Carbon\Carbon::parse($schedule->late_claiming_date)->startOfDay()->lte(now()->startOfDay());
+
+        if ($startAlreadyPassed) {
+            $currentStart = \Carbon\Carbon::parse($schedule->late_claiming_date)->startOfDay();
+            $newStart = $request->late_claiming_date
+                ? \Carbon\Carbon::parse($request->late_claiming_date)->startOfDay()
+                : null;
+
+            if (!$newStart || !$newStart->eq($currentStart)) {
+                return response()->json([
+                    'message' => 'Late Claiming has already started — its start date can no longer be changed, but you can still extend the end date.',
+                ], 400);
+            }
+
+            if ($request->late_claiming_end_date && $schedule->late_claiming_end_date) {
+                $currentEnd = \Carbon\Carbon::parse($schedule->late_claiming_end_date)->startOfDay();
+                $newEnd = \Carbon\Carbon::parse($request->late_claiming_end_date)->startOfDay();
+
+                if ($newEnd->lt($currentEnd)) {
+                    return response()->json([
+                        'message' => 'The end date can only be moved later, not earlier, once Late Claiming has started.',
+                    ], 400);
+                }
+            }
         }
 
         // Same rule store() enforces at creation time — Late Claiming
@@ -291,6 +328,12 @@ class AdminScheduleController extends Controller
                 ->with('assignments.application:id,control_number');
         }]);
         $schedule->lanes->each->append('control_number_range');
+
+        \App\Models\AuditLog::record(
+            'late_claiming_updated',
+            $schedule,
+            "Updated Late Claiming window on schedule #{$schedule->id} to {$schedule->late_claiming_date} - {$schedule->late_claiming_end_date}"
+        );
 
         return response()->json([
             'message'  => 'Late Claiming window updated.',
@@ -354,6 +397,14 @@ class AdminScheduleController extends Controller
         // what was requested (i.e. approving it) or not.
         $lane->update(['verifier_id' => $request->verifier_id, 'requested_verifier_id' => null]);
 
+        \App\Models\AuditLog::record(
+            'lane_verifier_assigned',
+            $lane,
+            $request->verifier_id
+                ? "Assigned verifier #{$request->verifier_id} to lane #{$lane->id} ({$lane->lane_name})"
+                : "Unassigned verifier from lane #{$lane->id} ({$lane->lane_name})"
+        );
+
         return response()->json([
             'message' => $request->verifier_id
                 ? 'Verifier assigned to lane.'
@@ -370,7 +421,14 @@ class AdminScheduleController extends Controller
     public function dismissLaneRequest($laneId)
     {
         $lane = ClaimingLane::findOrFail($laneId);
+        $requestedVerifierId = $lane->requested_verifier_id;
         $lane->update(['requested_verifier_id' => null]);
+
+        \App\Models\AuditLog::record(
+            'lane_request_dismissed',
+            $lane,
+            "Dismissed verifier #{$requestedVerifierId}'s request for lane #{$lane->id} ({$lane->lane_name})"
+        );
 
         return response()->json([
             'message' => 'Request dismissed.',
