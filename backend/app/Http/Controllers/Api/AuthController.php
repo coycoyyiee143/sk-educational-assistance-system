@@ -11,9 +11,13 @@ use App\Notifications\ApplicationStatusNotification;
 use App\Services\FaceMatchingService;
 use App\Services\TwoFactorService;
 use App\Rules\NotObviouslyWeakPassword;
+use App\Models\TwoFactorResetRequest;
+use App\Mail\TwoFactorResetRequestMail;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rules\Password;
@@ -26,6 +30,18 @@ class AuthController extends Controller
     const MAX_FAILED_ATTEMPTS = 3;
     const LOCKOUT_MINUTES = 15;
     const PENDING_TOKEN_MINUTES = 10;
+
+    // Progressive cooldown schedule for the "email an admin for help" 2FA
+    // request, in seconds — same idea as RESEND_COOLDOWN_SCHEDULE below:
+    // short wait on the first attempt, longer on repeats, since each one
+    // fans out an email to every admin/it_support inbox. Capped at 900s
+    // (15 minutes), the same ceiling the flat cooldown used before.
+    const TWO_FACTOR_HELP_COOLDOWN_SCHEDULE = [60, 180, 420, 900];
+
+    // Window after which the attempt count resets, so a burst of requests
+    // today doesn't permanently throttle someone who gets locked out again
+    // next week.
+    const TWO_FACTOR_HELP_WINDOW_HOURS = 2;
 
     // Shared password rule set: 8 char min, lowercase + number, breach-checked,
     // blocked against obvious/context-specific weak terms.
@@ -248,64 +264,71 @@ class AuthController extends Controller
         }
 
         // Both duplicate checks passed, face matched — now it's safe to
-        // actually create the account.
-        $user = User::create([
-            'first_name'         => $request->first_name,
-            'middle_name'        => $request->middle_name,
-            'last_name'          => $request->last_name,
-            'email'              => $request->email,
-            'mobile_number'      => $request->mobile_number,
-            'password'           => Hash::make($request->password),
-            'role'               => 'applicant',
-            'privacy_consent_at' => now(),
-        ]);
+        // actually create the account. Wrapped in a transaction so a
+        // mid-process failure (e.g. photo storage erroring out) rolls back
+        // every record instead of leaving a half-created account that
+        // blocks the applicant from registering again.
+        $user = DB::transaction(function () use ($request, $idImage, $livePhoto, $result) {
+            $user = User::create([
+                'first_name'         => $request->first_name,
+                'middle_name'        => $request->middle_name,
+                'last_name'          => $request->last_name,
+                'email'              => $request->email,
+                'mobile_number'      => $request->mobile_number,
+                'password'           => Hash::make($request->password),
+                'role'               => 'applicant',
+                'privacy_consent_at' => now(),
+            ]);
 
-        // Seed password history with the initial password, so the very
-        // first change already has something to check reuse against.
-        PasswordHistory::create([
-            'user_id'       => $user->id,
-            'password_hash' => $user->password,
-        ]);
+            // Seed password history with the initial password, so the very
+            // first change already has something to check reuse against.
+            PasswordHistory::create([
+                'user_id'       => $user->id,
+                'password_hash' => $user->password,
+            ]);
 
-        // Audit trail ng Data Privacy consent — proof kung sino, kailan, at saang IP nag-agree
-        \App\Models\AuditLog::record(
-            'consent',
-            $user,
-            "{$user->first_name} {$user->last_name} agreed to the Data Privacy Notice.",
-            $user
-        );
+            // Audit trail ng Data Privacy consent — proof kung sino, kailan, at saang IP nag-agree
+            \App\Models\AuditLog::record(
+                'consent',
+                $user,
+                "{$user->first_name} {$user->last_name} agreed to the Data Privacy Notice.",
+                $user
+            );
 
-        // Profile starts pre-filled with what Register already collected —
-        // is_profile_complete stays false until the applicant fills in the
-        // rest via the Profile page.
-        StudentProfile::create([
-            'user_id'   => $user->id,
-            'birthdate' => $request->birthdate,
-            'barangay'  => $request->barangay,
-        ]);
+            // Profile starts pre-filled with what Register already collected —
+            // is_profile_complete stays false until the applicant fills in the
+            // rest via the Profile page.
+            StudentProfile::create([
+                'user_id'   => $user->id,
+                'birthdate' => $request->birthdate,
+                'barangay'  => $request->barangay,
+            ]);
 
-        // Now persist the ID + live photo to permanent storage under this
-        // user's folder, and record the verification result.
-        $idImagePath = $idImage->storeAs(
-            "face-verifications/{$user->id}",
-            'id_' . time() . '.' . $idImage->getClientOriginalExtension(),
-            'local'
-        );
-        $livePhotoPath = $livePhoto->storeAs(
-            "face-verifications/{$user->id}",
-            'live_' . time() . '.' . $livePhoto->getClientOriginalExtension(),
-            'local'
-        );
+            // Now persist the ID + live photo to permanent storage under this
+            // user's folder, and record the verification result.
+            $idImagePath = $idImage->storeAs(
+                "face-verifications/{$user->id}",
+                'id_' . time() . '.' . $idImage->getClientOriginalExtension(),
+                'local'
+            );
+            $livePhotoPath = $livePhoto->storeAs(
+                "face-verifications/{$user->id}",
+                'live_' . time() . '.' . $livePhoto->getClientOriginalExtension(),
+                'local'
+            );
 
-        FaceVerification::create([
-            'user_id'                  => $user->id,
-            'id_image_path'            => $idImagePath,
-            'live_photo_path'          => $livePhotoPath,
-            'face_embedding'           => $result['embedding'],
-            'registration_match_score' => $result['score'],
-            'status'                   => 'verified',
-            'verified_at'              => now(),
-        ]);
+            FaceVerification::create([
+                'user_id'                  => $user->id,
+                'id_image_path'            => $idImagePath,
+                'live_photo_path'          => $livePhotoPath,
+                'face_embedding'           => $result['embedding'],
+                'registration_match_score' => $result['score'],
+                'status'                   => 'verified',
+                'verified_at'              => now(),
+            ]);
+
+            return $user;
+        });
 
         // TRIGGER: Automatically dispatches Laravel's email verification link via your Log/Mail system
         $user->sendEmailVerificationNotification();
@@ -478,6 +501,93 @@ class AuthController extends Controller
         Cache::forget("2fa_pending:{$request->pending_token}");
 
         return $this->issueTokenAfterTwoFactor($user, $request);
+    }
+
+    /**
+     * "Lost your authenticator?" link on the 2fa_verify login step.
+     * Deliberately does NOT reset anything itself — it only pings
+     * it_support/superadmin so a human can verify identity and reset
+     * 2FA from the existing admin panel (AdminController::resetTwoFactor).
+     * See that method's docblock for why 2FA reset is intentionally
+     * not self-service/email-recoverable.
+     *
+     * Requires a valid pending_token (i.e. the password was already
+     * checked at /login) so this can't be used to spam arbitrary
+     * accounts' inboxes/admins by email alone.
+     *
+     * Rate-limited to one request per user per cooldown window, based
+     * on their last request regardless of outcome — otherwise a stuck
+     * user could hammer this and flood every admin's inbox.
+     */
+    public function requestTwoFactorHelp(Request $request)
+    {
+        $request->validate([
+            'pending_token' => 'required|string',
+        ]);
+
+        $userId = Cache::get("2fa_pending:{$request->pending_token}");
+        if (!$userId) {
+            return response()->json(['message' => 'Login session expired. Please log in again.'], 400);
+        }
+
+        $user = User::findOrFail($userId);
+
+        $recentRequests = TwoFactorResetRequest::where('user_id', $user->id)
+            ->where('created_at', '>=', now()->subHours(self::TWO_FACTOR_HELP_WINDOW_HOURS))
+            ->orderByDesc('created_at')
+            ->get();
+
+        $lastRequest = $recentRequests->first();
+
+        if ($lastRequest) {
+            $attemptNumber = $recentRequests->count();
+            $scheduleIndex = min($attemptNumber - 1, count(self::TWO_FACTOR_HELP_COOLDOWN_SCHEDULE) - 1);
+            $cooldownEnd = $lastRequest->created_at->addSeconds(self::TWO_FACTOR_HELP_COOLDOWN_SCHEDULE[$scheduleIndex]);
+
+            if (now()->lessThan($cooldownEnd)) {
+                $secondsLeft = now()->diffInSeconds($cooldownEnd);
+                $minutesLeft = (int) ceil($secondsLeft / 60);
+                return response()->json([
+                    'message'     => "A request was already sent. Please wait {$minutesLeft} minute(s) before requesting again.",
+                    'retry_after' => $secondsLeft,
+                ], 429);
+            }
+        }
+
+        TwoFactorResetRequest::create([
+            'user_id'    => $user->id,
+            'status'     => 'pending',
+            'ip_address' => $request->ip(),
+        ]);
+
+        $admins = User::whereIn('role', ['it_support', 'superadmin'])
+            ->where('is_active', true)
+            ->get();
+
+        foreach ($admins as $admin) {
+            try {
+                Mail::to($admin->email)->send(new TwoFactorResetRequestMail(
+                    $admin->first_name,
+                    "{$user->first_name} {$user->last_name}",
+                    $user->email,
+                    $user->role,
+                    now()->format('M j, Y g:i A')
+                ));
+            } catch (\Throwable $e) {
+                \Log::error("2FA reset request notification failed to send to {$admin->email}: " . $e->getMessage());
+            }
+        }
+
+        \App\Models\AuditLog::record(
+            '2fa_reset_requested',
+            $user,
+            "{$user->first_name} {$user->last_name} requested help resetting their 2FA (locked out at login).",
+            $user
+        );
+
+        return response()->json([
+            'message' => 'Request sent. IT Support/Superadmin will verify your identity and reset your 2FA — please wait to be contacted.',
+        ]);
     }
 
     private function issueTokenAfterTwoFactor(User $user, Request $request)

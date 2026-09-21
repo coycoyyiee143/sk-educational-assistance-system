@@ -1,46 +1,13 @@
-import { useEffect, useState } from "react";
 import { useAuth } from "../../context/AuthContext";
-import api from "../../services/api";
+import { useUserPhoto } from "../../hooks/useUserPhoto";
 
 function ApplicantTopbarUser() {
   const { user } = useAuth();
 
-  const [facePhotoUrl, setFacePhotoUrl] = useState(null);
-  const [photoLoading, setPhotoLoading] = useState(true);
-
-  useEffect(() => {
-    let objectUrl = null;
-
-    api
-      .get("/face-verification")
-      .then((res) => {
-        if (res.data.photo_url) {
-          return api.get(res.data.photo_url, {
-            responseType: "blob",
-          });
-        }
-
-        return null;
-      })
-      .then((photoRes) => {
-        if (photoRes) {
-          objectUrl = URL.createObjectURL(photoRes.data);
-          setFacePhotoUrl(objectUrl);
-        }
-      })
-      .catch(() => {
-        setFacePhotoUrl(null);
-      })
-      .finally(() => {
-        setPhotoLoading(false);
-      });
-
-    return () => {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
-  }, []);
+  // The applicant's own uploaded 2x2 reference photo, not the live
+  // camera capture from face verification.
+  const { url: facePhotoUrl, status: photoStatus } = useUserPhoto(user?.id);
+  const photoLoading = photoStatus === "loading";
 
   const fullName = [
     user?.first_name,

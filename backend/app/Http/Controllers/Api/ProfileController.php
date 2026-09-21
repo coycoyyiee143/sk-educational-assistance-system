@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApplicationConfiguration;
+use App\Models\FaceVerification;
 use App\Models\PasswordHistory;
 use App\Rules\NotRecentlyUsedPassword;
 use App\Rules\NotObviouslyWeakPassword;
@@ -52,6 +54,12 @@ class ProfileController extends Controller
 
         public function update(Request $request)
     {
+        if ($this->needsFaceReverify($request->user())) {
+            return response()->json([
+                'message' => 'Please re-verify your face for the current application period before saving profile changes.',
+            ], 403);
+        }
+
         $data = $this->validateProfile($request);
         $profile = $request->user()->profile;
 
@@ -103,6 +111,12 @@ class ProfileController extends Controller
     public function updateAccount(Request $request)
     {
         $user = $request->user();
+
+        if ($this->needsFaceReverify($user)) {
+            return response()->json([
+                'message' => 'Please re-verify your face for the current application period before saving profile changes.',
+            ], 403);
+        }
 
         $data = $request->validate([
             'first_name'    => 'required|string',
@@ -239,6 +253,28 @@ class ProfileController extends Controller
         );
 
         return response()->json(['message' => 'Password updated.']);
+    }
+
+    /**
+     * Only applicants go through the face-verification flow at all
+     * (verifiers/admins never have a FaceVerification row — see
+     * uploadAvatar()'s doc comment) — scoping to role here keeps this
+     * gate from locking every non-applicant out of their own account.
+     */
+    private function needsFaceReverify($user): bool
+    {
+        if ($user->role !== 'applicant') {
+            return false;
+        }
+
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+        if (!$activeConfig) {
+            return false;
+        }
+
+        $verification = FaceVerification::where('user_id', $user->id)->first();
+
+        return !$verification || $verification->verified_config_id !== $activeConfig->id;
     }
 
     private function validateProfile(Request $request): array

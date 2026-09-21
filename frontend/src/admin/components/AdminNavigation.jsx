@@ -11,6 +11,9 @@ function AdminNavigation({
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [showChangePassword, setShowChangePassword] = useState(false);
+  // Each page renders its own <AdminNavigation />, so navigating
+  // remounts this component — read/persist via localStorage so the
+  // collapsed sidebar doesn't pop back open on every nav click.
   const [collapsed, setCollapsed] = useState(
     () => localStorage.getItem("admin-sidebar-collapsed") === "1"
   );
@@ -115,6 +118,7 @@ function AdminNavigation({
             <NavLink
               to="/AdminDashboard"
               onClick={closeMobileMenu}
+              title="Dashboard"
               className={({ isActive }) =>
                 isActive
                   ? "admin-sidebar-link active"
@@ -139,6 +143,7 @@ function AdminNavigation({
             <NavLink
               to="/AdminUsers"
               onClick={closeMobileMenu}
+              title="Users"
               className={({ isActive }) =>
                 isActive
                   ? "admin-sidebar-link active"
@@ -163,6 +168,7 @@ function AdminNavigation({
             <NavLink
               to="/AdminSchedule"
               onClick={closeMobileMenu}
+              title="Schedules"
               className={({ isActive }) =>
                 isActive
                   ? "admin-sidebar-link active"
@@ -187,6 +193,7 @@ function AdminNavigation({
             <NavLink
               to="/AdminAnnouncements"
               onClick={closeMobileMenu}
+              title="Announcements"
               className={({ isActive }) =>
                 isActive
                   ? "admin-sidebar-link active"
@@ -212,6 +219,7 @@ function AdminNavigation({
             <NavLink
               to="/AdminEvents"
               onClick={closeMobileMenu}
+              title="Events"
               className={({ isActive }) =>
                 isActive
                   ? "admin-sidebar-link active"
@@ -239,6 +247,7 @@ function AdminNavigation({
             <NavLink
               to="/AdminReports"
               onClick={closeMobileMenu}
+              title="Reports"
               className={({ isActive }) =>
                 isActive
                   ? "admin-sidebar-link active"
@@ -266,6 +275,7 @@ function AdminNavigation({
             <NavLink
               to="/AdminSettings"
               onClick={closeMobileMenu}
+              title="Application Settings"
               className={({ isActive }) =>
                 isActive
                   ? "admin-sidebar-link active"
@@ -288,6 +298,7 @@ function AdminNavigation({
             <NavLink
               to="/AdminMasterActivityLog"
               onClick={closeMobileMenu}
+              title="System Activity Log"
               className={({ isActive }) =>
                 isActive
                   ? "admin-sidebar-link active"
@@ -310,6 +321,7 @@ function AdminNavigation({
             <NavLink
               to="/AdminSystemMaintenance"
               onClick={closeMobileMenu}
+              title="System Maintenance"
               className={({ isActive }) =>
                 isActive
                   ? "admin-sidebar-link active"
@@ -334,6 +346,7 @@ function AdminNavigation({
           <button
             type="button"
             className="admin-sidebar-link admin-sidebar-btn"
+            title="Change Password"
             onClick={() => {
               closeMobileMenu();
               setShowChangePassword(true);
@@ -355,6 +368,7 @@ function AdminNavigation({
           <button
             type="button"
             className="admin-sidebar-logout"
+            title="Logout"
             onClick={handleLogout}
           >
             <svg

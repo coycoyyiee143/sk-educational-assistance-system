@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
 use App\Models\PasswordHistory;
+use App\Models\TwoFactorResetRequest;
 use App\Mail\PersonnelAccountMail;
 use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
@@ -328,6 +329,16 @@ class AdminController extends Controller
         // once the user re-enrolls, same as after a password change.
         \App\Models\TrustedDevice::where('user_id', $user->id)->delete();
 
+        // Close out any pending "lost my authenticator" request(s) from
+        // this user — this reset is what they were asking for.
+        TwoFactorResetRequest::where('user_id', $user->id)
+            ->where('status', 'pending')
+            ->update([
+                'status'         => 'fulfilled',
+                'resolved_by_id' => $request->user()->id,
+                'resolved_at'    => now(),
+            ]);
+
         \App\Models\AuditLog::record(
             '2fa_reset',
             $user,
@@ -337,6 +348,37 @@ class AdminController extends Controller
         return response()->json([
             'message' => '2FA has been reset. They will be prompted to set it up again on next login.',
         ]);
+    }
+
+    /**
+     * Pending "lost my authenticator" requests, for the banner in
+     * Manage Users — see AuthController::requestTwoFactorHelp() for
+     * where these get created, and resetTwoFactor() above for where
+     * they get auto-resolved once actually handled.
+     */
+    public function pendingTwoFactorResetRequests()
+    {
+        $requests = TwoFactorResetRequest::with('user:id,first_name,last_name,email,role')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+
+        return response()->json($requests);
+    }
+
+    // Dismiss without resetting — e.g. identity couldn't be confirmed,
+    // or the user got back into their authenticator on their own.
+    public function dismissTwoFactorResetRequest(Request $request, $id)
+    {
+        $resetRequest = TwoFactorResetRequest::findOrFail($id);
+
+        $resetRequest->update([
+            'status'         => 'dismissed',
+            'resolved_by_id' => $request->user()->id,
+            'resolved_at'    => now(),
+        ]);
+
+        return response()->json(['message' => 'Request dismissed.']);
     }
 
     public function toggleStatus(Request $request, $id)

@@ -30,7 +30,14 @@ def get_ocr():
             cls_model_dir=None,
             ocr_version='PP-OCRv4',        # confirmed valid for installed paddleocr==2.8.1 (legacy 2.x API)
             use_gpu=False,                 # explicit - server has no GPU, avoids any accidental GPU probe overhead
-            enable_mkldnn=True,            # CPU inference speedup on Intel/AMD - safe no-op if unsupported
+            enable_mkldnn=False,           # was True (CPU inference speedup) - disabled: MKL-DNN's bundled OpenMP
+                                            # runtime conflicts with OpenCV's own (see KMP_DUPLICATE_LIB_OK note
+                                            # above), and KMP_DUPLICATE_LIB_OK=TRUE only silences the abort
+                                            # message rather than fixing the thread-safety issue - confirmed
+                                            # causing real 0xc0000005 access-violation crashes (Windows Event
+                                            # Viewer Application log) under sustained back-to-back OCR load,
+                                            # not just the rare one-off. Revisit if CPU inference speed becomes
+                                            # a real bottleneck and a safer MKL-DNN/OpenMP coexistence is found.
             cpu_threads=int(os.getenv("OCR_CPU_THREADS", "2")),  # prod default of 2 matches the server's 2 vCPU limit (prevents oversubscription across workers) - override via OCR_CPU_THREADS in .env for local dev boxes with more cores
         )
     return _ocr
@@ -96,6 +103,60 @@ def run_ocr(image_path: str) -> list:
             import os
             if preprocessed_path != image_path and os.path.exists(preprocessed_path):
                 os.unlink(preprocessed_path)
+
+    return extracted
+
+
+# UPLB's registration form header ("UP Form 5. University of the
+# Philippines Los Baños Certificate of Registration") is printed
+# entirely in solid red, unlike every other (black) line on the page.
+# Confirmed on a real sample: PaddleOCR's text DETECTOR (not just
+# recognition) misses that line completely on the raw color image --
+# red apparently converts to a low-contrast mid-gray during its
+# internal processing -- while every other line reads at 98-100%
+# confidence. Since nothing that WAS detected reads unconfidently, the
+# retry above never triggers; the line is just silently absent, not
+# low-confidence. This header is always present on a genuine UPLB
+# document, so it's worth a specific, cheap check here rather than a
+# blanket second OCR pass for every document from every school.
+_UPLB_SCHOOL_NAMES = {"UNIVERSITY OF THE PHILIPPINES LOS BANOS", "UPLB"}
+
+
+def _has_uplb_header(extracted: list) -> bool:
+    # Checking for "BAÑOS" specifically, NOT "PHILIPPINES" -- the reg
+    # form's student pledge paragraph text also genuinely contains
+    # "University of the Philippines System", so a "PHILIPPINES" check
+    # alone is satisfied by that unrelated block and never actually
+    # detects whether the real header line was found (confirmed: this
+    # was the original, broken version of this check). "Baños" only
+    # ever appears in the header/campus name, nowhere else on the page.
+    from app.normalization.text_utils import strip_diacritics
+    return any('BANOS' in strip_diacritics(item['text']).upper() for item in extracted)
+
+
+def ensure_uplb_reg_form_header(image_path: str, extracted: list, declared_school: str) -> list:
+    from app.normalization.text_utils import strip_diacritics
+
+    if strip_diacritics(declared_school or "").strip().upper() not in _UPLB_SCHOOL_NAMES:
+        return extracted
+    if _has_uplb_header(extracted):
+        return extracted
+
+    ocr = get_ocr()
+    preprocessed_path = preprocess_image(image_path)
+    try:
+        results2 = ocr.ocr(preprocessed_path, cls=True)
+        extracted2 = parse_results(results2)
+    finally:
+        import os
+        if preprocessed_path != image_path and os.path.exists(preprocessed_path):
+            os.unlink(preprocessed_path)
+
+    # Merge in just the header line(s) recovered from the enhanced pass
+    # rather than swapping the whole result -- the original pass's
+    # (already-good) reads of everything else stay untouched.
+    header_lines = [item for item in extracted2 if 'BANOS' in strip_diacritics(item['text']).upper()]
+    return extracted + header_lines
 
     return extracted
 

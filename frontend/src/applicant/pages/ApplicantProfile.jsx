@@ -1,13 +1,19 @@
 import { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import ApplicantNavigation from "../components/ApplicantNavigation";
+import ApplicantTopbarUser from "../components/ApplicantTopbarUser";
 import PanelFooter from "../../components/PanelFooter";
+import FaceCapture from "../components/FaceCapture";
 import { useAuth } from "../../context/AuthContext";
 import { useUserPhoto } from "../../hooks/useUserPhoto";
 import api from "../../services/api";
 
 function ApplicantProfile() {
   const { login, token, user } = useAuth();
+  // The applicant's own uploaded 2x2 reference photo — NOT the live
+  // camera capture from face verification (that's a liveness/comparison
+  // artifact, not meant to represent them as a profile picture). Same
+  // source verifiers already see on the review page.
   const { url: profilePhotoUrl, status: profilePhotoStatus } = useUserPhoto(user?.id);
   const location = useLocation();
   const navigate = useNavigate();
@@ -41,8 +47,10 @@ function ApplicantProfile() {
   const [savedCountdown, setSavedCountdown] = useState(3);
   const [error, setError] = useState("");
   const [faceStatus, setFaceStatus] = useState(null);
-  const [facePhotoUrl, setFacePhotoUrl] = useState(null);
-  const [facePhotoLoading, setFacePhotoLoading] = useState(true);
+  const [reverifyRequired, setReverifyRequired] = useState(false);
+  const [reverifyLoading, setReverifyLoading] = useState(true);
+  const [showReverifyModal, setShowReverifyModal] = useState(false);
+  const [reverifyError, setReverifyError] = useState("");
 
   useEffect(() => {
     if (error) {
@@ -93,35 +101,32 @@ function ApplicantProfile() {
   }, []);
 
   useEffect(() => {
-    let objectUrl = null;
     api
       .get("/face-verification")
       .then((res) => {
         setFaceStatus(res.data.status);
-        if (res.data.photo_url) {
-          return api.get(res.data.photo_url, {
-            responseType: "blob",
-          });
-        }
-        return null;
-      })
-      .then((photoRes) => {
-        if (photoRes) {
-          objectUrl = URL.createObjectURL(photoRes.data);
-          setFacePhotoUrl(objectUrl);
-        }
       })
       .catch(() => {
         setFaceStatus("not_started");
+      });
+  }, []);
+
+  function loadReverifyStatus() {
+    return api
+      .get("/face-verification/reverify-status")
+      .then((res) => {
+        setReverifyRequired(res.data.required);
+      })
+      .catch(() => {
+        setReverifyRequired(false);
       })
       .finally(() => {
-        setFacePhotoLoading(false);
+        setReverifyLoading(false);
       });
-    return () => {
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
-    };
+  }
+
+  useEffect(() => {
+    loadReverifyStatus();
   }, []);
 
   useEffect(() => {
@@ -176,6 +181,12 @@ function ApplicantProfile() {
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
+    if (reverifyRequired) {
+      setError(
+        "Please re-verify your face for the current application period before saving changes."
+      );
+      return;
+    }
     const requiredValues = [
       form.firstName,
       form.lastName,
@@ -287,8 +298,12 @@ function ApplicantProfile() {
       className: "badge bg-secondary",
     },
   };
-  const faceStatusInfo =
-    FACE_STATUS_LABEL[faceStatus] || null;
+  // A new application period needing re-verification takes priority over
+  // the underlying registration status — otherwise the badge would keep
+  // showing "Verified" from a period ago, which is stale, not current.
+  const faceStatusInfo = reverifyRequired
+    ? { text: "Re-Verification Required", className: "badge bg-warning text-dark" }
+    : FACE_STATUS_LABEL[faceStatus] || null;
   const RequiredMark = () => (
     <span className="required-asterisk">*</span>
   );
@@ -298,17 +313,7 @@ function ApplicantProfile() {
       <ApplicantNavigation />
       <div className="applicant-main">
         <div className="applicant-topbar">
-          <div className="applicant-topbar-user">
-            {profilePhotoStatus === "ready" ? (
-              <img
-                src={profilePhotoUrl}
-                alt="Profile"
-                className="applicant-topbar-avatar"
-              />
-            ) : (
-              <div className="applicant-topbar-avatar"></div>
-            )}
-          </div>
+          <ApplicantTopbarUser />
         </div>
         <section className="page-section">
           <div className="container-fluid">
@@ -338,7 +343,7 @@ function ApplicantProfile() {
                       borderRadius: "14px",
                     }}
                   >
-                    {facePhotoLoading ? (
+                    {profilePhotoStatus === "loading" ? (
                       <div
                         className="d-flex align-items-center justify-content-center"
                         style={{
@@ -357,21 +362,21 @@ function ApplicantProfile() {
                       </div>
                     ) : (
                       <img
-                        src={facePhotoUrl || "/logo.png"}
+                        src={profilePhotoUrl || "/logo.png"}
                         alt={
-                          facePhotoUrl
-                            ? "Your registered photo"
+                          profilePhotoUrl
+                            ? "Your 2x2 photo"
                             : "Profile Icon"
                         }
                         style={{
                           width: "76px",
                           height: "76px",
                           borderRadius: "50%",
-                          objectFit: facePhotoUrl
+                          objectFit: profilePhotoUrl
                             ? "cover"
                             : "contain",
                           border: "3px solid #b71c1c",
-                          padding: facePhotoUrl
+                          padding: profilePhotoUrl
                             ? "0"
                             : "8px",
                           background: "#fff",
@@ -399,6 +404,21 @@ function ApplicantProfile() {
                       )}
                     </div>
                   </div>
+                  {!reverifyLoading && reverifyRequired && (
+                    <div className="alert alert-warning d-flex align-items-center justify-content-between gap-3 mb-4">
+                      <div>
+                        <strong>Face re-verification required.</strong>{" "}
+                        A new application period has opened — please re-verify your face before you can save profile changes.
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-danger flex-shrink-0"
+                        onClick={() => setShowReverifyModal(true)}
+                      >
+                        Verify My Face
+                      </button>
+                    </div>
+                  )}
                   <p className="text-muted small mb-3">
                     Fields marked with{" "}
                     <RequiredMark /> are required.
@@ -721,7 +741,8 @@ function ApplicantProfile() {
                       <button
                         type="submit"
                         className="btn btn-save-green"
-                        disabled={saving}
+                        disabled={saving || reverifyLoading || reverifyRequired}
+                        title={reverifyRequired ? "Please re-verify your face first" : undefined}
                       >
                         {saving
                           ? "Saving..."
@@ -736,6 +757,53 @@ function ApplicantProfile() {
         </section>
         <PanelFooter />
       </div>
+      {showReverifyModal && (
+        <div
+          className="verifier-face-modal-backdrop"
+          onClick={() => setShowReverifyModal(false)}
+        >
+          <div
+            className="verifier-face-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="verifier-face-modal-header">
+              <div className="verifier-face-modal-heading">
+                <span className="verifier-face-modal-icon">
+                  <i className="bi bi-camera"></i>
+                </span>
+                <div>
+                  <h5>Face Re-Verification</h5>
+                  <span>Required for the current application period</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="verifier-face-modal-close"
+                onClick={() => setShowReverifyModal(false)}
+                aria-label="Close face re-verification"
+              >
+                ×
+              </button>
+            </div>
+            <div className="verifier-face-modal-body">
+              {reverifyError && (
+                <div className="alert alert-danger">{reverifyError}</div>
+              )}
+              <div className="verifier-face-modal-capture">
+                <FaceCapture
+                  mode="profile_reverify"
+                  onSuccess={() => {
+                    setReverifyError("");
+                    setShowReverifyModal(false);
+                    loadReverifyStatus();
+                  }}
+                  onError={(message) => setReverifyError(message)}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {showSavedPopup && (
         <div className="verifier-password-feedback-backdrop">
           <div className="verifier-password-feedback verifier-password-feedback-success">

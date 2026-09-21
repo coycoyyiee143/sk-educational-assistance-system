@@ -7604,12 +7604,12 @@ a:hover {
 .verifier-stat-card {
   background: #ffffff;
   border-radius: 14px;
-  padding: 38px 32px 34px;
+  padding: 26px 32px 22px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
   height: 100%;
   display: flex;
   flex-direction: column;
-  min-height: 200px;
+  min-height: 150px;
 }
 
 .verifier-stat-top {
@@ -7944,8 +7944,8 @@ a:hover {
 }
 
 .verifier-application-filter-count-ocr_failed {
-  background: #fbe4d2;
-  color: #b8560f;
+  background: #f2e2e2;
+  color: #b71c1c;
 }
 
 .verifier-application-filter-count-appeal_requested {
@@ -10184,6 +10184,42 @@ a:hover {
 
 .verifier-document-tab-status-passed .verifier-document-tab-status-dot {
   background: #16a36a;
+}
+
+.verifier-other-viewer-toast {
+  position: fixed;
+  right: 80px;
+  bottom: 24px;
+  z-index: 1040;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(90vw, 420px);
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: #fbe4d2;
+  color: #7a3a0a;
+  border: 1px solid #f3c9a3;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.15);
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.verifier-other-viewer-toast svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+@media (max-width: 575.98px) {
+  .verifier-other-viewer-toast {
+    left: 16px;
+    right: 16px;
+    bottom: 70px;
+    max-width: none;
+  }
 }
 
 .verifier-scroll-top-btn {
@@ -13350,6 +13386,13 @@ body {
   background: #f7f8f9;
   border: 1px dashed #ccd1d6;
   border-radius: 13px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.identity-id-preview.is-dragging {
+  border-color: var(--reg-red);
+  background: var(--reg-soft-red);
 }
 
 .identity-id-preview img {
@@ -13362,6 +13405,25 @@ body {
 .identity-id-preview>span {
   color: #999;
   font-size: 11px;
+}
+
+.identity-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 16px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--reg-red);
+  border: 1px solid var(--reg-red);
+  border-radius: 9px;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.identity-upload-btn:hover {
+  background: var(--reg-red-dark);
+  border-color: var(--reg-red-dark);
 }
 
 .identity-id-ready {
@@ -13515,6 +13577,25 @@ body {
   overflow: hidden;
   border-radius: 13px;
   background: #111;
+}
+
+.face-capture-camera-frame--locked {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  background: #f7f8f9;
+  border: 1px dashed #ccd1d6;
+  color: #8a939c;
+  text-align: center;
+}
+
+.face-capture-camera-frame--locked p {
+  margin: 0;
+  font-size: 13px;
+  max-width: 220px;
 }
 
 .face-capture-webcam,
@@ -21282,6 +21363,21 @@ button.verifier-claiming-photo-caption-retake:hover {
     text-align: center;
   }
 }
+/* Bootstrap ships danger/warning/etc. but not orange — used for the
+   verifier dashboard's "pending appeal" banner, kept distinct from
+   alert-danger (failed_ocr, a genuine system-level urgent problem) and
+   alert-warning's yellow (a normal workflow item awaiting a decision
+   isn't the same severity as either). */
+.alert-orange {
+  color: #7a3a0a;
+  background-color: #fbe4d2;
+  border-color: #f3c9a3;
+}
+
+.alert-orange .alert-link {
+  color: #5c2b07;
+}
+
 .report-overview-block-description {
   margin: 5px 0 14px;
   color: #6c757d;

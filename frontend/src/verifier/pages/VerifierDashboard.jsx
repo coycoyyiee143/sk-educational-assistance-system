@@ -29,6 +29,7 @@ function VerifierDashboard() {
     approved: 0,
     rejected: 0,
     failed_ocr: 0,
+    appeal_requested: 0,
     no_active_period: false,
   });
 
@@ -78,7 +79,7 @@ function VerifierDashboard() {
 
   const cards = [
     {
-      label: "Pending Applications",
+      label: "Pending",
       value: stats.pending,
       accent: "orange",
       icon: (
@@ -271,18 +272,6 @@ function VerifierDashboard() {
                 </div>
               )}
 
-            {!loading &&
-              stats.failed_ocr > 0 && (
-                <div className="alert alert-danger d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <span>
-                    <strong>{stats.failed_ocr}</strong> application{stats.failed_ocr === 1 ? "" : "s"} {stats.failed_ocr === 1 ? "has" : "have"} a document that failed OCR processing and needs attention.
-                  </span>
-                  <Link to="/VerifierApplicationList" className="alert-link">
-                    Review now →
-                  </Link>
-                </div>
-              )}
-
             {/* STATISTICS */}
             <div className="row g-4 verifier-stats-row">
               {cards.map(
@@ -323,6 +312,30 @@ function VerifierDashboard() {
                 )
               )}
             </div>
+
+            {!loading &&
+              stats.failed_ocr > 0 && (
+                <div className="alert alert-danger d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4">
+                  <span>
+                    <strong>{stats.failed_ocr}</strong> application{stats.failed_ocr === 1 ? "" : "s"} {stats.failed_ocr === 1 ? "has" : "have"} a document that failed OCR processing and needs attention.
+                  </span>
+                  <Link to="/VerifierApplicationList?tab=ocr_failed" className="alert-link">
+                    Review now →
+                  </Link>
+                </div>
+              )}
+
+            {!loading &&
+              stats.appeal_requested > 0 && (
+                <div className="alert alert-orange d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4">
+                  <span>
+                    <strong>{stats.appeal_requested}</strong> application{stats.appeal_requested === 1 ? "" : "s"} {stats.appeal_requested === 1 ? "has" : "have"} a pending appeal awaiting your decision.
+                  </span>
+                  <Link to="/VerifierApplicationList?tab=appeal_requested" className="alert-link">
+                    Review now →
+                  </Link>
+                </div>
+              )}
 
             {/* APPLICATIONS REQUIRING ATTENTION */}
             <div className="page-card verifier-attention-card mt-4">

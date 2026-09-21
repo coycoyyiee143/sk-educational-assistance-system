@@ -8,6 +8,7 @@ import pytest
 from app.normalization.text_utils import (
     clean_text,
     normalize_name,
+    strip_diacritics,
     fix_ocr_symbols,
     fuzzy_match_name,
     reinsert_name_spacing,
@@ -34,6 +35,23 @@ def test_normalize_name_uppercases_and_strips_punctuation():
 
 def test_normalize_name_collapses_internal_whitespace():
     assert normalize_name("Juan    Dela  Cruz") == "JUAN DELA CRUZ"
+
+
+def test_normalize_name_folds_diacritics():
+    assert normalize_name("Paña") == "PANA"
+    assert normalize_name("Muñoz") == "MUNOZ"
+    assert normalize_name("Niño") == "NINO"
+
+
+# ── strip_diacritics() ───────────────────────────────────────────────
+
+def test_strip_diacritics_folds_accented_letters():
+    assert strip_diacritics("Paña") == "Pana"
+    assert strip_diacritics("Baños") == "Banos"
+
+
+def test_strip_diacritics_leaves_plain_text_untouched():
+    assert strip_diacritics("Juan Dela Cruz") == "Juan Dela Cruz"
 
 
 # ── fix_ocr_symbols() ─────────────────────────────────────────────────
@@ -98,6 +116,18 @@ def test_fuzzy_match_name_requires_both_first_and_last_present_independently():
     assert result["passed"] is False
 
 
+def test_fuzzy_match_name_matches_own_accented_name_despite_ocr_dropping_the_accent():
+    # Real bug, confirmed on a real UPLB reg form: OCR reads "Paña" as
+    # "Pana" (drops the tilde entirely, as it virtually always does).
+    # Previously the independent-component guard compared the applicant's
+    # un-folded "PAÑA" directly against OCR's "PANA" -- a 4-letter word
+    # losing one whole character to an accent difference scored only 75%,
+    # under the guard's own 85% bar, wrongly failing the match despite a
+    # 95%+ aggregate score.
+    result = fuzzy_match_name("PANA, COLTON MARC CABRAL", "Colton Marc", "Cabral", "Paña")
+    assert result["passed"] is True
+
+
 def test_fuzzy_match_name_custom_threshold():
     result = fuzzy_match_name("Juann Dela Cruz", "Juan", "Reyes", "Dela Cruz", threshold=99)
     assert result["passed"] is False
@@ -147,6 +177,66 @@ def test_fuzzy_match_school_single_word_substring_rejected():
 
 def test_fuzzy_match_school_minor_ocr_typo_still_passes():
     result = fuzzy_match_school("Pamantasan ng Cabupao", "Pamantasan ng Cabuyao")
+    assert result["passed"] is True
+
+
+def test_fuzzy_match_school_rejects_different_school_sharing_generic_words():
+    # Real bug, confirmed on a real UPLB ID sample: the text detector
+    # garbled an occluded fragment into a real but WRONG institution
+    # name, "Polytechnic University. of the Philippines" -- long enough
+    # to pass the 0.75 length guard, and similar enough in aggregate
+    # (shares "University"/"of"/"the"/"Philippines") to score above
+    # threshold against "University of the Philippines Los Baños",
+    # despite literally naming a different, real university. The
+    # distinguishing-word guard (requiring "Baños" specifically) must
+    # catch this even though the aggregate score alone would pass.
+    result = fuzzy_match_school(
+        "Polytechnic University. of the Philippines",
+        "University of the Philippines Los Baños",
+    )
+    assert result["passed"] is False
+
+
+def test_fuzzy_match_school_uplb_still_passes_with_distinguishing_word_present():
+    result = fuzzy_match_school(
+        "Univers y of the Philippines LOS BANOS",
+        "University of the Philippines Los Baños",
+    )
+    assert result["passed"] is True
+
+
+def test_fuzzy_match_school_falls_back_to_aggregate_when_expected_has_no_distinguishing_word():
+    # A name composed entirely of generic institutional words (all in
+    # _SCHOOL_STOPWORDS) has nothing more specific to check -- a genuine
+    # exact match must still pass on aggregate score alone.
+    result = fuzzy_match_school(
+        "University of the Philippines System",
+        "University of the Philippines System",
+    )
+    assert result["passed"] is True
+
+
+def test_fuzzy_match_school_rejects_up_system_name_falsely_declared_as_pup():
+    # "POLYTECHNIC" must NOT be treated as generic filler -- it's the
+    # one word distinguishing "Polytechnic University of the
+    # Philippines" (PUP) from plain "University of the Philippines"
+    # (UP), two genuinely different real schools. Without this,
+    # a same-length UP-system name (no "Polytechnic" at all) would
+    # falsely pass as PUP on aggregate similarity alone -- the same
+    # class of bug this whole guard exists to catch, just the mirror
+    # direction of the UPLB case above.
+    result = fuzzy_match_school(
+        "The University of the Philippines System Manila",
+        "Polytechnic University of the Philippines",
+    )
+    assert result["passed"] is False
+
+
+def test_fuzzy_match_school_real_pup_name_still_passes():
+    result = fuzzy_match_school(
+        "Polytechnic University of the Philippines",
+        "Polytechnic University of the Philippines",
+    )
     assert result["passed"] is True
 
 

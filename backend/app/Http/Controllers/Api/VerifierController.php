@@ -19,6 +19,8 @@ class VerifierController extends Controller
 {
     use LateClaimingEligibility;
 
+    private const VIEWER_STALE_SECONDS = 30;
+
     public function stats()
     {
         $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
@@ -30,6 +32,7 @@ class VerifierController extends Controller
                 'approved'  => 0,
                 'rejected'  => 0,
                 'failed_ocr' => 0,
+                'appeal_requested' => 0,
                 'no_active_period' => true,
             ]);
         }
@@ -44,6 +47,10 @@ class VerifierController extends Controller
             'failed_ocr' => Application::where('config_id', $activeConfig->id)
                 ->whereHas('documents', fn($q) => $q->where('status', 'failed'))
                 ->count(),
+            // Appeals need a verifier decision but aren't part of the FCFS
+            // "for_review" queue, so they're surfaced as a separate count/
+            // banner instead of being folded into that queue's ordering.
+            'appeal_requested' => Application::where('config_id', $activeConfig->id)->where('status', 'appeal_requested')->count(),
             'no_active_period' => false,
         ]);
     }
@@ -100,6 +107,45 @@ class VerifierController extends Controller
         ])->findOrFail($id);
 
         return response()->json($app);
+    }
+
+    // Heartbeat, not a lock — a verifier opening the review page pings
+    // this every ~10s (see the frontend's usePolling) to (a) claim/refresh
+    // their own presence and (b) find out if someone ELSE'S presence is
+    // still fresh, so the page can show a "so-and-so is also viewing
+    // this" notice. Nobody is blocked from acting either way; this is
+    // purely informational. A verifier's presence is considered stale
+    // (equivalent to having left) once VIEWER_STALE_SECONDS pass without
+    // a heartbeat — there's no explicit release on navigate-away/tab
+    // close, since those aren't reliably observable from the backend.
+    public function heartbeat(Request $request, $id)
+    {
+        $app = Application::findOrFail($id);
+        $me = $request->user();
+
+        $otherViewer = null;
+        if (
+            $app->viewing_verifier_id
+            && $app->viewing_verifier_id !== $me->id
+            && $app->viewing_heartbeat_at
+            && $app->viewing_heartbeat_at->gt(now()->subSeconds(self::VIEWER_STALE_SECONDS))
+        ) {
+            $viewer = $app->viewingVerifier;
+            if ($viewer) {
+                $otherViewer = [
+                    'id'    => $viewer->id,
+                    'name'  => "{$viewer->first_name} {$viewer->last_name}",
+                    'since' => $app->viewing_heartbeat_at,
+                ];
+            }
+        }
+
+        $app->update([
+            'viewing_verifier_id'  => $me->id,
+            'viewing_heartbeat_at' => now(),
+        ]);
+
+        return response()->json(['other_viewer' => $otherViewer]);
     }
 
     public function approve(Request $request, $id)

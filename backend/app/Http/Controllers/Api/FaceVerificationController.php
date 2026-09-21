@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Application;
+use App\Models\ApplicationConfiguration;
 use App\Models\FaceVerification;
 use App\Services\FaceMatchingService;
 use Illuminate\Http\Request;
@@ -63,6 +64,14 @@ class FaceVerificationController extends Controller
             return response()->json(['message' => $result['error']], 503);
         }
 
+        // Stamp the period active at registration time, so a freshly-
+        // registered applicant isn't immediately asked to re-verify again
+        // within that same period — re-verification only kicks in once a
+        // *later* period opens (see reverifyStatus()).
+        $activeConfig = $result['match']
+            ? ApplicationConfiguration::where('is_active', true)->first()
+            : null;
+
         $verification = FaceVerification::updateOrCreate(
             ['user_id' => $user->id],
             [
@@ -72,6 +81,7 @@ class FaceVerificationController extends Controller
                 'registration_match_score' => $result['score'],
                 'status'                   => $result['match'] ? 'verified' : 'failed',
                 'verified_at'              => $result['match'] ? now() : null,
+                'verified_config_id'       => $activeConfig?->id,
             ]
         );
 
@@ -221,18 +231,18 @@ class FaceVerificationController extends Controller
     /**
      * Applicant's profile picture — the 2x2 reference photo uploaded at
      * REGISTRATION, shown as an avatar on the applicant's own topbar/profile
-     * page and on verifier review screens. Unlike registrationPhoto() above
+     * page, on verifier review screens, and on the admin/superadmin/
+     * it_support Users management page. Unlike registrationPhoto() above
      * (which is application-scoped and shows the live selfie for face
      * comparison), this is user-scoped and shows the 2x2 photo itself.
      */
     public function profilePhoto(Request $request, $userId)
     {
         $user = $request->user();
-        $isOwner    = (int) $user->id === (int) $userId;
-        $isVerifier = $user->role === 'sk_verifier';
-        $isAdmin    = $user->role === 'sk_admin';
+        $isOwner = (int) $user->id === (int) $userId;
+        $isStaff = in_array($user->role, ['sk_verifier', 'sk_admin', 'superadmin', 'it_support'], true);
 
-        if (!$isOwner && !$isVerifier && !$isAdmin) {
+        if (!$isOwner && !$isStaff) {
             abort(403, 'You are not authorized to view this photo.');
         }
 
@@ -353,6 +363,120 @@ class FaceVerificationController extends Controller
             'match'     => $result['match'],
             'score'     => $result['score'],
             'photo_url' => route('claiming.face-photo', $faceRecord->id),
+        ]);
+    }
+
+    /**
+     * PERIODIC RE-VERIFICATION — status check
+     * Tells the Profile page whether the applicant must re-capture their
+     * face before they can save profile changes: true whenever a newer
+     * application period has opened since their last successful (re-)
+     * verification. No active period at all means nothing to compare
+     * against, so it's never required in that case.
+     */
+    public function reverifyStatus(Request $request)
+    {
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+        $verification = FaceVerification::where('user_id', $request->user()->id)->first();
+
+        $required = $activeConfig
+            && (!$verification || $verification->verified_config_id !== $activeConfig->id);
+
+        return response()->json([
+            'required'         => $required,
+            'active_config_id' => $activeConfig?->id,
+        ]);
+    }
+
+    /**
+     * PERIODIC RE-VERIFICATION — re-capture
+     * Same comparison as registration (fresh 2x2 vs a fresh live capture),
+     * required again once a new application period opens. On a match,
+     * overwrites the applicant's entire face record — old files are
+     * deleted so re-verifying repeatedly doesn't pile up orphaned photos —
+     * and stamps verified_config_id to the current period so this doesn't
+     * get asked again until the next one opens.
+     */
+    public function reverify(Request $request)
+    {
+        $request->validate([
+            'id_image'   => 'required|file|mimes:jpg,jpeg,png|max:5120',
+            'live_photo' => 'required|file|mimes:jpg,jpeg,png|max:5120',
+        ]);
+
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+        if (!$activeConfig) {
+            return response()->json(['message' => 'No active application period.'], 400);
+        }
+
+        $user = $request->user();
+        $existing = FaceVerification::where('user_id', $user->id)->first();
+
+        $idImage = $request->file('id_image');
+        $livePhoto = $request->file('live_photo');
+
+        $idImagePath = $idImage->storeAs(
+            "face-verifications/{$user->id}",
+            'id_' . time() . '.' . $idImage->getClientOriginalExtension(),
+            'local'
+        );
+        $livePhotoPath = $livePhoto->storeAs(
+            "face-verifications/{$user->id}",
+            'live_' . time() . '.' . $livePhoto->getClientOriginalExtension(),
+            'local'
+        );
+
+        $result = $this->faceService->compareImages(
+            Storage::disk('local')->path($idImagePath),
+            Storage::disk('local')->path($livePhotoPath)
+        );
+
+        if (isset($result['error'])) {
+            return response()->json(['message' => $result['error']], 503);
+        }
+
+        if (!$result['match']) {
+            // Don't keep the failed attempt's files — nothing to overwrite
+            // with since the check failed, and the applicant will retake.
+            Storage::disk('local')->delete([$idImagePath, $livePhotoPath]);
+
+            return response()->json([
+                'message' => 'The live photo does not match your uploaded 2x2 photo. Please try again with better lighting and a clear, recent photo of yourself.',
+                'score'   => $result['score'],
+            ], 422);
+        }
+
+        $oldIdImagePath = $existing?->id_image_path;
+        $oldLivePhotoPath = $existing?->live_photo_path;
+
+        $verification = FaceVerification::updateOrCreate(
+            ['user_id' => $user->id],
+            [
+                'id_image_path'            => $idImagePath,
+                'live_photo_path'          => $livePhotoPath,
+                'face_embedding'           => $result['embedding'],
+                'registration_match_score' => $result['score'],
+                'status'                   => 'verified',
+                'verified_at'              => now(),
+                'verified_config_id'       => $activeConfig->id,
+            ]
+        );
+
+        foreach ([$oldIdImagePath, $oldLivePhotoPath] as $oldPath) {
+            if ($oldPath && $oldPath !== $idImagePath && $oldPath !== $livePhotoPath && Storage::disk('local')->exists($oldPath)) {
+                Storage::disk('local')->delete($oldPath);
+            }
+        }
+
+        \App\Models\AuditLog::record(
+            'face_verification_reverified',
+            $verification,
+            "Face re-verification passed for {$user->first_name} {$user->last_name} for application period #{$activeConfig->id}"
+        );
+
+        return response()->json([
+            'message' => 'Face re-verified successfully.',
+            'score'   => $result['score'],
         ]);
     }
 }

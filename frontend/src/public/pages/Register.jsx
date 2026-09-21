@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import { useNavigate, Navigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
 import FaceCapture from "../../applicant/components/FaceCapture";
+import { checkWhiteBackground, checkContainsFace } from "../../applicant/utils/imageChecks";
 
 // Small reusable block: renders one red line per message for a given
 // backend field key, or nothing if there's no error for that field.
@@ -48,6 +49,9 @@ const Register = () => {
 
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
+  const [idPhotoError, setIdPhotoError] = useState("");
+  const [idPhotoChecking, setIdPhotoChecking] = useState(false);
+  const [idDragActive, setIdDragActive] = useState(false);
   const idFileInputRef = useRef(null);
 
   const [step, setStep] = useState("form");
@@ -107,51 +111,51 @@ const Register = () => {
     });
   };
 
-  function handleIdChange(e) {
-    const file = e.target.files[0];
-
+  async function processIdFile(file) {
     if (!file) return;
 
-    setIdImage(file);
-    setIdPreview(URL.createObjectURL(file));
     setGeneralError("");
+    setIdPhotoError("");
+    setIdImage(null);
+    setIdPreview(null);
+
+    setIdPhotoChecking(true);
+    try {
+      const bgCheck = await checkWhiteBackground(file);
+      if (!bgCheck.valid) {
+        setIdPhotoError(
+          "Your 2x2 photo must have a plain white background. Please retake or upload a photo taken against a white backdrop."
+        );
+        return;
+      }
+
+      const faceCheck = await checkContainsFace(file);
+      if (!faceCheck.valid) {
+        setIdPhotoError(
+          "We couldn't detect a face in this photo. Please upload an actual 2x2 photo of yourself, not an ID or document scan."
+        );
+        return;
+      }
+
+      setIdImage(file);
+      setIdPreview(URL.createObjectURL(file));
+    } finally {
+      setIdPhotoChecking(false);
+    }
   }
 
-  // The native file input resets itself when the browser restores this
-  // page from back/forward cache (bfcache) — but our React state for
-  // the preview doesn't know that happened, so the old preview would
-  // otherwise keep showing next to an input that says "No file chosen."
-  // Clear our state to match whenever that restore happens.
-  useEffect(() => {
-    function handlePageShow(e) {
-      if (e.persisted) {
-        setIdImage(null);
-        setIdPreview(null);
-        if (idFileInputRef.current) idFileInputRef.current.value = "";
-      }
-    }
+  function handleIdChange(e) {
+    const file = e.target.files[0];
+    processIdFile(file);
+    e.target.value = "";
+  }
 
-    window.addEventListener("pageshow", handlePageShow);
-    return () => window.removeEventListener("pageshow", handlePageShow);
-  }, []);
-
-  // The native file input resets itself when the browser restores this
-  // page from back/forward cache (bfcache) — but our React state for
-  // the preview doesn't know that happened, so the old preview would
-  // otherwise keep showing next to an input that says "No file chosen."
-  // Clear our state to match whenever that restore happens.
-  useEffect(() => {
-    function handlePageShow(e) {
-      if (e.persisted) {
-        setIdImage(null);
-        setIdPreview(null);
-        if (idFileInputRef.current) idFileInputRef.current.value = "";
-      }
-    }
-
-    window.addEventListener("pageshow", handlePageShow);
-    return () => window.removeEventListener("pageshow", handlePageShow);
-  }, []);
+  function handleIdDrop(e) {
+    e.preventDefault();
+    setIdDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    processIdFile(file);
+  }
 
   const handleNext = async (e) => {
     e.preventDefault();
@@ -169,11 +173,6 @@ const Register = () => {
 
     if (form.password !== form.confirmPassword) {
       setFieldErrors({ password: ["Passwords do not match."] });
-      return;
-    }
-
-    if (!idImage) {
-      setGeneralError("Please upload your latest 2x2 photo.");
       return;
     }
 
@@ -373,8 +372,8 @@ const Register = () => {
 
                 <p>
                   Before creating your account, we need
-                  to confirm that the person registering
-                  matches the ID you uploaded. Your
+                  your latest 2x2 photo and a live photo
+                  to confirm it's really you. Your
                   captured photo will also be used as
                   your profile photo in the system and
                   may be used by SK staff as a reference
@@ -392,50 +391,92 @@ const Register = () => {
                   </div>
 
                   <div>
-                    <h3>Reference ID</h3>
+                    <h3>Latest 2x2 Photo</h3>
 
                     <p>
-                      Your uploaded identification
+                      Upload a clear, recent 2x2 photo
                     </p>
                   </div>
                 </div>
 
-                <div className="identity-id-preview">
+                <input
+                  type="file"
+                  ref={idFileInputRef}
+                  accept="image/jpeg,image/png,image/jpg"
+                  onChange={handleIdChange}
+                  style={{ display: "none" }}
+                />
+
+                <div
+                  className={`identity-id-preview ${
+                    idDragActive ? "is-dragging" : ""
+                  }`}
+                  role="button"
+                  onClick={() => idFileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIdDragActive(true);
+                  }}
+                  onDragLeave={() => setIdDragActive(false)}
+                  onDrop={handleIdDrop}
+                >
                   {idPreview ? (
                     <img
                       src={idPreview}
-                      alt="Uploaded ID"
+                      alt="2x2 preview"
                     />
                   ) : (
                     <span>
-                      No ID preview available
+                      Click or drag a photo here
                     </span>
                   )}
                 </div>
 
-                <div className="identity-id-ready">
-                  <div className="identity-ready-check">
-                    ✓
+                {idPhotoChecking && (
+                  <div className="text-muted small mt-2">
+                    Checking photo background...
                   </div>
+                )}
 
-                  <div>
-                    <strong>
-                      ID ready for comparison
-                    </strong>
-
-                    <span>
-                      This image will be matched
-                      against your live photo.
-                    </span>
+                {idPhotoError && (
+                  <div className="text-danger small mt-2">
+                    {idPhotoError}
                   </div>
-                </div>
+                )}
+
+                <button
+                  type="button"
+                  className="identity-upload-btn mt-2"
+                  onClick={() => idFileInputRef.current?.click()}
+                >
+                  {idImage ? "Change photo" : "Choose File"}
+                </button>
+
+                {idImage && !idPhotoError && (
+                  <div className="identity-id-ready">
+                    <div className="identity-ready-check">
+                      ✓
+                    </div>
+
+                    <div>
+                      <strong>
+                        Photo ready for comparison
+                      </strong>
+
+                      <span>
+                        This image will be matched
+                        against your live photo.
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="identity-scan-card">
                 <div className="identity-scan-top">
                   <div>
                     <span className="identity-live-label">
-                      STEP 2 OF 2
+                      STEP 2
                     </span>
 
                     <h2>
@@ -463,6 +504,7 @@ const Register = () => {
                   <FaceCapture
                     mode="registration"
                     externalIdImage={idImage}
+                    hideIdUpload
                     submitLabel={
                       loading
                         ? "Creating account..."
@@ -983,61 +1025,6 @@ const Register = () => {
                         residents of Barangay Mamatid.
                       </div>
                     </div>
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Latest 2x2 Photo{" "}
-                      <span className="text-danger">
-                        *
-                      </span>
-                    </label>
-
-                    <p className="text-muted small mb-2">
-                      Upload a clear, recent 2x2 photo of
-                      yourself showing your face. We'll
-                      ask you to take a live photo next
-                      to confirm it's really you.
-                    </p>
-
-                    <input
-                      type="file"
-                      ref={idFileInputRef}
-                      accept="image/jpeg,image/png,image/jpg"
-                      onChange={handleIdChange}
-                      required
-                      style={{ display: "none" }}
-                    />
-
-                    <div
-                      className="document-upload-picker"
-                      onClick={() => idFileInputRef.current?.click()}
-                    >
-                      <span className="document-upload-button">
-                        Choose File
-                      </span>
-
-                      <span
-                        className={`document-upload-filename ${
-                          idImage ? "has-file" : ""
-                        }`}
-                      >
-                        {idImage ? idImage.name : "No file chosen"}
-                      </span>
-                    </div>
-
-                    {idPreview && (
-                      <img
-                        src={idPreview}
-                        alt="2x2 preview"
-                        className="mt-2 rounded border"
-                        style={{
-                          maxWidth: "260px",
-                          maxHeight: "180px",
-                          objectFit: "contain",
-                        }}
-                      />
-                    )}
                   </div>
 
                   <div className="mb-3" ref={setFieldRef("password")}>

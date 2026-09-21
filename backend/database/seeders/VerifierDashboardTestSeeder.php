@@ -160,6 +160,22 @@ class VerifierDashboardTestSeeder extends Seeder
         // list/stat (whereHas('documents') should filter it out).
         $makeApplicant('queue-ramos', 'Diego', 'Ramos', 'draft_incomplete', null, false);
 
+        // ── Dashboard banners — the two alerts on Verifier Dashboard that
+        // sit outside the FCFS queue entirely (see VerifierController::stats()
+        // and the "appeal_requested"/"failed_ocr" counts) ──────────────────
+        $delrosario = $makeApplicant('queue-delrosario', 'Carmela', 'Del Rosario', 'appeal_requested', now()->subDays(2), true, [
+            'rejection_reason' => 'School ID photo was blurry.',
+            'appeal_reason'    => 'Re-uploaded a clearer photo of my school ID — please take another look.',
+            'appealed_at'      => now()->subHours(6),
+        ]);
+        $this->command->info("Del Rosario (#{$delrosario->id}) = appeal_requested → drives the amber 'pending appeal' dashboard banner.");
+
+        $ocrFailApp = $makeApplicant('queue-ocrfail', 'Nathaniel', 'Cruz', 'for_review', now()->subHours(1));
+        ApplicationDocument::where('application_id', $ocrFailApp->id)
+            ->where('document_type', 'voters_certificate')
+            ->update(['status' => 'failed']);
+        $this->command->info("Cruz (#{$ocrFailApp->id}) has a failed voters_certificate document → drives the red 'OCR failed' dashboard banner and the OCR Failed tab/badge.");
+
         $this->command->info("VerifierDashboardTestSeeder done, seeded into config #{$config->id} ({$config->school_year}). Log in with your existing verifier account.");
         $this->command->info('For-review FCFS order (oldest first): Santos, Dela Cruz, Reyes, Garcia, Mendoza.');
         $this->command->info('Torres (reupload_requested, day -4) and Bautista (auto_reupload_requested, day -5) prove a reupload does not reset queue position — should outrank everyone above once back in for_review.');

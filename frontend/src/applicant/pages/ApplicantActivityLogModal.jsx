@@ -47,6 +47,16 @@ const ACTION_CONFIG = {
     label: "Password Changed",
     badge: "bg-warning text-dark",
   },
+
+  face_verification_registered: {
+    label: "Face Verified",
+    badge: "bg-success",
+  },
+
+  face_verification_reverified: {
+    label: "Face Re-Verified",
+    badge: "bg-success",
+  },
 };
 
 function ActionBadge({ action }) {

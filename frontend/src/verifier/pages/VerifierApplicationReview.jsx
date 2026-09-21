@@ -233,6 +233,26 @@ function VerifierApplicationReview() {
     enabled: !!app && ["pending_prescreening", "for_review"].includes(app.status),
   });
 
+  // Not a lock — just a heads-up so two verifiers don't both spend time
+  // reviewing the same application without knowing it. Heartbeats every
+  // 10s while this page is open; the backend treats a stale heartbeat
+  // (see VerifierController::heartbeat()) as that verifier having left,
+  // so there's nothing to explicitly release on navigate-away/close.
+  const [otherViewer, setOtherViewer] = useState(null);
+
+  const heartbeat = useCallback(() => {
+    return api
+      .post(`/verifier/applications/${id}/heartbeat`)
+      .then((res) => setOtherViewer(res.data.other_viewer))
+      .catch(() => { });
+  }, [id]);
+
+  useEffect(() => {
+    heartbeat();
+  }, [heartbeat]);
+
+  usePolling(heartbeat, { intervalMs: 10000 });
+
   useEffect(() => {
     if (!app?.documents) return;
 
@@ -1667,6 +1687,22 @@ function VerifierApplicationReview() {
                                         : "Retry OCR Check"}
                                     </button>
                                   </div>
+                                ) : doc.needs_auto_reupload ? (
+                                  <div className="verifier-ocr-empty-content">
+                                    <span className="verifier-ocr-check-reason-label">
+                                      Message sent to applicant:
+                                    </span>
+                                    <span className="text-danger">
+                                      <span className="verifier-ocr-check-reason-icon">!</span>{" "}
+                                      {doc.auto_reupload_reason ||
+                                        "System flagged this document for re-upload."}
+                                    </span>
+                                    {doc.auto_reupload_category && (
+                                      <code className="verifier-ocr-check-code verifier-ocr-check-code-failed mt-1">
+                                        {doc.auto_reupload_category}
+                                      </code>
+                                    )}
+                                  </div>
                                 ) : [
                                   "processing",
                                   "pending",
@@ -1910,6 +1946,16 @@ function VerifierApplicationReview() {
                 className="verifier-preview-modal-image"
               />
             </div>
+          </div>
+        )}
+
+        {otherViewer && (
+          <div className="verifier-other-viewer-toast" role="status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <span><strong>{otherViewer.name}</strong> is also currently viewing this application.</span>
           </div>
         )}
 

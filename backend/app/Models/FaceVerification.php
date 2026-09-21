@@ -14,6 +14,7 @@ class FaceVerification extends Model
         'registration_match_score',
         'status',
         'verified_at',
+        'verified_config_id',
         'claiming_photo_path',
         'claiming_match_score',
         'claiming_status',
@@ -29,5 +30,10 @@ class FaceVerification extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function verifiedConfig()
+    {
+        return $this->belongsTo(ApplicationConfiguration::class, 'verified_config_id');
     }
 }
