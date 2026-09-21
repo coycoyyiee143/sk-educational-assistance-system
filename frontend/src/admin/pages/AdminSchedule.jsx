@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminNavigation from "../components/AdminNavigation";
 import AdminTopbarUser from "../components/AdminTopbarUser";
@@ -150,6 +150,16 @@ function AdminSchedule() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Save actions (e.g. Save Scheduled Claiming) live well down the page,
+  // but the resulting message renders at the very top — easy to trigger
+  // and never actually see. Scroll it into view whenever it appears so
+  // it isn't missed.
+  const messageRef = useRef(null);
+  useEffect(() => {
+    if ((error || success) && messageRef.current) {
+      messageRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [error, success]);
   const [lanePage, setLanePage] = useState(1);
   const lanePerPage = 10;
   const [lateClaimingList, setLateClaimingList] = useState(null);
@@ -723,8 +733,10 @@ function AdminSchedule() {
               </p>
             </div>
 
-            {error && <div className="alert alert-danger">{error}</div>}
-            {success && <div className="alert alert-success">{success}</div>}
+            <div ref={messageRef}>
+              {error && <div className="alert alert-danger">{error}</div>}
+              {success && <div className="alert alert-success">{success}</div>}
+            </div>
 
             <div className="page-card">
               <h4 className="sub-title sub-title-dark">Schedule Summary</h4>
