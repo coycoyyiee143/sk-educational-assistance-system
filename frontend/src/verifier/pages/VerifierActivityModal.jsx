@@ -60,8 +60,7 @@ function VerifierActivityLogModal({ show, onClose }) {
     return logs.filter((log) => {
       const matchesQuery =
         query.trim() === "" ||
-        log.description?.toLowerCase().includes(query.toLowerCase()) ||
-        log.ip_address?.includes(query);
+        log.description?.toLowerCase().includes(query.toLowerCase());
       const matchesAction = actionFilter === "all" || log.action === actionFilter;
       return matchesQuery && matchesAction;
     });
@@ -120,7 +119,7 @@ function VerifierActivityLogModal({ show, onClose }) {
                     <input
                       type="text"
                       className="form-control"
-                      placeholder="Search description or IP address"
+                      placeholder="Search description"
                       value={query}
                       onChange={(e) => {
                         setQuery(e.target.value);
@@ -153,27 +152,25 @@ function VerifierActivityLogModal({ show, onClose }) {
                   <colgroup>
                     <col style={{ width: "25%" }} />
                     <col style={{ width: "25%" }} />
-                    <col style={{ width: "25%" }} />
-                    <col style={{ width: "25%" }} />
+                    <col style={{ width: "50%" }} />
                   </colgroup>
                   <thead>
                     <tr>
                       <th>Date &amp; Time</th>
                       <th>Action</th>
                       <th>Description</th>
-                      <th>IP Address</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan="4" className="text-center py-4">
+                        <td colSpan="3" className="text-center py-4">
                           <div className="spinner-border text-danger" role="status" />
                         </td>
                       </tr>
                     ) : pagedLogs.length === 0 ? (
                       <tr>
-                        <td colSpan="4" className="text-center text-muted py-4">No activity found.</td>
+                        <td colSpan="3" className="text-center text-muted py-4">No activity found.</td>
                       </tr>
                     ) : (
                       pagedLogs.map((log) => (
@@ -181,7 +178,6 @@ function VerifierActivityLogModal({ show, onClose }) {
                           <td>{formatTimestamp(log.created_at)}</td>
                           <td><ActionBadge action={log.action} /></td>
                           <td>{formatDescription(log.description)}</td>
-                          <td><code className="small">{log.ip_address}</code></td>
                         </tr>
                       ))
                     )}

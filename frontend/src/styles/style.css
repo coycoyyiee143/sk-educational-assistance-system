@@ -8690,11 +8690,7 @@ a:hover {
 }
 
 .verifier-activity-col-description {
-  width: 36%;
-}
-
-.verifier-activity-col-ip {
-  width: 18%;
+  width: 54%;
 }
 
 .verifier-activity-table th,
@@ -8796,11 +8792,7 @@ a:hover {
   }
 
   .verifier-activity-col-description {
-    width: 235px;
-  }
-
-  .verifier-activity-col-ip {
-    width: 105px;
+    width: 340px;
   }
 
   .verifier-activity-badge {
