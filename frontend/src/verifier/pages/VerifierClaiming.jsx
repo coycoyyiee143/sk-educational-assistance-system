@@ -1966,6 +1966,11 @@ function VerifierClaiming() {
                           <span>No Late Claiming configured for the active schedule.</span>
                         </div>
                       )
+                    ) : allLanes.length === 0 ? (
+                      <div className="verifier-claiming-context verifier-claiming-context-neutral verifier-claiming-context-compact">
+                        <i className="bi bi-exclamation-lg"></i>
+                        <span>No claiming schedule has been set up yet for this application period. Check back once the SK Admin activates one.</span>
+                      </div>
                     ) : (
                       <div className="verifier-claiming-context verifier-claiming-context-info verifier-claiming-context-compact">
                         <i className="bi bi-calendar3"></i>
