@@ -921,9 +921,9 @@ function AdminSchedule() {
                       <col style={{ width: "10%" }} />
                       <col style={{ width: "12%" }} />
                       <col style={{ width: "8%" }} />
-                      <col style={{ width: "18%" }} />
-                      <col style={{ width: "14%" }} />
-                      <col style={{ width: "16%" }} />
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "26%" }} />
                       {isActive && <col style={{ width: "8%" }} />}
                     </colgroup>
 
@@ -967,26 +967,37 @@ function AdminSchedule() {
                               ))}
                             </select>
                             {lane.requested_verifier_id && (
-                              <div className="mt-1 small">
-                                <span className="text-warning">
-                                  Requested by {lane.requested_verifier ? `${lane.requested_verifier.first_name} ${lane.requested_verifier.last_name}` : "a verifier"}
-                                </span>
-                                <button
-                                  type="button"
-                                  className="btn btn-link btn-sm p-0 ms-2"
-                                  disabled={assigningLaneId === lane.id}
-                                  onClick={() => handleAssignVerifier(lane.id, lane.requested_verifier_id)}
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-link btn-sm p-0 ms-2 text-danger"
-                                  disabled={assigningLaneId === lane.id}
-                                  onClick={() => handleDismissRequest(lane.id)}
-                                >
-                                  Dismiss
-                                </button>
+                              <div className="lane-request-notice">
+                                <div className="lane-request-notice-icon">
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="9" />
+                                    <polyline points="12 7 12 12 15 14" />
+                                  </svg>
+                                </div>
+                                <div className="lane-request-notice-body">
+                                  <span className="lane-request-notice-label">Lane Request</span>
+                                  <p className="lane-request-notice-name">
+                                    {lane.requested_verifier ? `${lane.requested_verifier.first_name} ${lane.requested_verifier.last_name}` : "A verifier"} wants this lane
+                                  </p>
+                                  <div className="lane-request-notice-actions">
+                                    <button
+                                      type="button"
+                                      className="lane-request-action-btn lane-request-action-approve"
+                                      disabled={assigningLaneId === lane.id}
+                                      onClick={() => handleAssignVerifier(lane.id, lane.requested_verifier_id)}
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="lane-request-action-btn lane-request-action-dismiss"
+                                      disabled={assigningLaneId === lane.id}
+                                      onClick={() => handleDismissRequest(lane.id)}
+                                    >
+                                      Dismiss
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </td>

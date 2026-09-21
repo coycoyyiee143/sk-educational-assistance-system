@@ -6321,6 +6321,97 @@ a:hover {
   display: block;
 }
 
+.lane-request-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #fdf3d0;
+  border: 1px solid #f0dfa0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-top: 6px;
+}
+
+.lane-request-notice-icon {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  color: #8a6500;
+}
+
+.lane-request-notice-icon svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.lane-request-notice-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.lane-request-notice-label {
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #8a6500;
+}
+
+.lane-request-notice-name {
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: #5c4600;
+  margin: 0;
+  word-break: break-word;
+}
+
+.lane-request-notice-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.lane-request-action-btn {
+  border: none;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.lane-request-action-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lane-request-action-approve {
+  background: #2e8b47;
+  color: #ffffff;
+}
+
+.lane-request-action-approve:hover:not(:disabled) {
+  background: #237038;
+}
+
+.lane-request-action-dismiss {
+  background: #ffffff;
+  color: #b71c1c;
+  border: 1px solid #e3b3b3;
+}
+
+.lane-request-action-dismiss:hover:not(:disabled) {
+  background: #fce4e4;
+}
+
 .admin-main .schedule-day-card,
 .admin-main .schedule-day-card h6,
 .admin-main .schedule-day-card .form-label,
