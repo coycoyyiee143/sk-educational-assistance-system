@@ -67,10 +67,32 @@ def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declare
         key=lambda b: (b.y_min, b.x_min),
     )
     if header_blocks:
-        combined_text = " ".join(b.text for b in header_blocks)
-        combined_score = score_school(combined_text)
+        # Built up incrementally, one block at a time, stopping the
+        # instant the joined-so-far text already scores a match --
+        # rather than joining every header block first and scoring once
+        # at the end. A compact multi-line logo (the case this exists
+        # for) only needs 2-3 blocks before it scores >=85; blindly
+        # joining the REST of the header region afterward (student
+        # number, form title, a whole consent paragraph on some
+        # templates) only adds noise to the displayed value for no
+        # matching benefit. Confirmed on a real UPLB Registration Form:
+        # the university name matched within the first few header
+        # blocks, but the old join-everything-first approach kept going
+        # and swept in the entire admission-consent paragraph, producing
+        # an "extracted" value hundreds of characters past what actually
+        # mattered.
+        combined_blocks = []
+        combined_text = ""
+        combined_score = 0
+        for block in header_blocks:
+            combined_blocks.append(block)
+            combined_text = " ".join(b.text for b in combined_blocks)
+            combined_score = score_school(combined_text)
+            if combined_score >= 85:
+                break
+
         if combined_score >= 85:
-            combined_confidence = sum(b.confidence for b in header_blocks) / len(header_blocks)
+            combined_confidence = sum(b.confidence for b in combined_blocks) / len(combined_blocks)
             combined = combine_confidence(combined_confidence, combined_score)
             return ExtractionResult(
                 value=combined_text, raw=combined_text, method="header_join",
