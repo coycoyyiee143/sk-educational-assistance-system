@@ -1038,7 +1038,6 @@ function VerifierApplicationReview() {
                       ],
                       ["Program / Degree", app.course],
                       ["Year Level", app.year_level],
-                      ["Student ID", app.student_id_number],
                       [
                         "Current Academic Year",
                         app.configuration?.school_year,

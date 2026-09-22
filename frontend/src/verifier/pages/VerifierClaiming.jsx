@@ -1606,17 +1606,6 @@ function VerifierClaiming() {
                               "—"}
                           </span>
                         </div>
-
-                        <div className="verifier-review-detail-item">
-                          <span className="verifier-review-detail-label">
-                            Student ID Number
-                          </span>
-
-                          <span className="verifier-review-detail-value">
-                            {selected.student_id_number ??
-                              "—"}
-                          </span>
-                        </div>
                       </div>
                     </div>
 
