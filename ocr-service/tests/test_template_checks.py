@@ -15,6 +15,9 @@ from app.template_checks.base_strategy import (
 )
 from app.template_checks.comelec import ComelecVotersCertTemplateStrategy
 from app.template_checks.schools.pnc import PncRegFormTemplateStrategy, PncIdTemplateStrategy
+from app.template_checks.schools.pup import PupRegFormTemplateStrategy, PupIdTemplateStrategy
+from app.template_checks.schools.svcc import SvccRegFormTemplateStrategy
+from app.template_checks.schools.uplb import UplbRegFormTemplateStrategy
 from app.template_checks import get_template_strategy, TEMPLATE_STRATEGY_REGISTRY, GENERIC_DOCUMENT_STRATEGIES
 
 
@@ -207,6 +210,107 @@ def test_pnc_id_strategy_fails_with_neither_name():
     assert result.passed is False
 
 
+# ── PupRegFormTemplateStrategy / PupIdTemplateStrategy ───────────────────
+# Block text below is drawn directly from real OCR output on sample PUP
+# documents (RF-001/RF-002, ID-001/ID-002/ID-003 in the seeded OCR test
+# set), including the OCR noise/typos actually observed.
+
+def test_pup_reg_form_strategy_passes_on_real_sample_text():
+    strategy = PupRegFormTemplateStrategy()
+    blocks = [
+        block("Republic of the Philippines"),
+        block("POLYTECHNIC UNIVERSITY OF THE PHILIPPINES"),
+        block("CERTIFICATE OF REGISTRATIONE"),  # real OCR typo, must still fuzzy-match
+    ]
+    result = strategy.check(blocks)
+    assert result.passed is True
+
+
+def test_pup_reg_form_strategy_flags_missing_keyword():
+    strategy = PupRegFormTemplateStrategy()
+    blocks = [block("Republic of the Philippines")]
+    result = strategy.check(blocks)
+    assert result.passed is False
+
+
+def test_pup_id_strategy_passes_on_badly_garbled_real_header():
+    # ID-001: the worst of the 3 real samples checked -- "university" and
+    # "polytechnic" fragments are unreadable, only "philippines" survives
+    # fuzzy matching at the standard 0.75 threshold.
+    strategy = PupIdTemplateStrategy()
+    blocks = [
+        block("t' HIlIprineS"),
+        block("Th i wunies s r\" Jdgteshnni"),
+        block("JEAN GRAY B."),
+        block("HEMENEZ"),
+    ]
+    result = strategy.check(blocks)
+    assert result.passed is True
+
+
+def test_pup_id_strategy_passes_on_moderately_garbled_real_header():
+    # ID-002: "university" fragment survives, "philippines"/"polytechnic" don't.
+    strategy = PupIdTemplateStrategy()
+    blocks = [
+        block("Polxrsod"),
+        block("UNIvERSITN"),
+        block("P Ritirrines"),
+        block("MARCO ANTONIO G."),
+    ]
+    result = strategy.check(blocks)
+    assert result.passed is True
+
+
+def test_pup_id_strategy_fails_with_no_matching_keyword():
+    strategy = PupIdTemplateStrategy()
+    blocks = [block("Some Other School ID"), block("JUAN DELA CRUZ")]
+    result = strategy.check(blocks)
+    assert result.passed is False
+
+
+# ── SvccRegFormTemplateStrategy ───────────────────────────────────────────
+
+def test_svcc_reg_form_strategy_passes_on_real_sample_text():
+    strategy = SvccRegFormTemplateStrategy()
+    blocks = [
+        block("SVCC Registration Form"),
+        block("ST.VINCENT COLLEGE OF CABUYAO"),
+        block("REGISTRATION FORM"),
+    ]
+    result = strategy.check(blocks)
+    assert result.passed is True
+
+
+def test_svcc_reg_form_strategy_flags_missing_keyword():
+    strategy = SvccRegFormTemplateStrategy()
+    blocks = [block("SVCC Registration Form")]
+    result = strategy.check(blocks)
+    assert result.passed is False
+
+
+# ── UplbRegFormTemplateStrategy ───────────────────────────────────────────
+
+def test_uplb_reg_form_strategy_passes_on_real_sample_text():
+    # Institution name never appears (solid-red header line the detector
+    # misses entirely) -- these are the UP-specific boilerplate anchors used instead.
+    strategy = UplbRegFormTemplateStrategy()
+    blocks = [
+        block("STUDENT PLEDGE AND DATA PRIVACY REMINDERS"),
+        block("I have read and understood the latest UP Privacy Notice for Students."),
+        block("RA 10931FREE"),
+        block("Form 5 issued by."),
+    ]
+    result = strategy.check(blocks)
+    assert result.passed is True
+
+
+def test_uplb_reg_form_strategy_flags_missing_keyword():
+    strategy = UplbRegFormTemplateStrategy()
+    blocks = [block("STUDENT PLEDGE AND DATA PRIVACY REMINDERS")]
+    result = strategy.check(blocks)
+    assert result.passed is False
+
+
 # ── get_template_strategy() registry ─────────────────────────────────────
 
 def test_get_template_strategy_school_specific_lookup():
@@ -221,4 +325,26 @@ def test_get_template_strategy_generic_document_fallback():
 
 def test_get_template_strategy_falls_back_to_permissive_base():
     strategy = get_template_strategy("Unregistered School", "school_id")
+    assert type(strategy) is BaseTemplateStrategy
+
+
+def test_get_template_strategy_pup_reg_form_lookup():
+    strategy = get_template_strategy("PUP", "registration_form")
+    assert isinstance(strategy, PupRegFormTemplateStrategy)
+
+
+def test_get_template_strategy_svcc_reg_form_lookup():
+    strategy = get_template_strategy("SVCC", "registration_form")
+    assert isinstance(strategy, SvccRegFormTemplateStrategy)
+
+
+def test_get_template_strategy_uplb_reg_form_lookup():
+    strategy = get_template_strategy("UPLB", "registration_form")
+    assert isinstance(strategy, UplbRegFormTemplateStrategy)
+
+
+def test_get_template_strategy_sti_still_falls_back_to_permissive_base():
+    # No real STI Reg Form/School ID samples exist yet -- must stay
+    # unregistered rather than guess at a strategy.
+    strategy = get_template_strategy("STI College Calamba", "registration_form")
     assert type(strategy) is BaseTemplateStrategy
