@@ -2,6 +2,7 @@
 from app.extraction import parse_ocr_blocks, get_page_dimensions
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name_or_reupload, _check_school
 from app.upload_checks.image_quality_check import check_image_quality
+from app.utils.spatial import get_blocks_in_region
 from app.normalization import get_strategy_for_school
 from app.template_checks import get_template_strategy
 from app.template_checks.base_strategy import describe_score
@@ -9,13 +10,38 @@ from app.template_checks.base_strategy import describe_score
 
 def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school,
                       image_path=None, *args, **kwargs):
+    blocks = parse_ocr_blocks(ocr_result)
+    page_w, page_h = get_page_dimensions(blocks)
+
     # Upload check 1: image quality too low to reliably read at all —
     # either OCR itself reported low average confidence, OR a direct
-    # Laplacian-variance sharpness measurement flags it as too blurry.
+    # Laplacian-variance sharpness measurement flags it as too blurry,
+    # OR the institution header specifically read poorly even though the
+    # document-wide average looks fine.
+    #
+    # The whole-document average can stay comfortably high while the
+    # header alone was badly misread — confirmed on a real PUP ID: overall
+    # avg_confidence 0.835 (pulled up by clean fields like the student
+    # number and name at 0.98-1.0), while the header lines themselves sat
+    # at 0.63-0.82, producing OCR text like "Polxrsod" for "Polytechnic".
+    # institution_match then fails downstream, but that reads to an
+    # applicant as an unexplained "school mismatch" rather than the real,
+    # fixable problem — the header just needs a clearer photo. Checking
+    # the header region's own average confidence catches that specific
+    # case and routes it to reupload with an actionable reason instead.
+    header_blocks = get_blocks_in_region(blocks, page_w, page_h, "header")
+    header_confidence = (
+        sum(b.confidence for b in header_blocks) / len(header_blocks)
+        if header_blocks else None
+    )
+    header_too_low = header_confidence is not None and header_confidence < CONFIDENCE_THRESHOLD
+
     sharpness_result = check_image_quality(image_path) if image_path else None
-    if avg_confidence < CONFIDENCE_THRESHOLD or (sharpness_result and not sharpness_result.passed):
+    if avg_confidence < CONFIDENCE_THRESHOLD or header_too_low or (sharpness_result and not sharpness_result.passed):
         if sharpness_result and not sharpness_result.passed:
             reason = "Image appears blurry — please retake or rescan with better focus and steady hands."
+        elif header_too_low:
+            reason = "The school name on your ID wasn't clear enough to read reliably — please retake with better lighting and make sure the top of the ID is in focus."
         else:
             reason = "Image quality too low to read reliably — please retake or rescan with better lighting and focus."
         return {
@@ -26,9 +52,6 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
             "auto_reupload_category": "low_quality",
             "auto_reupload_reason": reason,
         }
-
-    blocks = parse_ocr_blocks(ocr_result)
-    page_w, page_h = get_page_dimensions(blocks)
 
     strategy = get_strategy_for_school(declared_school)
     blocks = strategy.preprocess_blocks(blocks)
