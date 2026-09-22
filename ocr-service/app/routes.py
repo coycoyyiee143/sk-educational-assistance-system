@@ -7,7 +7,6 @@ from app.verification import (
 )
 from app.forgery.ela import compute_ela, describe_ela_score
 from app.forgery.image_metadata import check_image_metadata, describe_image_metadata_score
-from app.upload_checks.perceptual_hash import compute_phash
 import tempfile
 import os
 
@@ -27,6 +26,16 @@ def get_name_fields(form) -> tuple:
         form.get("middle_name", ""),
         form.get("last_name", "")
     )
+
+
+def get_debug_mode(form) -> bool:
+    # Panel/demo use only -- never sent by the real applicant-facing
+    # upload flow. Keeps every gate below the blur/skew check from
+    # short-circuiting, so the full eligibility checks still get
+    # computed and returned even when a gate would have auto-rejected
+    # the upload in production. See verify_registration_form's docstring
+    # comment in app/verification/reg_form.py for the full reasoning.
+    return form.get("debug", "false").lower() == "true"
 
 
 @bp.route("/voters-certificate", methods=["POST"])
@@ -54,9 +63,9 @@ def process_voters_certificate():
             guardian_first_name=guardian_first_name,
             guardian_middle_name=guardian_middle_name,
             guardian_last_name=guardian_last_name,
-            image_path=tmp_path
+            image_path=tmp_path,
+            debug=get_debug_mode(request.form)
         )
-        verification["perceptual_hash"] = compute_phash(tmp_path)
 
         # If verify_voters_certificate already short-circuited (upload-check
         # failure — wrong document type, too low quality, or a confidently
@@ -128,9 +137,9 @@ def process_registration_form():
             first_name, middle_name, last_name,
             declared_school,
             configured_school_year,
-            image_path=tmp_path
+            image_path=tmp_path,
+            debug=get_debug_mode(request.form)
         )
-        verification["perceptual_hash"] = compute_phash(tmp_path)
 
         if verification.get("flag_reason") != "auto_reupload":
             ela_result = compute_ela(tmp_path)
@@ -194,9 +203,9 @@ def process_school_id():
             ocr_result, avg_confidence,
             first_name, middle_name, last_name,
             declared_school,
-            image_path=tmp_path
+            image_path=tmp_path,
+            debug=get_debug_mode(request.form)
         )
-        verification["perceptual_hash"] = compute_phash(tmp_path)
 
         if verification.get("flag_reason") != "auto_reupload":
             ela_result = compute_ela(tmp_path)

@@ -10,7 +10,16 @@ from app.template_checks.base_strategy import describe_score
 
 
 def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school, configured_school_year,
-                              image_path=None, *args, **kwargs):
+                              image_path=None, debug=False, *args, **kwargs):
+    # debug=True is for panel/demo use only (see routes.py) -- it keeps
+    # every gate BELOW this point from short-circuiting, so the full
+    # eligibility checks still run and get returned alongside whatever
+    # gate(s) would have auto-rejected the upload in production. Never
+    # set by the real applicant-facing upload flow. The blur/skew gate
+    # right below is NOT covered by this -- an unreadable image produces
+    # meaningless extraction results regardless of debug mode, so it
+    # always short-circuits.
+    gate_failures = []
     # Upload check 1: image quality too low to reliably read at all —
     # either OCR itself reported low average confidence, OR a direct
     # Laplacian-variance sharpness measurement flags it as too blurry,
@@ -56,13 +65,16 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
 
     type_mismatch = check_document_type(blocks, "registration_form", image_path=image_path)
     if type_mismatch:
-        return {
+        gate_result = {
             "document": "registration_form",
             "flagged": True,
             "flag_reason": "auto_reupload",
             "auto_reupload_category": "wrong_document_type",
             "auto_reupload_reason": type_mismatch["reason"],
         }
+        if not debug:
+            return gate_result
+        gate_failures.append(gate_result)
 
     # Name not detected anywhere on the page at all — same reasoning as
     # School ID and Voter's Cert: even reg form templates that print the
@@ -74,13 +86,18 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
     # question for a verifier.
     name_tag, name_result = _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name)
     if name_tag == "auto_reupload":
-        return {
+        gate_result = {
             "document": "registration_form",
             "flagged": True,
             "flag_reason": "auto_reupload",
             "auto_reupload_category": name_result["category"],
             "auto_reupload_reason": name_result["reason"],
         }
+        if not debug:
+            return gate_result
+        gate_failures.append(gate_result)
+        expected_name = f"{first_name} {middle_name} {last_name}".strip()
+        name_result = _flag("identity_match", name_result["reason"], expected=expected_name)
 
     checks = {
         "identity_match": name_result,
@@ -132,13 +149,16 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
         and sy_res.value != configured_school_year
         and sy_res.confidence >= 0.9
     ):
-        return {
+        gate_result = {
             "document": "registration_form",
             "flagged": True,
             "flag_reason": "auto_reupload",
             "auto_reupload_category": "wrong_school_year",
             "auto_reupload_reason": f"The registration form you uploaded shows school year {sy_res.value}, but this cycle requires {configured_school_year}. Please upload a registration form for the correct school year.",
         }
+        if not debug:
+            return gate_result
+        gate_failures.append(gate_result)
 
     if sy_res.found and sy_res.value == configured_school_year and sy_res.confidence >= RAW_FIELD_CONFIDENCE_FLOOR:
         checks["school_year_match"] = _pass("school_year_match", extracted=sy_res.raw, raw=sy_res.raw, context=sy_res.context, expected=configured_school_year)
@@ -174,10 +194,14 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
             score=template_result.score,
         )
 
-    return {
+    has_check_failure = any(not c["passed"] for c in checks.values())
+    result = {
         "document": "registration_form",
         "avg_confidence": avg_confidence,
         "checks": checks,
-        "flagged": any(not c["passed"] for c in checks.values()),
-        "flag_reason": "eligibility_issues" if any(not c["passed"] for c in checks.values()) else None
+        "flagged": has_check_failure or bool(gate_failures),
+        "flag_reason": "eligibility_issues" if has_check_failure else ("would_auto_reupload" if gate_failures else None),
     }
+    if gate_failures:
+        result["would_auto_reupload"] = gate_failures
+    return result

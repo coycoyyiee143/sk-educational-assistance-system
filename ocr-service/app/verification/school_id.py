@@ -10,7 +10,13 @@ from app.template_checks.base_strategy import describe_score
 
 
 def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school,
-                      image_path=None, *args, **kwargs):
+                      image_path=None, debug=False, *args, **kwargs):
+    # debug=True is for panel/demo use only (see routes.py) -- see
+    # reg_form.py's verify_registration_form for the full explanation.
+    # The quality gate below (blur/skew/header confidence) always
+    # short-circuits regardless of debug, since an unreadable image
+    # produces meaningless extraction results either way.
+    gate_failures = []
     blocks = parse_ocr_blocks(ocr_result)
     page_w, page_h = get_page_dimensions(blocks)
 
@@ -75,13 +81,18 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
     # app/verification/shared.py::_check_name_or_reupload.
     name_tag, name_result = _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name)
     if name_tag == "auto_reupload":
-        return {
+        gate_result = {
             "document": "school_id",
             "flagged": True,
             "flag_reason": "auto_reupload",
             "auto_reupload_category": name_result["category"],
             "auto_reupload_reason": name_result["reason"],
         }
+        if not debug:
+            return gate_result
+        gate_failures.append(gate_result)
+        expected_name = f"{first_name} {middle_name} {last_name}".strip()
+        name_result = _flag("identity_match", name_result["reason"], expected=expected_name)
 
     institution_check = _check_school(blocks, page_w, page_h, declared_school)
     checks = {
@@ -103,10 +114,14 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
             score=template_result.score,
         )
 
-    return {
+    has_check_failure = any(not c["passed"] for c in checks.values())
+    result = {
         "document": "school_id",
         "avg_confidence": avg_confidence,
         "checks": checks,
-        "flagged": any(not c["passed"] for c in checks.values()),
-        "flag_reason": "eligibility_issues" if any(not c["passed"] for c in checks.values()) else None,
+        "flagged": has_check_failure or bool(gate_failures),
+        "flag_reason": "eligibility_issues" if has_check_failure else ("would_auto_reupload" if gate_failures else None),
     }
+    if gate_failures:
+        result["would_auto_reupload"] = gate_failures
+    return result
