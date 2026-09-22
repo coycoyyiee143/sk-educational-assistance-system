@@ -95,6 +95,18 @@ use Illuminate\Support\Facades\Storage;
  *   $env:OCR_BATCH='2'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
  *   $env:OCR_BATCH='3'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
  *   ...
+ *
+ * ONE SPECIFIC PERSON: OCR_CASE targets an exact case number (the key
+ * next to their name in $schools below, e.g. 186 for UP-LB's Janice
+ * Sage Dayag) or a comma-separated list of them, regardless of batch
+ * size/offset math or how many OTHER cases for that school/doc-type
+ * are still unseeded. Use this instead of OCR_BATCH when you need to
+ * re-seed one specific person's document (e.g. after deleting a doc
+ * that hit a since-fixed bug) without touching every other still-
+ * unseeded case for that school:
+ *
+ *   $env:OCR_SCHOOL='UP-LB'; $env:OCR_DOC_TYPE='registration_form'; $env:OCR_CASE='186'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *   $env:OCR_CASE='186,190' ...                        # multiple specific people
  */
 class SeedOcrUiSamplesSeeder extends Seeder
 {
@@ -248,6 +260,44 @@ class SeedOcrUiSamplesSeeder extends Seeder
 
         $allCases = $this->buildAllCases($docTypes, $schools);
 
+        // OCR_CASE targets exact case number(s) directly, bypassing
+        // OCR_BATCH's offset math entirely -- for re-seeding one
+        // specific person (e.g. after deleting a document that hit a
+        // since-fixed bug) without also picking up every OTHER still-
+        // unseeded case for that school/doc-type, which OCR_BATCH=all
+        // would do.
+        $caseFilter = env('OCR_CASE');
+        if ($caseFilter !== null) {
+            $wantedNumbers = array_map('trim', explode(',', (string) $caseFilter));
+            $cases = array_values(array_filter(
+                $allCases,
+                fn (array $c) => in_array((string) $c['number'], $wantedNumbers, true)
+            ));
+
+            $foundNumbers = array_map(fn (array $c) => (string) $c['number'], $cases);
+            $missingNumbers = array_diff($wantedNumbers, $foundNumbers);
+            if (!empty($missingNumbers)) {
+                $this->command->error(
+                    'OCR_CASE has number(s) not found in the current OCR_SCHOOL selection: '
+                    .implode(', ', $missingNumbers)
+                );
+                return;
+            }
+
+            $this->command->info('Seeding OCR_CASE-targeted case(s): '.implode(', ', $wantedNumbers));
+
+            $config = ApplicationConfiguration::where('is_active', true)->first();
+            if (!$config) {
+                $this->command->error('No active ApplicationConfiguration found. Activate an application period first, then re-run this seeder.');
+                return;
+            }
+
+            foreach ($cases as $case) {
+                $this->seedCase($case, $config);
+            }
+            return;
+        }
+
         $batchSize = max(1, (int) env('OCR_BATCH_SIZE', self::BATCH_SIZE));
         $batch = env('OCR_BATCH', 1);
 
@@ -308,6 +358,7 @@ class SeedOcrUiSamplesSeeder extends Seeder
 
                 $case = [
                     'label' => strtolower($school['folder']).'-'.$padded,
+                    'number' => $number,
                     'first_name' => $first,
                     'last_name' => $last,
                     'declared_school' => $school['school'],
