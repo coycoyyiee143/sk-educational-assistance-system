@@ -93,29 +93,6 @@ function TrendIcon() {
 }
 
 /* =========================
-   METHODOLOGY NOTE
-========================= */
-
-function MethodologyNote({ children }) {
-    return (
-        <div
-            style={{
-                background: "#fafafa",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                padding: "14px 16px",
-                marginBottom: "18px",
-                fontSize: "13px",
-                lineHeight: "1.6",
-                color: "#555",
-            }}
-        >
-            {children}
-        </div>
-    );
-}
-
-/* =========================
    COMPARISON BAR
 ========================= */
 
@@ -231,6 +208,74 @@ function UtilizationBar({ percent }) {
 }
 
 /* =========================
+   CONFIDENCE RANGE BAR
+========================= */
+
+function ConfidenceRangeBar({ lower, upper, point }) {
+    const margin = Math.max(upper - lower, 0.001);
+    const domainLow = Math.max(0, lower - margin * 1.5);
+    const domainHigh = Math.min(1, upper + margin * 1.5);
+    const domainWidth = Math.max(domainHigh - domainLow, 0.001);
+
+    const toPct = (v) =>
+        Math.min(
+            100,
+            Math.max(0, ((v - domainLow) / domainWidth) * 100)
+        );
+
+    const bandLeft = toPct(lower);
+    const bandWidth = toPct(upper) - bandLeft;
+    const pointLeft = toPct(point);
+
+    const fmtPct = (v) => `${(v * 100).toFixed(1)}%`;
+
+    return (
+        <div>
+            <div
+                style={{
+                    position: "relative",
+                    height: 10,
+                    background: "#edf0f3",
+                    borderRadius: 10,
+                    overflow: "hidden",
+                }}
+            >
+                <div
+                    style={{
+                        position: "absolute",
+                        left: `${bandLeft}%`,
+                        width: `${bandWidth}%`,
+                        height: "100%",
+                        background: "#f3b6b6",
+                    }}
+                />
+
+                <div
+                    style={{
+                        position: "absolute",
+                        left: `${pointLeft}%`,
+                        top: -3,
+                        width: 3,
+                        height: 16,
+                        marginLeft: -1.5,
+                        background: "#b71c1c",
+                        borderRadius: 2,
+                    }}
+                />
+            </div>
+
+            <div className="d-flex justify-content-between small text-muted mt-1">
+                <span>{fmtPct(domainLow)}</span>
+                <span style={{ color: "#b71c1c", fontWeight: 600 }}>
+                    {fmtPct(point)} likely
+                </span>
+                <span>{fmtPct(domainHigh)}</span>
+            </div>
+        </div>
+    );
+}
+
+/* =========================
    SUMMARY CARD
 ========================= */
 
@@ -302,8 +347,6 @@ function BudgetPlanningSection() {
 
     const [loading, setLoading] = useState(true);
     const [loadError, setLoadError] = useState(false);
-    const [showInfo, setShowInfo] = useState(false);
-    const [showForecastCard, setShowForecastCard] = useState(false);
 
     useEffect(() => {
         setLoading(true);
@@ -342,15 +385,26 @@ function BudgetPlanningSection() {
             .finally(() => setLoading(false));
     }, []);
 
+    // Three fields, one constraint: Budget = Slots x Amount. Whichever
+    // field the user just edited, we solve for the third field using
+    // whichever of the OTHER two already has a value — so it works in
+    // every direction (Budget+Amount -> Slots, Budget+Slots -> Amount,
+    // Slots+Amount -> Budget), not just the one the field order happens
+    // to favor.
     function handleBudgetChange(value) {
         setPlannedBudget(value);
 
         const budget = Number(value);
         const amount = Number(plannedAmount);
+        const slots = Number(plannedSlots);
 
         if (budget > 0 && amount > 0) {
             setPlannedSlots(
                 String(Math.floor(budget / amount))
+            );
+        } else if (budget > 0 && slots > 0) {
+            setPlannedAmount(
+                String(Math.round(budget / slots))
             );
         }
     }
@@ -358,10 +412,15 @@ function BudgetPlanningSection() {
     function handleSlotsChange(value) {
         setPlannedSlots(value);
 
-        const budget = Number(plannedBudget);
         const slots = Number(value);
+        const amount = Number(plannedAmount);
+        const budget = Number(plannedBudget);
 
-        if (budget > 0 && slots > 0) {
+        if (slots > 0 && amount > 0) {
+            setPlannedBudget(
+                String(slots * amount)
+            );
+        } else if (slots > 0 && budget > 0) {
             setPlannedAmount(
                 String(Math.round(budget / slots))
             );
@@ -371,10 +430,15 @@ function BudgetPlanningSection() {
     function handleAmountChange(value) {
         setPlannedAmount(value);
 
-        const budget = Number(plannedBudget);
         const amount = Number(value);
+        const slots = Number(plannedSlots);
+        const budget = Number(plannedBudget);
 
-        if (budget > 0 && amount > 0) {
+        if (amount > 0 && slots > 0) {
+            setPlannedBudget(
+                String(slots * amount)
+            );
+        } else if (amount > 0 && budget > 0) {
             setPlannedSlots(
                 String(Math.floor(budget / amount))
             );
@@ -509,23 +573,6 @@ function BudgetPlanningSection() {
                     </div>
                 </div>
 
-                {showInfo && (
-                    <MethodologyNote>
-                        A decision-support calculator, not a
-                        forecast — works entirely off a budget
-                        figure SK provides directly. No historical
-                        applicant data needed.
-                        <br />
-                        <br />
-
-                        <strong>Needs SK/real data?</strong> No.{" "}
-                        <strong>Statistical claim?</strong> None,
-                        and it doesn't make one.{" "}
-                        <strong>Status:</strong> Usable today,
-                        regardless of system history.
-                    </MethodologyNote>
-                )}
-
                 {lastCycle?.available && (
                     <div className="alert alert-primary py-2 mb-4">
                         <strong>
@@ -631,83 +678,41 @@ function BudgetPlanningSection() {
 
                 {plannedBudget &&
                     plannedSlots &&
-                    plannedAmount && (
-                        <div className="mt-4">
-                            <div
-                                style={{
-                                    border: "1px solid #e1e5e9",
-                                    borderRadius: "9px",
-                                    padding: "16px",
-                                    background: "#fafafa",
-                                }}
-                            >
-                                <div className="text-muted small mb-1">
-                                    This Plan
-                                </div>
-
-                                <div
-                                    style={{
-                                        fontSize: "1.25rem",
-                                        fontWeight: 600,
-                                        color: "#222",
-                                    }}
-                                >
-                                    {Number(
+                    plannedAmount &&
+                    lastCycle?.available &&
+                    !lastCycle.is_unlimited && (
+                        <div className="row g-4 mt-1">
+                            <div className="col-md-6">
+                                <CompareBar
+                                    label="Slots"
+                                    planned={Number(
                                         plannedSlots
-                                    ).toLocaleString()}{" "}
-                                    slots at{" "}
-                                    {formatCurrency(
-                                        plannedAmount
-                                    )}{" "}
-                                    each
-                                </div>
-
-                                <div className="text-muted mt-1">
-                                    Total:{" "}
-                                    <strong>
-                                        {formatCurrency(
-                                            plannedBudget
-                                        )}
-                                    </strong>
-                                </div>
+                                    )}
+                                    reference={
+                                        lastCycle.slot_limit
+                                    }
+                                    formatValue={(v) =>
+                                        Number(
+                                            v
+                                        ).toLocaleString()
+                                    }
+                                />
                             </div>
 
-                            {lastCycle?.available &&
-                                !lastCycle.is_unlimited && (
-                                    <div className="row g-4 mt-1">
-                                        <div className="col-md-6">
-                                            <CompareBar
-                                                label="Slots"
-                                                planned={Number(
-                                                    plannedSlots
-                                                )}
-                                                reference={
-                                                    lastCycle.slot_limit
-                                                }
-                                                formatValue={(v) =>
-                                                    Number(
-                                                        v
-                                                    ).toLocaleString()
-                                                }
-                                            />
-                                        </div>
-
-                                        <div className="col-md-6">
-                                            <CompareBar
-                                                label="Total Budget"
-                                                planned={Number(
-                                                    plannedBudget
-                                                )}
-                                                reference={
-                                                    lastCycle.total_budget_used
-                                                }
-                                                formatValue={
-                                                    formatCurrency
-                                                }
-                                            />
-                                        </div>
-                                    </div>
-                                )}
+                            <div className="col-md-6">
+                                <CompareBar
+                                    label="Total Budget"
+                                    planned={Number(
+                                        plannedBudget
+                                    )}
+                                    reference={
+                                        lastCycle.total_budget_used
+                                    }
+                                    formatValue={
+                                        formatCurrency
+                                    }
+                                />
+                            </div>
                         </div>
                     )}
             </div>
@@ -751,33 +756,6 @@ function BudgetPlanningSection() {
                         </p>
                     </div>
                 </div>
-
-                {showInfo && (
-                    <MethodologyNote>
-                        A historical funds ledger and plain
-                        average — shows what was allocated and
-                        actually spent in past periods. Nothing
-                        here projects forward; every figure
-                        describes a period that already happened.
-                        <br />
-                        <br />
-
-                        <strong>Why no pass rate?</strong> A
-                        pass/approval rate needs total submissions
-                        (approved + rejected) as a denominator,
-                        which SK doesn't track yet. Slot
-                        Utilization below is different — it's
-                        funded applicants ÷ slots SK itself
-                        allocated.
-                        <br />
-                        <br />
-
-                        <strong>Needs SK/real data?</strong> Yes.
-                        <br />
-                        <strong>Statistical claim?</strong> None —
-                        plain arithmetic.
-                    </MethodologyNote>
-                )}
 
                 {!estimation?.historical?.length ? (
                     <div className="alert alert-info mb-0">
@@ -1026,39 +1004,6 @@ function BudgetPlanningSection() {
                     </div>
                 </div>
 
-                {showInfo && (
-                    <MethodologyNote>
-                        Counts applicants who passed every
-                        eligibility check but couldn't be given a
-                        slot — made visible by the waitlist
-                        feature.
-                        <br />
-                        <br />
-
-                        Combines applicants currently on the
-                        waitlist with applicants who stayed
-                        waitlisted until the period closed
-                        (Not Accommodated) — otherwise a closed
-                        period would understate demand once its
-                        waitlist empties out.
-                        <br />
-                        <br />
-
-                        This is a <strong>lower bound</strong>,
-                        not the true demand, because qualified
-                        applicants who never apply are not included.
-                        <br />
-                        <br />
-
-                        <strong>Needs SK/real data?</strong> No —
-                        generated automatically as applicants use
-                        the system.
-                        <br />
-                        <strong>Statistical claim?</strong> None —
-                        a direct observed count.
-                    </MethodologyNote>
-                )}
-
                 {!unmetDemand?.trend?.length ? (
                     <div className="alert alert-info mb-0">
                         No application period data available yet.
@@ -1070,9 +1015,7 @@ function BudgetPlanningSection() {
                                 <tr>
                                     <th>School Year</th>
                                     <th>Applicants Funded</th>
-                                    <th>
-                                        Unmet Demand (Waitlisted + Not Accommodated)
-                                    </th>
+                                    <th>Unmet Demand</th>
                                     <th>Unmet Demand ÷ Funded</th>
                                     <th>Status</th>
                                 </tr>
@@ -1133,86 +1076,93 @@ function BudgetPlanningSection() {
                 BUDGET FORECAST
             ===================================================== */}
 
-            {showForecastCard && (
-                <div className="page-card">
+            <div className="page-card">
+                <div
+                    className="d-flex align-items-center gap-3"
+                    style={{
+                        paddingBottom: "16px",
+                        marginBottom: "18px",
+                        borderBottom:
+                            "1px solid #e5e7eb",
+                    }}
+                >
                     <div
-                        className="d-flex align-items-center gap-3"
                         style={{
-                            paddingBottom: "16px",
-                            marginBottom: "18px",
-                            borderBottom:
-                                "1px solid #e5e7eb",
+                            width: 42,
+                            height: 42,
+                            borderRadius: "9px",
+                            background: "#fff1f2",
+                            color: "#b71c1c",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
                         }}
                     >
-                        <div
-                            style={{
-                                width: 42,
-                                height: 42,
-                                borderRadius: "9px",
-                                background: "#fff1f2",
-                                color: "#b71c1c",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
-                            <TrendIcon />
-                        </div>
-
-                        <div>
-                            <h4 className="sub-title mb-1">
-                                Budget Forecast
-                            </h4>
-
-                            <p className="text-muted small mb-0">
-                                Statistical reference for future
-                                budget planning.
-                            </p>
-                        </div>
+                        <TrendIcon />
                     </div>
 
-                    {showInfo && (
-                        <MethodologyNote>
-                            A genuine statistical forecast of the
-                            approval rate. Applicant volume remains
-                            a plain average, not a forecast.
-                        </MethodologyNote>
-                    )}
+                    <div>
+                        <h4 className="sub-title mb-1">
+                            Budget Forecast
+                        </h4>
 
-                    {!forecast?.available ? (
-                        <div className="alert alert-info mb-0">
-                            {forecast?.message ??
-                                "Loading..."}
-                        </div>
-                    ) : (
-                        <>
-                            <div className="alert alert-secondary mb-3">
-                                This tool isn't ready to guide a
-                                real budget decision yet. With only{" "}
+                        <p className="text-muted small mb-0">
+                            Statistical reference for future
+                            budget planning.
+                        </p>
+                    </div>
+                </div>
+
+                {!forecast?.available ? (
+                    <div className="alert alert-info mb-0">
+                        {forecast?.message ??
+                            "Loading..."}
+                    </div>
+                ) : (
+                    <>
+                        {forecast.periods_used < 3 && (
+                            <div className="text-muted small mb-3">
+                                With only{" "}
                                 {forecast.periods_used} completed
-                                period(s) on record, the statistical
-                                range is currently too wide to be
-                                useful.
+                                period(s) on record, this range
+                                will narrow as more periods
+                                complete.
+                            </div>
+                        )}
+
+                        {/* HERO PROJECTION PANEL */}
+                        <div
+                            style={{
+                                border: "1px solid #e1e5e9",
+                                borderLeft: "4px solid #b71c1c",
+                                borderRadius: "9px",
+                                padding: "20px 22px",
+                                background: "#fff",
+                                marginBottom: "18px",
+                            }}
+                        >
+                            <div
+                                className="text-muted small text-uppercase mb-2"
+                                style={{ letterSpacing: "0.04em" }}
+                            >
+                                Projected Approved Applicants — Next Cycle
                             </div>
 
-                            <div className="alert alert-primary py-3 mb-3">
-                                <strong>
-                                    Projected Approved Applicants
-                                    Next Cycle:
-                                </strong>{" "}
-
+                            <div className="d-flex align-items-baseline gap-3 flex-wrap mb-1">
                                 <span
                                     style={{
-                                        fontSize: "1.3rem",
-                                        fontWeight: 600,
+                                        fontSize: "2rem",
+                                        fontWeight: 700,
+                                        color: "#111827",
+                                        lineHeight: 1,
                                     }}
                                 >
                                     {
                                         forecast
                                             .projected_approved_range
                                             .lower
-                                    }{" "}
-                                    –{" "}
+                                    }
+                                    {" – "}
                                     {
                                         forecast
                                             .projected_approved_range
@@ -1220,81 +1170,87 @@ function BudgetPlanningSection() {
                                     }
                                 </span>
 
-                                <div className="text-muted small mt-1">
-                                    {formatCurrency(
-                                        forecast
-                                            .projected_budget_range
-                                            .lower
-                                    )}{" "}
-                                    –{" "}
-                                    {formatCurrency(
-                                        forecast
-                                            .projected_budget_range
-                                            .upper
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="row g-3">
-                                <div className="col-md-6">
-                                    <SummaryCard
-                                        icon={<ChartIcon />}
-                                        value={`${(
-                                            forecast.point_estimate_rate *
-                                            100
-                                        ).toFixed(1)}%`}
-                                        label="Historical Approval Rate"
-                                    />
-                                </div>
-
-                                <div className="col-md-6">
-                                    <SummaryCard
-                                        icon={<TrendIcon />}
-                                        value={`${(
-                                            forecast.confidence_interval
-                                                .lower * 100
-                                        ).toFixed(1)}% – ${(
-                                            forecast.confidence_interval
-                                                .upper * 100
-                                        ).toFixed(1)}%`}
-                                        label="Likely Range (95% Confidence)"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="text-muted small mt-3">
-                                Based on{" "}
-                                {forecast.pooled_approved}{" "}
-                                approved out of{" "}
-                                {forecast.pooled_total_submitted}{" "}
-                                total submissions, pooled across{" "}
-                                {forecast.periods_used} completed
-                                period(s).
+                                <span className="text-muted">
+                                    applicants out of ~
+                                    {forecast.projected_volume}{" "}
+                                    expected submissions
+                                </span>
                             </div>
 
                             <div
-                                className="mt-3 p-3"
+                                className="mb-4"
                                 style={{
-                                    background: "#fff8e6",
-                                    borderRadius: "8px",
-                                    border: "1px solid #f0dfad",
+                                    fontSize: "1.05rem",
+                                    fontWeight: 600,
+                                    color: "#b71c1c",
                                 }}
                             >
-                                For a number you can actually act
-                                on today, use{" "}
-                                <strong>
-                                    Budget Analysis
-                                </strong>{" "}
-                                or{" "}
-                                <strong>
-                                    Budget Allocation Planning
-                                </strong>
-                                .
+                                {formatCurrency(
+                                    forecast
+                                        .projected_budget_range
+                                        .lower
+                                )}{" "}
+                                –{" "}
+                                {formatCurrency(
+                                    forecast
+                                        .projected_budget_range
+                                        .upper
+                                )}
                             </div>
-                        </>
-                    )}
-                </div>
-            )}
+
+                            <div
+                                className="text-muted small mb-2"
+                                style={{ fontWeight: 500 }}
+                            >
+                                Historical approval rate (95%
+                                confidence range)
+                            </div>
+
+                            <ConfidenceRangeBar
+                                lower={
+                                    forecast.confidence_interval
+                                        .lower
+                                }
+                                upper={
+                                    forecast.confidence_interval
+                                        .upper
+                                }
+                                point={forecast.point_estimate_rate}
+                            />
+                        </div>
+
+                        {/* SUPPORTING STATS */}
+                        <div className="row g-3">
+                            <div className="col-md-4">
+                                <SummaryCard
+                                    icon={<ChartIcon />}
+                                    value={`${(
+                                        forecast.point_estimate_rate *
+                                        100
+                                    ).toFixed(1)}%`}
+                                    label="Historical Approval Rate"
+                                />
+                            </div>
+
+                            <div className="col-md-4">
+                                <SummaryCard
+                                    icon={<UsersIcon />}
+                                    value={forecast.pooled_total_submitted.toLocaleString()}
+                                    label="Total Applications Analyzed"
+                                />
+                            </div>
+
+                            <div className="col-md-4">
+                                <SummaryCard
+                                    icon={<TrendIcon />}
+                                    value={forecast.periods_used}
+                                    label="Completed Periods Pooled"
+                                />
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
 
             {/* =====================================================
                 BACK TO REPORTS
@@ -1309,38 +1265,6 @@ function BudgetPlanningSection() {
                 </a>
             </div>
 
-            {/* =====================================================
-                SMALL DEVELOPER CONTROLS
-            ===================================================== */}
-
-            <div
-                className="d-flex justify-content-end gap-3 mb-2"
-                style={{ opacity: 0.65 }}
-            >
-                <button
-                    type="button"
-                    className="btn btn-sm btn-link text-muted text-decoration-none p-0"
-                    onClick={() =>
-                        setShowInfo((v) => !v)
-                    }
-                >
-                    {showInfo
-                        ? "Hide methodology"
-                        : "Show methodology"}
-                </button>
-
-                <button
-                    type="button"
-                    className="btn btn-sm btn-link text-muted text-decoration-none p-0"
-                    onClick={() =>
-                        setShowForecastCard((v) => !v)
-                    }
-                >
-                    {showForecastCard
-                        ? "Hide forecast"
-                        : "Show forecast"}
-                </button>
-            </div>
         </>
     );
 }
