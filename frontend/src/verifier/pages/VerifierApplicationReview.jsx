@@ -146,6 +146,11 @@ function VerifierApplicationReview() {
   );
   const [loading, setLoading] = useState(true);
   const [refreshingOcr, setRefreshingOcr] = useState(false);
+  // Panel/demo use only -- see VerifierController::previewDebugOcr. Keyed
+  // by document id: { loading, error, checks, would_auto_reupload }. Never
+  // written into `app` state, since this is a read-only preview that must
+  // not be mistaken for the document's real, saved verification result.
+  const [debugPreviews, setDebugPreviews] = useState({});
   const [error, setError] = useState("");
   // Separate from `error` above — that one gates the whole "not found" page
   // (see `if (error || !app) return ...` below), so action failures that
@@ -710,6 +715,40 @@ function VerifierApplicationReview() {
       setActionError("Failed to queue OCR retry.");
     } finally {
       setRefreshingOcr(false);
+    }
+  }
+
+  async function handlePreviewDebugChecks(docId) {
+    setDebugPreviews((prev) => ({
+      ...prev,
+      [docId]: { ...(prev[docId] || {}), loading: true, error: null },
+    }));
+
+    try {
+      const res = await api.post(
+        `/verifier/documents/${docId}/debug-preview`
+      );
+
+      setDebugPreviews((prev) => ({
+        ...prev,
+        [docId]: {
+          loading: false,
+          error: null,
+          checks: res.data.checks || [],
+          wouldAutoReupload: res.data.would_auto_reupload || [],
+        },
+      }));
+    } catch (err) {
+      setDebugPreviews((prev) => ({
+        ...prev,
+        [docId]: {
+          ...(prev[docId] || {}),
+          loading: false,
+          error:
+            err?.response?.data?.error ||
+            "Failed to load debug preview.",
+        },
+      }));
     }
   }
 
@@ -1700,6 +1739,127 @@ function VerifierApplicationReview() {
                                       <code className="verifier-ocr-check-code verifier-ocr-check-code-failed mt-1">
                                         {doc.auto_reupload_category}
                                       </code>
+                                    )}
+
+                                    {/* Panel/demo use only -- re-runs the
+                                        already-stored file through the OCR
+                                        service with debug=true so the full
+                                        eligibility checks can be shown even
+                                        though this upload gate already
+                                        auto-rejected it. Does not touch the
+                                        document's real saved status. */}
+                                    <button
+                                      type="button"
+                                      className="verifier-ocr-file-btn mt-2"
+                                      onClick={() => handlePreviewDebugChecks(doc.id)}
+                                      disabled={debugPreviews[doc.id]?.loading}
+                                    >
+                                      {debugPreviews[doc.id]?.loading
+                                        ? "Loading full checks..."
+                                        : "Preview Full Checks (Debug)"}
+                                    </button>
+
+                                    {debugPreviews[doc.id]?.error && (
+                                      <div className="text-danger mt-1">
+                                        {debugPreviews[doc.id].error}
+                                      </div>
+                                    )}
+
+                                    {debugPreviews[doc.id]?.checks && (
+                                      <div className="mt-2" style={{ width: "100%" }}>
+                                        {debugPreviews[doc.id].wouldAutoReupload?.length > 0 && (
+                                          <div className="verifier-ocr-check-reason-technical mb-2">
+                                            Would also auto-reject for:{" "}
+                                            {debugPreviews[doc.id].wouldAutoReupload
+                                              .map((g) => g.auto_reupload_category)
+                                              .join(", ")}
+                                          </div>
+                                        )}
+                                        {debugPreviews[doc.id].checks.length === 0 ? (
+                                          <span>No eligibility checks were reached.</span>
+                                        ) : (
+                                          debugPreviews[doc.id].checks.map((check) => (
+                                            <div
+                                              className={`verifier-ocr-check-card ${check.passed
+                                                ? "verifier-ocr-check-card-passed"
+                                                : "verifier-ocr-check-card-failed"
+                                                }`}
+                                              style={{ padding: "10px 14px", marginBottom: "8px" }}
+                                              key={check.check_name}
+                                            >
+                                              <div className="verifier-ocr-check-header">
+                                                <div className="verifier-ocr-check-header-left">
+                                                  <span className="verifier-ocr-check-name">
+                                                    {getCheckRuleLabel(check.check_name)}
+                                                  </span>
+                                                  <code
+                                                    className={`verifier-ocr-check-code ${check.passed
+                                                      ? "verifier-ocr-check-code-passed"
+                                                      : "verifier-ocr-check-code-failed"
+                                                      }`}
+                                                  >
+                                                    {check.check_name}
+                                                  </code>
+                                                </div>
+                                                <OcrBadge
+                                                  passed={check.passed}
+                                                  checkName={check.check_name}
+                                                  extractedValue={check.extracted_value}
+                                                />
+                                              </div>
+                                              <div
+                                                className={`verifier-ocr-check-value-pair ${check.expected_value == null ? "verifier-ocr-check-value-pair--single" : ""
+                                                  }`}
+                                              >
+                                                <div className="verifier-ocr-check-value-col">
+                                                  <div className="verifier-ocr-check-value-pair-label">
+                                                    {getValueColumnLabel(check.check_name)}
+                                                  </div>
+                                                  <div
+                                                    className={`verifier-ocr-check-value-pair-value ${!check.passed ? "verifier-ocr-check-value-pair-value-mismatch" : ""
+                                                      }`}
+                                                  >
+                                                    {check.extracted_value || "not extracted"}
+                                                  </div>
+                                                </div>
+                                                {check.expected_value != null && (
+                                                  <div className="verifier-ocr-check-value-col">
+                                                    <div className="verifier-ocr-check-value-pair-label">
+                                                      EXPECTED VALUE
+                                                    </div>
+                                                    <div className="verifier-ocr-check-value-pair-value">
+                                                      {check.expected_value}
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
+                                              {check.passed ? (
+                                                <div className="verifier-ocr-check-reason-row">
+                                                  <span className="verifier-ocr-check-reason-label">
+                                                    Flag Reason:
+                                                  </span>
+                                                  <span className="verifier-ocr-check-reason-value-pass">
+                                                    None
+                                                  </span>
+                                                  <span className="verifier-ocr-check-reason-message">
+                                                    · {getPassedCheckMessage(check.check_name)}
+                                                  </span>
+                                                </div>
+                                              ) : (
+                                                <div className="verifier-ocr-check-reason-row">
+                                                  <span className="verifier-ocr-check-reason-label">
+                                                    Flag Reason:
+                                                  </span>
+                                                  <span className="verifier-ocr-check-reason-value-fail">
+                                                    <span className="verifier-ocr-check-reason-icon">!</span>
+                                                    {translateFlagReason(check.check_name, check.flag_reason)}
+                                                  </span>
+                                                </div>
+                                              )}
+                                            </div>
+                                          ))
+                                        )}
+                                      </div>
                                     )}
                                   </div>
                                 ) : [

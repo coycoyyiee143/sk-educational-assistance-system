@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
+use App\Models\ApplicationDocument;
 use App\Models\VerifierAction;
 use App\Models\ClaimingAssignment;
 use App\Models\ClaimingSchedule;
@@ -14,6 +15,8 @@ use App\Traits\LateClaimingEligibility;
 use App\Notifications\ClaimingScheduleNotification;
 use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use GuzzleHttp\Client;
 
 class VerifierController extends Controller
 {
@@ -563,6 +566,107 @@ class VerifierController extends Controller
         )->onQueue('ocr');
 
         return response()->json(['message' => 'OCR retry queued.']);
+    }
+
+    // Panel/demo use only (see ocr-service/app/routes.py's get_debug_mode) --
+    // re-sends the document's ALREADY-STORED file to the OCR service with
+    // debug=true, synchronously, and returns the result straight to the
+    // caller. Deliberately does NOT touch $document/$application, does NOT
+    // dispatch a queued job, and does NOT write any OcrResult/
+    // VerificationCheck rows -- unlike retryOcr() above, this must never
+    // affect the applicant's real reupload/attempt count or application
+    // status, since it exists purely to let a verifier preview what the
+    // full eligibility checks would have said even though an upload gate
+    // (wrong type/year/name) already auto-rejected this document.
+    public function previewDebugOcr(ApplicationDocument $document)
+    {
+        $storagePath = Storage::disk('local')->path($document->file_path);
+        if (!file_exists($storagePath)) {
+            return response()->json(['success' => false, 'error' => 'Stored file not found.'], 404);
+        }
+
+        $application = $document->application;
+        $user        = $application->user;
+        $config      = $application->configuration;
+        $profile     = $user->profile;
+
+        $multipart = [
+            ['name' => 'file', 'contents' => fopen($storagePath, 'r'), 'filename' => $document->file_name],
+            ['name' => 'first_name',  'contents' => $user->first_name],
+            ['name' => 'middle_name', 'contents' => $user->middle_name ?? ''],
+            ['name' => 'last_name',   'contents' => $user->last_name],
+            ['name' => 'debug',       'contents' => 'true'],
+        ];
+
+        $endpoint = match ($document->document_type) {
+            'voters_certificate' => '/api/ocr/voters-certificate',
+            'registration_form'  => '/api/ocr/registration-form',
+            'school_id'          => '/api/ocr/school-id',
+        };
+
+        if ($document->document_type === 'registration_form') {
+            $multipart[] = ['name' => 'declared_school', 'contents' => $application->school_name];
+            $multipart[] = ['name' => 'school_year',     'contents' => $config->school_year];
+        }
+
+        if ($document->document_type === 'school_id') {
+            $multipart[] = ['name' => 'declared_school', 'contents' => $application->school_name];
+        }
+
+        if ($document->document_type === 'voters_certificate') {
+            $isMinor = $profile?->is_minor ?? false;
+            $multipart[] = ['name' => 'is_minor', 'contents' => $isMinor ? '1' : '0'];
+            $multipart[] = ['name' => 'guardian_first_name',  'contents' => $profile?->guardian_first_name ?? ''];
+            $multipart[] = ['name' => 'guardian_middle_name', 'contents' => $profile?->guardian_middle_name ?? ''];
+            $multipart[] = ['name' => 'guardian_last_name',   'contents' => $profile?->guardian_last_name ?? ''];
+
+            $schoolYearStart = (int) explode('-', $config->school_year)[0];
+            $multipart[] = ['name' => 'enforce_cert_year', 'contents' => 'true'];
+            $multipart[] = ['name' => 'cert_year', 'contents' => (string) $schoolYearStart];
+        }
+
+        $flaskUrl = env('OCR_SERVICE_URL', 'http://localhost:5000');
+        $client = new Client(['timeout' => 180, 'connect_timeout' => 10]);
+
+        try {
+            $response = $client->post($flaskUrl . $endpoint, ['multipart' => $multipart]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'error' => 'OCR service unreachable: ' . $e->getMessage()], 502);
+        }
+
+        $result = json_decode($response->getBody()->getContents(), true);
+        if (!is_array($result) || !isset($result['success'])) {
+            return response()->json(['success' => false, 'error' => 'OCR service returned an unreadable response.'], 502);
+        }
+
+        $data = $result['verification'] ?? [];
+
+        // Reshape into the same {check_name, passed, extracted_value,
+        // expected_value, flag_reason, metadata} field names the frontend
+        // already renders for real VerificationCheck rows (see
+        // ProcessOcrDocument::handle()'s VerificationCheck::create() calls)
+        // -- so the debug preview can reuse that same rendering, not a
+        // one-off shape.
+        $checks = [];
+        foreach (($data['checks'] ?? []) as $checkName => $checkData) {
+            if (!is_array($checkData)) continue;
+            $checks[] = [
+                'check_name'      => $checkName,
+                'passed'          => $checkData['passed'] ?? false,
+                'extracted_value' => $checkData['extracted'] ?? $checkData['raw'] ?? null,
+                'expected_value'  => $checkData['expected'] ?? null,
+                'flag_reason'     => $checkData['reason'] ?? null,
+                'metadata'        => $checkData['metadata'] ?? null,
+            ];
+        }
+
+        return response()->json([
+            'success'             => true,
+            'checks'              => $checks,
+            'would_auto_reupload' => $data['would_auto_reupload'] ?? [],
+            'avg_confidence'      => $result['avg_confidence'] ?? null,
+            'ocr_lines'           => $result['ocr_lines'] ?? [],
+        ]);
     }
 
     public function updateClaimStatus(Request $request, $id)
