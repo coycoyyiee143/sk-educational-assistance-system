@@ -4,42 +4,47 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import GuestRoute from "./components/GuestRoute";
 import { useAuth } from "./context/AuthContext";
 
-const Home = lazy(() => import("./public/pages/Home"));
-const Requirements = lazy(() => import("./public/pages/Requirements"));
-const Announcements = lazy(() => import("./public/pages/Announcements"));
-const Events = lazy(() => import("./public/pages/Events"));
-const Login = lazy(() => import("./public/pages/Login"));
-const Register = lazy(() => import("./public/pages/Register"));
-const VerifyEmail = lazy(() => import("./public/pages/VerifyEmail.jsx"));
-const VerifyEmailNotice = lazy(() => import("./public/pages/VerifyEmailNotice"));
-const ForgotPassword = lazy(() => import("./public/pages/ForgotPassword"));
-const PersonnelSetup = lazy(() => import("./public/pages/PersonnelSetup"));
-const NotFound = lazy(() => import("./public/pages/NotFound"));
+// Grouped into one chunk per role via webpackChunkName — once a user's
+// role-chunk is fetched, navigating between their own pages (e.g. sidebar
+// clicks) needs no further network round trips. Split per-page instead of
+// per-role used to force a fresh chunk fetch on every navigation, which is
+// costly on the high-latency/packet-loss network path this app is served over.
+const Home = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/Home"));
+const Requirements = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/Requirements"));
+const Announcements = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/Announcements"));
+const Events = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/Events"));
+const Login = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/Login"));
+const Register = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/Register"));
+const VerifyEmail = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/VerifyEmail.jsx"));
+const VerifyEmailNotice = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/VerifyEmailNotice"));
+const ForgotPassword = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/ForgotPassword"));
+const PersonnelSetup = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/PersonnelSetup"));
+const NotFound = lazy(() => import(/* webpackChunkName: "public" */ "./public/pages/NotFound"));
 
-const AdminDashboard = lazy(() => import("./admin/pages/AdminDashboard"));
-const AdminUsers = lazy(() => import("./admin/pages/AdminUsers"));
-const AdminSettings = lazy(() => import("./admin/pages/AdminSettings"));
-const AdminSchedule = lazy(() => import("./admin/pages/AdminSchedule"));
-const AdminAnnouncements = lazy(() => import("./admin/pages/AdminAnnouncements.jsx"));
-const AdminEvents = lazy(() => import("./admin/pages/AdminEvents.jsx"));
-const AdminReports = lazy(() => import("./admin/pages/AdminReports.jsx"));
-const AdminBudgetPlanning = lazy(() => import("./admin/pages/AdminBudgetPlanning.jsx"));
-const AdminMasterActivityLog = lazy(() => import("./admin/pages/AdminMasterActivityLog"));
-const AdminSystemMaintenance = lazy(() => import("./admin/pages/AdminSystemMaintenance.jsx"));
+const AdminDashboard = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminDashboard"));
+const AdminUsers = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminUsers"));
+const AdminSettings = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminSettings"));
+const AdminSchedule = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminSchedule"));
+const AdminAnnouncements = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminAnnouncements.jsx"));
+const AdminEvents = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminEvents.jsx"));
+const AdminReports = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminReports.jsx"));
+const AdminBudgetPlanning = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminBudgetPlanning.jsx"));
+const AdminMasterActivityLog = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminMasterActivityLog"));
+const AdminSystemMaintenance = lazy(() => import(/* webpackChunkName: "admin" */ "./admin/pages/AdminSystemMaintenance.jsx"));
 
-const VerifierDashboard = lazy(() => import("./verifier/pages/VerifierDashboard.jsx"));
-const VerifierApplicationList = lazy(() => import("./verifier/pages/VerifierApplicationList.jsx"));
-const VerifierApplicationReview = lazy(() => import("./verifier/pages/VerifierApplicationReview.jsx"));
-const VerifierVerificationAction = lazy(() => import("./verifier/pages/VerifierVerificationAction.jsx"));
-const VerifierClaiming = lazy(() => import("./verifier/pages/VerifierClaiming.jsx"));
-const VerifierProfile = lazy(() => import("./verifier/pages/VerifierProfile.jsx"));
-const VerifierWaitlist = lazy(() => import("./verifier/pages/VerifierWaitlist.jsx"));
+const VerifierDashboard = lazy(() => import(/* webpackChunkName: "verifier" */ "./verifier/pages/VerifierDashboard.jsx"));
+const VerifierApplicationList = lazy(() => import(/* webpackChunkName: "verifier" */ "./verifier/pages/VerifierApplicationList.jsx"));
+const VerifierApplicationReview = lazy(() => import(/* webpackChunkName: "verifier" */ "./verifier/pages/VerifierApplicationReview.jsx"));
+const VerifierVerificationAction = lazy(() => import(/* webpackChunkName: "verifier" */ "./verifier/pages/VerifierVerificationAction.jsx"));
+const VerifierClaiming = lazy(() => import(/* webpackChunkName: "verifier" */ "./verifier/pages/VerifierClaiming.jsx"));
+const VerifierProfile = lazy(() => import(/* webpackChunkName: "verifier" */ "./verifier/pages/VerifierProfile.jsx"));
+const VerifierWaitlist = lazy(() => import(/* webpackChunkName: "verifier" */ "./verifier/pages/VerifierWaitlist.jsx"));
 
-const ApplicantDashboard = lazy(() => import("./applicant/pages/ApplicantDashboard.jsx"));
-const ApplicantProfile = lazy(() => import("./applicant/pages/ApplicantProfile.jsx"));
-const ApplicantSubmission = lazy(() => import("./applicant/pages/ApplicantSubmission.jsx"));
-const ApplicantStatus = lazy(() => import("./applicant/pages/ApplicantStatus.jsx"));
-const ApplicantClaimingSchedule = lazy(() => import("./applicant/pages/ApplicantClaimingSchedule.jsx"));
+const ApplicantDashboard = lazy(() => import(/* webpackChunkName: "applicant" */ "./applicant/pages/ApplicantDashboard.jsx"));
+const ApplicantProfile = lazy(() => import(/* webpackChunkName: "applicant" */ "./applicant/pages/ApplicantProfile.jsx"));
+const ApplicantSubmission = lazy(() => import(/* webpackChunkName: "applicant" */ "./applicant/pages/ApplicantSubmission.jsx"));
+const ApplicantStatus = lazy(() => import(/* webpackChunkName: "applicant" */ "./applicant/pages/ApplicantStatus.jsx"));
+const ApplicantClaimingSchedule = lazy(() => import(/* webpackChunkName: "applicant" */ "./applicant/pages/ApplicantClaimingSchedule.jsx"));
 
 function FullScreenSpinner() {
   return (
