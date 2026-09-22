@@ -94,8 +94,26 @@ def run_ocr(image_path: str) -> list:
             # triggered the retry — not just the average, since a
             # global-threshold enhancement can rescue one bad line
             # while slightly lowering others.
-            improved_avg = avg_conf < 0.85 and avg2 > avg_conf
-            improved_min = min_conf < 0.65 and min2 > min_conf
+            #
+            # REGRESSION_TOLERANCE guards against the swap being a wholesale
+            # WORSE trade dressed up as an improvement -- confirmed on a
+            # real UPLB Voter's Certificate where the enhanced pass barely
+            # nudged min_conf up (0.5217 -> 0.5325, a 0.011 gain) while
+            # avg_conf collapsed from 0.9095 to 0.7669 (a 0.143 drop),
+            # because CLAHE+sharpen+Otsu binarization garbled several
+            # previously-clean lines -- including turning a 95%-confidence
+            # "VILLANUEVA,JHON VINCENT" into an 81%-confidence
+            # "VLANEVA JHONVINGENT" that then failed identity_match's fuzzy
+            # threshold entirely. Without this guard, extracted swaps to
+            # extracted2 WHOLESALE on that trade, silently trashing every
+            # other line's already-good read to chase a marginal gain on
+            # whichever single line was worst. Requiring the OTHER metric
+            # not regress by more than a small tolerance keeps the rescue
+            # this retry exists for (a doc where enhancement is a genuine
+            # net win) while blocking one where it plainly isn't.
+            REGRESSION_TOLERANCE = 0.05
+            improved_avg = avg_conf < 0.85 and avg2 > avg_conf and min2 >= min_conf - REGRESSION_TOLERANCE
+            improved_min = min_conf < 0.65 and min2 > min_conf and avg2 >= avg_conf - REGRESSION_TOLERANCE
 
             if improved_avg or improved_min:
                 extracted = extracted2
