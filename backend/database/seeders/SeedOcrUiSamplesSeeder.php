@@ -71,6 +71,30 @@ use Illuminate\Support\Facades\Storage;
  * VC-194) are skipped automatically — seedCase() already does a
  * file_exists() check per document and just logs "File not found,
  * skipping" instead of failing the run.
+ *
+ * SCHOOL: restrict to one school's folder instead of all four.
+ * OCR_SCHOOL takes the 'folder' value from $schools below (PUP, STI,
+ * SVCC, or UP-LB), case-insensitive. Combine with OCR_BATCH=all to seed
+ * every applicant for that school in one run, e.g. to exercise the new
+ * PUP template-check strategies against all 20 PUP applicants with all
+ * 3 document types:
+ *
+ *   OCR_SCHOOL=PUP OCR_DOC_TYPE=all OCR_BATCH=all php artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *
+ * (PowerShell: `$env:OCR_SCHOOL='PUP'; $env:OCR_DOC_TYPE='all'; $env:OCR_BATCH='all'; php artisan db:seed --class=SeedOcrUiSamplesSeeder`)
+ *
+ * Note: PUP's SID folder only has real School ID scans for cases 1-5
+ * (ID-001.jpg through ID-005.jpg) — cases 6-20 will skip school_id
+ * ("File not found") and still seed registration_form/voters_certificate.
+ *
+ * ONE AT A TIME: OCR_BATCH_SIZE overrides the default of 3 cases per
+ * batch. Set it to 1 to seed exactly one application per command, then
+ * bump OCR_BATCH for the next one:
+ *
+ *   $env:OCR_SCHOOL='PUP'; $env:OCR_DOC_TYPE='all'; $env:OCR_BATCH_SIZE='1'; $env:OCR_BATCH='1'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *   $env:OCR_BATCH='2'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *   $env:OCR_BATCH='3'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *   ...
  */
 class SeedOcrUiSamplesSeeder extends Seeder
 {
@@ -207,8 +231,24 @@ class SeedOcrUiSamplesSeeder extends Seeder
             return;
         }
 
-        $allCases = $this->buildAllCases($docTypes);
+        $schoolFilter = env('OCR_SCHOOL');
+        $schools = $this->schools;
+        if ($schoolFilter !== null) {
+            $schools = array_values(array_filter(
+                $schools,
+                fn (array $s) => strcasecmp($s['folder'], $schoolFilter) === 0
+            ));
 
+            if (empty($schools)) {
+                $validFolders = implode(', ', array_column($this->schools, 'folder'));
+                $this->command->error("OCR_SCHOOL={$schoolFilter} doesn't match any school — must be one of: {$validFolders}.");
+                return;
+            }
+        }
+
+        $allCases = $this->buildAllCases($docTypes, $schools);
+
+        $batchSize = max(1, (int) env('OCR_BATCH_SIZE', self::BATCH_SIZE));
         $batch = env('OCR_BATCH', 1);
 
         if (strtolower((string) $batch) === 'all') {
@@ -216,16 +256,16 @@ class SeedOcrUiSamplesSeeder extends Seeder
             $this->command->info('Seeding ALL '.count($allCases).' cases in one run.');
         } else {
             $batch = max(1, (int) $batch);
-            $offset = ($batch - 1) * self::BATCH_SIZE;
-            $cases = array_slice($allCases, $offset, self::BATCH_SIZE);
+            $offset = ($batch - 1) * $batchSize;
+            $cases = array_slice($allCases, $offset, $batchSize);
 
             if (empty($cases)) {
-                $totalBatches = (int) ceil(count($allCases) / self::BATCH_SIZE);
-                $this->command->error("OCR_BATCH={$batch} is out of range — there are only {$totalBatches} batches of ".self::BATCH_SIZE.' (total '.count($allCases).' cases).');
+                $totalBatches = (int) ceil(count($allCases) / $batchSize);
+                $this->command->error("OCR_BATCH={$batch} is out of range — there are only {$totalBatches} batches of {$batchSize} (total ".count($allCases).' cases).');
                 return;
             }
 
-            $this->command->info("Seeding batch {$batch}: ".count($cases)." case(s) (of ".count($allCases)." total, ".self::BATCH_SIZE." per batch).");
+            $this->command->info("Seeding batch {$batch}: ".count($cases)." case(s) (of ".count($allCases)." total, {$batchSize} per batch).");
         }
 
         $config = ApplicationConfiguration::where('is_active', true)->first();
@@ -247,11 +287,11 @@ class SeedOcrUiSamplesSeeder extends Seeder
      * don't exist for that school/number (e.g. no School ID scans
      * outside PUP).
      */
-    private function buildAllCases(array $docTypes): array
+    private function buildAllCases(array $docTypes, array $schools): array
     {
         $cases = [];
 
-        foreach ($this->schools as $school) {
+        foreach ($schools as $school) {
             foreach ($school['people'] as $number => $nameSpec) {
                 [$first, $middle, $last] = array_pad(explode('|', $nameSpec), 3, '');
                 $padded = str_pad((string) $number, 3, '0', STR_PAD_LEFT);
@@ -346,6 +386,16 @@ class SeedOcrUiSamplesSeeder extends Seeder
         foreach ($case['documents'] as $docType => $sourcePath) {
             if (!file_exists($sourcePath)) {
                 $this->command->error("  [{$docType}] File not found, skipping: {$sourcePath}");
+                continue;
+            }
+
+            // Re-running the same case/batch (e.g. a backfill, or an
+            // accidental repeat) must not create a second document row
+            // for a type this application already has — unlike
+            // firstOrCreate/updateOrCreate above, ApplicationDocument::create()
+            // has no such guard on its own.
+            if ($application->documents()->where('document_type', $docType)->exists()) {
+                $this->command->info("  [{$docType}] Already seeded for this application, skipping.");
                 continue;
             }
 
