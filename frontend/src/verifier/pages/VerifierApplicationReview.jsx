@@ -1767,14 +1767,32 @@ function VerifierApplicationReview() {
 
                                     {debugPreviews[doc.id]?.checks && (
                                       <div className="mt-2" style={{ width: "100%" }}>
-                                        {debugPreviews[doc.id].wouldAutoReupload?.length > 0 && (
-                                          <div className="verifier-ocr-check-reason-technical mb-2">
-                                            Would also auto-reject for:{" "}
-                                            {debugPreviews[doc.id].wouldAutoReupload
-                                              .map((g) => g.auto_reupload_category)
-                                              .join(", ")}
-                                          </div>
-                                        )}
+                                        {(() => {
+                                          // would_auto_reupload includes EVERY gate
+                                          // that fired in debug mode, which always
+                                          // includes the same one already shown above
+                                          // as doc.auto_reupload_category -- only
+                                          // surface gates beyond that one, otherwise
+                                          // this just restates the primary reason as
+                                          // if it were a separate finding.
+                                          const extraGates = (
+                                            debugPreviews[doc.id].wouldAutoReupload || []
+                                          ).filter(
+                                            (g) =>
+                                              g.auto_reupload_category !==
+                                              doc.auto_reupload_category
+                                          );
+                                          return (
+                                            extraGates.length > 0 && (
+                                              <div className="verifier-ocr-check-reason-technical mb-2">
+                                                Would also trigger auto-reupload for:{" "}
+                                                {extraGates
+                                                  .map((g) => g.auto_reupload_category)
+                                                  .join(", ")}
+                                              </div>
+                                            )
+                                          );
+                                        })()}
                                         {debugPreviews[doc.id].checks.length === 0 ? (
                                           <span>No eligibility checks were reached.</span>
                                         ) : (
