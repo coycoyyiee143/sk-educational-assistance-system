@@ -71,10 +71,4 @@ def check_document_type(blocks: List[OcrBlock], expected_type: str, image_path: 
                 "detected_type": "school_id",
             }
 
-        if expected_type == "school_id" and not photo_result.has_large_face:
-            return {
-                "reason": "This doesn't look like a School ID — no clear cardholder photo detected. Please upload a clear photo of your School ID.",
-                "detected_type": "unknown",
-            }
-
     return None

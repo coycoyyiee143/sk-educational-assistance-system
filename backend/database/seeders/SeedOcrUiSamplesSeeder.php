@@ -37,15 +37,35 @@ use Illuminate\Support\Facades\Storage;
  * files exist for that person and let the OCR job do its job.
  *
  * BATCHING: seeding 80 applications (through OCR + PaddleOCR) back to
- * back in one run is slow and hard to review. Set OCR_BATCH (1-indexed)
- * to seed 5 applications at a time instead of the whole set:
+ * back in one run is slow, hard to review, and can blow past a tight
+ * CLI memory_limit on large scanned images. Set OCR_BATCH (1-indexed)
+ * to seed 3 applications at a time instead of the whole set:
  *
- *   php artisan db:seed --class=SeedOcrUiSamplesSeeder            # batch 1 (cases 1-5)
- *   OCR_BATCH=2 php artisan db:seed --class=SeedOcrUiSamplesSeeder # batch 2 (cases 6-10)
+ *   php artisan db:seed --class=SeedOcrUiSamplesSeeder            # batch 1 (cases 1-3)
+ *   OCR_BATCH=2 php artisan db:seed --class=SeedOcrUiSamplesSeeder # batch 2 (cases 4-6)
  *   ...
  *   OCR_BATCH=all php artisan db:seed --class=SeedOcrUiSamplesSeeder # everything in one run
  *
  * (PowerShell: `$env:OCR_BATCH=2; php artisan db:seed --class=SeedOcrUiSamplesSeeder`)
+ *
+ * If you still hit "Out of memory" (check the number in the error —
+ * "allocated 41943040 bytes" means a 40MB memory_limit, well under
+ * PHP's usual 128M+ default), raise it just for this run instead of
+ * shrinking the batch further:
+ *   php -d memory_limit=512M artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *
+ * DOC TYPE: matches the workbook's per-document-type tabs — test a
+ * subset of document types per application instead of all three.
+ * Defaults to Registration Form + Voter's Certification (School ID is
+ * excluded by default since only PUP has those scans). OCR_DOC_TYPE
+ * takes a comma-separated list, or "all":
+ *
+ *   (unset)                                            # default: registration_form,voters_certificate
+ *   OCR_DOC_TYPE=registration_form
+ *   OCR_DOC_TYPE=school_id
+ *   OCR_DOC_TYPE=voters_certificate
+ *   OCR_DOC_TYPE=registration_form,school_id
+ *   OCR_DOC_TYPE=all                                   # all three per application
  *
  * Missing files (e.g. no School ID scans for STI/SVCC/UP-LB, no
  * VC-194) are skipped automatically — seedCase() already does a
@@ -54,7 +74,7 @@ use Illuminate\Support\Facades\Storage;
  */
 class SeedOcrUiSamplesSeeder extends Seeder
 {
-    private const BATCH_SIZE = 5;
+    private const BATCH_SIZE = 3;
 
     /** Root folder for the real scanned test documents on this machine. */
     private const DATA_ROOT = 'C:/Users/DELL/Documents/Data testing';
@@ -174,7 +194,20 @@ class SeedOcrUiSamplesSeeder extends Seeder
 
     public function run(): void
     {
-        $allCases = $this->buildAllCases();
+        $allDocTypes = ['registration_form', 'school_id', 'voters_certificate'];
+        $docTypeParam = env('OCR_DOC_TYPE', 'registration_form,voters_certificate');
+
+        $docTypes = strtolower(trim($docTypeParam)) === 'all'
+            ? $allDocTypes
+            : array_map('trim', explode(',', $docTypeParam));
+
+        $invalid = array_diff($docTypes, $allDocTypes);
+        if (!empty($invalid)) {
+            $this->command->error("OCR_DOC_TYPE has invalid value(s): ".implode(', ', $invalid).' — must be a comma-separated list from: '.implode(', ', $allDocTypes).', or "all".');
+            return;
+        }
+
+        $allCases = $this->buildAllCases($docTypes);
 
         $batch = env('OCR_BATCH', 1);
 
@@ -208,12 +241,13 @@ class SeedOcrUiSamplesSeeder extends Seeder
 
     /**
      * Flattens $schools into one ordered list of case arrays, in the
-     * same shape the old hand-written $cases array used. Every doc
-     * type is always listed with its expected path — seedCase()'s own
-     * file_exists() check silently skips whichever ones don't exist
-     * for that school/number (e.g. no School ID scans outside PUP).
+     * same shape the old hand-written $cases array used. Only the
+     * requested $docTypes' paths are included per case — seedCase()'s
+     * own file_exists() check still silently skips whichever ones
+     * don't exist for that school/number (e.g. no School ID scans
+     * outside PUP).
      */
-    private function buildAllCases(): array
+    private function buildAllCases(array $docTypes): array
     {
         $cases = [];
 
@@ -222,21 +256,23 @@ class SeedOcrUiSamplesSeeder extends Seeder
                 [$first, $middle, $last] = array_pad(explode('|', $nameSpec), 3, '');
                 $padded = str_pad((string) $number, 3, '0', STR_PAD_LEFT);
 
+                $allDocuments = [
+                    'school_id' => self::DATA_ROOT."/{$school['folder']}/SID/ID-{$padded}.jpg",
+                    'registration_form' => self::DATA_ROOT."/{$school['folder']}/RF/RF-{$padded}.jpg",
+                    // PUP's 20th voter's certificate was scanned without
+                    // a zero-padded filename (VC-20.jpg, not VC-020.jpg).
+                    'voters_certificate' => ($school['folder'] === 'PUP' && $number === 20)
+                        ? self::DATA_ROOT."/{$school['folder']}/VC/VC-20.jpg"
+                        : self::DATA_ROOT."/{$school['folder']}/VC/VC-{$padded}.jpg",
+                ];
+
                 $case = [
                     'label' => strtolower($school['folder']).'-'.$padded,
                     'first_name' => $first,
                     'last_name' => $last,
                     'declared_school' => $school['school'],
                     'school_year' => '2025-2026',
-                    'documents' => [
-                        'school_id' => self::DATA_ROOT."/{$school['folder']}/SID/ID-{$padded}.jpg",
-                        'registration_form' => self::DATA_ROOT."/{$school['folder']}/RF/RF-{$padded}.jpg",
-                        // PUP's 20th voter's certificate was scanned without
-                        // a zero-padded filename (VC-20.jpg, not VC-020.jpg).
-                        'voters_certificate' => ($school['folder'] === 'PUP' && $number === 20)
-                            ? self::DATA_ROOT."/{$school['folder']}/VC/VC-20.jpg"
-                            : self::DATA_ROOT."/{$school['folder']}/VC/VC-{$padded}.jpg",
-                    ],
+                    'documents' => array_intersect_key($allDocuments, array_flip($docTypes)),
                 ];
 
                 if ($middle !== '') {
