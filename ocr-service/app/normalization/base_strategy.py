@@ -1,6 +1,5 @@
 import re
 from typing import Optional
-from app.normalization.text_utils import fix_ocr_symbols
 
 class BaseSchoolStrategy:
     """Fallback validation processor using general document layout assumptions."""

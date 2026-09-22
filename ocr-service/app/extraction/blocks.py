@@ -1,6 +1,7 @@
 # app/extraction/blocks.py
 from typing import List, Tuple, Dict
 from app.models import OcrBlock, ExtractionResult
+from app.normalization.text_utils import clean_text
 
 def extraction_failed(field_name: str, reason: str, metadata: Dict = None) -> ExtractionResult:
     return ExtractionResult(
@@ -14,11 +15,11 @@ def parse_ocr_blocks(ocr_result: list) -> List[OcrBlock]:
     for item in ocr_result:
         if isinstance(item, dict):
             bbox = item.get("bbox", [])
-            text = item.get("text", "").strip()
+            text = clean_text(item.get("text", ""))
             confidence = item.get("confidence", 0.0)
         else:
             bbox = item[0]
-            text = item[1][0].strip()
+            text = clean_text(item[1][0])
             confidence = item[1][1]
         if not text:
             continue
