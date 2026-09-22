@@ -1,7 +1,6 @@
 # app/verification/school_id.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name_or_reupload, _check_school
-from app.upload_checks.document_type_check import check_document_type
 from app.upload_checks.image_quality_check import check_image_quality
 from app.normalization import get_strategy_for_school
 from app.template_checks import get_template_strategy
@@ -30,16 +29,6 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
 
     blocks = parse_ocr_blocks(ocr_result)
     page_w, page_h = get_page_dimensions(blocks)
-
-    type_mismatch = check_document_type(blocks, "school_id", image_path=image_path)
-    if type_mismatch:
-        return {
-            "document": "school_id",
-            "flagged": True,
-            "flag_reason": "auto_reupload",
-            "auto_reupload_category": "wrong_document_type",
-            "auto_reupload_reason": type_mismatch["reason"],
-        }
 
     strategy = get_strategy_for_school(declared_school)
     blocks = strategy.preprocess_blocks(blocks)
