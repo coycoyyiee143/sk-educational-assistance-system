@@ -25,158 +25,229 @@ use Illuminate\Support\Facades\Storage;
  * Log in with your EXISTING verifier account afterward and open
  * /VerifierApplicationReview/{id} for each printed application id.
  *
- * HOW TO USE:
- * Edit the $cases array below — one entry per test APPLICATION (a
- * "case" can have 1-3 documents; you don't need all three document
- * types filled in just to see one document's checks). image paths are
- * absolute local paths on YOUR machine, e.g.
- * 'C:/Users/DELL/Documents/documents/UPLB/id/ID-181.png'.
+ * DATA SOURCE: the "Objective 2 — 200-Document Evaluation Workbook"
+ * (Registration Form / School ID / Voter's Certificate tabs). Every
+ * applicant below is seeded with their REAL name and REAL school —
+ * exactly like the already-working vc-187/188/195/197 UP-LB cases.
+ * The "wrong name / wrong school / wrong year" test scenarios in the
+ * workbook are baked into the scanned IMAGE itself (the photographed
+ * document was edited to print a different value), not something this
+ * seeder fakes on the applicant's declared profile. So we never need
+ * to override name/school here — just attach whichever real scan
+ * files exist for that person and let the OCR job do its job.
  *
- * $cases is a plain array, not a single-record slot — add as many
- * entries as you want and the seeder loops over ALL of them in one run
- * (see run() below). There's nothing special about "one seed per
- * application": if you need 200 test applications for a demo/report,
- * add 200 entries here (or generate them programmatically into this
- * array before run() executes) and run the seeder once.
+ * BATCHING: seeding 80 applications (through OCR + PaddleOCR) back to
+ * back in one run is slow and hard to review. Set OCR_BATCH (1-indexed)
+ * to seed 5 applications at a time instead of the whole set:
  *
- * 'middle_name' is optional — omit the key entirely (not just an empty
- * string) for dummy applicants who don't have one; see the
- * 'no-middle-name' example below.
+ *   php artisan db:seed --class=SeedOcrUiSamplesSeeder            # batch 1 (cases 1-5)
+ *   OCR_BATCH=2 php artisan db:seed --class=SeedOcrUiSamplesSeeder # batch 2 (cases 6-10)
+ *   ...
+ *   OCR_BATCH=all php artisan db:seed --class=SeedOcrUiSamplesSeeder # everything in one run
  *
- * document_type keys (matches the application_documents.document_type
- * enum — see the 2026_06_11_090704_create_application_documents_table
- * migration): 'school_id', 'registration_form', 'voters_certificate'.
- * One example of each is included below.
+ * (PowerShell: `$env:OCR_BATCH=2; php artisan db:seed --class=SeedOcrUiSamplesSeeder`)
  *
- * 'birthdate' is optional — omit it and the case defaults to an adult
- * (20 years old). A StudentProfile is considered a minor when age < 18
- * (see StudentProfile::getIsMinorAttribute()), which is what unlocks
- * the guardian_* fields below being relevant. Pass a Carbon-parseable
- * string, e.g. '2010-05-14'.
- *
- * 'guardian' is optional — an associative array with keys
- * 'first_name', 'middle_name' (optional), 'last_name', 'relationship',
- * 'contact'. Only meaningful for minor applicants (see
- * StudentProfile::hasCompleteGuardianInfo()), but nothing stops you
- * from setting it on an adult case too. See the 'minor-with-guardian'
- * example below.
- *
- * Then run:
- *   php artisan db:seed --class=SeedOcrUiSamplesSeeder
+ * Missing files (e.g. no School ID scans for STI/SVCC/UP-LB, no
+ * VC-194) are skipped automatically — seedCase() already does a
+ * file_exists() check per document and just logs "File not found,
+ * skipping" instead of failing the run.
  */
 class SeedOcrUiSamplesSeeder extends Seeder
 {
-    private array $cases = [
-        // Example: school_id document
-        // [
-        //     'label'           => 'uplb-correct-name',
-        //     'first_name'      => 'Nicole',
-        //     'middle_name'     => 'V.',
-        //     'last_name'       => 'Corpuz',
-        //     'declared_school' => 'University of the Philippines Los Baños',
-        //     'school_year'     => '2025-2026',
-        //     'documents'       => [
-        //         'school_id' => 'C:/Users/DELL/Documents/documents/UPLB/id/ID-181.png',
-        //     ],
-        // ],
+    private const BATCH_SIZE = 5;
 
-        // Example: registration_form document
-        // [
-        //     'label'           => 'pnc-reg-form',
-        //     'first_name'      => 'Mark',
-        //     'middle_name'     => 'D.',
-        //     'last_name'       => 'Santos',
-        //     'declared_school' => 'Pamantasan ng Cabuyao',
-        //     'school_year'     => '2025-2026',
-        //     'documents'       => [
-        //         'registration_form' => 'C:/Users/DELL/Documents/documents/PNC/reg/REG-001.png',
-        //     ],
-        // ],
+    /** Root folder for the real scanned test documents on this machine. */
+    private const DATA_ROOT = 'C:/Users/DELL/Documents/Data testing';
 
-        // Example: voters_certificate document
-        // [
-        //     'label'           => 'comelec-voters-cert',
-        //     'first_name'      => 'Ana',
-        //     'middle_name'     => 'R.',
-        //     'last_name'       => 'Reyes',
-        //     'declared_school' => 'STI College Calamba',
-        //     'school_year'     => '2025-2026',
-        //     'documents'       => [
-        //         'voters_certificate' => 'C:/Users/DELL/Documents/documents/COMELEC/cert/CERT-001.png',
-        //     ],
-        // ],
-
-        // Example: applicant with no middle name — just omit the key
-        // [
-        //     'label'           => 'no-middle-name',
-        //     'first_name'      => 'Jomar',
-        //     'last_name'       => 'Dizon',
-        //     'declared_school' => 'STI College Calamba',
-        //     'school_year'     => '2025-2026',
-        //     'documents'       => [
-        //         'school_id' => 'C:/Users/DELL/Documents/documents/STI/id/ID-002.png',
-        //     ],
-        // ],
-
-        // Example: one application with all 3 documents attached — a
-        // single 'documents' array can hold any combination of the 3
-        // document_type keys; this one has them all.
-        // [
-        //     'label'           => 'pnc-full-set',
-        //     'first_name'      => 'Liza',
-        //     'middle_name'     => 'M.',
-        //     'last_name'       => 'Fernandez',
-        //     'declared_school' => 'Pamantasan ng Cabuyao',
-        //     'school_year'     => '2025-2026',
-        //     'documents'       => [
-        //         'school_id'           => 'C:/Users/DELL/Documents/documents/PNC/id/ID-050.png',
-        //         'registration_form'   => 'C:/Users/DELL/Documents/documents/PNC/reg/REG-050.png',
-        //         'voters_certificate'  => 'C:/Users/DELL/Documents/documents/COMELEC/cert/CERT-050.png',
-        //     ],
-        // ],
-
-        // Example: minor applicant with guardian info filled in
-        // [
-        //     'label'           => 'minor-with-guardian',
-        //     'first_name'      => 'Kyle',
-        //     'last_name'       => 'Ramos',
-        //     'birthdate'       => '2010-05-14',
-        //     'declared_school' => 'STI College Calamba',
-        //     'school_year'     => '2025-2026',
-        //     'guardian'        => [
-        //         'first_name'   => 'Rowena',
-        //         'last_name'    => 'Ramos',
-        //         'relationship' => 'Mother',
-        //         'contact'      => '09171234567',
-        //     ],
-        //     'documents'       => [
-        //         'school_id' => 'C:/Users/DELL/Documents/documents/STI/id/ID-003.png',
-        //     ],
-        // ],
+    /**
+     * One school per block: [folder name under DATA_ROOT, full school
+     * name to declare, first case number, last case number, list of
+     * [number => 'First|Middle|Last'] names]. Middle name is optional —
+     * omit the '|' segment entirely for a no-middle-name applicant.
+     */
+    private array $schools = [
+        [
+            'folder' => 'PUP',
+            'school' => 'Polytechnic University of the Philippines',
+            'people' => [
+                1 => 'Jean Gray|Batumbakal|Hemenez',
+                2 => 'Marco Antonio|Gonzaga|Villanueva',
+                3 => 'Beatrice Ann|Marasigan|Reyes',
+                4 => 'Louise Andrea|Perez|Garcia',
+                5 => 'Patrick Joshua|Molino|Cruz',
+                6 => 'Janelle Kaye|Torres|De Leon',
+                7 => 'Andrea Mae|Ramos|Lim',
+                8 => 'Kimberly Joy|Dati|Santos',
+                9 => 'Ella Mae|Cortez|Pascual',
+                10 => 'Marielle Ann|Diaz|Garcia',
+                11 => 'Angelica Mae|Valdez|Rivera',
+                12 => 'Erika Louise|M.|Dela Cruz',
+                13 => 'Trisha Nicole|Daez|Mendoza',
+                14 => 'Carol|Tan|Fuentes',
+                15 => 'Ela Marie|Rodrigez|Dela Rosario',
+                16 => 'Danica Joy|Romualdez|Fabian',
+                17 => 'Miguel Angelo|Protacio|Laureano',
+                18 => 'Ian Matthew|Cabrera|David',
+                19 => 'Angelica Marie|Tina|Lagmay',
+                20 => 'Kyle Andrei|Baes|Marcelino',
+            ],
+        ],
+        [
+            'folder' => 'STI',
+            'school' => 'STI College Calamba',
+            'people' => [
+                21 => 'Joshua Miguel|Reyes|Alvarez',
+                22 => 'Angela Mae|Flores|Miranda',
+                23 => 'Mark Joseph|Garcia|Miles',
+                24 => 'Janelle Rose|Lim|Castro',
+                25 => 'John Paul|Torres|Bacelonia',
+                26 => 'Rose Anne|Diaz|Laforteza',
+                27 => 'Carl Andrew|Lopez|Fernandez',
+                28 => 'Mary Joy|Castillo|Brutas',
+                29 => 'Kevin James|Ong|Samson',
+                30 => 'Christine Mae|Tan|Ambat',
+                31 => 'Paolo Miguel|Chua|Nicolas',
+                32 => 'Jessica Anne|Co|Bautista',
+                33 => 'Jerome|Louis|Baes',
+                34 => 'Kate Marie|Sy|Cortez',
+                35 => 'Luis Paul|Gomez|Grande',
+                36 => 'Trisha Mae|Luna|Dizon',
+                37 => 'Kyle Andrew|Javier|De Vera',
+                38 => 'Janine Rose|Ocampo|Morales',
+                39 => 'Christian John|Valencia|Serrano',
+                40 => 'Aira Mae|Francisco|Rosales',
+            ],
+        ],
+        [
+            'folder' => 'SVCC',
+            'school' => 'St. Vincent College of Cabuyao',
+            'people' => [
+                41 => 'Anthony Miguel|Santos|Del Rosario',
+                42 => 'Natalia Mae|Ramos|Villanueva',
+                43 => 'Peter Benjamin|Garcia|Mendoza',
+                44 => 'Wanda Elise|Navarro|Salazar',
+                45 => 'Clinton James|Bautista|Manalo',
+                46 => 'Bruce Adrian|Castillo|Evangelista',
+                47 => 'Samuel Wilson|Reyes|Macapagal',
+                48 => 'Caroline Denise|Mercado|Valdez',
+                49 => 'James Buchanan|Flores|Soriano',
+                50 => 'Scott Miguel|Aquino|De Guzman',
+                51 => 'Peter Jason|Fernandez|Pascual',
+                52 => 'Theodore Luis|Morales|Magbanua',
+                53 => 'Stephen Vincent|Cabrera|Tolentino',
+                54 => 'Virginia Mae|Padilla|Domingo',
+                55 => 'Nicholas Joseph|Rivera|Lacson',
+                56 => 'Victor Elias|Alonzo|Samonte',
+                57 => 'Lorenzo Gabriel|Tuazon|Delos Santos',
+                58 => 'Clinton Rafael|Santiago|Marasigan',
+                59 => 'Pietro Luis|Arellano|Buenaventura',
+                60 => 'Sabrina Mae|Carpio|Rodrigo',
+            ],
+        ],
+        [
+            'folder' => 'UP-LB',
+            'school' => 'University of the Philippines Los Baños',
+            'people' => [
+                181 => 'Nicole|Villaruel|Corpuz',
+                182 => 'Joel|Jacinto|Morales',
+                183 => 'Jhon Vincent||Villanueva',
+                184 => 'Rosa Mae|Puno|Asuncion',
+                185 => 'Mary Kathy|Opo|Villanueva',
+                186 => 'Janice Sage|Isidro|Dayag',
+                187 => 'Angillyn|Chua|Malayon',
+                188 => 'Lorelaine|Pugay|Llorente',
+                189 => 'Joseph|Magdayao|Lumbay',
+                190 => 'Jerry|Solinap|Sibug',
+                191 => 'Nicole|Lucban|Marquez',
+                192 => 'Melodie Mae|Bermas|Roxas',
+                193 => 'Marcus|Bautista|Somera',
+                194 => 'Mark Robert||Herrera',
+                195 => 'Jackson Rick|Lapaz|Paras',
+                196 => 'Katarina||Cruz',
+                197 => 'Gilbert|Menese|Lagman',
+                198 => 'Veronica|Cruz|Ramos',
+                199 => 'Colton Marc|Cabral|Paña',
+                200 => 'Eliza Marie|Roa|Galang',
+            ],
+        ],
     ];
 
     public function run(): void
     {
-        if (empty($this->cases)) {
-            $this->command->error('No cases configured — edit $cases at the top of SeedOcrUiSamplesSeeder.php first.');
-            return;
+        $allCases = $this->buildAllCases();
+
+        $batch = env('OCR_BATCH', 1);
+
+        if (strtolower((string) $batch) === 'all') {
+            $cases = $allCases;
+            $this->command->info('Seeding ALL '.count($allCases).' cases in one run.');
+        } else {
+            $batch = max(1, (int) $batch);
+            $offset = ($batch - 1) * self::BATCH_SIZE;
+            $cases = array_slice($allCases, $offset, self::BATCH_SIZE);
+
+            if (empty($cases)) {
+                $totalBatches = (int) ceil(count($allCases) / self::BATCH_SIZE);
+                $this->command->error("OCR_BATCH={$batch} is out of range — there are only {$totalBatches} batches of ".self::BATCH_SIZE.' (total '.count($allCases).' cases).');
+                return;
+            }
+
+            $this->command->info("Seeding batch {$batch}: ".count($cases)." case(s) (of ".count($allCases)." total, ".self::BATCH_SIZE." per batch).");
         }
 
-        // All applications share the single currently-active period —
-        // the seeder doesn't support seeding into multiple config periods
-        // in one run.
         $config = ApplicationConfiguration::where('is_active', true)->first();
         if (!$config) {
             $this->command->error('No active ApplicationConfiguration found. Activate an application period first, then re-run this seeder.');
             return;
         }
 
-        // One application per case — loops over the whole $cases array,
-        // so this scales to as many test applications as you add entries
-        // for (e.g. 200), not just one per run.
-        foreach ($this->cases as $case) {
+        foreach ($cases as $case) {
             $this->seedCase($case, $config);
         }
+    }
+
+    /**
+     * Flattens $schools into one ordered list of case arrays, in the
+     * same shape the old hand-written $cases array used. Every doc
+     * type is always listed with its expected path — seedCase()'s own
+     * file_exists() check silently skips whichever ones don't exist
+     * for that school/number (e.g. no School ID scans outside PUP).
+     */
+    private function buildAllCases(): array
+    {
+        $cases = [];
+
+        foreach ($this->schools as $school) {
+            foreach ($school['people'] as $number => $nameSpec) {
+                [$first, $middle, $last] = array_pad(explode('|', $nameSpec), 3, '');
+                $padded = str_pad((string) $number, 3, '0', STR_PAD_LEFT);
+
+                $case = [
+                    'label' => strtolower($school['folder']).'-'.$padded,
+                    'first_name' => $first,
+                    'last_name' => $last,
+                    'declared_school' => $school['school'],
+                    'school_year' => '2025-2026',
+                    'documents' => [
+                        'school_id' => self::DATA_ROOT."/{$school['folder']}/SID/ID-{$padded}.jpg",
+                        'registration_form' => self::DATA_ROOT."/{$school['folder']}/RF/RF-{$padded}.jpg",
+                        // PUP's 20th voter's certificate was scanned without
+                        // a zero-padded filename (VC-20.jpg, not VC-020.jpg).
+                        'voters_certificate' => ($school['folder'] === 'PUP' && $number === 20)
+                            ? self::DATA_ROOT."/{$school['folder']}/VC/VC-20.jpg"
+                            : self::DATA_ROOT."/{$school['folder']}/VC/VC-{$padded}.jpg",
+                    ],
+                ];
+
+                if ($middle !== '') {
+                    $case['middle_name'] = $middle;
+                }
+
+                $cases[] = $case;
+            }
+        }
+
+        return $cases;
     }
 
     private function seedCase(array $case, ApplicationConfiguration $config): void
