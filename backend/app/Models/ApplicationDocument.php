@@ -15,6 +15,7 @@ class ApplicationDocument extends Model
         'file_path',
         'file_name',
         'mime_type',
+        'perceptual_hash',
         'version',
         'status',
         'needs_auto_reupload',

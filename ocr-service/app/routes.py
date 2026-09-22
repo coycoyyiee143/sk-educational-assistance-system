@@ -7,6 +7,7 @@ from app.verification import (
 )
 from app.forgery.ela import compute_ela, describe_ela_score
 from app.forgery.image_metadata import check_image_metadata, describe_image_metadata_score
+from app.upload_checks.perceptual_hash import compute_phash
 import tempfile
 import os
 
@@ -55,6 +56,7 @@ def process_voters_certificate():
             guardian_last_name=guardian_last_name,
             image_path=tmp_path
         )
+        verification["perceptual_hash"] = compute_phash(tmp_path)
 
         # If verify_voters_certificate already short-circuited (upload-check
         # failure — wrong document type, too low quality, or a confidently
@@ -128,6 +130,7 @@ def process_registration_form():
             configured_school_year,
             image_path=tmp_path
         )
+        verification["perceptual_hash"] = compute_phash(tmp_path)
 
         if verification.get("flag_reason") != "auto_reupload":
             ela_result = compute_ela(tmp_path)
@@ -165,7 +168,7 @@ def process_registration_form():
             "avg_confidence": avg_confidence,
             "verification": verification
         })
-    
+
     except Exception as e:
         import traceback
         return jsonify({"success": False, "error": str(e), "traceback": traceback.format_exc()}), 500
@@ -193,6 +196,7 @@ def process_school_id():
             declared_school,
             image_path=tmp_path
         )
+        verification["perceptual_hash"] = compute_phash(tmp_path)
 
         if verification.get("flag_reason") != "auto_reupload":
             ela_result = compute_ela(tmp_path)

@@ -198,6 +198,13 @@ class ProcessOcrDocument implements ShouldQueue
         try {
             $data = $result['verification'] ?? [];
 
+            // Perceptual hash of the uploaded image/PDF page, from the OCR
+            // service (app/upload_checks/perceptual_hash.py) -- saved on
+            // every outcome (even an auto-reupload short-circuit) so it's
+            // available for the duplicate-submission check on whichever
+            // future upload eventually passes.
+            $perceptualHash = $data['perceptual_hash'] ?? null;
+
 
             // Upload-check short-circuit (wrong document type, too low
             // quality, or a confidently-wrong cert year). Record the flag
@@ -215,6 +222,7 @@ class ProcessOcrDocument implements ShouldQueue
                     'needs_auto_reupload'     => true,
                     'auto_reupload_reason'    => $data['auto_reupload_reason'] ?? 'System detected an issue with this document.',
                     'auto_reupload_category'  => $data['auto_reupload_category'] ?? null,
+                    'perceptual_hash'         => $perceptualHash,
                 ]);
 
 
@@ -268,12 +276,80 @@ class ProcessOcrDocument implements ShouldQueue
             }
 
 
-            $this->document->update(['status' => 'processed']);
+            $this->document->update([
+                'status'          => 'processed',
+                'perceptual_hash' => $perceptualHash,
+            ]);
+
+            // Duplicate-submission check: the same physical document (or a
+            // re-photograph/re-scan of it, close enough that the dHash
+            // still lands within a small Hamming distance) already
+            // submitted for the SAME document type on a DIFFERENT
+            // application. Genuinely ambiguous either way (could be a
+            // sibling using the family's copy of a form, or someone
+            // reusing another applicant's ID) — routed to a verifier via a
+            // failed VerificationCheck, never auto-reupload/auto-reject.
+            if ($perceptualHash) {
+                $this->flagIfDuplicateSubmission($ocrResult->id, $perceptualHash);
+            }
+
             $this->updateApplicationStatus($this->application);
         } catch (\Throwable $e) {
             \Log::error("Saving OCR results failed for doc {$this->document->id}: " . $e->getMessage());
             $this->document->update(['status' => 'failed']);
         }
+    }
+
+    // Hex chars apart, out of the dHash's 16 (64 bits) -- a genuine
+    // near-duplicate (recompressed, resized, re-photographed copy of the
+    // same physical document) typically lands within a handful of bits;
+    // unrelated documents average close to half the bits differing.
+    // Unvalidated against real duplicate samples yet — same caveat as
+    // several other thresholds on the OCR-service side (e.g.
+    // MIN_SHARPNESS): tune once a real duplicate case is observed.
+    private const DUPLICATE_HAMMING_THRESHOLD = 10;
+
+    private function flagIfDuplicateSubmission(int $ocrResultId, string $perceptualHash): void
+    {
+        $candidates = ApplicationDocument::where('document_type', $this->document->document_type)
+            ->where('application_id', '!=', $this->application->id)
+            ->whereNotNull('perceptual_hash')
+            ->pluck('perceptual_hash', 'application_id');
+
+        foreach ($candidates as $otherApplicationId => $otherHash) {
+            if ($this->hammingDistanceHex($perceptualHash, $otherHash) <= self::DUPLICATE_HAMMING_THRESHOLD) {
+                VerificationCheck::create([
+                    'application_id' => $this->application->id,
+                    'document_id'    => $this->document->id,
+                    'ocr_result_id'  => $ocrResultId,
+                    'check_name'     => 'duplicate_submission',
+                    'passed'         => false,
+                    'extracted_value'=> null,
+                    'expected_value' => null,
+                    'flag_reason'    => "This document appears to match one already submitted on application #{$otherApplicationId} — please verify manually.",
+                ]);
+                return;
+            }
+        }
+    }
+
+    // Compares nibble-by-nibble (not gmp/bcmath — not guaranteed enabled
+    // on every PHP install this runs on) so a 64-bit hash never risks
+    // overflowing into a lossy float via hexdec() on a 32-bit build.
+    private function hammingDistanceHex(string $a, string $b): int
+    {
+        if (strlen($a) !== strlen($b)) {
+            return PHP_INT_MAX;
+        }
+        // Population count for every possible nibble XOR result (0-15).
+        static $nibblePopcount = [0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4];
+
+        $distance = 0;
+        for ($i = 0; $i < strlen($a); $i++) {
+            $xor = hexdec($a[$i]) ^ hexdec($b[$i]);
+            $distance += $nibblePopcount[$xor];
+        }
+        return $distance;
     }
 
     public function failed(\Throwable $exception): void
