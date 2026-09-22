@@ -6,6 +6,7 @@ use Tests\TestCase;
 use App\Models\User;
 use App\Models\StudentProfile;
 use App\Models\ApplicationConfiguration;
+use App\Models\FaceVerification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 class MinorGuardianVotersCertTest extends TestCase
@@ -15,6 +16,24 @@ class MinorGuardianVotersCertTest extends TestCase
     protected function makeApplicant()
     {
         return User::factory()->create(['role' => 'applicant']);
+    }
+
+    /**
+     * ApplicationController::store() requires a FaceVerification whose
+     * verified_config_id matches the period being applied to (added
+     * after this test file — see the "re-verify your face" check).
+     * Not what these tests are about, so just satisfy the gate.
+     */
+    protected function verifyFaceFor(User $applicant, ApplicationConfiguration $config): void
+    {
+        FaceVerification::create([
+            'user_id'          => $applicant->id,
+            'id_image_path'    => 'test/id.jpg',
+            'live_photo_path'  => 'test/live.jpg',
+            'status'           => 'verified',
+            'verified_at'      => now(),
+            'verified_config_id' => $config->id,
+        ]);
     }
 
     protected function submitPayload()
@@ -31,7 +50,8 @@ class MinorGuardianVotersCertTest extends TestCase
     {
         $applicant = $this->makeApplicant();
         StudentProfile::create(['user_id' => $applicant->id]); // no birthdate
-        ApplicationConfiguration::factory()->alreadyStarted()->create();
+        $config = ApplicationConfiguration::factory()->alreadyStarted()->create();
+        $this->verifyFaceFor($applicant, $config);
 
         $response = $this->actingAs($applicant, 'sanctum')
             ->postJson('/api/applications', $this->submitPayload());
@@ -47,7 +67,8 @@ class MinorGuardianVotersCertTest extends TestCase
             'user_id'   => $applicant->id,
             'birthdate' => now()->subYears(16), // minor
         ]);
-        ApplicationConfiguration::factory()->alreadyStarted()->create();
+        $config = ApplicationConfiguration::factory()->alreadyStarted()->create();
+        $this->verifyFaceFor($applicant, $config);
 
         $response = $this->actingAs($applicant, 'sanctum')
             ->postJson('/api/applications', $this->submitPayload());
@@ -66,7 +87,8 @@ class MinorGuardianVotersCertTest extends TestCase
             'guardian_last_name'    => 'Santos',
             'guardian_relationship' => 'Mother',
         ]);
-        ApplicationConfiguration::factory()->alreadyStarted()->create();
+        $config = ApplicationConfiguration::factory()->alreadyStarted()->create();
+        $this->verifyFaceFor($applicant, $config);
 
         $response = $this->actingAs($applicant, 'sanctum')
             ->postJson('/api/applications', $this->submitPayload());
@@ -81,7 +103,8 @@ class MinorGuardianVotersCertTest extends TestCase
             'user_id'   => $applicant->id,
             'birthdate' => now()->subYears(20), // adult
         ]);
-        ApplicationConfiguration::factory()->alreadyStarted()->create();
+        $config = ApplicationConfiguration::factory()->alreadyStarted()->create();
+        $this->verifyFaceFor($applicant, $config);
 
         $response = $this->actingAs($applicant, 'sanctum')
             ->postJson('/api/applications', $this->submitPayload());
