@@ -2,7 +2,6 @@
 from app.extraction import parse_ocr_blocks, get_page_dimensions
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name_or_reupload, _check_school
 from app.upload_checks.image_quality_check import check_image_quality
-from app.upload_checks.glare_check import check_glare
 from app.upload_checks.skew_check import check_skew
 from app.utils.spatial import get_blocks_in_region
 from app.normalization import get_strategy_for_school
@@ -39,18 +38,14 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
     header_too_low = header_confidence is not None and header_confidence < CONFIDENCE_THRESHOLD
 
     sharpness_result = check_image_quality(image_path) if image_path else None
-    glare_result = check_glare(image_path) if image_path else None
     skew_result = check_skew(image_path) if image_path else None
     if (
         avg_confidence < CONFIDENCE_THRESHOLD or header_too_low
         or (sharpness_result and not sharpness_result.passed)
-        or (glare_result and not glare_result.passed)
         or (skew_result and not skew_result.passed)
     ):
         if sharpness_result and not sharpness_result.passed:
             reason = "Image appears blurry — please retake or rescan with better focus and steady hands."
-        elif glare_result and not glare_result.passed:
-            reason = "Glare or overexposure is washing out part of your ID — please retake without direct light or flash reflecting off the card."
         elif skew_result and not skew_result.passed:
             reason = "Your ID is tilted too much to read reliably — please retake it held flat and facing the camera."
         elif header_too_low:

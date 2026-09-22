@@ -11,7 +11,7 @@ def load_grayscale(image_path: str):
     if the file can't be read.
 
     Shared by every upload_checks helper that inspects raw pixels (blur,
-    glare, skew, ID-photo presence) so they all load the file the same
+    skew, ID-photo presence) so they all load the file the same
     way instead of each reimplementing cv2.imread() + conversion
     separately. PDF uploads are rejected at the Laravel layer
     (DocumentController's mimes validation is jpg/jpeg/png only) and by
