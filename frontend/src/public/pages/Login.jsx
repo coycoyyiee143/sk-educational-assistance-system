@@ -7,9 +7,13 @@ import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import Footer from "../../components/Footer";
 
-// Dev-only hint for the seeded TestAccountsSeeder staff accounts — never
-// shown in a production build.
-const IS_DEV = process.env.NODE_ENV !== "production";
+// Hint for the seeded TestAccountsSeeder staff accounts. Shown in any
+// non-production build, or in a production build when explicitly opted
+// into via REACT_APP_SHOW_TEST_HINT=true (off by default so it never
+// appears on a public deployment unless someone turns it on on purpose).
+const IS_DEV =
+  process.env.NODE_ENV !== "production" ||
+  process.env.REACT_APP_SHOW_TEST_HINT === "true";
 const TEST_ACCOUNT_EMAILS = [
   "testadmin@skmamatid.com",
   "testsuperadmin@skmamatid.com",
