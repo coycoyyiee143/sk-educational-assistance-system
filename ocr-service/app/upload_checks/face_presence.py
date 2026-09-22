@@ -1,6 +1,7 @@
 # app/upload_checks/face_presence.py
 import cv2
 from dataclasses import dataclass
+from app.utils.image_loading import load_grayscale
 
 _FACE_CASCADE_PATH = cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
 _face_cascade = None
@@ -47,13 +48,17 @@ def detect_id_photo(image_path: str) -> FacePresenceResult:
     dependency on the heavier face_recognition/dlib stack used by the
     separate face-service microservice. Operates on raw pixels, not OCR
     text, so it's unaffected by OCR extraction issues.
+
+    Uses the shared load_grayscale() loader (PDF-aware, same as every
+    other pixel-based upload check) rather than a bare cv2.imread() --
+    a PDF-uploaded School ID previously always read as "no photo
+    detected" here and got wrongly flagged as the wrong document type.
     """
-    img = cv2.imread(image_path)
-    if img is None:
+    gray = load_grayscale(image_path)
+    if gray is None:
         return FacePresenceResult(has_large_face=False, face_count=0, largest_face_area_ratio=0.0)
 
-    h, w = img.shape[:2]
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape[:2]
     faces = _get_cascade().detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
 
     if len(faces) == 0:

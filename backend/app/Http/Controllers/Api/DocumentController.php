@@ -24,7 +24,7 @@ class DocumentController extends Controller
     {
         $request->validate([
             'document_type' => 'required|in:voters_certificate,registration_form,school_id',
-            'file'          => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'file'          => 'required|file|mimes:jpg,jpeg,png|max:5120',
         ]);
         $application = Application::where('id', $id)
             ->where('user_id', $request->user()->id)
@@ -75,7 +75,7 @@ class DocumentController extends Controller
     public function reupload(Request $request, $id, $docId)
     {
         $request->validate([
-            'file' => 'required|file|mimes:jpg,jpeg,png,pdf|max:5120',
+            'file' => 'required|file|mimes:jpg,jpeg,png|max:5120',
         ]);
         $application = Application::where('id', $id)
             ->where('user_id', $request->user()->id)
