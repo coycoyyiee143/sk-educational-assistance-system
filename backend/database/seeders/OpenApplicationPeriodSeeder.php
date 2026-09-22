@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Hash;
  *
  * Deliberately light on volume ("not a lot" in review, "some" approved,
  * "really few" rejected, one appeal) rather than matching
- * BudgetScaleTestSeeder/FullDemoSeeder's realistic-volume scale — this is
+ * BudgetForecastDemoSeeder/FullDemoSeeder's realistic-volume scale — this is
  * for screenshots of what the queue/records tables look like mid-period,
  * not for report/analytics testing.
  *
