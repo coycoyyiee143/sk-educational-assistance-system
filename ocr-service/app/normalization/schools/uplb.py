@@ -4,6 +4,7 @@ from difflib import SequenceMatcher
 from typing import List, Optional
 from app.models import OcrBlock
 from app.normalization.base_strategy import BaseSchoolStrategy
+from app.utils.spatial import get_blocks_in_region
 
 # Longer, distinctive words only -- short ones like "OF"/"THE" are left
 # out since fuzzy-matching short words is too risky (easy false-positive
@@ -59,8 +60,25 @@ class UplbStrategy(BaseSchoolStrategy):
         return blocks
 
     def _merge_institution_header(self, blocks: List[OcrBlock]) -> List[OcrBlock]:
+        # Scoped to the header region ONLY -- confirmed on a real UPLB
+        # Registration Form that scanning the WHOLE page for these
+        # keywords wrongly swept in the student pledge/consent
+        # paragraph, which legitimately contains its own unrelated
+        # "University of the Philippines System (UP)" mention deep in
+        # the page body. That merged the real header with the entire
+        # paragraph into one several-hundred-character block. page_w/
+        # page_h are computed from these blocks directly (matching
+        # get_page_dimensions()'s own logic) rather than imported from
+        # app.extraction, to avoid a circular import with
+        # app.normalization's own package init.
+        if not blocks:
+            return blocks
+        page_w = max(b.x_max for b in blocks)
+        page_h = max(b.y_max for b in blocks)
+        header_region = get_blocks_in_region(blocks, page_w, page_h, "header")
+
         header_parts = [
-            b for b in blocks
+            b for b in header_region
             if _text_has_keyword(b.text, _INSTITUTION_KEYWORDS)
         ]
         if len(header_parts) < 2:
