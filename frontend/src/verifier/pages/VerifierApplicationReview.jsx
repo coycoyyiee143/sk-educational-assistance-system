@@ -1,17 +1,51 @@
 import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { usePolling } from "../../hooks/usePolling";
+import { useUserPhoto } from "../../hooks/useUserPhoto";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
-import { getReasonsByDocType, OTHER } from "../constants/verificationReasons";
+import {
+  getReasonsByDocType,
+  getFlatReasons,
+  OTHER,
+  getCheckDisplayLabel,
+  translateFlagReason,
+  stripTechnicalDetail,
+} from "../constants/verificationReasons";
 import {
   getVerifierStatusLabel,
   getVerifierBadgeClass,
 } from "../../components/StatusConstants";
 
-function OcrBadge({ passed }) {
+// ELA (image_integrity) reports its softest, most ambiguous tier as
+// "Minor Compression Irregularities Detected" — one of two possible
+// flags tripped, not both (see ela.py's describe_ela_score). This is
+// common on legitimate screenshots/re-saved images and isn't as
+// concerning as a genuine "Failed" (moderate/significant) result, so
+// it gets its own warning color instead of blending in with red.
+function isMinorElaFlag(check) {
+  return (
+    !check.passed &&
+    check.check_name === "image_integrity" &&
+    check.extracted_value === "Minor Compression Irregularities Detected"
+  );
+}
+
+function OcrBadge({ passed, checkName, extractedValue }) {
+  if (
+    !passed &&
+    checkName === "image_integrity" &&
+    extractedValue === "Minor Compression Irregularities Detected"
+  ) {
+    return (
+      <span className="badge bg-warning text-dark verifier-ocr-badge">
+        Minor
+      </span>
+    );
+  }
+
   return passed ? (
     <span className="badge bg-success verifier-ocr-badge">Passed</span>
   ) : (
@@ -19,25 +53,13 @@ function OcrBadge({ passed }) {
   );
 }
 
-const CHECK_NAME_LABELS = {
-  image_integrity: "Edited/Tampered Image Detection",
-  document_origin: "Suspicious File Origin (Design Software)",
-  ai_generation_provenance: "AI-Generated or AI-Edited Image",
-};
-
-// Content-extraction checks (name, school year, geofence, etc.) are shown
-// first — verifiers care about those results most. Integrity/AI/template
-// checks are technical background signals, so they're pushed to the end
-// of the list instead of competing for attention at the top.
 const LATE_DISPLAY_CHECK_NAMES = [
   "image_integrity",
-  "document_origin",
   "ai_generation_provenance",
 ];
 
 const PREVIEW_INTEGRITY_CHECK_NAMES = [
   "image_integrity",
-  "document_origin",
   "ai_generation_provenance",
 ];
 
@@ -45,8 +67,32 @@ function sortChecksForDisplay(checks) {
   return [...checks].sort((a, b) => {
     const aLate = LATE_DISPLAY_CHECK_NAMES.includes(a.check_name) ? 1 : 0;
     const bLate = LATE_DISPLAY_CHECK_NAMES.includes(b.check_name) ? 1 : 0;
-    return aLate - bLate;
+    if (aLate !== bLate) return aLate - bLate;
+
+    // Certificate Year reads naturally as a follow-up to Residency
+    // Geofence (both come from the same barangay/cert extraction pass),
+    // so it should always display after it regardless of which order
+    // the checks happened to arrive from the API in.
+    if (a.check_name === "cert_year_match" && b.check_name === "residency_geofence") return 1;
+    if (a.check_name === "residency_geofence" && b.check_name === "cert_year_match") return -1;
+
+    return 0;
   });
+}
+
+// Some checks don't extract a value FROM the document at all — they
+// compute an assessment (a layout/tamper/AI-generation verdict) and
+// report that as their "extracted" field. Labeling that "EXTRACTED
+// VALUE" implies it came off the document like a name or a date, which
+// is misleading, so these get a different column header.
+const ASSESSMENT_CHECK_NAMES = [
+  "template_consistency",
+  "image_integrity",
+  "ai_generation_provenance",
+];
+
+function getValueColumnLabel(checkName) {
+  return ASSESSMENT_CHECK_NAMES.includes(checkName) ? "ASSESSMENT" : "EXTRACTED VALUE";
 }
 
 const DOCUMENT_TABS = [
@@ -72,13 +118,17 @@ function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
   }
 
   latestAction.reupload_details.forEach((d) => {
-    const options = reasonsByDocType[d.document_type] || [];
+    const flat = getFlatReasons(
+      reasonsByDocType[d.document_type] || { primary: [], additional: [] }
+    );
     const stored = d.reason_categories || [];
-    const known = stored.filter((c) => options.includes(c));
-    const custom = stored.filter((c) => !options.includes(c));
+    const knownIds = stored
+      .map((c) => flat.find((r) => r.verifierLabel === c)?.id)
+      .filter(Boolean);
+    const custom = stored.filter((c) => !flat.some((r) => r.verifierLabel === c));
 
     base[d.document_type] = {
-      reasons: custom.length > 0 ? [...known, OTHER] : known,
+      reasons: custom.length > 0 ? [...knownIds, OTHER] : knownIds,
       otherText: custom.join(" "),
     };
   });
@@ -91,12 +141,20 @@ function VerifierApplicationReview() {
   const navigate = useNavigate();
 
   const [app, setApp] = useState(null);
+  const { url: profilePhotoUrl, status: profilePhotoStatus } = useUserPhoto(
+    app?.user?.id
+  );
   const [loading, setLoading] = useState(true);
   const [refreshingOcr, setRefreshingOcr] = useState(false);
   const [error, setError] = useState("");
+  // Separate from `error` above — that one gates the whole "not found" page
+  // (see `if (error || !app) return ...` below), so action failures that
+  // happen after the page has already loaded get their own dismissible
+  // banner instead of blowing away the loaded application view.
+  const [actionError, setActionError] = useState("");
   const [activeRawDocId, setActiveRawDocId] = useState(null);
   const [activeDocumentType, setActiveDocumentType] = useState(
-    "voters_certificate"
+    "registration_form"
   );
   const [checkpointFilters, setCheckpointFilters] = useState({
     voters_certificate: "all",
@@ -108,11 +166,24 @@ function VerifierApplicationReview() {
   const [openFlagDocId, setOpenFlagDocId] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
+  // Measured heights of the sticky topbar and sticky document tabs bar,
+  // so both the tabs' sticky offset and each card's scroll-margin can be
+  // computed from the REAL rendered height instead of a guessed pixel
+  // value that breaks the moment either element's content/height changes.
+  const [topbarHeight, setTopbarHeight] = useState(0);
+  const [tabsHeight, setTabsHeight] = useState(0);
+
   const [flaggedDocs, setFlaggedDocs] = useState({
     registration_form: { reasons: [], otherText: "" },
     school_id: { reasons: [], otherText: "" },
     voters_certificate: { reasons: [], otherText: "" },
   });
+
+  useEffect(() => {
+    if (!actionError) return;
+    const t = setTimeout(() => setActionError(""), 6000);
+    return () => clearTimeout(t);
+  }, [actionError]);
 
   useEffect(() => {
     api
@@ -162,6 +233,26 @@ function VerifierApplicationReview() {
     enabled: !!app && ["pending_prescreening", "for_review"].includes(app.status),
   });
 
+  // Not a lock — just a heads-up so two verifiers don't both spend time
+  // reviewing the same application without knowing it. Heartbeats every
+  // 10s while this page is open; the backend treats a stale heartbeat
+  // (see VerifierController::heartbeat()) as that verifier having left,
+  // so there's nothing to explicitly release on navigate-away/close.
+  const [otherViewer, setOtherViewer] = useState(null);
+
+  const heartbeat = useCallback(() => {
+    return api
+      .post(`/verifier/applications/${id}/heartbeat`)
+      .then((res) => setOtherViewer(res.data.other_viewer))
+      .catch(() => { });
+  }, [id]);
+
+  useEffect(() => {
+    heartbeat();
+  }, [heartbeat]);
+
+  usePolling(heartbeat, { intervalMs: 10000 });
+
   useEffect(() => {
     if (!app?.documents) return;
 
@@ -208,6 +299,60 @@ function VerifierApplicationReview() {
     };
   }, [app]);
 
+  // Measures the actual rendered height of the topbar and the sticky
+  // document-tabs bar, so the tabs' sticky "top" offset and each card's
+  // scroll-margin can be computed from the real height instead of a
+  // guessed pixel value. Re-runs once `app` loads (the tabs bar doesn't
+  // exist in the DOM yet during the initial loading state) and on
+  // resize, since either element may wrap or resize at smaller widths.
+  useEffect(() => {
+    function measureHeights() {
+      const topbar = document.querySelector(".verifier-topbar");
+      const tabs = document.querySelector(".verifier-ocr-document-tabs");
+      setTopbarHeight(topbar ? topbar.getBoundingClientRect().height : 0);
+      setTabsHeight(tabs ? tabs.getBoundingClientRect().height : 0);
+    }
+    measureHeights();
+    window.addEventListener("resize", measureHeights);
+    return () => window.removeEventListener("resize", measureHeights);
+  }, [app]);
+
+  // Scroll-spy: while scrolling (not just clicking a tab), keeps the
+  // active document tab in sync with whichever document card is
+  // currently under the sticky topbar+tabs bar. Walks all three
+  // sections and keeps updating `current` to the last one whose top
+  // has scrolled past the offset — so the section actually in view
+  // (not the next one down) stays highlighted.
+  useEffect(() => {
+    function handleScrollSpy() {
+      const offset = topbarHeight + tabsHeight + 16;
+
+      let current = DOCUMENT_TABS[0].type;
+
+      for (const tab of DOCUMENT_TABS) {
+        const el = document.getElementById(`verifier-document-${tab.type}`);
+        if (!el) continue;
+
+        const rect = el.getBoundingClientRect();
+        if (rect.top <= offset) {
+          current = tab.type;
+        }
+      }
+
+      setActiveDocumentType(current);
+    }
+
+    const scrollContainer = document.querySelector(".verifier-main");
+    scrollContainer?.addEventListener("scroll", handleScrollSpy, { passive: true });
+    window.addEventListener("scroll", handleScrollSpy, { passive: true });
+    handleScrollSpy();
+
+    return () => {
+      scrollContainer?.removeEventListener("scroll", handleScrollSpy);
+      window.removeEventListener("scroll", handleScrollSpy);
+    };
+  }, [topbarHeight, tabsHeight, app]);
+
   useEffect(() => {
     const scrollContainer = document.querySelector(".verifier-main");
 
@@ -246,20 +391,7 @@ function VerifierApplicationReview() {
         <VerifierNavigation />
 
         <div className="verifier-main">
-          <div className="verifier-topbar">
-            <div className="verifier-topbar-user">
-              <div className="verifier-topbar-user-text">
-                <span className="verifier-topbar-user-name">
-                  Verifier User
-                </span>
-                <span className="verifier-topbar-user-role">
-                  Sangguniang Kabataan
-                </span>
-              </div>
-
-              <div className="verifier-topbar-avatar"></div>
-            </div>
-          </div>
+          <VerifierTopbar />
 
           <section className="page-section">
             <div className="container-fluid">
@@ -374,24 +506,7 @@ function VerifierApplicationReview() {
       : { text: "Processed", class: "bg-success" };
   };
 
-  const getCheckRuleLabel = (checkName) => {
-    if (CHECK_NAME_LABELS[checkName]) {
-      return CHECK_NAME_LABELS[checkName];
-    }
-
-    const labels = {
-      cert_year_match: "Certificate Year",
-      identity_match: "Identity & Legal Name",
-      residency_geofence: "Residency Geofence",
-    };
-
-    return (
-      labels[checkName] ||
-      checkName
-        .replace(/_/g, " ")
-        .replace(/\b\w/g, (c) => c.toUpperCase())
-    );
-  };
+  const getCheckRuleLabel = (checkName) => getCheckDisplayLabel(checkName);
 
   const getPassedCheckMessage = (checkName) => {
     const messages = {
@@ -403,27 +518,52 @@ function VerifierApplicationReview() {
     return messages[checkName] || "Verification rule matched";
   };
 
-  const getFlagReasonLabel = (reason) => {
-    const labels = {
-      "Image blurry or unreadable.":
-        "Blurry or unreadable document",
-      "File uploaded is not the correct document type.":
-        "Incorrect document type",
-      "Not issued within the current year.":
-        "Not issued this year",
-      "Not a registered voter in Barangay Mamatid.":
-        "Not a registered Mamatid voter",
-      "Parent's/guardian's Voter's Certificate could not be validated.":
-        "Parent/guardian voter record invalid",
-      "Applicant is not a minor; parent's/guardian's Voter's Certificate not allowed.":
-        "Parent/guardian document not applicable",
-      "Name does not match other submitted documents.":
-        "Name mismatch",
-      "Other (please specify)": "Other (please specify)",
-    };
+  // Older uploads for a document type are never deleted (see
+  // ApplicationDocument.version) — the UI just showed the latest one. This
+  // reconstructs, for each superseded version, whether it was replaced
+  // because the system auto-flagged it or because a verifier manually
+  // requested a re-upload, by matching each version's upload window
+  // against `needs_auto_reupload`/`auto_reupload_reason` on the row itself,
+  // or against a `reupload_requested` VerifierAction whose timestamp falls
+  // inside that version's active window.
+  function getPreviousVersions(docType, currentDoc) {
+    const olderVersions = (app.documents || [])
+      .filter((d) => d.document_type === docType && d.id !== currentDoc.id)
+      .sort((a, b) => b.id - a.id);
 
-    return labels[reason] || reason;
-  };
+    if (olderVersions.length === 0) return [];
+
+    const orderedAsc = (app.documents || [])
+      .filter((d) => d.document_type === docType)
+      .sort((a, b) => a.id - b.id);
+
+    const reuploadActions = (app.verifier_actions || [])
+      .filter((a) => a.action === "reupload_requested" && a.reupload_details)
+      .flatMap((a) =>
+        a.reupload_details
+          .filter((d) => d.document_type === docType)
+          .map((d) => ({ createdAt: new Date(a.created_at), reason: d.reason }))
+      );
+
+    return olderVersions.map((v) => {
+      const idx = orderedAsc.findIndex((d) => d.id === v.id);
+      const nextDoc = orderedAsc[idx + 1];
+      const windowStart = new Date(v.created_at);
+      const windowEnd = nextDoc ? new Date(nextDoc.created_at) : new Date();
+
+      let source = null;
+      if (v.needs_auto_reupload || v.auto_reupload_reason) {
+        source = { type: "auto", reason: v.auto_reupload_reason };
+      } else {
+        const match = reuploadActions.find(
+          (a) => a.createdAt >= windowStart && a.createdAt <= windowEnd
+        );
+        if (match) source = { type: "verifier", reason: match.reason };
+      }
+
+      return { doc: v, source };
+    });
+  }
 
   const latestDocsMap = {};
 
@@ -543,7 +683,7 @@ function VerifierApplicationReview() {
       setActiveRawDocId(null);
       setOpenFlagDocId(null);
     } catch {
-      alert("Failed to refresh OCR verification results.");
+      setActionError("Failed to refresh OCR verification results.");
     } finally {
       setRefreshingOcr(false);
     }
@@ -567,7 +707,7 @@ function VerifierApplicationReview() {
 
       setApp(res.data);
     } catch {
-      alert("Failed to queue OCR retry.");
+      setActionError("Failed to queue OCR retry.");
     } finally {
       setRefreshingOcr(false);
     }
@@ -601,7 +741,7 @@ function VerifierApplicationReview() {
 
       setApp(res.data);
     } catch {
-      alert(
+      setActionError(
         "Failed to queue retries for one or more documents."
       );
     } finally {
@@ -633,7 +773,7 @@ function VerifierApplicationReview() {
         URL.revokeObjectURL(url);
       }, 60000);
     } catch {
-      alert("Failed to load document.");
+      setActionError("Failed to load document.");
     }
   }
 
@@ -642,24 +782,12 @@ function VerifierApplicationReview() {
       <VerifierNavigation />
 
       <div className="verifier-main">
-        <div className="verifier-topbar">
-          <div className="verifier-topbar-user">
-            <div className="verifier-topbar-user-text">
-              <span className="verifier-topbar-user-name">
-                Verifier User
-              </span>
-
-              <span className="verifier-topbar-user-role">
-                Sangguniang Kabataan
-              </span>
-            </div>
-
-            <div className="verifier-topbar-avatar"></div>
-          </div>
-        </div>
+        <VerifierTopbar />
 
         <section className="page-section">
           <div className="container-fluid">
+
+            {actionError && <div className="alert alert-danger">{actionError}</div>}
 
             <div className="verifier-dashboard-header">
 
@@ -720,6 +848,40 @@ function VerifierApplicationReview() {
                     )}
                   </div>
                 )}
+
+              {app.appeal_reason && (
+                <div className="alert alert-warning small mt-3 mb-0">
+                  <strong>Appeal Reason:</strong> {app.appeal_reason}
+                  {app.appeal_document_path && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="btn btn-link p-0 align-baseline"
+                        onClick={() => {
+                          api
+                            .get(
+                              `/applications/${app.id}/appeal-document`,
+                              { responseType: "blob" }
+                            )
+                            .then((res) => {
+                              const url = URL.createObjectURL(res.data);
+                              window.open(url, "_blank");
+                            });
+                        }}
+                      >
+                        View supporting document
+                      </button>
+                    </>
+                  )}
+                  {app.appeal_decision_notes && (
+                    <div className="mt-2">
+                      <strong>Decision Notes:</strong>{" "}
+                      {app.appeal_decision_notes}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="page-card verifier-review-info-card">
@@ -768,10 +930,18 @@ function VerifierApplicationReview() {
 
               <div className="verifier-review-profile-area">
                 <div className="verifier-review-profile-main">
-                  <div className="verifier-review-profile-avatar">
-                    {user?.first_name?.charAt(0)}
-                    {user?.last_name?.charAt(0)}
-                  </div>
+                  {profilePhotoStatus === "ready" ? (
+                    <img
+                      src={profilePhotoUrl}
+                      alt="Applicant"
+                      className="verifier-review-profile-avatar verifier-review-profile-photo"
+                    />
+                  ) : (
+                    <div className="verifier-review-profile-avatar">
+                      {user?.first_name?.charAt(0)}
+                      {user?.last_name?.charAt(0)}
+                    </div>
+                  )}
 
                   <div className="verifier-review-profile-content">
                     <h5 className="verifier-review-profile-name">
@@ -868,7 +1038,6 @@ function VerifierApplicationReview() {
                       ],
                       ["Program / Degree", app.course],
                       ["Year Level", app.year_level],
-                      ["Student ID", app.student_id_number],
                       [
                         "Current Academic Year",
                         app.configuration?.school_year,
@@ -948,7 +1117,11 @@ function VerifierApplicationReview() {
                   </div>
                 )}
 
-              <div className="verifier-ocr-document-tabs" role="tablist">
+              <div
+                className="verifier-ocr-document-tabs"
+                role="tablist"
+                style={{ position: "sticky", top: `${topbarHeight}px`, zIndex: 10, background: "#ffffff" }}
+              >
                 {DOCUMENT_TABS.map((tab) => {
                   const tabStatus = getDocumentTabStatus(tab.type);
 
@@ -994,6 +1167,7 @@ function VerifierApplicationReview() {
                         className="verifier-ocr-review-card mb-4"
                         key={tab.type}
                         id={`verifier-document-${tab.type}`}
+                        style={{ scrollMarginTop: `${topbarHeight + tabsHeight + 8}px` }}
                       >
                         <div className="verifier-ocr-review-header">
                           <div className="verifier-ocr-review-header-left">
@@ -1065,7 +1239,7 @@ function VerifierApplicationReview() {
                   );
 
                   const flagState = flaggedDocs[tab.type];
-                  const reasonOptions = reasonsByDocType[tab.type] || [];
+                  const docReasonGroups = reasonsByDocType[tab.type] || { primary: [], additional: [] };
                   const previewFile = previewFiles[doc.id];
 
                   const confidence = doc.ocr_result?.confidence_score
@@ -1077,6 +1251,7 @@ function VerifierApplicationReview() {
                       className="verifier-ocr-review-card mb-4"
                       key={doc.id}
                       id={`verifier-document-${tab.type}`}
+                      style={{ scrollMarginTop: `${topbarHeight + tabsHeight + 8}px` }}
                     >
                       <div className="verifier-ocr-review-header">
                         <div className="verifier-ocr-review-header-left">
@@ -1160,6 +1335,47 @@ function VerifierApplicationReview() {
                           )}
                         </div>
                       </div>
+
+                      {(() => {
+                        const previousVersions = getPreviousVersions(tab.type, doc);
+                        if (previousVersions.length === 0) return null;
+                        return (
+                          <details className="verifier-doc-version-history">
+                            <summary>
+                              Previous versions ({previousVersions.length})
+                            </summary>
+                            <div className="verifier-doc-version-list">
+                              {previousVersions.map(({ doc: v, source }) => (
+                                <div key={v.id} className="verifier-doc-version-item">
+                                  <div className="verifier-doc-version-item-head">
+                                    <span>Version {v.version ?? "—"}</span>
+                                    <span className="verifier-doc-version-date">
+                                      {v.created_at
+                                        ? new Date(v.created_at).toLocaleString()
+                                        : "—"}
+                                    </span>
+                                    {source?.type === "auto" && (
+                                      <span className="badge bg-secondary verifier-ocr-badge">
+                                        System auto-flagged
+                                      </span>
+                                    )}
+                                    {source?.type === "verifier" && (
+                                      <span className="badge bg-warning text-dark verifier-ocr-badge">
+                                        Verifier requested
+                                      </span>
+                                    )}
+                                  </div>
+                                  {source?.reason && (
+                                    <div className="verifier-doc-version-reason">
+                                      {source.reason}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </details>
+                        );
+                      })()}
 
                       <div className="verifier-ocr-review-layout">
                         <div className="verifier-ocr-preview-column">
@@ -1250,11 +1466,12 @@ function VerifierApplicationReview() {
 
                               {previewIntegrityChecks.map((check) => (
                                 <div
-                                  className={`verifier-preview-extraction-check ${
-                                    check.passed
-                                      ? "verifier-preview-extraction-check-passed"
+                                  className={`verifier-preview-extraction-check ${check.passed
+                                    ? "verifier-preview-extraction-check-passed"
+                                    : isMinorElaFlag(check)
+                                      ? "verifier-preview-extraction-check-minor"
                                       : "verifier-preview-extraction-check-failed"
-                                  }`}
+                                    }`}
                                   key={check.id}
                                 >
                                   <strong className="verifier-preview-extraction-label">
@@ -1263,6 +1480,11 @@ function VerifierApplicationReview() {
                                   <span className="verifier-preview-extraction-value">
                                     {check.extracted_value || "Not extracted"}
                                   </span>
+                                  {!check.passed && check.flag_reason && (
+                                    <span className="verifier-preview-extraction-detail">
+                                      {stripTechnicalDetail(check.flag_reason)}
+                                    </span>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -1370,31 +1592,39 @@ function VerifierApplicationReview() {
                                         )}
                                     </div>
 
-                                    <OcrBadge passed={check.passed} />
+                                    <OcrBadge
+                                      passed={check.passed}
+                                      checkName={check.check_name}
+                                      extractedValue={check.extracted_value}
+                                    />
                                   </div>
 
-                                  <div className="verifier-ocr-check-value-pair">
+                                  <div
+                                    className={`verifier-ocr-check-value-pair ${check.expected_value == null ? "verifier-ocr-check-value-pair--single" : ""
+                                      }`}
+                                  >
                                     <div className="verifier-ocr-check-value-col">
                                       <div className="verifier-ocr-check-value-pair-label">
-                                        EXTRACTED VALUE
+                                        {getValueColumnLabel(check.check_name)}
                                       </div>
                                       <div
-                                        className={`verifier-ocr-check-value-pair-value ${
-                                          !check.passed ? "verifier-ocr-check-value-pair-value-mismatch" : ""
-                                        }`}
+                                        className={`verifier-ocr-check-value-pair-value ${!check.passed ? "verifier-ocr-check-value-pair-value-mismatch" : ""
+                                          }`}
                                       >
                                         {check.extracted_value || "not extracted"}
                                       </div>
                                     </div>
 
-                                    <div className="verifier-ocr-check-value-col">
-                                      <div className="verifier-ocr-check-value-pair-label">
-                                        EXPECTED VALUE
+                                    {check.expected_value != null && (
+                                      <div className="verifier-ocr-check-value-col">
+                                        <div className="verifier-ocr-check-value-pair-label">
+                                          EXPECTED VALUE
+                                        </div>
+                                        <div className="verifier-ocr-check-value-pair-value">
+                                          {check.expected_value}
+                                        </div>
                                       </div>
-                                      <div className="verifier-ocr-check-value-pair-value">
-                                        {check.expected_value ?? "—"}
-                                      </div>
-                                    </div>
+                                    )}
                                   </div>
                                   {check.passed ? (
                                     <div className="verifier-ocr-check-reason-row">
@@ -1408,17 +1638,29 @@ function VerifierApplicationReview() {
                                         · {getPassedCheckMessage(check.check_name)}
                                       </span>
                                     </div>
-                                  ) : (
-                                    <div className="verifier-ocr-check-reason-row">
-                                      <span className="verifier-ocr-check-reason-label">
-                                        Flag Reason:
-                                      </span>
-                                      <span className="verifier-ocr-check-reason-value-fail">
-                                        <span className="verifier-ocr-check-reason-icon">!</span>
-                                        {check.flag_reason ?? "—"}
-                                      </span>
-                                    </div>
-                                  )}
+                                  ) : (() => {
+                                    const translated = translateFlagReason(check.check_name, check.flag_reason);
+                                    const showTechnical =
+                                      check.flag_reason && check.flag_reason !== translated;
+                                    return (
+                                      <div className="verifier-ocr-check-reason-row verifier-ocr-check-reason-row-stacked">
+                                        <div>
+                                          <span className="verifier-ocr-check-reason-label">
+                                            Flag Reason:
+                                          </span>
+                                          <span className="verifier-ocr-check-reason-value-fail">
+                                            <span className="verifier-ocr-check-reason-icon">!</span>
+                                            {translated}
+                                          </span>
+                                        </div>
+                                        {showTechnical && (
+                                          <div className="verifier-ocr-check-reason-technical">
+                                            Technical detail: {check.flag_reason}
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               ))}
                             </div>
@@ -1443,6 +1685,22 @@ function VerifierApplicationReview() {
                                         ? "Retrying..."
                                         : "Retry OCR Check"}
                                     </button>
+                                  </div>
+                                ) : doc.needs_auto_reupload ? (
+                                  <div className="verifier-ocr-empty-content">
+                                    <span className="verifier-ocr-check-reason-label">
+                                      Message sent to applicant:
+                                    </span>
+                                    <span className="text-danger">
+                                      <span className="verifier-ocr-check-reason-icon">!</span>{" "}
+                                      {doc.auto_reupload_reason ||
+                                        "System flagged this document for re-upload."}
+                                    </span>
+                                    {doc.auto_reupload_category && (
+                                      <code className="verifier-ocr-check-code verifier-ocr-check-code-failed mt-1">
+                                        {doc.auto_reupload_category}
+                                      </code>
+                                    )}
                                   </div>
                                 ) : [
                                   "processing",
@@ -1549,39 +1807,82 @@ function VerifierApplicationReview() {
                         </summary>
 
                         <div className="verifier-ocr-flag-options">
-                          {reasonOptions.map((reason) => (
+                          {docReasonGroups.primary.map((reason) => (
                             <div
                               className="form-check verifier-ocr-flag-option"
-                              key={reason}
+                              key={reason.id}
                             >
                               <input
                                 className="form-check-input"
                                 type="checkbox"
-                                id={`flag-${tab.type}-${reason}`}
-                                checked={flagState.reasons.includes(reason)}
-                                onChange={() => toggleReason(tab.type, reason)}
+                                id={`flag-${tab.type}-${reason.id}`}
+                                checked={flagState.reasons.includes(reason.id)}
+                                onChange={() => toggleReason(tab.type, reason.id)}
                               />
 
                               <label
                                 className="form-check-label small verifier-ocr-check-label"
-                                htmlFor={`flag-${tab.type}-${reason}`}
+                                htmlFor={`flag-${tab.type}-${reason.id}`}
                               >
-                                {getFlagReasonLabel(reason)}
+                                {reason.verifierLabel}
                               </label>
-
-                              {reason === OTHER &&
-                                flagState.reasons.includes(OTHER) && (
-                                  <input
-                                    className="form-control form-control-sm verifier-ocr-other-input verifier-ocr-other-inline"
-                                    placeholder="Specify the issue..."
-                                    value={flagState.otherText}
-                                    onChange={(e) =>
-                                      setOtherText(tab.type, e.target.value)
-                                    }
-                                  />
-                                )}
                             </div>
                           ))}
+
+                          {docReasonGroups.additional.length > 0 && (
+                            <>
+                              <div className="verifier-action-subsection-label">Additional reasons</div>
+                              {docReasonGroups.additional.map((reason) => (
+                                <div
+                                  className="form-check verifier-ocr-flag-option"
+                                  key={reason.id}
+                                >
+                                  <input
+                                    className="form-check-input"
+                                    type="checkbox"
+                                    id={`flag-${tab.type}-${reason.id}`}
+                                    checked={flagState.reasons.includes(reason.id)}
+                                    onChange={() => toggleReason(tab.type, reason.id)}
+                                  />
+
+                                  <label
+                                    className="form-check-label small verifier-ocr-check-label"
+                                    htmlFor={`flag-${tab.type}-${reason.id}`}
+                                  >
+                                    {reason.verifierLabel}
+                                  </label>
+                                </div>
+                              ))}
+                            </>
+                          )}
+
+                          <div className="form-check verifier-ocr-flag-option">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id={`flag-${tab.type}-other`}
+                              checked={flagState.reasons.includes(OTHER)}
+                              onChange={() => toggleReason(tab.type, OTHER)}
+                            />
+
+                            <label
+                              className="form-check-label small verifier-ocr-check-label"
+                              htmlFor={`flag-${tab.type}-other`}
+                            >
+                              {OTHER}
+                            </label>
+
+                            {flagState.reasons.includes(OTHER) && (
+                              <input
+                                className="form-control form-control-sm verifier-ocr-other-input verifier-ocr-other-inline"
+                                placeholder="Specify the issue..."
+                                value={flagState.otherText}
+                                onChange={(e) =>
+                                  setOtherText(tab.type, e.target.value)
+                                }
+                              />
+                            )}
+                          </div>
                         </div>
                       </details>
                     </div>
@@ -1595,6 +1896,7 @@ function VerifierApplicationReview() {
                     "for_review",
                     "pending_prescreening",
                     "reupload_requested",
+                    "appeal_requested",
                   ].includes(app.status) && (
                       <button
                         type="button"
@@ -1643,6 +1945,16 @@ function VerifierApplicationReview() {
                 className="verifier-preview-modal-image"
               />
             </div>
+          </div>
+        )}
+
+        {otherViewer && (
+          <div className="verifier-other-viewer-toast" role="status">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <path d="M12 8v4M12 16h.01" />
+            </svg>
+            <span><strong>{otherViewer.name}</strong> is also currently viewing this application.</span>
           </div>
         )}
 

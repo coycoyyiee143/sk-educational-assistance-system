@@ -47,6 +47,16 @@ const ACTION_CONFIG = {
     label: "Password Changed",
     badge: "bg-warning text-dark",
   },
+
+  face_verification_registered: {
+    label: "Face Verified",
+    badge: "bg-success",
+  },
+
+  face_verification_reverified: {
+    label: "Face Re-Verified",
+    badge: "bg-success",
+  },
 };
 
 function ActionBadge({ action }) {
@@ -136,8 +146,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
         query.trim() === "" ||
         log.description
           ?.toLowerCase()
-          .includes(query.toLowerCase()) ||
-        log.ip_address?.includes(query);
+          .includes(query.toLowerCase());
 
       const matchesAction =
         actionFilter === "all" ||
@@ -278,7 +287,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                     <input
                       type="text"
                       className="form-control"
-                      placeholder="Search description or IP address"
+                      placeholder="Search description"
                       value={query}
                       onChange={(e) => {
                         setQuery(e.target.value);
@@ -332,7 +341,6 @@ function ApplicantActivityLogModal({ show, onClose }) {
                     <col className="verifier-activity-col-date" />
                     <col className="verifier-activity-col-action" />
                     <col className="verifier-activity-col-description" />
-                    <col className="verifier-activity-col-ip" />
                   </colgroup>
 
                   <thead>
@@ -340,7 +348,6 @@ function ApplicantActivityLogModal({ show, onClose }) {
                       <th>Date &amp; Time</th>
                       <th>Action</th>
                       <th>Description</th>
-                      <th>IP Address</th>
                     </tr>
                   </thead>
 
@@ -348,7 +355,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                     {loading ? (
                       <tr>
                         <td
-                          colSpan="4"
+                          colSpan="3"
                           className="text-center py-4"
                         >
                           <div
@@ -360,7 +367,7 @@ function ApplicantActivityLogModal({ show, onClose }) {
                     ) : pagedLogs.length === 0 ? (
                       <tr>
                         <td
-                          colSpan="4"
+                          colSpan="3"
                           className="text-center text-muted py-4"
                         >
                           No activity found.
@@ -385,12 +392,6 @@ function ApplicantActivityLogModal({ show, onClose }) {
                             {formatDescription(
                               log.description
                             )}
-                          </td>
-
-                          <td>
-                            <code className="small">
-                              {log.ip_address || "—"}
-                            </code>
                           </td>
                         </tr>
                       ))

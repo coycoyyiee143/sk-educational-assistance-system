@@ -70,17 +70,12 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
                 "auto_reupload_reason": f"The Voter's Certificate you uploaded shows {cert_year_res.value}, but this cycle requires {configured_cert_year}. Please request a current certificate from COMELEC and upload it here.",
             }
 
-    # Full verification below.
-    #
-    # Confident name mismatch (either the guardian's name for a minor,
-    # or the applicant's own name) short-circuits here the same way as
-    # wrong_document_type/wrong_cert_year above — most likely an honest
-    # mistaken upload. The "no guardian info on file" case just below
-    # is deliberately NOT part of this short-circuit: that's a data gap
-    # on the applicant's profile, not a wrong file, so it still flows
-    # through to the rest of the checks (residency/cert year/template)
-    # exactly as before and gets routed to a verifier via
-    # eligibility_issues, not auto-reupload.
+    # Upload check 4: name not detected anywhere on the document at all.
+    # Voter's Certifications are COMELEC-standardized and reliably carry
+    # a "Name" field — if literally nothing was detected (not even a
+    # mismatch, see _check_name_or_reupload), that's a strong signal
+    # something is wrong with the upload itself, not a genuine
+    # eligibility judgment call for a verifier.
     if is_minor:
         if not (guardian_first_name and guardian_last_name):
             checks = {
@@ -92,7 +87,8 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
             }
         else:
             name_tag, name_result = _check_name_or_reupload(
-                blocks, page_w, page_h, guardian_first_name, guardian_middle_name or "", guardian_last_name,
+                blocks, page_w, page_h,
+                guardian_first_name, guardian_middle_name or "", guardian_last_name,
                 subject_label="your guardian's name on file",
             )
             if name_tag == "auto_reupload":

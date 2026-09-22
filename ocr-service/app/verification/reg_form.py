@@ -40,12 +40,14 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
             "auto_reupload_reason": type_mismatch["reason"],
         }
 
-    # Confident name mismatch: a "Name" field was found and read
-    # reliably, but it isn't this applicant — most likely an honest
-    # mistaken upload. Short-circuits the same way as wrong_document_type
-    # above, BEFORE building the rest of the checks dict, so the
-    # applicant gets one clear reupload prompt instead of a full
-    # eligibility_issues report on a document that isn't even theirs.
+    # Name not detected anywhere on the page at all — same reasoning as
+    # School ID and Voter's Cert: even reg form templates that print the
+    # name with no "Name:" label still print the name TEXT itself
+    # somewhere on the page, and extract_name()'s blind fallback scan
+    # looks at every block regardless of whether a label was found. A
+    # true zero-match here means something's wrong with the upload
+    # (wrong file, cropped, obscured) rather than a genuine eligibility
+    # question for a verifier.
     name_tag, name_result = _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name)
     if name_tag == "auto_reupload":
         return {
@@ -60,7 +62,6 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
         "identity_match": name_result,
         "institution_match": _check_school(blocks, page_w, page_h, declared_school)
     }
-
     sy_res = extract_school_year(blocks, page_w, page_h, declared_school, configured_school_year)
 
     # Confident school-year mismatch: short-circuits the same way as

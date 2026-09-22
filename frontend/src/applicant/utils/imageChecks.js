@@ -1,5 +1,71 @@
+import * as faceapi from "face-api.js";
+
 export const MIN_SHORT_SIDE_PX = 800;
 export const MIN_SHARPNESS = 150;
+export const MIN_WHITE_BORDER_RATIO = 0.6;
+
+const FACE_MODEL_URL = "/models";
+let faceModelsLoadPromise = null;
+
+// Shared with FaceCapture's live webcam detection loop, so the
+// tinyFaceDetector weights are only ever fetched once per session.
+export async function loadFaceModels() {
+  if (!faceModelsLoadPromise) {
+    faceModelsLoadPromise = (async () => {
+      try {
+        await faceapi.tf.setBackend("webgl");
+        await faceapi.tf.ready();
+      } catch {
+        await faceapi.tf.setBackend("cpu");
+        await faceapi.tf.ready();
+      }
+      await faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL);
+    })();
+  }
+  return faceModelsLoadPromise;
+}
+
+export function resetFaceModels() {
+  faceModelsLoadPromise = null;
+}
+
+// The white-border check alone can't tell a genuine 2x2 photo apart from
+// a scanned ID or document that happens to have white margins — both pass
+// the border-ratio test. Requiring a detectable face closes that gap.
+export async function checkContainsFace(file) {
+  if (file.type === "application/pdf") {
+    return { valid: true, skipped: true };
+  }
+
+  try {
+    await loadFaceModels();
+  } catch {
+    // Don't block the upload if the face models fail to load; the
+    // white-background check still applies.
+    return { valid: true, skipped: true };
+  }
+
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+
+    const detection = await faceapi.detectSingleFace(
+      img,
+      new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
+    );
+
+    return { valid: !!detection };
+  } catch {
+    return { valid: false, unreadable: true };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
 
 export function checkImageResolution(file) {
     if (file.type === "application/pdf") {
@@ -74,6 +140,62 @@ export function checkImageSharpness(file) {
 
             URL.revokeObjectURL(url);
             resolve({ valid: variance >= MIN_SHARPNESS, variance: Math.round(variance) });
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            resolve({ valid: false, unreadable: true });
+        };
+        img.src = url;
+    });
+}
+
+// A genuine 2x2 photo is shot against a plain white backdrop, so the
+// border of the frame (where the backdrop shows, not the subject) should
+// be almost entirely near-white pixels. We sample a thin ring around the
+// edge of the image rather than the whole frame, since the subject's
+// head/shoulders fill the center and would otherwise skew the result.
+export function checkWhiteBackground(file) {
+    return new Promise((resolve) => {
+        if (file.type === "application/pdf") {
+            resolve({ valid: true, skipped: true });
+            return;
+        }
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const scale = Math.min(1, 400 / Math.max(img.width, img.height));
+            const w = Math.max(1, Math.round(img.width * scale));
+            const h = Math.max(1, Math.round(img.height * scale));
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, w, h);
+
+            const { data } = ctx.getImageData(0, 0, w, h);
+            const borderThickness = Math.max(1, Math.round(Math.min(w, h) * 0.06));
+
+            const isNearWhite = (r, g, b) => {
+                const min = Math.min(r, g, b);
+                const max = Math.max(r, g, b);
+                return min >= 225 && max - min <= 15;
+            };
+
+            let whiteCount = 0;
+            let total = 0;
+            for (let y = 0; y < h; y++) {
+                const onBorderRow = y < borderThickness || y >= h - borderThickness;
+                for (let x = 0; x < w; x++) {
+                    if (!onBorderRow && x >= borderThickness && x < w - borderThickness) continue;
+                    const idx = (y * w + x) * 4;
+                    total++;
+                    if (isNearWhite(data[idx], data[idx + 1], data[idx + 2])) whiteCount++;
+                }
+            }
+
+            URL.revokeObjectURL(url);
+            const ratio = total > 0 ? whiteCount / total : 0;
+            resolve({ valid: ratio >= MIN_WHITE_BORDER_RATIO, ratio: Math.round(ratio * 100) / 100 });
         };
         img.onerror = () => {
             URL.revokeObjectURL(url);

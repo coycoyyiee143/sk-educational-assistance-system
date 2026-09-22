@@ -43,6 +43,8 @@ class SkEventController extends Controller
             'description' => 'nullable|string',
             'event_date'  => 'required|date',
             'event_time'  => 'nullable',
+            'end_date'    => 'nullable|date|after_or_equal:event_date',
+            'end_time'    => 'nullable',
             'venue'       => 'nullable|string',
             'image'       => 'nullable|image|max:5120',
         ]);
@@ -57,6 +59,8 @@ class SkEventController extends Controller
             'description'  => $request->description,
             'event_date'   => $request->event_date,
             'event_time'   => $request->event_time ?: null,
+            'end_date'     => $request->end_date ?: null,
+            'end_time'     => $request->end_time ?: null,
             'venue'        => $request->venue,
             'image_path'   => $imagePath,
             'is_published' => true,
@@ -75,6 +79,8 @@ class SkEventController extends Controller
             'description' => 'nullable|string',
             'event_date'  => 'required|date',
             'event_time'  => 'nullable',
+            'end_date'    => 'nullable|date|after_or_equal:event_date',
+            'end_time'    => 'nullable',
             'venue'       => 'nullable|string',
             'image'       => 'nullable|image|max:5120',
         ]);
@@ -84,6 +90,8 @@ class SkEventController extends Controller
             'description' => $request->description,
             'event_date'  => $request->event_date,
             'event_time'  => $request->event_time ?: null,
+            'end_date'    => $request->end_date ?: null,
+            'end_time'    => $request->end_time ?: null,
             'venue'       => $request->venue,
         ];
 

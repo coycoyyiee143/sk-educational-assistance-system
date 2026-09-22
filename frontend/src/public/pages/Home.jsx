@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
@@ -20,6 +21,19 @@ const Home = () => {
       })
       .finally(() => setLoading(false));
   }, []);
+
+  // config.is_active only means "this is the current config record," not
+  // "the submission window is actually open" — a period whose deadline
+  // already passed (or one scheduled to open in the future) still stays
+  // is_active until a new one is created or it's officially closed. The
+  // real submission window is is_active AND started AND not yet closed.
+  const now = new Date();
+  const hasStarted = config?.open_date ? now >= new Date(config.open_date) : false;
+  const hasClosed = config
+    ? Boolean(config.closed_at) || (config.close_date ? now > new Date(config.close_date) : false)
+    : false;
+  const isOpen = Boolean(config?.is_active) && hasStarted && !hasClosed;
+  const periodStatusLabel = !hasStarted ? "Opening Soon" : (isOpen ? "Open" : "Closed");
 
   const slotsRemaining =
     config && !config.is_unlimited
@@ -55,14 +69,14 @@ const Home = () => {
 
       <nav className="navbar navbar-expand-lg navbar-custom sticky-top">
         <div className="container">
-          <a className="navbar-brand navbar-brand-custom" href="/">
+          <Link className="navbar-brand navbar-brand-custom" to="/">
             <img src="/icons/sk-logo.jpg" alt="SK Logo" />
 
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>
             </div>
-          </a>
+          </Link>
 
           <button
             className="navbar-toggler"
@@ -79,39 +93,39 @@ const Home = () => {
           >
             <ul className="navbar-nav">
               <li className="nav-item">
-                <a className="nav-link active" href="/">
+                <Link className="nav-link active" to="/">
                   Home
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/requirements">
+                <Link className="nav-link" to="/requirements">
                   Requirements
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/announcements">
+                <Link className="nav-link" to="/announcements">
                   Announcements
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/events">
+                <Link className="nav-link" to="/events">
                   Events
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/login">
+                <Link className="nav-link" to="/login">
                   Login
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a className="nav-link" href="/register">
+                <Link className="nav-link" to="/register">
                   Register
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -123,20 +137,20 @@ const Home = () => {
       <section
         className="hero-section"
         style={{
-          backgroundImage: "url(/icons/hero-bg.png)",
+          backgroundImage: "url(/icons/hero-bg.jpg)",
         }}
       >
         <div className="container">
-          <h1>SK Educational Assistance Application System</h1>
+          <h1>SK Mamatid Educational Assistance System</h1>
 
           <p>
-            Apply online for the Educational Assistance Program of the
-            Sangguniang Kabataan of Barangay Mamatid. View requirements,
+            Apply online for the <strong>Educational Assistance Program of the
+              Sangguniang Kabataan of Barangay Mamatid</strong>. View requirements,
             announcements, schedules, and important updates through this
             system.
           </p>
 
-          <div className="mt-4">
+          <div style={{ marginTop: "100px" }}>
             <a
               href="/register"
               className="btn btn-custom-light me-2 mb-2"
@@ -154,7 +168,7 @@ const Home = () => {
         </div>
       </section>
 
-      {/* ABOUT + APPLICATION STATUS */}
+      {/* ABOUT + APPLICATION PERIOD STATUS */}
 
       <section className="home-about-section">
         <div className="container">
@@ -167,7 +181,7 @@ const Home = () => {
               <p>
                 The Educational Assistance Program of Sangguniang Kabataan of
                 Barangay Mamatid provides financial support to qualified youth
-                residents who are currently studying.
+                residents who are currently in college.
               </p>
 
               <p>
@@ -207,32 +221,39 @@ const Home = () => {
                   <div className="home-status-header">
                     <div>
                       <span className="home-status-eyebrow">
-                        Application Status
+                        Application Period Status
                       </span>
 
                       <h3>
-                        {config.is_active
-                          ? "Applications are open"
-                          : "Applications are closed"}
+                        {!hasStarted
+                          ? "Applications open soon"
+                          : (isOpen ? "Applications are open" : "Applications are closed")}
                       </h3>
                     </div>
 
                     <span
-                      className={`home-status-badge ${
-                        config.is_active
-                          ? "home-status-badge-open"
-                          : "home-status-badge-closed"
-                      }`}
+                      className={`home-status-badge ${isOpen
+                        ? "home-status-badge-open"
+                        : "home-status-badge-closed"
+                        }`}
                     >
                       <span className="home-status-dot" />
 
-                      {config.is_active ? "Open" : "Closed"}
+                      {periodStatusLabel}
                     </span>
                   </div>
 
                   <div className="home-status-divider" />
 
-                  {config.is_unlimited ? (
+                  {hasClosed ? (
+                    <div className="home-slot-main home-slot-main-closed">
+                      <span className="home-slot-label">
+                        Claiming for this period is starting or already
+                        underway — check our Announcements page for schedule
+                        details.
+                      </span>
+                    </div>
+                  ) : config.is_unlimited ? (
                     <div className="home-slot-main">
                       <span className="home-slot-number">∞</span>
                       <span className="home-slot-label">
@@ -293,7 +314,7 @@ const Home = () => {
                     </div>
                   </div>
 
-                  {config.is_active ? (
+                  {isOpen ? (
                     <a href="/register" className="home-status-btn">
                       Apply for Assistance
 
@@ -310,16 +331,33 @@ const Home = () => {
                         />
                       </svg>
                     </a>
+                  ) : hasClosed ? (
+                    <a href="/announcements" className="home-status-btn">
+                      See Announcements
+
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.3"
+                      >
+                        <path
+                          d="M5 12h14M13 5l7 7-7 7"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </a>
                   ) : (
                     <span className="home-status-btn home-status-btn-disabled">
-                      Application Period Closed
+                      Application Period Not Yet Open
                     </span>
                   )}
                 </>
               ) : (
                 <div className="home-no-period">
                   <span className="home-status-eyebrow">
-                    Application Status
+                    Application Period Status
                   </span>
 
                   <h3>No active application period</h3>
@@ -434,17 +472,23 @@ const Home = () => {
                     </div>
 
                     <span
-                      className={`schedule-status-badge ${
-                        config.is_active
-                          ? "schedule-status-open"
-                          : "schedule-status-closed"
-                      }`}
+                      className={`schedule-status-badge ${isOpen
+                        ? "schedule-status-open"
+                        : "schedule-status-closed"
+                        }`}
                     >
-                      {config.is_active ? "Open" : "Closed"}
+                      {periodStatusLabel}
                     </span>
                   </div>
 
-                  {config.is_unlimited ? (
+                  {hasClosed ? (
+                    <div className="schedule-slot-closed-note">
+                      <p>
+                        Claiming for this period is starting or already
+                        underway — see <a href="/announcements">Announcements</a> for schedule details.
+                      </p>
+                    </div>
+                  ) : config.is_unlimited ? (
                     <div className="schedule-slot-number">
                       Unlimited
                     </div>
@@ -892,7 +936,7 @@ const Home = () => {
             <div className="org-row org-row-1">
               <div className="org-card">
                 <img
-                  src="/officials/chairman.jpg"
+                  src="/officials/chairman.png"
                   alt="SK Chairman"
                   className="org-photo"
                 />
@@ -912,7 +956,7 @@ const Home = () => {
             <div className="org-row org-row-4">
               <div className="org-card">
                 <img
-                  src="/officials/member1.jpg"
+                  src="/officials/member1.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -930,7 +974,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member2.jpg"
+                  src="/officials/member2.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -948,7 +992,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member3.jpg"
+                  src="/officials/member3.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -966,7 +1010,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member4.jpg"
+                  src="/officials/member4.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -986,7 +1030,7 @@ const Home = () => {
             <div className="org-row org-row-3">
               <div className="org-card">
                 <img
-                  src="/officials/member5.jpg"
+                  src="/officials/member5.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -1004,7 +1048,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member6.jpg"
+                  src="/officials/secretary.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -1022,7 +1066,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/member7.jpg"
+                  src="/officials/member7.png"
                   alt="SK Member"
                   className="org-photo"
                 />
@@ -1042,7 +1086,7 @@ const Home = () => {
             <div className="org-row org-row-2">
               <div className="org-card">
                 <img
-                  src="/officials/secretary.jpg"
+                  src="/officials/member6.png"
                   alt="SK Secretary"
                   className="org-photo"
                 />
@@ -1060,7 +1104,7 @@ const Home = () => {
 
               <div className="org-card">
                 <img
-                  src="/officials/treasurer.jpg"
+                  src="/officials/treasurer.png"
                   alt="SK Treasurer"
                   className="org-photo"
                 />

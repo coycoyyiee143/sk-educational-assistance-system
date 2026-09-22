@@ -1,29 +1,69 @@
 import { useState, useEffect, useRef } from "react";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import api, { STORAGE_URL } from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
-
-const emptyForm = { title: "", venue: "", event_date: "", event_time: "", description: "", image: null };
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-function getEventStatus(dateStr) {
-  if (!dateStr) return "Upcoming";
-  const today = new Date(); today.setHours(0, 0, 0, 0);
-  const eventDate = new Date(dateStr); eventDate.setHours(0, 0, 0, 0);
-  if (eventDate.getTime() === today.getTime()) return "Ongoing";
-  return eventDate > today ? "Upcoming" : "Finished";
+// NOT toISOString().slice(0, 10) — that formats in UTC, which rolls
+// local midnight back to the previous calendar day in any timezone
+// ahead of UTC (e.g. UTC+8).
+function todayStr() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
 }
-
+function nowTimeStr() {
+  const d = new Date();
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+// The API serializes date-cast fields as full UTC timestamps (e.g.
+// "2026-09-19T16:00:00.000000Z" for a 2026-09-20 local date, since the
+// server runs Asia/Manila), NOT a plain "YYYY-MM-DD" — so slicing the
+// first 10 characters grabs the UTC date, which is a day off from the
+// intended local calendar date. Parse as a Date (which correctly
+// converts to local time) and read local components instead.
+function toInputDate(dateStr) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${m}-${day}`;
+}
+const emptyForm = { title: "", venue: "", event_date: "", event_time: "", end_date: "", end_time: "", description: "", image: null };
+// ── Helpers ───────────────────────────────────────────────────────────────────
+// Ongoing is now a real start–end window, not just "is event_date today" —
+// a multi-day event stays Ongoing for its whole span instead of flipping
+// to Finished the day after it starts. A blank end just means a
+// single-day event, ending at the close of event_date.
+function getEventStatus(event) {
+  if (!event?.event_date) return "Upcoming";
+  const start = new Date(`${toInputDate(event.event_date)}T${event.event_time ? event.event_time.slice(0, 5) : "00:00"}:00`);
+  const endDateStr = event.end_date ? toInputDate(event.end_date) : toInputDate(event.event_date);
+  const end = new Date(`${endDateStr}T${event.end_time ? event.end_time.slice(0, 5) : "23:59"}:59`);
+  const now = new Date();
+  if (now < start) return "Upcoming";
+  if (now > end) return "Finished";
+  return "Ongoing";
+}
 function StatusBadge({ status }) {
   const map = { Upcoming: "status-upcoming", Ongoing: "status-ongoing", Finished: "status-finished" };
   return <span className={`status-badge ${map[status] ?? ""}`}>{status}</span>;
 }
-
 function formatDate(dateStr) {
   if (!dateStr) return "";
   return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
 }
-
+// "September 20, 2026" for a single day, "September 20–22, 2026" for a
+// multi-day event.
+function formatDateRange(startStr, endStr) {
+  if (!endStr || endStr === startStr) return formatDate(startStr);
+  const start = new Date(startStr);
+  const end = new Date(endStr);
+  const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+  const startLabel = start.toLocaleDateString("en-US", { month: "long", day: "numeric", year: sameMonth ? undefined : "numeric" });
+  const endLabel = end.toLocaleDateString("en-US", { month: sameMonth ? undefined : "long", day: "numeric", year: "numeric" });
+  return `${startLabel}–${endLabel}`;
+}
 function formatTime(timeStr) {
   if (!timeStr) return "";
   const [h, m] = timeStr.split(":").map(Number);
@@ -31,59 +71,49 @@ function formatTime(timeStr) {
   const hour = h % 12 || 12;
   return `${hour}:${String(m).padStart(2, "0")} ${period}`;
 }
-
 function toInputTime(timeStr) {
   if (!timeStr) return "";
   return timeStr.slice(0, 5);
 }
-
 // ── Add Modal ─────────────────────────────────────────────────────────────────
 function AddEventModal({ onClose, onSave, saving }) {
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => ({ ...emptyForm, event_date: todayStr(), event_time: nowTimeStr() }));
   const [previewUrl, setPreviewUrl] = useState(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
   function applyFile(file) {
     if (!file) return;
     setForm((f) => ({ ...f, image: file }));
     setPreviewUrl(URL.createObjectURL(file));
   }
-
   function handleFileInputChange(e) {
     applyFile(e.target.files[0] ?? null);
   }
-
   function handleDrop(e) {
     e.preventDefault();
     setDragActive(false);
     const file = e.dataTransfer.files?.[0];
     if (file) applyFile(file);
   }
-
   function handleDragOver(e) {
     e.preventDefault();
     setDragActive(true);
   }
-
   function handleDragLeave(e) {
     e.preventDefault();
     setDragActive(false);
   }
-
   function removeImage(e) {
     e.stopPropagation();
     setForm((f) => ({ ...f, image: null }));
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
-
   function handleSubmit(e) {
     e.preventDefault();
     onSave(form);
   }
-
   return (
     <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
       <div className="modal-dialog modal-lg modal-dialog-centered">
@@ -141,13 +171,39 @@ function AddEventModal({ onClose, onSave, saving }) {
                     <input className="form-control" placeholder="Enter venue" value={form.venue} onChange={set("venue")} />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label">Date<span className="event-modal-required">*</span></label>
+                    <label className="form-label">Start Date<span className="event-modal-required">*</span></label>
                     <input type="date" className="form-control" value={form.event_date} onChange={set("event_date")} required />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label">Time</label>
+                    <label className="form-label">Start Time</label>
                     <input type="time" className="form-control" value={form.event_time} onChange={set("event_time")} />
                   </div>
+                  <div className="col-12">
+                    <div className="form-check">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        id="add-event-multi-day"
+                        checked={form.end_date !== ""}
+                        onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.checked ? f.event_date : "", end_time: e.target.checked ? (f.end_time || nowTimeStr()) : "" }))}
+                      />
+                      <label className="form-check-label" htmlFor="add-event-multi-day">
+                        This event ends on a different day
+                      </label>
+                    </div>
+                  </div>
+                  {form.end_date !== "" && (
+                    <>
+                      <div className="col-md-6">
+                        <label className="form-label">End Date<span className="event-modal-required">*</span></label>
+                        <input type="date" className="form-control" value={form.end_date} min={form.event_date || undefined} onChange={set("end_date")} required />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">End Time</label>
+                        <input type="time" className="form-control" value={form.end_time} onChange={set("end_time")} />
+                      </div>
+                    </>
+                  )}
                   <div className="col-12 mt-4">
                     <label className="form-label">Description</label>
                     <textarea className="form-control announcement-textarea" placeholder="Enter event description" value={form.description} onChange={set("description")} />
@@ -167,14 +223,15 @@ function AddEventModal({ onClose, onSave, saving }) {
     </div>
   );
 }
-
 // ── Edit Modal ────────────────────────────────────────────────────────────────
 function EditEventModal({ event, onClose, onSave, saving }) {
   const [form, setForm] = useState({
     title: event.title,
     venue: event.venue ?? "",
-    event_date: event.event_date,
+    event_date: toInputDate(event.event_date),
     event_time: toInputTime(event.event_time),
+    end_date: event.end_date ? toInputDate(event.end_date) : "",
+    end_time: toInputTime(event.end_time),
     description: event.description ?? "",
     image: null,
   });
@@ -182,46 +239,38 @@ function EditEventModal({ event, onClose, onSave, saving }) {
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef(null);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-
   function applyFile(file) {
     if (!file) return;
     setForm((f) => ({ ...f, image: file }));
     setPreviewUrl(URL.createObjectURL(file));
   }
-
   function handleFileInputChange(e) {
     applyFile(e.target.files[0] ?? null);
   }
-
   function handleDrop(e) {
     e.preventDefault();
     setDragActive(false);
     const file = e.dataTransfer.files?.[0];
     if (file) applyFile(file);
   }
-
   function handleDragOver(e) {
     e.preventDefault();
     setDragActive(true);
   }
-
   function handleDragLeave(e) {
     e.preventDefault();
     setDragActive(false);
   }
-
   function removeImage(e) {
     e.stopPropagation();
     setForm((f) => ({ ...f, image: null }));
     setPreviewUrl(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
-
   function handleSubmit(e) {
     e.preventDefault();
     onSave(event.id, form);
   }
-
   return (
     <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
       <div className="modal-dialog modal-lg modal-dialog-centered">
@@ -279,13 +328,39 @@ function EditEventModal({ event, onClose, onSave, saving }) {
                     <input className="form-control" value={form.venue} onChange={set("venue")} />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label">Date</label>
+                    <label className="form-label">Start Date</label>
                     <input type="date" className="form-control" value={form.event_date} onChange={set("event_date")} required />
                   </div>
                   <div className="col-md-6">
-                    <label className="form-label">Time</label>
+                    <label className="form-label">Start Time</label>
                     <input type="time" className="form-control" value={form.event_time} onChange={set("event_time")} />
                   </div>
+                  <div className="col-12">
+                    <div className="form-check">
+                      <input
+                        type="checkbox"
+                        className="form-check-input"
+                        id="edit-event-multi-day"
+                        checked={form.end_date !== ""}
+                        onChange={(e) => setForm((f) => ({ ...f, end_date: e.target.checked ? f.event_date : "", end_time: e.target.checked ? (f.end_time || nowTimeStr()) : "" }))}
+                      />
+                      <label className="form-check-label" htmlFor="edit-event-multi-day">
+                        This event ends on a different day
+                      </label>
+                    </div>
+                  </div>
+                  {form.end_date !== "" && (
+                    <>
+                      <div className="col-md-6">
+                        <label className="form-label">End Date</label>
+                        <input type="date" className="form-control" value={form.end_date} min={form.event_date || undefined} onChange={set("end_date")} required />
+                      </div>
+                      <div className="col-md-6">
+                        <label className="form-label">End Time</label>
+                        <input type="time" className="form-control" value={form.end_time} onChange={set("end_time")} />
+                      </div>
+                    </>
+                  )}
                   <div className="col-12 mt-4">
                     <label className="form-label">Description</label>
                     <textarea className="form-control announcement-textarea" value={form.description} onChange={set("description")} />
@@ -305,9 +380,9 @@ function EditEventModal({ event, onClose, onSave, saving }) {
     </div>
   );
 }
-
 // ── Main Component ────────────────────────────────────────────────────────────
 function AdminEvents() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [events, setEvents] = useState([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All Status");
@@ -319,29 +394,27 @@ function AdminEvents() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(3);
   const [currentPage, setCurrentPage] = useState(1);
   const perPage = 10;
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
-
+  const [deleting, setDeleting] = useState(false);
   useEffect(() => { loadEvents(); }, []);
-
   useEffect(() => {
     if (!error && !success) return;
-    setCountdown(10);
+    setCountdown(3);
     const tick = setInterval(() => {
       setCountdown((c) => (c <= 1 ? 0 : c - 1));
     }, 1000);
     const dismiss = setTimeout(() => {
       setError("");
       setSuccess("");
-    }, 10000);
+    }, 3000);
     return () => {
       clearInterval(tick);
       clearTimeout(dismiss);
     };
   }, [error, success]);
-
   function loadEvents() {
     setLoading(true);
     api.get("/admin/events")
@@ -349,18 +422,18 @@ function AdminEvents() {
       .catch(() => setError("Failed to load events."))
       .finally(() => setLoading(false));
   }
-
   function buildFormData(form) {
     const fd = new FormData();
     fd.append("title", form.title);
     fd.append("venue", form.venue ?? "");
     fd.append("event_date", form.event_date);
     fd.append("event_time", form.event_time ?? "");
+    fd.append("end_date", form.end_date ?? "");
+    fd.append("end_time", form.end_time ?? "");
     fd.append("description", form.description ?? "");
     if (form.image) fd.append("image", form.image);
     return fd;
   }
-
   async function saveNew(form) {
     setError("");
     setSuccess("");
@@ -378,7 +451,6 @@ function AdminEvents() {
       setSaving(false);
     }
   }
-
   async function saveEdit(id, form) {
     setError("");
     setSuccess("");
@@ -397,21 +469,26 @@ function AdminEvents() {
       setSaving(false);
     }
   }
-
   async function deleteEvent(id) {
-    setDeleteTarget(null);
+    setDeleting(true);
     setError("");
     setSuccess("");
     try {
       await api.delete(`/admin/events/${id}`);
       setEvents((prev) => prev.filter((e) => e.id !== id));
+      setDeleteTarget(null);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete event.");
+    } finally {
+      setDeleting(false);
     }
   }
-
   async function deleteAllEvents() {
-    setShowDeleteAllConfirm(false);
+    if (events.length === 0) {
+      setShowDeleteAllConfirm(false);
+      return;
+    }
+    setDeleting(true);
     setError("");
     setSuccess("");
     try {
@@ -419,69 +496,56 @@ function AdminEvents() {
       setEvents([]);
       setCurrentPage(1);
       setSuccess("All events have been permanently deleted from the system.");
+      setShowDeleteAllConfirm(false);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete all events.");
+    } finally {
+      setDeleting(false);
     }
   }
-
   const filtered = events.filter((e) => {
-    const status = getEventStatus(e.event_date);
+    const status = getEventStatus(e);
     const matchSearch = e.title.toLowerCase().includes(search.toLowerCase()) ||
       (e.venue ?? "").toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === "All Status" || status === statusFilter;
-    const matchDate = !dateFilter || e.event_date === dateFilter;
+    const matchDate = !dateFilter || (dateFilter >= toInputDate(e.event_date) && dateFilter <= (e.end_date ? toInputDate(e.end_date) : toInputDate(e.event_date)));
     return matchSearch && matchStatus && matchDate;
   });
-
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
   const pageStart = (currentPage - 1) * perPage;
   const pagedEvents = filtered.slice(pageStart, pageStart + perPage);
-
   function goToPage(page) {
     if (page < 1 || page > totalPages) return;
     setCurrentPage(page);
   }
-
   function getPageNumbers() {
-    const pages = [];
-    const maxVisible = 5;
-    if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i);
-      return pages;
+    if (totalPages <= 3) {
+      return Array.from({ length: totalPages }, (_, index) => index + 1);
     }
-    pages.push(1);
-    if (currentPage > 3) pages.push("...");
-    const start = Math.max(2, currentPage - 1);
-    const end = Math.min(totalPages - 1, currentPage + 1);
-    for (let i = start; i <= end; i++) pages.push(i);
-    if (currentPage < totalPages - 2) pages.push("...");
-    pages.push(totalPages);
-    return pages;
+    let startPage;
+    if (currentPage <= 2) startPage = 1;
+    else if (currentPage >= totalPages - 1) startPage = totalPages - 2;
+    else startPage = currentPage - 1;
+    return [startPage, startPage + 1, startPage + 2];
   }
-
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
         <section className="page-section">
           <div className="container-fluid">
-
             <div className="page-card">
               <h3 className="section-title mb-2">Event Management</h3>
               <p className="text-muted mb-0">
                 Manage SK youth programs, community activities, and public events that will be shown on the public events page.
               </p>
             </div>
-
             <div className="page-card">
               <div className="table-header-row">
                 <h4 className="sub-title sub-title-dark mb-0">SK Events List</h4>
@@ -489,7 +553,6 @@ function AdminEvents() {
                   <button className="btn btn-save-green" onClick={() => setShowAdd(true)}>Add Event</button>
                 </div>
               </div>
-
               <div className="visibility-notice">
                 <div className="visibility-notice-icon">!</div>
                 <div className="visibility-notice-body">
@@ -500,7 +563,6 @@ function AdminEvents() {
                   </p>
                 </div>
               </div>
-
               <div className="row g-3 mb-3">
                 <div className="col-md-4">
                   <input
@@ -532,16 +594,16 @@ function AdminEvents() {
                     type="button"
                     className="table-toolbar-btn table-toolbar-btn-red"
                     onClick={() => setShowDeleteAllConfirm(true)}
+                    disabled={events.length === 0}
                   >
                     Delete All
                   </button>
                 </div>
               </div>
-
               {loading ? (
                 <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
               ) : (
-                <div className="table-responsive">
+                <div className="table-responsive announcement-table-wrap">
                   <table className="table table-bordered table-striped align-middle announcement-table">
                     <colgroup>
                       <col style={{ width: "10%" }} />
@@ -574,10 +636,10 @@ function AdminEvents() {
                             />
                           </td>
                           <td>{ev.title}</td>
-                          <td>{formatDate(ev.event_date)}</td>
+                          <td>{formatDateRange(ev.event_date, ev.end_date)}</td>
                           <td>{formatTime(ev.event_time)}</td>
                           <td>{ev.venue}</td>
-                          <td><StatusBadge status={getEventStatus(ev.event_date)} /></td>
+                          <td><StatusBadge status={getEventStatus(ev)} /></td>
                           <td>
                             <button className="icon-btn icon-btn-edit" onClick={() => setEditTarget(ev)} title="Edit" aria-label="Edit">
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -603,7 +665,6 @@ function AdminEvents() {
                   </table>
                 </div>
               )}
-
               {!loading && filtered.length > 0 && (
                 <div className="table-pagination-bar">
                   <span className="table-pagination-info">
@@ -643,19 +704,16 @@ function AdminEvents() {
                 </div>
               )}
             </div>
-
           </div>
         </section>
         <PanelFooter />
       </div>
-
       {showAdd && (
         <AddEventModal onClose={() => setShowAdd(false)} onSave={saveNew} saving={saving} />
       )}
       {editTarget && (
         <EditEventModal event={editTarget} onClose={() => setEditTarget(null)} onSave={saveEdit} saving={saving} />
       )}
-
       {deleteTarget && (
         <div className="feedback-popup-backdrop">
           <div className="feedback-popup feedback-popup-error">
@@ -667,6 +725,7 @@ function AdminEvents() {
                 type="button"
                 className="feedback-popup-cancel"
                 onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
               >
                 Cancel
               </button>
@@ -674,14 +733,14 @@ function AdminEvents() {
                 type="button"
                 className="feedback-popup-proceed"
                 onClick={() => deleteEvent(deleteTarget.id)}
+                disabled={deleting}
               >
-                Yes
+                {deleting ? "Deleting..." : "Yes"}
               </button>
             </div>
           </div>
         </div>
       )}
-
       {showDeleteAllConfirm && (
         <div className="feedback-popup-backdrop">
           <div className="feedback-popup feedback-popup-error">
@@ -697,6 +756,7 @@ function AdminEvents() {
                 type="button"
                 className="feedback-popup-cancel"
                 onClick={() => setShowDeleteAllConfirm(false)}
+                disabled={deleting}
               >
                 Cancel
               </button>
@@ -704,14 +764,14 @@ function AdminEvents() {
                 type="button"
                 className="feedback-popup-proceed"
                 onClick={deleteAllEvents}
+                disabled={deleting}
               >
-                Proceed
+                {deleting ? "Deleting..." : "Proceed"}
               </button>
             </div>
           </div>
         </div>
       )}
-
       {(error || success) && (
         <div className="feedback-popup-backdrop">
           <div className={`feedback-popup ${error ? "feedback-popup-error" : "feedback-popup-success"}`}>
@@ -735,5 +795,4 @@ function AdminEvents() {
     </div>
   );
 }
-
 export default AdminEvents;

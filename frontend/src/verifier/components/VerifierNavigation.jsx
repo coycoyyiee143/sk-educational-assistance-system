@@ -14,7 +14,20 @@ function VerifierNavigation({
 
   const [showActivityLog, setShowActivityLog] = useState(false);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // Each page renders its own <VerifierNavigation />, so navigating
+  // remounts this component — read/persist via localStorage so the
+  // collapsed sidebar doesn't pop back open on every nav click.
+  const [collapsed, setCollapsed] = useState(
+    () => localStorage.getItem("verifier-sidebar-collapsed") === "1"
+  );
+
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("verifier-sidebar-collapsed", next ? "1" : "0");
+      return next;
+    });
+  };
 
   const handleLogout = async () => {
     try {
@@ -52,7 +65,7 @@ function VerifierNavigation({
         <button
           type="button"
           className="verifier-sidebar-toggle"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapsed}
           aria-label="Toggle sidebar"
         >
           <svg
@@ -106,6 +119,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierDashboard"
             onClick={closeMobileMenu}
+            title="Dashboard"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -128,6 +142,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierApplicationList"
             onClick={closeMobileMenu}
+            title="Application List"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -152,6 +167,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierClaiming"
             onClick={closeMobileMenu}
+            title="Claiming"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -173,6 +189,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierWaitlist"
             onClick={closeMobileMenu}
+            title="Waitlist"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -195,6 +212,7 @@ function VerifierNavigation({
           <NavLink
             to="/VerifierProfile"
             onClick={closeMobileMenu}
+            title="My Profile"
             className={({ isActive }) =>
               `verifier-sidebar-link ${isActive ? "active" : ""}`
             }
@@ -215,6 +233,7 @@ function VerifierNavigation({
           <button
             type="button"
             className="verifier-sidebar-link"
+            title="Activity Log"
             onClick={() => {
               closeMobileMenu();
               setShowActivityLog(true);
@@ -238,6 +257,7 @@ function VerifierNavigation({
           <button
             type="button"
             className="verifier-sidebar-link"
+            title="Change Password"
             onClick={() => {
               closeMobileMenu();
               setShowChangePassword(true);
@@ -262,6 +282,7 @@ function VerifierNavigation({
         <button
           type="button"
           className="verifier-sidebar-logout"
+          title="Logout"
           onClick={handleLogout}
         >
           <svg

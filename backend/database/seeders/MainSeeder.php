@@ -83,23 +83,22 @@ class MainSeeder extends Seeder
     {
         $this->applicantPasswordHash = Hash::make('applicant123');
 
-        $this->admin = User::firstOrCreate(
-            ['email' => 'admin@skmamatid.com'],
-            [
-                'first_name'        => 'SK Admin',
-                'middle_name'       => 'Mamatid',
-                'last_name'         => 'Official',
-                'mobile_number'     => '09123456789',
-                'password'          => Hash::make('admin123'),
-                'role'              => 'sk_admin',
-                'is_active'         => true,
-                'email_verified_at' => now(),
-            ]
-        );
+        $admin = User::where('email', 'admin@skmamatid.com')->first();
+        if (!$admin) {
+            $this->command->error('Run OpeningDaySeeder first — it creates the admin account this seeder builds on top of.');
+            return;
+        }
+        $this->admin = $admin;
 
         // Two verifiers, on purpose, with distinct names — this is what
         // makes "Reviewed By" / "Disbursed By" actually mean something in
-        // the reports, instead of one name repeated on every row.
+        // the reports, instead of one name repeated on every row. NOTE:
+        // this reuses OpeningDaySeeder's verifier@skmamatid.com identity —
+        // since that account already exists with the generic "SK
+        // Verifier" name by the time this runs, firstOrCreate below finds
+        // it as-is rather than renaming it to "Jasmin Cruz". Log in as
+        // verifier2@skmamatid.com instead if you want the distinctly-named
+        // second verifier for testing Reviewed By/Disbursed By.
         $this->verifierA = User::firstOrCreate(
             ['email' => 'verifier@skmamatid.com'],
             [
@@ -145,6 +144,14 @@ class MainSeeder extends Seeder
 
     private function seedActivePeriod(): ApplicationConfiguration
     {
+        // Deactivate whatever was already active first — without this,
+        // running this seeder after another one that left a config active
+        // leaves TWO rows both is_active=true, which breaks the "the
+        // active config" assumption every
+        // ApplicationConfiguration::where('is_active', true)->first()/
+        // ->find() call in the app relies on.
+        ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
+
         $config = ApplicationConfiguration::create([
             'school_year'       => '2026-2027',
             'open_date'         => now()->subDays(20)->startOfDay(),
@@ -244,10 +251,10 @@ class MainSeeder extends Seeder
         $schedule = ClaimingSchedule::create([
             'config_id'             => $config->id,
             'location'              => 'Barangay Mamatid Covered Court',
-            'is_published'          => true,
-            'published_at'          => now()->subDays(5),
-            'grace_period_date'     => now()->addDays(1)->toDateString(),
-            'grace_period_end_date' => now()->addDays(6)->toDateString(),
+            'is_active'          => true,
+            'activated_at'          => now()->subDays(5),
+            'late_claiming_date'     => now()->addDays(1)->toDateString(),
+            'late_claiming_end_date' => now()->addDays(6)->toDateString(),
         ]);
 
         $lane = ClaimingLane::create([

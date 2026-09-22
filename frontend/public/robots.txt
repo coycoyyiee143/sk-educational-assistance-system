@@ -1,3 +1,7 @@
 # https://www.robotstxt.org/robotstxt.html
+# Not officially SK's yet — kept out of Google via the noindex meta tag in
+# index.html instead of blocking here, since a robots.txt Disallow also
+# blocks social link-preview bots (Facebook, Messenger, Discord, etc.) from
+# fetching the page to read its Open Graph tags, breaking link previews.
 User-agent: *
 Disallow:

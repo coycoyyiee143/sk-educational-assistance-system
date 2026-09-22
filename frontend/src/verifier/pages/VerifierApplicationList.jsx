@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import api from "../../services/api";
@@ -10,6 +10,7 @@ import {
   getVerifierBadgeClass,
 } from "../../components/StatusConstants";
 import PanelFooter from "../../components/PanelFooter";
+import RelativeTime from "../../components/RelativeTime";
 
 function StatusBadge({ app }) {
   return (
@@ -19,19 +20,51 @@ function StatusBadge({ app }) {
   );
 }
 
+// Grouped by what the verifier actually needs to do, not just a flat list
+// of raw statuses, and ordered by priority rather than alphabetically or
+// by pipeline order:
+//   1. "primary" — For Review. This IS the job; it gets first position
+//      and its own bigger, always-colored (not just outlined) styling so
+//      it visually dominates the row instead of reading as one pill among
+//      many equal-weight options.
+//   2. "action" — other things the verifier is actively waiting on or
+//      needs to notice, but isn't their next click.
+//   3. "resolved" — past decisions, kept for reference only.
+//   4. "all" — a reset/audit view, not a daily-use queue, so it's last
+//      and styled quieter than the rest instead of leading the row.
 const STATUS_TABS = [
-  { key: "all", label: "All" },
-  { key: "for_review", label: "For Review" },
-  { key: "pending_prescreening", label: "Pending" },
-  { key: "approved", label: "Approved" },
-  { key: "rejected", label: "Rejected" },
+  { key: "for_review", label: "For Review", group: "primary" },
+  // Within "action", ordered by urgency: a stuck OCR failure sits right
+  // next to For Review since it blocks that same review from happening
+  // at all, ahead of an appeal (also needs a human decision, but isn't
+  // blocking anything) and the purely informational waiting statuses
+  // below (applicant hasn't re-uploaded yet, or OCR is still
+  // auto-processing).
+  { key: "ocr_failed", label: "OCR Failed", group: "action" },
+  { key: "appeal_requested", label: "Appeal Requested", group: "action" },
+  // reupload_requested (verifier flagged it) and auto_reupload_requested
+  // (system flagged it) both mean the exact same thing operationally —
+  // nothing for the verifier to do until the applicant re-uploads — so
+  // they're one combined tab instead of two the verifier has to check
+  // separately.
+  { key: "awaiting_applicant", label: "Awaiting Applicant", group: "action" },
+  { key: "pending_prescreening", label: "Pending", group: "action" },
+  { key: "approved", label: "Approved", group: "resolved" },
+  { key: "rejected", label: "Rejected", group: "resolved" },
+  { key: "all", label: "All", group: "all" },
 ];
 
+const AWAITING_APPLICANT_STATUSES = ["reupload_requested", "auto_reupload_requested"];
+
 function VerifierApplicationList() {
+  const [searchParams] = useSearchParams();
+  const requestedTab = searchParams.get("tab");
+  const initialTab = STATUS_TABS.some((t) => t.key === requestedTab) ? requestedTab : "for_review";
+
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [statusTab, setStatusTab] = useState("for_review");
+  const [statusTab, setStatusTab] = useState(initialTab);
   const [currentPage, setCurrentPage] = useState(1);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -63,15 +96,30 @@ function VerifierApplicationList() {
   const counts = {
     all: applications.length,
     for_review: applications.filter((a) => a.status === "for_review").length,
+    awaiting_applicant: applications.filter((a) =>
+      AWAITING_APPLICANT_STATUSES.includes(a.status)
+    ).length,
     pending_prescreening: applications.filter(
       (a) => a.status === "pending_prescreening"
     ).length,
     approved: applications.filter((a) => a.status === "approved").length,
     rejected: applications.filter((a) => a.status === "rejected").length,
+    appeal_requested: applications.filter(
+      (a) => a.status === "appeal_requested"
+    ).length,
+    ocr_failed: applications.filter(
+      (a) => a.failed_documents_count > 0
+    ).length,
   };
 
   const filtered = applications
-    .filter((app) => statusTab === "all" || app.status === statusTab)
+    .filter((app) => {
+      if (statusTab === "all") return true;
+      if (statusTab === "ocr_failed") return app.failed_documents_count > 0;
+      if (statusTab === "awaiting_applicant")
+        return AWAITING_APPLICANT_STATUSES.includes(app.status);
+      return app.status === statusTab;
+    })
     .filter(
       (app) =>
         app.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -176,40 +224,57 @@ function VerifierApplicationList() {
                 </div>
 
                 <div className="verifier-application-filter-tabs">
-                  {STATUS_TABS.map((tab) => (
-                    <button
-                      key={tab.key}
-                      type="button"
-                      className={`verifier-application-filter-btn ${statusTab === tab.key
-                        ? "verifier-application-filter-btn-active"
-                        : ""
-                        }`}
-                      onClick={() => handleTabChange(tab.key)}
-                    >
-                      <span>{tab.label}</span>
+                  {STATUS_TABS.map((tab, idx) => {
+                    // A divider renders once at each group boundary —
+                    // primary → action → resolved → all — so the row
+                    // reads as distinct clusters by priority instead of
+                    // one undifferentiated line of equal-weight buttons.
+                    const showDivider =
+                      idx > 0 && tab.group !== STATUS_TABS[idx - 1].group;
 
-                      <span
-                        className={`verifier-application-filter-count verifier-application-filter-count-${tab.key}`}
-                      >
-                        {counts[tab.key]}
-                      </span>
-                    </button>
-                  ))}
+                    return (
+                      <div key={tab.key} className="verifier-application-filter-tab-wrap">
+                        {showDivider && (
+                          <span className="verifier-application-filter-divider" aria-hidden="true" />
+                        )}
+                        <button
+                          type="button"
+                          className={`verifier-application-filter-btn verifier-application-filter-btn-${tab.group} ${statusTab === tab.key
+                            ? "verifier-application-filter-btn-active"
+                            : ""
+                            }`}
+                          onClick={() => handleTabChange(tab.key)}
+                        >
+                          <span>{tab.label}</span>
+
+                          <span
+                            className={`verifier-application-filter-count verifier-application-filter-count-${tab.key}`}
+                          >
+                            {counts[tab.key]}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
               <div className="table-responsive verifier-attention-table-wrap">
                 <table className="table table-bordered table-striped align-middle verifier-attention-table">
                   <colgroup>
-                    <col style={{ width: "20%" }} />
-                    <col style={{ width: "25%" }} />
-                    <col style={{ width: "22%" }} />
-                    <col style={{ width: "20%" }} />
-                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "17%" }} />
+                    <col style={{ width: "24%" }} />
+                    <col style={{ width: "21%" }} />
+                    <col style={{ width: "19%" }} />
+                    <col style={{ width: "13%" }} />
                   </colgroup>
 
                   <thead>
                     <tr>
+                      <th title="Order by submission time within this filtered list">
+                        #
+                      </th>
                       <th>Application ID</th>
                       <th>Applicant Name</th>
                       <th>Submission Date</th>
@@ -221,7 +286,7 @@ function VerifierApplicationList() {
                   <tbody>
                     {loading ? (
                       <tr>
-                        <td colSpan="5" className="text-center py-4">
+                        <td colSpan="6" className="text-center py-4">
                           <div
                             className="spinner-border text-danger"
                             role="status"
@@ -229,20 +294,30 @@ function VerifierApplicationList() {
                         </td>
                       </tr>
                     ) : pagedApplications.length > 0 ? (
-                      pagedApplications.map((app) => (
+                      pagedApplications.map((app, idx) => (
                         <tr key={app.id}>
+                          <td>{pageStart + idx + 1}</td>
+
                           <td>
-                            {app.control_number ?? `APP-${app.id}`}
+                            {`APP-${app.id}`}
                           </td>
 
                           <td>{app.name}</td>
 
                           <td>
-                            {app.submitted_at?.split("T")[0]}
+                            <RelativeTime value={app.submitted_at} />
                           </td>
 
                           <td>
                             <StatusBadge app={app} />
+                            {app.failed_documents_count > 0 && (
+                              <span
+                                className="status-badge verifier-ocr-failed-badge"
+                                title={`${app.failed_documents_count} document${app.failed_documents_count === 1 ? "" : "s"} failed OCR processing`}
+                              >
+                                OCR Failed
+                              </span>
+                            )}
                           </td>
 
                           <td className="verifier-attention-action">
@@ -262,7 +337,7 @@ function VerifierApplicationList() {
                     ) : (
                       <tr>
                         <td
-                          colSpan="5"
+                          colSpan="6"
                           className="text-center text-muted"
                         >
                           No applications found.

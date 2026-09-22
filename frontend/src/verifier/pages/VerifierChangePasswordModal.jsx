@@ -11,10 +11,10 @@ function VerifierChangePasswordModal({ show, onClose }) {
   const [error, setError] = useState("");
   const [errorList, setErrorList] = useState([]);
   const [success, setSuccess] = useState("");
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(3);
   useEffect(() => {
     if (!error && errorList.length === 0 && !success) return;
-    setCountdown(10);
+    setCountdown(3);
     const tick = setInterval(() => {
       setCountdown((c) => (c <= 1 ? 0 : c - 1));
     }, 1000);
@@ -22,7 +22,7 @@ function VerifierChangePasswordModal({ show, onClose }) {
       setError("");
       setErrorList([]);
       setSuccess("");
-    }, 10000);
+    }, 3000);
     return () => {
       clearInterval(tick);
       clearTimeout(dismiss);

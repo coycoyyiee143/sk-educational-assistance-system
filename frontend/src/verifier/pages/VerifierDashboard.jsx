@@ -10,6 +10,7 @@ import {
   getVerifierBadgeClass,
 } from "../../components/StatusConstants";
 import PanelFooter from "../../components/PanelFooter";
+import RelativeTime from "../../components/RelativeTime";
 
 function StatusBadge({ app }) {
   return (
@@ -26,7 +27,10 @@ function VerifierDashboard() {
     pending: 0,
     review: 0,
     approved: 0,
+    claimed: 0,
     rejected: 0,
+    failed_ocr: 0,
+    appeal_requested: 0,
     no_active_period: false,
   });
 
@@ -76,7 +80,7 @@ function VerifierDashboard() {
 
   const cards = [
     {
-      label: "Pending Applications",
+      label: "Pending",
       value: stats.pending,
       accent: "orange",
       icon: (
@@ -127,6 +131,21 @@ function VerifierDashboard() {
             r="10"
           />
           <path d="M8 12l3 3 5-6" />
+        </svg>
+      ),
+    },
+    {
+      label: "Claimed",
+      value: stats.claimed,
+      accent: "blue",
+      icon: (
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
+          <path d="M20 6L9 17l-5-5" />
         </svg>
       ),
     },
@@ -270,7 +289,7 @@ function VerifierDashboard() {
               )}
 
             {/* STATISTICS */}
-            <div className="row g-4 verifier-stats-row">
+            <div className="row g-3 row-cols-2 row-cols-md-5 verifier-stats-row">
               {cards.map(
                 ({
                   label,
@@ -279,7 +298,7 @@ function VerifierDashboard() {
                   icon,
                 }) => (
                   <div
-                    className="col-xl-3 col-md-6"
+                    className="col"
                     key={label}
                   >
                     <div
@@ -310,6 +329,30 @@ function VerifierDashboard() {
               )}
             </div>
 
+            {!loading &&
+              stats.failed_ocr > 0 && (
+                <div className="alert alert-danger d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4">
+                  <span>
+                    <strong>{stats.failed_ocr}</strong> application{stats.failed_ocr === 1 ? "" : "s"} {stats.failed_ocr === 1 ? "has" : "have"} a document that failed OCR processing and needs attention.
+                  </span>
+                  <Link to="/VerifierApplicationList?tab=ocr_failed" className="alert-link">
+                    Review now →
+                  </Link>
+                </div>
+              )}
+
+            {!loading &&
+              stats.appeal_requested > 0 && (
+                <div className="alert alert-orange d-flex justify-content-between align-items-center flex-wrap gap-2 mt-4">
+                  <span>
+                    <strong>{stats.appeal_requested}</strong> application{stats.appeal_requested === 1 ? "" : "s"} {stats.appeal_requested === 1 ? "has" : "have"} a pending appeal awaiting your decision.
+                  </span>
+                  <Link to="/VerifierApplicationList?tab=appeal_requested" className="alert-link">
+                    Review now →
+                  </Link>
+                </div>
+              )}
+
             {/* APPLICATIONS REQUIRING ATTENTION */}
             <div className="page-card verifier-attention-card mt-4">
               <h4 className="sub-title sub-title-dark">
@@ -321,22 +364,27 @@ function VerifierDashboard() {
                   <colgroup>
                     <col
                       style={{
-                        width: "20%",
+                        width: "8%",
                       }}
                     />
                     <col
                       style={{
-                        width: "25%",
+                        width: "17%",
                       }}
                     />
                     <col
                       style={{
-                        width: "22%",
+                        width: "24%",
                       }}
                     />
                     <col
                       style={{
-                        width: "20%",
+                        width: "21%",
+                      }}
+                    />
+                    <col
+                      style={{
+                        width: "19%",
                       }}
                     />
                     <col
@@ -348,6 +396,9 @@ function VerifierDashboard() {
 
                   <thead>
                     <tr>
+                      <th title="Position in the first-come, first-served queue">
+                        Queue #
+                      </th>
                       <th>
                         Application ID
                       </th>
@@ -366,7 +417,7 @@ function VerifierDashboard() {
                     {loading ? (
                       <tr>
                         <td
-                          colSpan="5"
+                          colSpan="6"
                           className="text-center py-4"
                         >
                           <div
@@ -379,7 +430,7 @@ function VerifierDashboard() {
                       0 ? (
                       <tr>
                         <td
-                          colSpan="5"
+                          colSpan="6"
                           className="text-center text-muted"
                         >
                           No applications requiring attention.
@@ -387,8 +438,12 @@ function VerifierDashboard() {
                       </tr>
                     ) : (
                       pagedApplications.map(
-                        (app) => (
+                        (app, idx) => (
                           <tr key={app.id}>
+                            <td>
+                              {pageStart + idx + 1}
+                            </td>
+
                             <td>
                               {app.control_number ??
                                 `APP-${app.id}`}
@@ -399,10 +454,9 @@ function VerifierDashboard() {
                             </td>
 
                             <td>
-                              {app.submitted_at?.split(
-                                "T"
-                              )[0] ??
-                                "—"}
+                              <RelativeTime
+                                value={app.submitted_at}
+                              />
                             </td>
 
                             <td>

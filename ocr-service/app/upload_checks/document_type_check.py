@@ -11,7 +11,8 @@ from app.upload_checks.face_presence import detect_id_photo
 # phrases regardless of which applicant/school). School ID's real
 # universal marker is the applicant photo instead, checked separately
 # below via detect_id_photo() — large and centered on every School ID
-# regardless of which school issued it, unlike text that varies.
+# regardless of which school issued it or how that school's ID lays out
+# the photo, unlike text that varies.
 DOCUMENT_TYPE_MARKERS = {
     "voters_certificate": ["voter's certification", "commission on elections"],
     "registration_form":  ["registration form"],
@@ -64,13 +65,13 @@ def check_document_type(blocks: List[OcrBlock], expected_type: str, image_path: 
         photo_result = detect_id_photo(image_path)
         expected_label = DOCUMENT_TYPE_LABELS.get(expected_type, expected_type)
 
-        if expected_type != "school_id" and photo_result.has_large_centered_face:
+        if expected_type != "school_id" and photo_result.has_large_face:
             return {
                 "reason": f"This looks like a School ID, not a {expected_label}. Please upload the correct document type.",
                 "detected_type": "school_id",
             }
 
-        if expected_type == "school_id" and not photo_result.has_large_centered_face:
+        if expected_type == "school_id" and not photo_result.has_large_face:
             return {
                 "reason": "This doesn't look like a School ID — no clear cardholder photo detected. Please upload a clear photo of your School ID.",
                 "detected_type": "unknown",

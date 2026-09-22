@@ -1,7 +1,7 @@
 @extends('claiming.layout')
 
 @section('meta')
-    <p>Batch: {{ $batch === 'morning' ? 'Morning' : 'Afternoon' }} &nbsp;|&nbsp; Date: {{ $claimingDate }}</p>
+    <p>Batch: {{ $batch === 'morning' ? 'Morning' : 'Afternoon' }} &nbsp;|&nbsp; Date: {{ $claimingDate }} &nbsp;|&nbsp; Verifier: {{ $verifierName }}</p>
 @endsection
 
 @section('content')

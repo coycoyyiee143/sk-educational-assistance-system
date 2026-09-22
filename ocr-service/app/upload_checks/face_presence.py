@@ -15,17 +15,30 @@ def _get_cascade():
 
 @dataclass
 class FacePresenceResult:
-    has_large_centered_face: bool
+    has_large_face: bool
     face_count: int
     largest_face_area_ratio: float
 
 
-# School ID cardholder photos are large and roughly centered. A Voter's
-# Certification's biometric section (if any photo-like graphic exists at
-# all) is small and positioned to the side, not centered. Registration
-# Forms have no photo at all.
-MIN_AREA_RATIO = 0.03
-CENTER_TOLERANCE = 0.25
+# School ID cardholder photos are large. A Voter's Certification's
+# biometric section (if any photo-like graphic exists at all) is small.
+# Registration Forms have no photo at all. Size alone is the reliable
+# discriminator here — NOT position. Was previously also gated on the
+# face sitting near the page's horizontal center, but that assumed every
+# school's ID places the photo centrally; confirmed false on UPLB's
+# landscape-oriented ID, which places it on the right edge and got
+# wrongly flagged as "no cardholder photo detected" despite a clearly
+# genuine, appropriately-sized photo being present.
+#
+# 0.03 was too tight: measured directly against real samples, every
+# UPLB ID's actual cardholder photo lands at 0.0235-0.0337 (Haar cascade
+# picks up several false candidate boxes per ID from card graphics/seals,
+# but the largest is always the real photo) - so ~0.03 was a coin flip
+# per image, not a real distinction. Genuine non-ID documents (Reg Form,
+# Voter's Cert), where the largest Haar false-positive is just watermark/
+# seal noise, measured at 0.0005-0.0006 - a 40-60x gap below real ID
+# photos. Lowered to 0.015 for a solid margin on both sides.
+MIN_AREA_RATIO = 0.015
 
 
 def detect_id_photo(image_path: str) -> FacePresenceResult:
@@ -37,23 +50,20 @@ def detect_id_photo(image_path: str) -> FacePresenceResult:
     """
     img = cv2.imread(image_path)
     if img is None:
-        return FacePresenceResult(has_large_centered_face=False, face_count=0, largest_face_area_ratio=0.0)
+        return FacePresenceResult(has_large_face=False, face_count=0, largest_face_area_ratio=0.0)
 
     h, w = img.shape[:2]
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     faces = _get_cascade().detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(40, 40))
 
     if len(faces) == 0:
-        return FacePresenceResult(has_large_centered_face=False, face_count=0, largest_face_area_ratio=0.0)
+        return FacePresenceResult(has_large_face=False, face_count=0, largest_face_area_ratio=0.0)
 
-    fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
+    _, _, fw, fh = max(faces, key=lambda f: f[2] * f[3])
     area_ratio = (fw * fh) / (w * h)
-    face_center_x = fx + fw / 2
-    page_center_x = w / 2
-    is_centered = abs(face_center_x - page_center_x) / w <= CENTER_TOLERANCE
 
     return FacePresenceResult(
-        has_large_centered_face=(area_ratio >= MIN_AREA_RATIO and is_centered),
+        has_large_face=(area_ratio >= MIN_AREA_RATIO),
         face_count=len(faces),
         largest_face_area_ratio=round(area_ratio, 4),
     )

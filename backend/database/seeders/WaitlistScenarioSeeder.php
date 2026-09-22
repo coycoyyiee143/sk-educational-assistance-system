@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
 use App\Models\ClaimingAssignment;
+use App\Models\ClaimingFaceVerification;
 use App\Models\ClaimingLane;
 use App\Models\ClaimingSchedule;
 use App\Models\StudentProfile;
@@ -46,8 +47,12 @@ class WaitlistScenarioSeeder extends Seeder
 
     private ?User $verifier = null;
 
+    public const SCHOOL_YEAR = '2026-2027 (Test)';
+
     public function run(): void
     {
+        $this->cleanupPreviousRun();
+
         $this->verifier = User::where('role', 'sk_verifier')->first();
         if (!$this->verifier) {
             $this->command->error('No sk_verifier user found in the database. Create one first, then re-run this seeder.');
@@ -60,7 +65,7 @@ class WaitlistScenarioSeeder extends Seeder
             ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
 
             $config = ApplicationConfiguration::create([
-                'school_year'        => '2026-2027 (Test)',
+                'school_year'        => self::SCHOOL_YEAR,
                 'open_date'          => now()->subDays(10)->startOfDay(),
                 'close_date'         => now()->subDays(3)->endOfDay(),
                 'slot_limit'         => 30,
@@ -72,9 +77,10 @@ class WaitlistScenarioSeeder extends Seeder
             ]);
 
             $this->seedApprovedApplicants($config, 30);
-            $this->seedWaitlistedApplicants($config, 5);
+            $waitlistedApps = $this->seedWaitlistedApplicants($config, 6);
 
             $schedule = $this->seedClaimingSchedule($config);
+            $lateClaimingLane = $this->seedLateClaimingLane($schedule);
 
             // Frozen, ordered-by-id list of exactly the 30 originally-
             // approved applicants, captured ONCE right after assignment.
@@ -90,14 +96,69 @@ class WaitlistScenarioSeeder extends Seeder
 
             // Indices 3-4: left untouched as unswept no-shows (2 apps) —
             // stays pending_claiming/original from the assignment step
-            // above, which is what makes them grace-period-eligible per
-            // GracePeriodEligibility rule 2. Nothing to do here.
+            // above, which is what makes them Late-Claiming-eligible per
+            // LateClaimingEligibility rule 2. Nothing to do here.
 
-            // Indices 5-29: claimed (25 apps)
-            $this->seedClaimedOutcomes($config, $schedule, $assignedApps->slice(5));
+            // Indices 5-6: already-swept retries (2 apps) — reassigned
+            // onto the Late Claiming lane with source flipped to
+            // late_claiming_retry, exactly what SweepUnclaimedAssignments
+            // does. Gives a "Retrying" example that isn't just an unswept
+            // original, alongside indices 3-4 above.
+            $this->seedSweptRetryOutcomes($lateClaimingLane, $assignedApps->slice(5, 2));
+
+            // Indices 7-29: claimed (23 apps)
+            $this->seedClaimedOutcomes($config, $schedule, $assignedApps->slice(7));
+
+            // Promote 4 of the 6 waitlisted applicants onto the Late
+            // Claiming lane — this is what actually exercises the
+            // "Promoted" badge, across four different outcomes:
+            //  0: pending, no face verification yet (tests the required
+            //     gate from scratch)
+            //  1: pending, WITH a FAILED face verification already on
+            //     record (tests that a failed attempt still blocks
+            //     Claimed — must retry, not just attempt once)
+            //  2: resolved not_cleared (a promoted applicant who then
+            //     ALSO failed physical verification — frees their slot
+            //     again, demonstrating the cascade)
+            //  3: resolved claimed, with a passing face verification
+            // The other 2 stay waitlisted.
+            $this->seedPromotedOutcomes($config, $lateClaimingLane, $waitlistedApps->slice(0, 4));
         });
 
-        $this->command->info('Waitlist scenario seeded: period at capacity (30/30), 5 waitlisted applicants, 3 not_cleared freed slots, 2 unswept no-shows currently grace-period-eligible.');
+        $this->command->info('Waitlist scenario seeded: period at capacity (30/30, back to 30/30 after 4 promotions absorb the freed slots), 2 still waitlisted, 4 not_cleared total (3 original + 1 cascaded from a promoted applicant), Late Claiming pool has 2 unswept no-shows, 2 swept retries, 1 pending promotion (no face verification), 1 pending promotion (failed face verification on record), 1 resolved not_cleared promotion, and 1 resolved claimed promotion.');
+    }
+
+    /**
+     * Wipes out this seeder's own previous run (matched by school_year)
+     * before creating a fresh one, so control numbers/emails can stay
+     * clean and sequential instead of needing a per-run uniqueness
+     * token. Deleting the demo applicant users cascades (FK onDelete:
+     * cascade) through their applications, application_documents,
+     * claiming_assignments and claiming_face_verifications — only the
+     * schedule/lanes/config need deleting explicitly afterward. Never
+     * touches your real admin/verifier accounts, since only applicant-
+     * role users tied to this scenario's config are deleted.
+     */
+    private function cleanupPreviousRun(): void
+    {
+        // ALL matching configs, not just the first — earlier versions of
+        // this seeder (before cleanup existed) could leave more than one
+        // behind under the same school_year, and cleaning only one while
+        // leaving another's demo users in place is exactly what caused
+        // the fresh run to collide with those stragglers' emails.
+        $oldConfigIds = ApplicationConfiguration::where('school_year', self::SCHOOL_YEAR)->pluck('id');
+        if ($oldConfigIds->isEmpty()) {
+            return;
+        }
+
+        $userIds = Application::whereIn('config_id', $oldConfigIds)->pluck('user_id');
+        User::whereIn('id', $userIds)->where('role', 'applicant')->delete();
+
+        $scheduleIds = ClaimingSchedule::whereIn('config_id', $oldConfigIds)->pluck('id');
+        ClaimingLane::whereIn('claiming_schedule_id', $scheduleIds)->delete();
+        ClaimingSchedule::whereIn('id', $scheduleIds)->delete();
+
+        ApplicationConfiguration::whereIn('id', $oldConfigIds)->delete();
     }
 
     private function seedApprovedApplicants(ApplicationConfiguration $config, int $count): void
@@ -112,25 +173,35 @@ class WaitlistScenarioSeeder extends Seeder
                 'year_level'        => $this->yearLevels[array_rand($this->yearLevels)],
                 'student_id_number' => '2026-' . str_pad($i, 4, '0', STR_PAD_LEFT),
                 'status'            => 'approved',
-                'control_number'    => 'SK-' . now()->format('Y') . '-' . str_pad($i, 4, '0', STR_PAD_LEFT),
+                'control_number'    => 'SK-WLTEST-' . now()->format('Y') . '-' . str_pad($i, 4, '0', STR_PAD_LEFT),
                 'submitted_at'      => now()->subDays(rand(1, 9)),
             ]);
         }
     }
 
-    private function seedWaitlistedApplicants(ApplicationConfiguration $config, int $count): void
+    /**
+     * Returns the created applications, oldest-waitlisted-first (matching
+     * FCFS promotion order), so the caller can promote off the front of
+     * this same list without re-querying 'status = waitlisted' — that
+     * status changes the moment a promotion happens, same reindexing
+     * hazard documented on assignApprovedApplicantsToLane() above.
+     */
+    private function seedWaitlistedApplicants(ApplicationConfiguration $config, int $count)
     {
         $times = [
             now()->subDays(3),
             now()->subDays(2)->subHours(5),
             now()->subDays(1),
             now()->subHours(6),
+            now()->subHours(3),
             now()->subHours(1),
         ];
 
+        $apps = collect();
+
         foreach (array_slice($times, 0, $count) as $waitlistedAt) {
             $applicant = $this->makeApplicant();
-            Application::create([
+            $apps->push(Application::create([
                 'user_id'           => $applicant->id,
                 'config_id'         => $config->id,
                 'school_name'       => $this->schools[array_rand($this->schools)],
@@ -140,8 +211,10 @@ class WaitlistScenarioSeeder extends Seeder
                 'status'            => 'waitlisted',
                 'waitlisted_at'     => $waitlistedAt,
                 'submitted_at'      => $waitlistedAt->copy()->subHours(rand(1, 12)),
-            ]);
+            ]));
         }
+
+        return $apps;
     }
 
     private function seedClaimingSchedule(ApplicationConfiguration $config): ClaimingSchedule
@@ -151,8 +224,8 @@ class WaitlistScenarioSeeder extends Seeder
             'location'              => 'Barangay Mamatid Covered Court',
             'is_active'             => true,
             'activated_at'          => now()->subDays(2),
-            'grace_period_date'     => now()->subDay()->toDateString(),
-            'grace_period_end_date' => now()->addDays(5)->toDateString(),
+            'late_claiming_date'     => now()->subDay()->toDateString(),
+            'late_claiming_end_date' => now()->addDays(5)->toDateString(),
         ]);
 
         ClaimingLane::create([
@@ -164,6 +237,23 @@ class WaitlistScenarioSeeder extends Seeder
         ]);
 
         return $schedule;
+    }
+
+    /**
+     * Matches the real lane naming used by VerifierController's promotion
+     * flow (promoteFromWaitlist/promoteAllFromWaitlist) and the sweep
+     * command — waitlist promotions and swept no-shows both always land
+     * on this one flexible, unscheduled lane rather than a dated one.
+     */
+    private function seedLateClaimingLane(ClaimingSchedule $schedule): ClaimingLane
+    {
+        return ClaimingLane::create([
+            'claiming_schedule_id' => $schedule->id,
+            'lane_name'            => 'Late Claiming',
+            'capacity'             => null,
+            'batch'                => 'morning',
+            'claiming_date'        => $schedule->late_claiming_date,
+        ]);
     }
 
     /**
@@ -196,6 +286,22 @@ class WaitlistScenarioSeeder extends Seeder
         return $approvedApps->values();
     }
 
+    /**
+     * Mirrors SweepUnclaimedAssignments' reassignment step: moves an
+     * overdue 'original' assignment onto the flexible Late Claiming lane
+     * and flips source to late_claiming_retry, leaving claim_status
+     * untouched (still pending_claiming — a retry is not a resolution).
+     */
+    private function seedSweptRetryOutcomes(ClaimingLane $lateClaimingLane, $apps): void
+    {
+        foreach ($apps as $app) {
+            ClaimingAssignment::where('application_id', $app->id)->update([
+                'claiming_lane_id' => $lateClaimingLane->id,
+                'source'           => 'late_claiming_retry',
+            ]);
+        }
+    }
+
     private function seedNotClearedOutcomes(ApplicationConfiguration $config, $apps): void
     {
         foreach ($apps as $app) {
@@ -219,13 +325,112 @@ class WaitlistScenarioSeeder extends Seeder
         foreach ($apps as $app) {
             ClaimingAssignment::where('application_id', $app->id)->update([
                 'claim_status'       => 'claimed',
-                'verified_documents' => [],
+                // All three matched — a real "Claimed" outcome can't exist
+                // without the verifier having checked every document.
+                'verified_documents' => ['registration_form', 'school_id', 'voters_certificate'],
                 'verified_by'        => $this->verifier->id,
                 'verified_at'        => $lane->claiming_date,
                 'amount'             => $config->assistance_amount,
             ]);
 
             $app->update(['status' => 'claimed']);
+        }
+    }
+
+    /**
+     * Mirrors what Application::tryApprove() + VerifierController's
+     * promotion flow actually do (status -> approved, control_number
+     * assigned, slots_filled incremented, ClaimingAssignment created on
+     * the Late Claiming lane with source: waitlist_promotion) for every
+     * app passed in, then resolves each into a distinct outcome by
+     * index — see the call site for what each index demonstrates.
+     * Expects exactly 4 apps.
+     */
+    private function seedPromotedOutcomes(ApplicationConfiguration $config, ClaimingLane $lateClaimingLane, $apps): void
+    {
+        $apps = $apps->values();
+        $nextSequence = 31;
+
+        foreach ($apps as $app) {
+            $app->update([
+                'status'         => 'approved',
+                'control_number' => 'SK-WLTEST-' . now()->format('Y') . '-' . str_pad((string) $nextSequence, 4, '0', STR_PAD_LEFT),
+            ]);
+            $nextSequence++;
+
+            ClaimingAssignment::create([
+                'application_id'       => $app->id,
+                'claiming_schedule_id' => $lateClaimingLane->claiming_schedule_id,
+                'claiming_lane_id'     => $lateClaimingLane->id,
+                'claim_status'         => 'pending_claiming',
+                'source'               => 'waitlist_promotion',
+            ]);
+
+            $config->increment('slots_filled');
+        }
+
+        // Index 0: left pending, untouched — no face verification at all,
+        // the "test the required gate from a clean slate" case.
+
+        // Index 1: pending, but with a FAILED face verification already
+        // on record — proves a failed attempt still blocks Claimed
+        // rather than being treated as "already tried, close enough".
+        $failedAttempt = $apps->get(1);
+        if ($failedAttempt) {
+            $assignment = ClaimingAssignment::where('application_id', $failedAttempt->id)->first();
+
+            ClaimingFaceVerification::create([
+                'claiming_assignment_id' => $assignment->id,
+                'verified_by'            => $this->verifier->id,
+                'claiming_photo_path'    => "claiming_faces/seeded_placeholder_{$assignment->id}.jpg",
+                'match_score'            => 0.31,
+                'matched'                => false,
+                'verified_at'            => now(),
+            ]);
+        }
+
+        // Index 2: resolved not_cleared — a promoted applicant who then
+        // ALSO failed physical verification during Late Claiming. No face
+        // verification is required for not_cleared, only for claimed.
+        // Frees their slot again, same rule as any other not_cleared.
+        $cascadedNotCleared = $apps->get(2);
+        if ($cascadedNotCleared) {
+            ClaimingAssignment::where('application_id', $cascadedNotCleared->id)->update([
+                'claim_status'       => 'not_cleared',
+                'reason_categories'  => collect($this->notClearedReasons)->random(1)->values()->all(),
+                'verified_by'        => $this->verifier->id,
+                'verified_at'        => now(),
+            ]);
+
+            $cascadedNotCleared->update(['status' => 'not_cleared']);
+            $config->decrement('slots_filled');
+        }
+
+        // Index 3: resolved claimed, with a passing face verification on
+        // record first (matches the real precondition updateClaimStatus
+        // enforces before allowing 'claimed' during Late Claiming).
+        $resolvedClaimed = $apps->get(3);
+        if ($resolvedClaimed) {
+            $assignment = ClaimingAssignment::where('application_id', $resolvedClaimed->id)->first();
+
+            ClaimingFaceVerification::create([
+                'claiming_assignment_id' => $assignment->id,
+                'verified_by'            => $this->verifier->id,
+                'claiming_photo_path'    => "claiming_faces/seeded_placeholder_{$assignment->id}.jpg",
+                'match_score'            => 0.94,
+                'matched'                => true,
+                'verified_at'            => now(),
+            ]);
+
+            $assignment->update([
+                'claim_status'       => 'claimed',
+                'verified_documents' => ['registration_form', 'school_id', 'voters_certificate'],
+                'verified_by'        => $this->verifier->id,
+                'verified_at'        => now(),
+                'amount'             => $config->assistance_amount,
+            ]);
+
+            $resolvedClaimed->update(['status' => 'claimed']);
         }
     }
 

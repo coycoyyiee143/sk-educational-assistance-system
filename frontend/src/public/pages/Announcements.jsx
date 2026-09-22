@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
@@ -62,24 +63,24 @@ const Announcements = () => {
     <>
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
-          <a className="navbar-brand navbar-brand-custom" href="/">
+          <Link className="navbar-brand navbar-brand-custom" to="/">
             <img src="/icons/sk-logo.jpg" alt="SK Logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>
             </div>
-          </a>
+          </Link>
           <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
             <span className="navbar-toggler-icon"></span>
           </button>
           <div className="collapse navbar-collapse justify-content-end" id="mainNavbar">
             <ul className="navbar-nav">
-              <li className="nav-item"><a className="nav-link" href="/">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="/requirements">Requirements</a></li>
-              <li className="nav-item"><a className="nav-link active" href="/announcements">Announcements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/events">Events</a></li>
-              <li className="nav-item"><a className="nav-link" href="/login">Login</a></li>
-              <li className="nav-item"><a className="nav-link" href="/register">Register</a></li>
+              <li className="nav-item"><Link className="nav-link" to="/">Home</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/requirements">Requirements</Link></li>
+              <li className="nav-item"><Link className="nav-link active" to="/announcements">Announcements</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/events">Events</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/login">Login</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/register">Register</Link></li>
             </ul>
           </div>
         </div>

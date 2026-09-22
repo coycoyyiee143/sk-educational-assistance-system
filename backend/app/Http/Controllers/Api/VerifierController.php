@@ -10,14 +10,16 @@ use App\Models\ClaimingAssignment;
 use App\Models\ClaimingSchedule;
 use App\Models\ClaimingLane;
 use App\Services\ClaimingAssignmentService;
-use App\Traits\GracePeriodEligibility;
+use App\Traits\LateClaimingEligibility;
 use App\Notifications\ClaimingScheduleNotification;
 use App\Notifications\ApplicationStatusNotification;
 use Illuminate\Http\Request;
 
 class VerifierController extends Controller
 {
-    use GracePeriodEligibility;
+    use LateClaimingEligibility;
+
+    private const VIEWER_STALE_SECONDS = 30;
 
     public function stats()
     {
@@ -25,19 +27,40 @@ class VerifierController extends Controller
 
         if (!$activeConfig) {
             return response()->json([
-                'pending'  => 0,
-                'review'   => 0,
-                'approved' => 0,
-                'rejected' => 0,
+                'pending'   => 0,
+                'review'    => 0,
+                'approved'  => 0,
+                'claimed'   => 0,
+                'rejected'  => 0,
+                'failed_ocr' => 0,
+                'appeal_requested' => 0,
                 'no_active_period' => true,
             ]);
         }
 
+        // Same sk_verifier role handles both online review and claiming-day
+        // lanes (see routes/api.php), so "Approved"/"Rejected" here should
+        // stay consistent with the admin-side definitions: approved =
+        // approved+claimed+unclaimed (still holds/held a slot this verifier
+        // granted), rejected = rejected+not_cleared (never got funded,
+        // whether that was decided online or at claiming). Otherwise an
+        // applicant a verifier approved would silently drop out of their
+        // own "Approved" count the moment claiming day resolves them.
         return response()->json([
-            'pending'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening'])->whereHas('documents')->count(),
-            'review'   => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
-            'approved' => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
-            'rejected' => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
+            'pending'   => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening', 'auto_reupload_requested', 'reupload_requested'])->whereHas('documents')->count(),
+            'review'    => Application::where('config_id', $activeConfig->id)->where('status', 'for_review')->count(),
+            'approved'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['approved', 'claimed', 'unclaimed'])->count(),
+            'claimed'   => Application::where('config_id', $activeConfig->id)->where('status', 'claimed')->count(),
+            'rejected'  => Application::where('config_id', $activeConfig->id)->whereIn('status', ['rejected', 'not_cleared'])->count(),
+            // Applications sitting on at least one OCR-failed document —
+            // previously invisible from the dashboard entirely.
+            'failed_ocr' => Application::where('config_id', $activeConfig->id)
+                ->whereHas('documents', fn($q) => $q->where('status', 'failed'))
+                ->count(),
+            // Appeals need a verifier decision but aren't part of the FCFS
+            // "for_review" queue, so they're surfaced as a separate count/
+            // banner instead of being folded into that queue's ordering.
+            'appeal_requested' => Application::where('config_id', $activeConfig->id)->where('status', 'appeal_requested')->count(),
             'no_active_period' => false,
         ]);
     }
@@ -47,21 +70,30 @@ class VerifierController extends Controller
     $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
     $configId = $request->query('config_id', $activeConfig?->id);
 
-    $applications = Application::with(['user', 'verifierActions'])
+    $applications = Application::with(['user', 'verifierActions', 'documents'])
         ->where('config_id', $configId)
-        ->whereHas('documents')
-        ->orderBy('updated_at', 'desc')   // CHANGED: was submitted_at — re-uploads now surface by recent activity
+        ->where(function ($query) {
+            $query->where('status', '!=', 'pending_prescreening')
+                ->orWhereHas('documents');
+        })
+        ->orderBy('submitted_at', 'asc')   // FCFS: earliest submission first
+        ->orderBy('created_at', 'asc')
         ->get()
         ->map(function ($app) {
             return [
-                'id'                => $app->id,
-                'control_number'    => $app->control_number,
-                'name'              => $app->user->first_name . ' ' . $app->user->last_name,
-                'submitted_at'      => $app->submitted_at,
-                'updated_at'        => $app->updated_at,
-                'status'            => $app->status,
-                'school_name'       => $app->school_name,
-                'verifier_actions'  => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
+                'id'                    => $app->id,
+                'control_number'        => $app->control_number,
+                'name'                  => $app->user->first_name . ' ' . $app->user->last_name,
+                'submitted_at'          => $app->submitted_at,
+                'updated_at'            => $app->updated_at,
+                'status'                => $app->status,
+                'school_name'           => $app->school_name,
+                'verifier_actions'      => $app->verifierActions->map(fn($a) => ['action' => $a->action]),
+                // Surfaced so the list can flag "needs attention" without a
+                // verifier having to open the application first — previously
+                // a failed document was invisible until someone happened to
+                // click into that specific applicant's review page.
+                'failed_documents_count' => $app->documents->where('status', 'failed')->count(),
             ];
         });
 
@@ -76,11 +108,54 @@ class VerifierController extends Controller
             'verificationChecks',
             'configuration',
             'verifierActions' => function($q) {
-                $q->latest()->limit(1);
+                // Full history (not just the latest) so the frontend can
+                // correlate past reupload_requested actions with the
+                // specific document version they superseded, for the
+                // per-document "Previous versions" history view.
+                $q->latest();
             },
         ])->findOrFail($id);
 
         return response()->json($app);
+    }
+
+    // Heartbeat, not a lock — a verifier opening the review page pings
+    // this every ~10s (see the frontend's usePolling) to (a) claim/refresh
+    // their own presence and (b) find out if someone ELSE'S presence is
+    // still fresh, so the page can show a "so-and-so is also viewing
+    // this" notice. Nobody is blocked from acting either way; this is
+    // purely informational. A verifier's presence is considered stale
+    // (equivalent to having left) once VIEWER_STALE_SECONDS pass without
+    // a heartbeat — there's no explicit release on navigate-away/tab
+    // close, since those aren't reliably observable from the backend.
+    public function heartbeat(Request $request, $id)
+    {
+        $app = Application::findOrFail($id);
+        $me = $request->user();
+
+        $otherViewer = null;
+        if (
+            $app->viewing_verifier_id
+            && $app->viewing_verifier_id !== $me->id
+            && $app->viewing_heartbeat_at
+            && $app->viewing_heartbeat_at->gt(now()->subSeconds(self::VIEWER_STALE_SECONDS))
+        ) {
+            $viewer = $app->viewingVerifier;
+            if ($viewer) {
+                $otherViewer = [
+                    'id'    => $viewer->id,
+                    'name'  => "{$viewer->first_name} {$viewer->last_name}",
+                    'since' => $app->viewing_heartbeat_at,
+                ];
+            }
+        }
+
+        $app->update([
+            'viewing_verifier_id'  => $me->id,
+            'viewing_heartbeat_at' => now(),
+        ]);
+
+        return response()->json(['other_viewer' => $otherViewer]);
     }
 
     public function approve(Request $request, $id)
@@ -99,7 +174,7 @@ class VerifierController extends Controller
 
             $app->user->notify(new ApplicationStatusNotification(
                 'Waitlisted',
-                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before the grace period ends."
+                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before Late Claiming ends."
             ));
 
             return response()->json(['message' => 'No slots available — applicant added to waitlist instead.']);
@@ -153,7 +228,7 @@ class VerifierController extends Controller
         // open, applicants are still submitting fresh, so a "waitlisted"
         // applicant hasn't really lost their shot yet. Promoting early
         // also directly causes a control-number gap: a promoted applicant
-        // consumes the next sequence number but lands on the Grace Period
+        // consumes the next sequence number but lands on the Late Claiming
         // lane instead of a regular one, splitting what would otherwise
         // be a clean sequential range for whichever lane was filling at
         // that moment.
@@ -186,15 +261,15 @@ class VerifierController extends Controller
             ->latest()
             ->first();
 
-        if ($schedule && $schedule->grace_period_date) {
+        if ($schedule && $schedule->late_claiming_date) {
             $lane = ClaimingLane::firstOrCreate(
                 [
                     'claiming_schedule_id' => $schedule->id,
-                    'lane_name'            => 'Grace Period Claiming',
+                    'lane_name'            => 'Late Claiming',
                 ],
                 [
                     'batch'         => 'morning',
-                    'claiming_date' => $schedule->grace_period_date,
+                    'claiming_date' => $schedule->late_claiming_date,
                     'capacity'      => null,
                 ]
             );
@@ -256,15 +331,15 @@ class VerifierController extends Controller
                 "Promoted application #{$promoted->id} from waitlist ({$promoted->user->first_name} {$promoted->user->last_name})"
             );
 
-            if ($schedule && $schedule->grace_period_date) {
+            if ($schedule && $schedule->late_claiming_date) {
                 $lane = ClaimingLane::firstOrCreate(
                     [
                         'claiming_schedule_id' => $schedule->id,
-                        'lane_name'            => 'Grace Period Claiming',
+                        'lane_name'            => 'Late Claiming',
                     ],
                     [
                         'batch'         => 'morning',
-                        'claiming_date' => $schedule->grace_period_date,
+                        'claiming_date' => $schedule->late_claiming_date,
                         'capacity'      => null,
                     ]
                 );
@@ -427,6 +502,56 @@ class VerifierController extends Controller
         return response()->json(['message' => 'Re-upload requested.']);
     }
 
+    // Resolves an appeal_requested application. Approved sends it back into
+    // the normal manual review queue (for_review) — the verifier still
+    // makes the real accept/reject call there via the existing
+    // approve/reject actions, rather than this endpoint short-circuiting
+    // straight to 'approved'. Denied restores it to 'rejected', where the
+    // one-shot guard in ApplicationController::appeal() keeps it terminal.
+    public function appealDecision(Request $request, $id)
+    {
+        $request->validate([
+            'decision' => 'required|in:approved,denied',
+            'notes'    => 'required|string',
+        ]);
+
+        $app = Application::with('user')->findOrFail($id);
+
+        if ($app->status !== 'appeal_requested') {
+            return response()->json(['message' => 'This application has no pending appeal.'], 400);
+        }
+
+        $newStatus = $request->decision === 'approved' ? 'for_review' : 'rejected';
+
+        $app->update([
+            'status'                => $newStatus,
+            'appeal_decision_notes' => $request->notes,
+            'appeal_decided_at'     => now(),
+        ]);
+
+        VerifierAction::create([
+            'application_id' => $app->id,
+            'verifier_id'    => $request->user()->id,
+            'action'         => $request->decision === 'approved' ? 'appeal_approved' : 'appeal_denied',
+            'notes'          => $request->notes,
+        ]);
+
+        \App\Models\AuditLog::record(
+            'application_appeal_' . $request->decision,
+            $app,
+            "Appeal {$request->decision} for application #{$app->id}. Notes: {$request->notes}"
+        );
+
+        $app->user->notify(new ApplicationStatusNotification(
+            $request->decision === 'approved' ? 'Appeal Approved' : 'Appeal Denied',
+            $request->decision === 'approved'
+                ? 'Your appeal has been approved and your application is back under review.'
+                : 'Your appeal was not approved. Reason: ' . $request->notes
+        ));
+
+        return response()->json(['message' => 'Appeal ' . $request->decision . '.']);
+    }
+
     public function retryOcr(\App\Models\ApplicationDocument $document)
     {
         $document->update(['status' => 'pending']);
@@ -450,34 +575,50 @@ class VerifierController extends Controller
             'notes'                 => 'nullable|string',
         ]);
 
-        $assignment = ClaimingAssignment::where('application_id', $id)->with(['application.configuration', 'latestFaceVerification'])->firstOrFail();
+        $assignment = ClaimingAssignment::where('application_id', $id)->with(['application.configuration', 'latestFaceVerification', 'lane'])->firstOrFail();
 
-        // Grace period claims are unscheduled walk-ins with no lane/time
+        // FIXED: this used to only check source IN ('waitlist_promotion',
+        // 'late_claiming_retry') — but an applicant already visible in the
+        // Late Claiming List because their lane day passed and Late
+        // Claiming is open, while still technically source: 'original'
+        // because the sweep hasn't formally reassigned them yet, was
+        // slipping through this check entirely. That's exactly the same
+        // eligibility question the Late Claiming List itself answers, so
+        // this now uses the identical shared condition instead of a
+        // narrower approximation that only covered two of the three
+        // late-claiming cases.
+        $today = now()->toDateString();
+        $isLateClaiming = ClaimingAssignment::where('id', $assignment->id)
+            ->where(fn($q) => $this->applyLateClaimingEligibleCondition($q, $today))
+            ->exists();
+
+        // Regular scheduled claiming is scoped to whichever lane the
+        // applicant was assigned to — only THAT lane's verifier may mark
+        // them claimed/not_cleared. Without this, any authenticated
+        // verifier could update any applicant regardless of lane, and a
+        // verifier who's only REQUESTED a staffed lane (self-assign
+        // request pending admin approval — requested_verifier_id set but
+        // verifier_id still someone else's) could act on it before that
+        // approval ever happens. Late Claiming is deliberately exempt —
+        // it's an unscheduled walk-in queue with no fixed lane-verifier
+        // by design (see selfAssignLane()/claimingLanes() docblocks).
+        if (!$isLateClaiming
+            && (!$assignment->lane || $assignment->lane->verifier_id !== $request->user()->id)) {
+            return response()->json([
+                'message' => "You're not the assigned verifier for this applicant's lane.",
+            ], 403);
+        }
+
+        // Late Claiming claims are unscheduled walk-ins with no lane/time
         // structure backing them up — face verification is the only real
         // proof of identity available, so it's required here. Regular
         // claiming already has a scheduled lane + control number + a verifier
         // who selected them off that lane's list, so it stays optional there.
-        //
-        // FIXED: this used to only check source IN ('waitlist_promotion',
-        // 'grace_period_retry') — but an applicant already visible in the
-        // Grace Period List because their lane day passed and grace
-        // period is open, while still technically source: 'original'
-        // because the sweep hasn't formally reassigned them yet, was
-        // slipping through this check entirely. That's exactly the same
-        // eligibility question the Grace Period List itself answers, so
-        // this now uses the identical shared condition instead of a
-        // narrower approximation that only covered two of the three
-        // grace-period cases.
-        $today = now()->toDateString();
-        $isGracePeriod = ClaimingAssignment::where('id', $assignment->id)
-            ->where(fn($q) => $this->applyGracePeriodEligibleCondition($q, $today))
-            ->exists();
-
-        if ($isGracePeriod && $request->claim_status === 'claimed') {
+        if ($isLateClaiming && $request->claim_status === 'claimed') {
             $lastFace = $assignment->latestFaceVerification;
             if (!$lastFace || !$lastFace->matched) {
                 return response()->json([
-                    'message' => 'Face verification must pass before this applicant can be marked Claimed during grace period.',
+                    'message' => 'Face verification must pass before this applicant can be marked Claimed during Late Claiming.',
                 ], 400);
             }
         }
@@ -510,7 +651,7 @@ class VerifierController extends Controller
         // Only not_cleared actually frees a slot for waitlist promotion —
         // that's the confirmed business rule. unclaimed does NOT decrement
         // slots_filled: the slot stays reserved for that no-show through
-        // grace period, exactly as intended. If they never show, the slot
+        // Late Claiming, exactly as intended. If they never show, the slot
         // simply goes unfilled for the cycle, not handed to the waitlist.
         if ($request->claim_status === 'not_cleared' && $previousStatus !== 'not_cleared') {
             $app->configuration()->decrement('slots_filled');
@@ -548,17 +689,17 @@ class VerifierController extends Controller
         $controlNumber = $request->query('control_number');
         $name          = $request->query('name');
         $laneId        = $request->query('lane_id');
-        $gracePeriod   = $request->boolean('grace_period');
+        $lateClaiming  = $request->boolean('late_claiming');
         $today         = now()->toDateString();
 
         // Scoped to the ACTIVE application period only. Without this,
         // any historical applicant from any past, already-closed cycle
         // bleeds into whatever's currently being viewed — a genuinely
         // finalized 'unclaimed' from a period that ended months ago
-        // would otherwise appear mixed into today's active Grace Period
+        // would otherwise appear mixed into today's active Late Claiming
         // List with no indication it belongs to a different period at
         // all, misleadingly suggesting it happened during the CURRENT
-        // still-open grace period.
+        // still-open Late Claiming window.
         $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
         if (!$activeConfig) {
             return response()->json(['message' => 'No active application period.'], 404);
@@ -569,22 +710,31 @@ class VerifierController extends Controller
             ->whereIn('status', ['approved', 'claimed', 'not_cleared', 'unclaimed'])
             ->whereHas('claimingAssignment');
 
-        if ($gracePeriod) {
-            $query->whereHas('claimingAssignment', fn($q) => $this->applyGracePeriodEligibleCondition($q, $today));
+        if ($lateClaiming) {
+            $query->whereHas('claimingAssignment', fn($q) => $this->applyLateClaimingEligibleCondition($q, $today));
         } else {
-            // Regular Claiming NEVER shows anyone currently grace-period-
-            // eligible — once someone's overdue into the grace window,
-            // they belong exclusively on that tab from then on. What's
-            // left here is: still-active pending applicants (haven't hit
-            // their day yet, or it's today and grace period hasn't
+            // Scheduled Claiming NEVER shows anyone currently late-claiming-
+            // eligible — once someone's overdue into the late-claiming
+            // window, they belong exclusively on that tab from then on.
+            // What's left here is: still-active pending applicants (haven't
+            // hit their day yet, or it's today and Late Claiming hasn't
             // started), plus resolved outcomes (claimed/not_cleared) kept
             // visible as a same-day history/reference check.
-            $query->whereDoesntHave('claimingAssignment', fn($q) => $this->applyGracePeriodEligibleCondition($q, $today));
+            $query->whereDoesntHave('claimingAssignment', fn($q) => $this->applyLateClaimingEligibleCondition($q, $today));
 
             if ($laneId) {
-                // Regular claiming day — scoped to one specific lane, so a
+                // Scheduled claiming day — scoped to one specific lane, so a
                 // verifier only ever sees the applicants assigned to the
-                // lane they're actually working.
+                // lane they're actually working. Verified against the
+                // CURRENT user's own assignment, not just whatever lane_id
+                // was passed in — otherwise a verifier could browse any
+                // lane's list by ID alone, including one they've only
+                // REQUESTED (self-assign pending admin approval) or one
+                // that belongs to someone else entirely.
+                $lane = \App\Models\ClaimingLane::find($laneId);
+                if (!$lane || $lane->verifier_id !== $request->user()->id) {
+                    return response()->json(['message' => 'You are not assigned to that lane.'], 403);
+                }
                 $query->whereHas('claimingAssignment', fn($q) => $q->where('claiming_lane_id', $laneId));
             }
         }
@@ -618,7 +768,7 @@ class VerifierController extends Controller
     {
         $config = ApplicationConfiguration::where('is_active', true)->first();
         if (!$config) {
-            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+            return response()->json(['assigned_lane' => null, 'assigned_lanes' => [], 'all_lanes' => []]);
         }
 
         $schedule = \App\Models\ClaimingSchedule::where('config_id', $config->id)
@@ -627,48 +777,83 @@ class VerifierController extends Controller
             ->first();
 
         if (!$schedule) {
-            return response()->json(['assigned_lane' => null, 'all_lanes' => []]);
+            return response()->json(['assigned_lane' => null, 'assigned_lanes' => [], 'all_lanes' => []]);
         }
 
         $allLanes = $schedule->lanes()
-            ->where('lane_name', '!=', 'Grace Period Claiming')
+            ->where('lane_name', '!=', 'Late Claiming')
             ->orderBy('claiming_date')
             ->orderBy('lane_name')
-            ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id']);
+            ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id', 'requested_verifier_id']);
 
-        $assignedLane = $allLanes->firstWhere('verifier_id', $request->user()->id);
+        // A verifier can legitimately hold more than one lane at once (one
+        // per claiming_date + batch session — e.g. a morning lane AND a
+        // separate afternoon lane on the same day, see selfAssignLane()).
+        // `assigned_lane` below is kept only for whatever still reads it
+        // as a single value; `assigned_lanes` is the full set and is what
+        // the frontend uses to correctly tell "my other lane" apart from
+        // "someone else's lane".
+        $assignedLanes = $allLanes->where('verifier_id', $request->user()->id)->values();
+        $assignedLane = $assignedLanes->first();
 
         return response()->json([
             'assigned_lane'         => $assignedLane,
+            'assigned_lanes'        => $assignedLanes,
             'all_lanes'             => $allLanes,
             // So the frontend can auto-default to whichever mode actually
-            // matches today, instead of always opening on Regular Claiming
+            // matches today, instead of always opening on Scheduled Claiming
             // regardless of what day it is.
-            'grace_period_date'     => $schedule->grace_period_date,
-            'grace_period_end_date' => $schedule->grace_period_end_date,
+            'late_claiming_date'     => $schedule->late_claiming_date,
+            'late_claiming_end_date' => $schedule->late_claiming_end_date,
         ]);
     }
 
     /**
-     * Verifier self-assigns to a lane — the default, day-of mechanism.
-     * Clears them from any OTHER lane in the same schedule first, since
-     * a verifier can only physically be at one lane at a time. An admin
-     * assignment (via AdminScheduleController::assignVerifier()) can
-     * always override this later, and vice versa — whichever was set
-     * most recently wins, since it's the same column.
+     * Verifier picks a lane. If nobody's currently on it, this assigns it
+     * to them immediately — same one-lane-per-verifier swap as before,
+     * clearing them off any other lane in this schedule first. There's no
+     * one to displace, so no approval is needed.
+     *
+     * If the lane already has a DIFFERENT verifier, this used to reassign
+     * it immediately anyway — which let one verifier silently bump another
+     * off their lane with no warning (two people clicking this on the same
+     * station within seconds of each other would just keep stealing it
+     * back and forth). In that case it now only records a REQUEST; an
+     * admin has to approve it via AdminScheduleController::assignVerifier()
+     * before it actually takes effect, so taking over an already-staffed
+     * lane stays a deliberate, visible decision.
      */
     public function selfAssignLane(Request $request, $laneId)
     {
         $lane = \App\Models\ClaimingLane::findOrFail($laneId);
 
-        \App\Models\ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
-            ->where('verifier_id', $request->user()->id)
-            ->update(['verifier_id' => null]);
+        if ($lane->verifier_id === $request->user()->id) {
+            return response()->json(['message' => "You're already assigned to {$lane->lane_name}."], 400);
+        }
 
-        $lane->update(['verifier_id' => $request->user()->id]);
+        if ($lane->verifier_id === null) {
+            // Scoped to the same claiming_date + batch (morning/afternoon)
+            // — a verifier can legitimately staff one lane in the morning
+            // and another in the afternoon, or lanes on different days, so
+            // only the same-session lane should be vacated here.
+            \App\Models\ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
+                ->where('claiming_date', $lane->claiming_date)
+                ->where('batch', $lane->batch)
+                ->where('verifier_id', $request->user()->id)
+                ->update(['verifier_id' => null]);
+
+            $lane->update(['verifier_id' => $request->user()->id, 'requested_verifier_id' => null]);
+
+            return response()->json([
+                'message' => "You're now assigned to {$lane->lane_name}.",
+                'lane'    => $lane,
+            ]);
+        }
+
+        $lane->update(['requested_verifier_id' => $request->user()->id]);
 
         return response()->json([
-            'message' => "You're now assigned to {$lane->lane_name}.",
+            'message' => "{$lane->lane_name} already has a verifier. Request sent — an admin needs to approve it before it becomes your lane.",
             'lane'    => $lane,
         ]);
     }

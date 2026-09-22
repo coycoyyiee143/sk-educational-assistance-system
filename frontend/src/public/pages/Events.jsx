@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
 import api, { STORAGE_URL } from "../../services/api";
 import Footer from "../../components/Footer";
@@ -31,6 +32,32 @@ const Events = () => {
     return new Date(dateStr).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   }
 
+  // The API serializes date-cast fields as full UTC timestamps (e.g.
+  // "2026-09-19T16:00:00.000000Z" for a 2026-09-20 local date, since the
+  // server runs Asia/Manila), NOT a plain "YYYY-MM-DD" — so slicing the
+  // first 10 characters grabs the UTC date, which is a day off from the
+  // intended local calendar date. Parse as a Date (which correctly
+  // converts to local time) and read local components instead.
+  function toLocalDateStr(dateStr) {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${m}-${day}`;
+  }
+
+  // "September 20, 2026" for a single day, "September 20–22, 2026" for a
+  // multi-day event.
+  function formatDateRange(startStr, endStr) {
+    if (!endStr || endStr === startStr) return formatDate(startStr);
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    const sameMonth = start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear();
+    const startLabel = start.toLocaleDateString("en-US", { month: "long", day: "numeric", year: sameMonth ? undefined : "numeric" });
+    const endLabel = end.toLocaleDateString("en-US", { month: sameMonth ? undefined : "long", day: "numeric", year: "numeric" });
+    return `${startLabel}–${endLabel}`;
+  }
+
   function formatTime(timeStr) {
     if (!timeStr) return "";
     const [h, m] = timeStr.split(":").map(Number);
@@ -39,15 +66,37 @@ const Events = () => {
     return `${hour}:${String(m).padStart(2, "0")} ${period}`;
   }
 
-  const filteredEvents = events.filter((ev) => {
-    const term = searchTerm.trim().toLowerCase();
-    if (term === "") return true;
-    return (
-      ev.title?.toLowerCase().includes(term) ||
-      ev.description?.toLowerCase().includes(term) ||
-      ev.venue?.toLowerCase().includes(term)
-    );
-  });
+  // Mirrors AdminEvents' getEventStatus — a real start–end window rather
+  // than just "is event_date today", so a multi-day event stays Ongoing
+  // for its whole span, and Ongoing events can be surfaced first below.
+  function getEventStatus(event) {
+    if (!event?.event_date) return "Upcoming";
+    const start = new Date(`${toLocalDateStr(event.event_date)}T${event.event_time ? event.event_time.slice(0, 5) : "00:00"}:00`);
+    const endDateStr = event.end_date ? toLocalDateStr(event.end_date) : toLocalDateStr(event.event_date);
+    const end = new Date(`${endDateStr}T${event.end_time ? event.end_time.slice(0, 5) : "23:59"}:59`);
+    const now = new Date();
+    if (now < start) return "Upcoming";
+    if (now > end) return "Finished";
+    return "Ongoing";
+  }
+
+  const STATUS_PRIORITY = { Ongoing: 0, Upcoming: 1, Finished: 2 };
+
+  const filteredEvents = events
+    .filter((ev) => {
+      const term = searchTerm.trim().toLowerCase();
+      if (term === "") return true;
+      return (
+        ev.title?.toLowerCase().includes(term) ||
+        ev.description?.toLowerCase().includes(term) ||
+        ev.venue?.toLowerCase().includes(term)
+      );
+    })
+    // Ongoing events are the most relevant to someone visiting right now,
+    // so they lead the list, then Upcoming, then Finished — each group
+    // still ordered by date as the API returned it.
+    .slice()
+    .sort((a, b) => STATUS_PRIORITY[getEventStatus(a)] - STATUS_PRIORITY[getEventStatus(b)]);
 
   const totalPages = Math.max(1, Math.ceil(filteredEvents.length / PAGE_SIZE));
   const paginatedEvents = filteredEvents.slice(
@@ -68,24 +117,24 @@ const Events = () => {
     <>
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
-          <a className="navbar-brand navbar-brand-custom" href="/">
+          <Link className="navbar-brand navbar-brand-custom" to="/">
             <img src="/icons/sk-logo.jpg" alt="SK Logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>
             </div>
-          </a>
+          </Link>
           <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
             <span className="navbar-toggler-icon"></span>
           </button>
           <div className="collapse navbar-collapse justify-content-end" id="mainNavbar">
             <ul className="navbar-nav">
-              <li className="nav-item"><a className="nav-link" href="/">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="/requirements">Requirements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/announcements">Announcements</a></li>
-              <li className="nav-item"><a className="nav-link active" href="/events">Events</a></li>
-              <li className="nav-item"><a className="nav-link" href="/login">Login</a></li>
-              <li className="nav-item"><a className="nav-link" href="/register">Register</a></li>
+              <li className="nav-item"><Link className="nav-link" to="/">Home</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/requirements">Requirements</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/announcements">Announcements</Link></li>
+              <li className="nav-item"><Link className="nav-link active" to="/events">Events</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/login">Login</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/register">Register</Link></li>
             </ul>
           </div>
         </div>
@@ -240,11 +289,16 @@ const Events = () => {
                         )}
                       </div>
                       <div className="event-landscape-content">
-                        <h5 className="event-card-title">{ev.title}</h5>
+                        <h5 className="event-card-title">
+                          {ev.title}
+                          {getEventStatus(ev) === "Ongoing" && (
+                            <span className="event-status-badge event-status-ongoing">Ongoing</span>
+                          )}
+                        </h5>
                         <div className="event-card-meta">
                           <span className="event-card-meta-item">
                             <img src="/icons/event-calendar.png" alt="Date" />
-                            {formatDate(ev.event_date)}
+                            {formatDateRange(ev.event_date, ev.end_date)}
                           </span>
                           {ev.event_time && (
                             <span className="event-card-meta-item">
@@ -329,9 +383,14 @@ const Events = () => {
                 </button>
               </div>
               <div className="modal-body announcement-modal-body">
-                <h4 className="announcement-modal-title-new">{selected.title}</h4>
+                <h4 className="announcement-modal-title-new">
+                  {selected.title}
+                  {getEventStatus(selected) === "Ongoing" && (
+                    <span className="event-status-badge event-status-ongoing">Ongoing</span>
+                  )}
+                </h4>
                 <div className="announcement-modal-date event-modal-date-line">
-                  {formatDate(selected.event_date)}
+                  {formatDateRange(selected.event_date, selected.end_date)}
                   {selected.event_time && ` • ${formatTime(selected.event_time)}`}
                   {selected.venue && ` • ${selected.venue}`}
                 </div>

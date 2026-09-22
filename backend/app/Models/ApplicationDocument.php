@@ -20,6 +20,7 @@ class ApplicationDocument extends Model
         'needs_auto_reupload',
         'auto_reupload_reason',
         'auto_reupload_category',
+        'ocr_retry_count',
     ];
 
     protected $casts = [

@@ -1,5 +1,4 @@
 @extends('reports.layout')
-
 @section('content')
     <h3>By School</h3>
     <table>
@@ -10,7 +9,6 @@
             @endforeach
         </tbody>
     </table>
-
     <h3>By Program</h3>
     <table>
         <thead><tr><th>Program</th><th style="width: 80px;">Count</th><th style="width: 80px;">% of Total</th></tr></thead>

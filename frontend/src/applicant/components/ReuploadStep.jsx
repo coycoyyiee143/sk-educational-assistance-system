@@ -189,7 +189,12 @@ function ReuploadStep({
                                         Voter's Certificate — not your own.
                                     </>
                                 )}
-                                {" "}Only JPG or PNG photos are accepted — PDF files will not be accepted.
+                                {" "}Use a <strong>scanned copy</strong> of your document,
+                                not a direct photo taken with your phone or camera. You may
+                                use a scanning app such as{" "}
+                                <strong>CamScanner, Microsoft Lens, or Adobe Scan</strong>{" "}
+                                to produce a clean, flattened scan.
+                                Only JPG or PNG photos are accepted — PDF files will not be accepted.
                             </p>
                         </div>
                     </div>

@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import GuestRoute from "./components/GuestRoute";
+import { useAuth } from "./context/AuthContext";
 
 import Home from "./public/pages/Home";
 import Requirements from "./public/pages/Requirements";
@@ -13,17 +14,18 @@ import VerifyEmail from "./public/pages/VerifyEmail.jsx";
 import VerifyEmailNotice from "./public/pages/VerifyEmailNotice";
 import ForgotPassword from "./public/pages/ForgotPassword";
 import PersonnelSetup from "./public/pages/PersonnelSetup";
+import NotFound from "./public/pages/NotFound";
 
 import AdminDashboard from "./admin/pages/AdminDashboard";
 import AdminUsers from "./admin/pages/AdminUsers";
 import AdminSettings from "./admin/pages/AdminSettings";
 import AdminSchedule from "./admin/pages/AdminSchedule";
-import AdminLaneAssignments from "./admin/pages/AdminLaneAssignments.jsx";
 import AdminAnnouncements from "./admin/pages/AdminAnnouncements.jsx";
 import AdminEvents from "./admin/pages/AdminEvents.jsx";
 import AdminReports from "./admin/pages/AdminReports.jsx";
 import AdminBudgetPlanning from "./admin/pages/AdminBudgetPlanning.jsx";
 import AdminMasterActivityLog from "./admin/pages/AdminMasterActivityLog";
+import AdminSystemMaintenance from "./admin/pages/AdminSystemMaintenance.jsx";
 
 import VerifierDashboard from "./verifier/pages/VerifierDashboard.jsx";
 import VerifierApplicationList from "./verifier/pages/VerifierApplicationList.jsx";
@@ -41,6 +43,23 @@ import ApplicantClaimingSchedule from "./applicant/pages/ApplicantClaimingSchedu
 
 
 function App() {
+  const { loading } = useAuth();
+
+  // Gated here, once, above <Routes> — every route below (each wrapped
+  // in its own ProtectedRoute/GuestRoute) mounts fresh on every in-app
+  // navigation, so checking `loading` inside those instead of here used
+  // to re-flash this same full-screen spinner on every sidebar click,
+  // not just on the app's actual first load.
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center" style={{ height: "100vh" }}>
+        <div className="spinner-border text-danger" role="status">
+          <span className="visually-hidden">Loading...</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>
@@ -71,54 +90,55 @@ function App() {
 
         {/* Admin */}
         <Route path="/AdminDashboard" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminDashboard />
           </ProtectedRoute>
         } />
         <Route path="/AdminUsers" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "it_support"]}>
             <AdminUsers />
           </ProtectedRoute>
         } />
         <Route path="/AdminSettings" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminSettings />
           </ProtectedRoute>
         } />
         <Route path="/AdminSchedule" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminSchedule />
           </ProtectedRoute>
         } />
-        <Route path="/AdminLaneAssignments" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
-            <AdminLaneAssignments />
-          </ProtectedRoute>
-        } />
         <Route path="/AdminAnnouncements" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminAnnouncements />
           </ProtectedRoute>
         } />
         <Route path="/AdminEvents" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminEvents />
           </ProtectedRoute>
         } />
         <Route path="/AdminReports" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin", "sk_admin"]}>
             <AdminReports />
           </ProtectedRoute>
         } />
         <Route path="/AdminBudgetPlanning" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin"]}>
             <AdminBudgetPlanning />
           </ProtectedRoute>
         } />
 
         <Route path="/AdminMasterActivityLog" element={
-          <ProtectedRoute allowedRoles={["sk_admin"]}>
+          <ProtectedRoute allowedRoles={["superadmin"]}>
             <AdminMasterActivityLog />
+          </ProtectedRoute>
+        } />
+
+        <Route path="/AdminSystemMaintenance" element={
+          <ProtectedRoute allowedRoles={["superadmin", "it_support"]}>
+            <AdminSystemMaintenance />
           </ProtectedRoute>
         } />
 
@@ -186,6 +206,9 @@ function App() {
             <ApplicantClaimingSchedule />
           </ProtectedRoute>
         } />
+
+        {/* Catch-all */}
+        <Route path="*" element={<NotFound />} />
 
       </Routes>
     </BrowserRouter>

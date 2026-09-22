@@ -14,12 +14,12 @@ function ApplicantChangePasswordModal({ show, onClose }) {
   const [error, setError] = useState("");       // single string message
   const [errorList, setErrorList] = useState([]); // multiple failed rules
   const [success, setSuccess] = useState("");
-  const [countdown, setCountdown] = useState(10);
+  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
     if (!error && errorList.length === 0 && !success) return;
 
-    setCountdown(10);
+    setCountdown(3);
 
     const tick = setInterval(() => {
       setCountdown((count) => (count <= 1 ? 0 : count - 1));
@@ -29,7 +29,7 @@ function ApplicantChangePasswordModal({ show, onClose }) {
       setError("");
       setErrorList([]);
       setSuccess("");
-    }, 10000);
+    }, 3000);
 
     return () => {
       clearInterval(tick);

@@ -44,14 +44,15 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
     strategy = get_strategy_for_school(declared_school)
     blocks = strategy.preprocess_blocks(blocks)
 
-    # Confident name mismatch — same short-circuit pattern as
-    # wrong_document_type above. NOTE: this only fires on school IDs
-    # that have an actual "Name" text label near the printed name.
-    # Many school ID layouts just print the name with no label at all,
-    # in which case this correctly falls through to the ambiguous/
-    # verifier-routed case below instead of firing — see
-    # AUTO_REUPLOAD_VERIFICATION_RULES.md for why school ID reliability
-    # is weaker here than reg form / voter's cert.
+    # Name not detected anywhere on the page at all — even School ID
+    # layouts that print the name with no "Name:" label still print the
+    # name TEXT itself somewhere on the ID, and extract_name()'s blind
+    # fallback scan checks every block regardless of whether a label
+    # was found. A true zero-match here means something's wrong with
+    # the upload itself (wrong file, cropped, obscured) rather than a
+    # genuine eligibility question for a verifier. Same treatment as
+    # Registration Form and Voter's Certificate — see
+    # app/verification/shared.py::_check_name_or_reupload.
     name_tag, name_result = _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, last_name)
     if name_tag == "auto_reupload":
         return {

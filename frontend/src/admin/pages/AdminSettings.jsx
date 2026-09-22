@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 
@@ -14,27 +16,74 @@ function formatDateTime(value) {
   });
 }
 
-function generateSchoolYearOptions() {
+// Covers a couple of years back (setting up a slightly-delayed period,
+// or just referencing a recent one) through a handful ahead (planning
+// room), without the original 26-year span (current -5 to +20) that was
+// mostly dead weight to scroll through. `extraYear` keeps whatever's
+// already saved on a loaded config in the list even if it falls outside
+// this window, so editing an older period never leaves the <select>
+// without a match for its own current value.
+function generateSchoolYearOptions(extraYear) {
   const currentYear = new Date().getFullYear();
   const years = [];
-  for (let y = currentYear - 5; y <= currentYear + 20; y++) {
+  for (let y = currentYear - 2; y <= currentYear + 3; y++) {
     years.push(`${y}-${y + 1}`);
+  }
+  if (extraYear && !years.includes(extraYear)) {
+    years.unshift(extraYear);
   }
   return years;
 }
 
-const SCHOOL_YEAR_OPTIONS = generateSchoolYearOptions();
+function nowDateTimeLocal() {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 16);
+}
 
-const emptyForm = {
-  school_year: "",
-  open_date: "",
-  close_date: "",
-  slot_limit: "",
-  is_unlimited: false,
-  assistance_amount: "2000",
-};
+// NOT toISOString().slice(0, 10) — that formats in UTC, which rolls local
+// midnight back to the previous calendar day in any timezone ahead of UTC
+// (e.g. Asia/Manila, UTC+8) — see AdminSchedule.jsx's own version of this
+// exact helper. Backend requires close_date strictly after open_date, so
+// the day right after is the earliest valid default.
+function nextDayStr(dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Pre-selects the common case (setting up this year's period) so the
+// admin doesn't have to hunt for it in a 25-year dropdown — still just a
+// default, not a restriction, since picking a future year to plan ahead
+// is a perfectly normal, deliberate choice that needs no extra guarding.
+function defaultSchoolYear() {
+  const currentYear = new Date().getFullYear();
+  return `${currentYear}-${currentYear + 1}`;
+}
+
+// Carries the previous period's slot count forward as a starting point
+// (most periods don't change scale year to year) instead of leaving the
+// admin to retype it from scratch; falls back to 1000 when there's no
+// prior period to reference at all (a fresh deployment, or the prior one
+// was unlimited and has nothing reusable here).
+function emptyForm(lastSlotLimit) {
+  return {
+    school_year: defaultSchoolYear(),
+    open_date: nowDateTimeLocal(),
+    close_date: "",
+    slot_limit: lastSlotLimit || 1000,
+    is_unlimited: false,
+    assistance_amount: "2000",
+  };
+}
 
 function AdminSettings() {
+  const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [config, setConfig] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -42,6 +91,15 @@ function AdminSettings() {
   const [closing, setClosing] = useState(false);
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
+  // Save actions can be far down the page (e.g. Extend, Close Period),
+  // but the resulting message renders at the top — easy to trigger and
+  // never actually see. Scroll it into view whenever it appears.
+  const messageRef = useRef(null);
+  useEffect(() => {
+    if ((error || success) && messageRef.current) {
+      messageRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [error, success]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showStartNewModal, setShowStartNewModal] = useState(false);
 
@@ -52,6 +110,23 @@ function AdminSettings() {
   const [extendDate, setExtendDate] = useState("");
   const [extending, setExtending] = useState(false);
   const [extendError, setExtendError] = useState("");
+  const [showClosePeriodModal, setShowClosePeriodModal] = useState(false);
+  // Scoped to the Close Period modal itself, same as extendError above —
+  // the shared `error` state renders at the top of the page, far from
+  // this button/modal near the bottom, so a failure there was easy to
+  // miss entirely.
+  const [closePeriodError, setClosePeriodError] = useState("");
+  // Offered after the two events applicants have no other way of hearing
+  // about: a brand new period opening, or the deadline they're relying on
+  // moving later. { title, category, content } for the prefilled
+  // announcement, or null.
+  const [announceNudge, setAnnounceNudge] = useState(null);
+
+  function goAnnounce() {
+    const prefill = announceNudge;
+    setAnnounceNudge(null);
+    navigate("/AdminAnnouncements", { state: { prefill } });
+  }
 
   useEffect(() => {
     api.get("/admin/application-configs")
@@ -73,6 +148,42 @@ function AdminSettings() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Fetched only to derive the claiming phase shown alongside Application
+  // Period Status below — "Closed — Deadline Passed" on its own doesn't tell an
+  // admin whether Scheduled Claiming or Late Claiming is actually
+  // underway right now. 404s (no active config, or none set up yet) are
+  // expected and silently ignored — this is a nice-to-have annotation,
+  // not something worth surfacing as a page error.
+  const [claimingSchedule, setClaimingSchedule] = useState(null);
+  useEffect(() => {
+    api.get("/admin/claiming-schedule")
+      .then((res) => setClaimingSchedule(res.data.schedule ?? null))
+      .catch(() => setClaimingSchedule(null));
+  }, []);
+
+  const claimingPhase = (() => {
+    if (!claimingSchedule) return null;
+    if (!claimingSchedule.is_active) return "Schedule not yet activated";
+
+    // NOT toISOString().slice(0, 10) — that formats in UTC, which rolls
+    // local midnight back to the previous calendar day in any timezone
+    // ahead of UTC (e.g. Asia/Manila, UTC+8). See AdminSchedule.jsx's own
+    // version of this same helper.
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const { late_claiming_date, late_claiming_end_date } = claimingSchedule;
+
+    if (late_claiming_date && today >= late_claiming_date && today <= late_claiming_end_date) {
+      return "Late Claiming open";
+    }
+    if (late_claiming_end_date && today > late_claiming_end_date) {
+      return "Late Claiming ended";
+    }
+    return "Scheduled Claiming";
+  })();
+
+  const schoolYearOptions = generateSchoolYearOptions(config?.school_year);
+
   const hasStarted = config?.open_date
     ? new Date() >= new Date(config.open_date)
     : false;
@@ -80,7 +191,7 @@ function AdminSettings() {
     ? new Date() > new Date(config.close_date)
     : false;
   const isAtCapacity =
-    config && !config.is_unlimited && config.slots_filled >= config.slot_limit;
+    config && !config.closed_at && !config.is_unlimited && config.slots_filled >= config.slot_limit;
 
   // Close Date is only free-editable before a config exists at all (first
   // time setting up a period). Once a config record exists, it's locked
@@ -93,6 +204,20 @@ function AdminSettings() {
       [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
     }));
 
+  // Defaults Closing Date to the day after Opening Date while setting up
+  // a brand new period — only fills it in while it's still blank, so
+  // this never overwrites a date the admin already picked (matches the
+  // same "default once, don't clobber a manual choice" pattern
+  // AdminSchedule.jsx uses for its own date defaults). No-op once a
+  // config exists, since Closing Date is locked by then anyway.
+  useEffect(() => {
+    if (closeDateLocked || !form.open_date) return;
+    setForm((f) => {
+      if (f.close_date) return f;
+      return { ...f, close_date: nextDayStr(f.open_date.slice(0, 10)) };
+    });
+  }, [form.open_date, closeDateLocked]);
+
   function needsConfirmation() {
     return !hasStarted;
   }
@@ -103,26 +228,26 @@ function AdminSettings() {
 
   function confirmStartNewPeriod() {
     setShowStartNewModal(false);
+    // Read before clearing config below — carries the just-closed
+    // period's slot count forward as the new form's starting point.
+    setForm(emptyForm(config?.slot_limit));
     setConfig(null);
-    setForm(emptyForm);
     setSuccess("");
     setError("");
   }
 
   async function handleClosePeriod() {
     if (!config) return;
-    if (!window.confirm(
-      "Close this application period? This will mark every remaining waitlisted applicant as not selected, and cannot be undone."
-    )) return;
     setClosing(true);
-    setError("");
+    setClosePeriodError("");
     setSuccess("");
     try {
       const res = await api.post(`/admin/application-configs/${config.id}/close`);
       setSuccess(res.data.message);
       setConfig((prev) => ({ ...prev, closed_at: res.data.config.closed_at }));
+      setShowClosePeriodModal(false);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to close period.");
+      setClosePeriodError(err.response?.data?.message || "Failed to close period.");
     } finally {
       setClosing(false);
     }
@@ -144,12 +269,21 @@ function AdminSettings() {
     setExtendError("");
     try {
       const res = await api.post(`/admin/application-configs/${config.id}/extend`, {
-        close_date: extendDate,
+        // Matches saveSettings()'s own convention (close_date + " 23:59:59")
+        // — without this, the deadline silently lands at midnight/start of
+        // day instead of end of day, cutting the extension short by a full
+        // day of the date the admin actually picked.
+        close_date: `${extendDate} 23:59:59`,
       });
       setConfig(res.data.config);
       setForm((f) => ({ ...f, close_date: res.data.config.close_date }));
       setShowExtendModal(false);
       setSuccess("Application period extended.");
+      setAnnounceNudge({
+        title: "Application Deadline Extended",
+        category: "Schedule Update",
+        content: `The application deadline for school year ${res.data.config.school_year} has been extended to ${formatDateTime(res.data.config.close_date)}. Please take note of this change.`,
+      });
     } catch (err) {
       setExtendError(err.response?.data?.message || "Failed to extend application period.");
     } finally {
@@ -190,6 +324,7 @@ function AdminSettings() {
         slot_limit: form.is_unlimited ? null : form.slot_limit,
         assistance_amount: form.assistance_amount,
       };
+      const isNewPeriod = !config;
       let response;
       if (config) {
         response = await api.put(`/admin/application-configs/${config.id}`, payload);
@@ -198,6 +333,13 @@ function AdminSettings() {
       }
       const updated = response.data.config;
       setConfig(updated);
+      if (isNewPeriod) {
+        setAnnounceNudge({
+          title: `Applications Now Open for School Year ${updated.school_year}`,
+          category: "Educational Assistance",
+          content: `Applications for the educational assistance program (school year ${updated.school_year}) are now open, from ${formatDateTime(updated.open_date)} to ${formatDateTime(updated.close_date)}.`,
+        });
+      }
       setForm({
         school_year: updated.school_year,
         open_date: updated.open_date,
@@ -218,18 +360,19 @@ function AdminSettings() {
     ? [
       ["School Year", config.school_year],
       [
-        "Application Status",
+        "Application Period Status",
         !config.is_active
           ? "Superseded"
           : config.closed_at
             ? "Closed"
-            : hasStarted
-              ? "Open"
-              : `Scheduled — opens ${formatDateTime(config.open_date)}`,
+            : hasClosed 
+              ? "Closed — Deadline Passed"
+              : hasStarted
+                ? "Open"
+                : `Scheduled — opens ${formatDateTime(config.open_date)}`,
       ],
       ["Opening Date", formatDateTime(config.open_date)],
       ["Closing Date", formatDateTime(config.close_date)],
-      ["Slot Availability", config.is_unlimited ? "Unlimited" : "Limited"],
       [
         "Number of Available Slots",
         config.is_unlimited
@@ -249,7 +392,7 @@ function AdminSettings() {
         <line x1="3" y1="10" x2="21" y2="10" />
       </svg>
     ),
-    "Application Status": (
+    "Application Period Status": (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="1" y="6" width="22" height="12" rx="6" />
         <circle cx="8" cy="12" r="3" />
@@ -274,16 +417,6 @@ function AdminSettings() {
         <line x1="14.5" y1="14.5" x2="9.5" y2="19.5" />
       </svg>
     ),
-    "Slot Availability": (
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="4" y1="6" x2="20" y2="6" />
-        <line x1="4" y1="12" x2="20" y2="12" />
-        <line x1="4" y1="18" x2="20" y2="18" />
-        <circle cx="8" cy="6" r="1.5" fill="currentColor" />
-        <circle cx="16" cy="12" r="1.5" fill="currentColor" />
-        <circle cx="10" cy="18" r="1.5" fill="currentColor" />
-      </svg>
-    ),
     "Number of Available Slots": (
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -292,35 +425,39 @@ function AdminSettings() {
         <path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
+    "Assistance Amount per Applicant": (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.5 0-2.5 1-2.5 2s1 1.7 2.5 2 2.5 1 2.5 2-1 2-2.5 2A2.5 2.5 0 0 1 9.5 14" />
+        <line x1="12" y1="6" x2="12" y2="18" />
+      </svg>
+    ),
   };
   const settingIconColors = {
     "School Year": "gray",
-    "Application Status": "red",
+    "Application Period Status": "red",
     "Opening Date": "blue",
     "Closing Date": "blue",
-    "Slot Availability": "orange",
+    "Assistance Amount per Applicant": "green",
     "Number of Available Slots": "red",
   };
 
   function statusBadgeClass(value) {
     if (typeof value !== "string") return "settings-value-badge settings-value-badge-gray";
     if (value === "Open" || value === "Unlimited") return "settings-value-badge settings-value-badge-green";
-    if (value === "Closed" || value === "Limited") return "settings-value-badge settings-value-badge-red";
+    if (value.startsWith("Closed") || value === "Limited") return "settings-value-badge settings-value-badge-red";
     return "settings-value-badge settings-value-badge-gray";
   }
 
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
 
         <section className="page-section">
@@ -334,41 +471,57 @@ function AdminSettings() {
             </div>
 
             <div className="page-card">
-              <h4 className="sub-title sub-title-dark">Program Configuration</h4>
-              <div className="visibility-notice">
-                <div className="visibility-notice-icon">!</div>
-                <div className="visibility-notice-body">
-                  <strong className="visibility-notice-title">Program Configuration Notice</strong>
-                  <p className="visibility-notice-text">
-                    These settings control the availability and basic parameters of the educational assistance application process.
-                  </p>
-                </div>
-              </div>
+              <h4 className="sub-title sub-title-dark">Application Period Settings</h4>
 
-              {config && (
-                <div className="alert alert-info">
-                  <strong>Closing Date is locked here.</strong>{" "}
-                  Use the "Extend Application Period" action below to move it later — it can never be edited
-                  through this form, whether or not the period has started.
+              {hasStarted && !hasClosed && !config?.closed_at && (
+                <div className="schedule-notice schedule-notice-yellow mb-3">
+                  <div className="schedule-notice-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 9v4" />
+                      <path d="M12 17h.01" />
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <strong>This period is already open.</strong> School Year, Opening Date, Slot settings,
+                    and Assistance Amount are locked to protect data integrity for applicants who've already
+                    applied.
+                  </div>
                 </div>
               )}
 
-              {hasStarted && !hasClosed && (
-                <div className="alert alert-warning">
-                  <strong>This application period has already started.</strong>{" "}
-                  School Year, Opening Date, Number of Available Slots, Slot Type, and Assistance Amount
-                  can no longer be changed to protect data integrity for applicants who have already applied.
+              {hasClosed && !config?.closed_at && (
+                <div className="schedule-notice schedule-notice-yellow mb-3">
+                  <div className="schedule-notice-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 9v4" />
+                      <path d="M12 17h.01" />
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <strong>The closing date has passed, but this period hasn't been officially closed yet.</strong>{" "}
+                    Applicants can no longer submit new applications. Extend the Closing Date below to reopen
+                    submissions — this warning clears once the period is officially closed.
+                  </div>
                 </div>
               )}
 
               {config?.closed_at && (
-                <div className="settings-warning-box d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <div>
-                    <strong>This application period has closed.</strong>{" "}
-                    Applicants can no longer submit new applications. Extend the
-                    Closing Date below to reopen submissions under this same
-                    period, or start a new period entirely for a different
-                    school year.
+                <div className="schedule-notice schedule-notice-yellow mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+                  <div className="d-flex align-items-start gap-3">
+                    <div className="schedule-notice-icon">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 9v4" />
+                        <path d="M12 17h.01" />
+                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <strong>This application period has closed.</strong> Applicants can no longer submit new
+                      applications, and this period can no longer be extended or reopened — it's a final,
+                      settled state. Start a new application period for a different school year when ready.
+                    </div>
                   </div>
                   <button
                     type="button"
@@ -381,14 +534,25 @@ function AdminSettings() {
               )}
 
               {isAtCapacity && (
-                <div className="alert alert-warning">
-                  This period is already at capacity ({config.slots_filled}/{config.slot_limit} slots filled).
-                  No new applicants can be accepted unless you increase the slot limit.
+                <div className="schedule-notice schedule-notice-yellow mb-3">
+                  <div className="schedule-notice-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 9v4" />
+                      <path d="M12 17h.01" />
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <strong>This period is at capacity</strong> ({config.slots_filled}/{config.slot_limit} slots
+                    filled) — no new applicants can be accepted unless you increase the slot limit.
+                  </div>
                 </div>
               )}
 
-              {success && <div className="alert alert-success">{success}</div>}
-              {error && <div className="alert alert-danger">{error}</div>}
+              <div ref={messageRef}>
+                {success && <div className="alert alert-success">{success}</div>}
+                {error && <div className="alert alert-danger">{error}</div>}
+              </div>
 
               {loading ? (
                 <div className="text-center py-4"><div className="spinner-border text-danger" role="status" /></div>
@@ -416,7 +580,7 @@ function AdminSettings() {
                             required
                           >
                             <option value="" disabled>Select school year</option>
-                            {SCHOOL_YEAR_OPTIONS.map((sy) => (
+                            {schoolYearOptions.map((sy) => (
                               <option key={sy} value={sy}>{sy}</option>
                             ))}
                           </select>
@@ -426,7 +590,14 @@ function AdminSettings() {
                           <input
                             type="datetime-local"
                             className="form-control"
-                            value={form.open_date ? form.open_date.slice(0, 16) : ""}
+                            // <input type="datetime-local"> requires a
+                            // literal "T" separator to accept a value —
+                            // the backend serializes dates as "YYYY-MM-DD
+                            // HH:mm:ss" (space, see
+                            // ApplicationConfiguration::serializeDate()),
+                            // so an existing period's open_date silently
+                            // rendered as a blank field without this.
+                            value={form.open_date ? form.open_date.slice(0, 16).replace(" ", "T") : ""}
                             onChange={set("open_date")}
                             disabled={hasStarted}
                             required
@@ -450,8 +621,8 @@ function AdminSettings() {
                           />
                           <div className="form-text">
                             {closeDateLocked
-                              ? 'Locked — use "Extend Application Period" below to change it.'
-                              : "Set once, at creation. After saving, only \"Extend Application Period\" can move it later."}
+                              ? 'Ends 11:59 PM. Locked — use "Extend Application Period" below to change it.'
+                              : 'Ends 11:59 PM. Set once — use "Extend Application Period" later to move it.'}
                           </div>
                         </div>
                       </div>
@@ -471,43 +642,12 @@ function AdminSettings() {
                       </h6>
                       <div className="row g-3">
                         <div className="col-12">
-                          <label className="form-label d-block">Slot Type</label>
-                          <div className="btn-group admin-settings-slot-toggle" role="group">
-                            <input
-                              type="radio"
-                              className="btn-check"
-                              name="slotType"
-                              id="slotLimited"
-                              autoComplete="off"
-                              checked={!form.is_unlimited}
-                              onChange={() =>
-                                setForm((f) => ({ ...f, is_unlimited: false, slot_limit: "" }))
-                              }
-                              disabled={hasStarted}
-                            />
-                            <label className="btn" htmlFor="slotLimited">
-                              Limited
-                            </label>
-                            <input
-                              type="radio"
-                              className="btn-check"
-                              name="slotType"
-                              id="slotUnlimited"
-                              autoComplete="off"
-                              checked={form.is_unlimited}
-                              onChange={() =>
-                                setForm((f) => ({ ...f, is_unlimited: true, slot_limit: "" }))
-                              }
-                              disabled={hasStarted}
-                            />
-                            <label className="btn" htmlFor="slotUnlimited">
-                              Unlimited
-                            </label>
-                          </div>
-                        </div>
-                        <div className="col-12">
                           <label className="form-label">Number of Available Slots</label>
                           {form.is_unlimited ? (
+                            // Only reachable when editing an existing period
+                            // that was already saved as unlimited before
+                            // this option was removed — there's no longer
+                            // any way to set a NEW period to unlimited.
                             <input
                               type="text"
                               className="form-control"
@@ -553,12 +693,53 @@ function AdminSettings() {
                           )}
                         </div>
                       </div>
+
+                      <h6 className="settings-split-title mt-4">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M14.5 9a2.5 2.5 0 0 0-2.5-1.5c-1.5 0-2.5 1-2.5 2s1 1.7 2.5 2 2.5 1 2.5 2-1 2-2.5 2A2.5 2.5 0 0 1 9.5 14" />
+                          <line x1="12" y1="6" x2="12" y2="18" />
+                        </svg>
+                        Assistance Amount
+                      </h6>
+                      <div className="row g-3">
+                        <div className="col-12">
+                          <label className="form-label">Amount per Applicant (₱)</label>
+                          <div className="input-group">
+                            <span className="input-group-text">₱</span>
+                            <input
+                              type="number"
+                              className="form-control"
+                              placeholder="e.g. 2000"
+                              value={form.assistance_amount}
+                              onChange={set("assistance_amount")}
+                              disabled={hasStarted}
+                              required
+                              min={0}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="form-text mt-2">
+                        Used for budget reports and disbursement calculations. Locked once this period opens.
+                      </div>
                     </div>
                   </div>
                   <div className="d-flex justify-content-end gap-2">
-                    <button type="button" className="btn btn-clear-dark" onClick={() => setForm(emptyForm)} disabled={hasStarted}>
-                      Clear
-                    </button>
+                    {/* Only makes sense for a brand new, never-saved period —
+                        Closing Date reads from `config`, not `form`, once a
+                        config exists (see closeDateLocked below), so
+                        resetting `form` here would leave Closing Date
+                        showing the old saved value while everything else
+                        went blank, and a subsequent save would PUT those
+                        blanked-out defaults onto the EXISTING record
+                        instead of doing anything resembling "starting
+                        over". */}
+                    {!config && (
+                      <button type="button" className="btn btn-clear-dark" onClick={() => setForm(emptyForm())}>
+                        Clear
+                      </button>
+                    )}
                     <button type="submit" className="btn btn-save-green" disabled={saving}>
                       {saving ? "Saving..." : "Save Settings"}
                     </button>
@@ -574,7 +755,7 @@ function AdminSettings() {
                     <h4 className="sub-title sub-title-dark mb-1">Extend Application Period</h4>
                     <p className="text-muted small mb-0">
                       Move the Closing Date later. Blocked if it would collide with an already-scheduled
-                      claiming date or Grace Period start — reschedule those first if needed.
+                      claiming date or Late Claiming start — reschedule those first if needed.
                     </p>
                   </div>
                   <button
@@ -599,7 +780,7 @@ function AdminSettings() {
                   <thead>
                     <tr>
                       <th>Setting</th>
-                      <th>Current Value</th>
+                      <th>Value</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -621,10 +802,13 @@ function AdminSettings() {
                             </span>
                           </td>
                           <td>
-                            {setting === "Application Status" ? (
-                              <span className={statusBadgeClass(value)}>{value}</span>
-                            ) : setting === "Slot Availability" ? (
-                              <span className="settings-value-badge settings-value-badge-red">{value}</span>
+                            {setting === "Application Period Status" ? (
+                              <>
+                                <span className={statusBadgeClass(value)}>{value}</span>
+                                {claimingPhase && (
+                                  <div className="text-muted small mt-1">{claimingPhase}</div>
+                                )}
+                              </>
                             ) : (
                               value
                             )}
@@ -648,13 +832,16 @@ function AdminSettings() {
                     <h4 className="sub-title sub-title-dark mb-1">Close This Period</h4>
                     <p className="text-muted small mb-0">
                       Marks this period as fully settled. Any remaining waitlisted applicants will be
-                      finalized as "not selected." Only available once the grace period has ended.
+                      finalized as "not selected." Only available once Late Claiming has ended.
                     </p>
                   </div>
                   <button
                     type="button"
                     className="btn btn-outline-danger"
-                    onClick={handleClosePeriod}
+                    onClick={() => {
+                      setClosePeriodError("");
+                      setShowClosePeriodModal(true);
+                    }}
                     disabled={closing}
                   >
                     {closing ? "Closing..." : "Close Period"}
@@ -692,7 +879,6 @@ function AdminSettings() {
                   <li>School Year</li>
                   <li>Opening Date</li>
                   <li>Number of Available Slots</li>
-                  <li>Slot Type (Limited / Unlimited)</li>
                   <li>Assistance Amount per Applicant</li>
                 </ul>
                 <p className="mb-0 text-muted small">
@@ -740,6 +926,7 @@ function AdminSettings() {
                   min={config?.close_date ? new Date(new Date(config.close_date).getTime() + 86400000).toISOString().slice(0, 10) : undefined}
                   onChange={(e) => setExtendDate(e.target.value)}
                 />
+                <div className="form-text">Submissions will close at 11:59 PM on this date.</div>
                 {extendError && <div className="alert alert-danger mt-3 mb-0">{extendError}</div>}
               </div>
               <div className="d-flex justify-content-end gap-2 p-3 border-top">
@@ -760,6 +947,74 @@ function AdminSettings() {
                   {extending ? "Extending..." : "Confirm Extension"}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showClosePeriodModal && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content edit-announcement-modal">
+              <div className="modal-header">
+                <h5 className="modal-title">Close This Period?</h5>
+              </div>
+              <div className="p-4">
+                <p className="mb-0">
+                  This will mark every remaining waitlisted applicant as not
+                  selected. This cannot be undone.
+                </p>
+                {closePeriodError && <div className="alert alert-danger mt-3 mb-0">{closePeriodError}</div>}
+              </div>
+              <div className="d-flex justify-content-end gap-2 p-3 border-top">
+                <button
+                  type="button"
+                  className="btn btn-clear-dark"
+                  onClick={() => setShowClosePeriodModal(false)}
+                  disabled={closing}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={handleClosePeriod}
+                  disabled={closing}
+                >
+                  {closing ? "Closing..." : "Yes, Close Period"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {announceNudge && (
+        <div className="feedback-popup-backdrop">
+          <div className="feedback-popup feedback-popup-success">
+            <div className="feedback-popup-icon-wrap">
+              <span className="feedback-popup-icon">✓</span>
+            </div>
+            <h4 className="feedback-popup-title">{announceNudge.title}</h4>
+            <p className="feedback-popup-message">
+              Applicants aren't notified of this automatically. Want to post an
+              announcement about it?
+            </p>
+            <div className="feedback-popup-confirm-actions">
+              <button
+                type="button"
+                className="feedback-popup-cancel"
+                onClick={() => setAnnounceNudge(null)}
+              >
+                Not Now
+              </button>
+              <button
+                type="button"
+                className="feedback-popup-proceed"
+                onClick={goAnnounce}
+              >
+                Create Announcement
+              </button>
             </div>
           </div>
         </div>

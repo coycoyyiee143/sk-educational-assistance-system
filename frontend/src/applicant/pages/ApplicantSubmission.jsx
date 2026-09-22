@@ -63,6 +63,7 @@ function ApplicantSubmission() {
   const [docUrls, setDocUrls] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [reverifyRequired, setReverifyRequired] = useState(false);
   const periodStatus = getApplicationPeriodStatus(activeConfig);
 
   useEffect(() => {
@@ -292,7 +293,7 @@ function ApplicantSubmission() {
         URL.revokeObjectURL(url);
       }, 60000);
     } catch {
-      alert("Failed to load document.");
+      setError("Failed to load document.");
     }
   }
 
@@ -425,6 +426,13 @@ function ApplicantSubmission() {
         setProfile(res.data.profile)
       )
       .catch(() => { });
+  }, []);
+
+  useEffect(() => {
+    api
+      .get("/face-verification/reverify-status")
+      .then((res) => setReverifyRequired(res.data.required))
+      .catch(() => setReverifyRequired(false));
   }, []);
 
   const isMinor =
@@ -845,7 +853,35 @@ function ApplicantSubmission() {
                         longer being accepted.
                       </div>
                     )}
-                  {step === "form" && (
+                  {step === "form" && reverifyRequired && (
+                    <div className="profile-completion-card">
+                      <div className="profile-completion-icon">
+                        <i className="bi bi-camera"></i>
+                      </div>
+                      <div className="profile-completion-content">
+                        <div className="profile-completion-heading">
+                          <h4>Face Re-Verification Required</h4>
+                          <span className="profile-completion-badge">
+                            Required
+                          </span>
+                        </div>
+                        <p>
+                          A new application period has opened. Please
+                          re-verify your face on your Profile page before
+                          applying.
+                        </p>
+                        <Link
+                          to="/ApplicantProfile"
+                          state={{ from: "submission" }}
+                          className="btn profile-completion-btn"
+                        >
+                          Go to Profile
+                          <span>→</span>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                  {step === "form" && !reverifyRequired && (
                     <FormStep
                       form={form}
                       setForm={setForm}

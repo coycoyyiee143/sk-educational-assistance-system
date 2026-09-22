@@ -11,8 +11,14 @@ function ApplicantStatus() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    Promise.all([
+  const [showAppealForm, setShowAppealForm] = useState(false);
+  const [appealReason, setAppealReason] = useState("");
+  const [appealFile, setAppealFile] = useState(null);
+  const [appealSubmitting, setAppealSubmitting] = useState(false);
+  const [appealError, setAppealError] = useState("");
+
+  const loadApplication = () => {
+    return Promise.all([
       api.get("/applications"),
       api.get("/application-config/active"),
     ])
@@ -23,10 +29,43 @@ function ApplicantStatus() {
         );
         setApplication(current ?? null);
       })
-      .catch(() => setError("Failed to load application status."))
-      .finally(() => setLoading(false));
+      .catch(() => setError("Failed to load application status."));
+  };
+
+  useEffect(() => {
+    loadApplication().finally(() => setLoading(false));
   }, []);
 
+  const handleAppealSubmit = (e) => {
+    e.preventDefault();
+    if (!appealReason.trim()) {
+      setAppealError("Please explain why you're appealing this decision.");
+      return;
+    }
+    setAppealSubmitting(true);
+    setAppealError("");
+
+    const formData = new FormData();
+    formData.append("reason", appealReason);
+    if (appealFile) {
+      formData.append("document", appealFile);
+    }
+
+    api
+      .post(`/applications/${application.id}/appeal`, formData)
+      .then(() => {
+        setShowAppealForm(false);
+        setAppealReason("");
+        setAppealFile(null);
+        return loadApplication();
+      })
+      .catch((err) => {
+        setAppealError(
+          err.response?.data?.message || "Failed to submit appeal. Please try again."
+        );
+      })
+      .finally(() => setAppealSubmitting(false));
+  };
 
   const status = application?.status ?? null;
   const config = STATUS_CONFIG[status] ?? STATUS_CONFIG["pending_prescreening"];
@@ -87,6 +126,82 @@ function ApplicantStatus() {
                         <strong>Reason:</strong> {application.rejection_reason}
                       </div>
                     )}
+                    {status === "rejected" && application.appealed_at && (
+                      <div className="info-box mt-3 mb-0">
+                        <strong>Appeal Decision:</strong>{" "}
+                        {application.appeal_decision_notes ||
+                          "Your appeal is still being reviewed."}
+                      </div>
+                    )}
+                    {status === "rejected" &&
+                      config.showAppeal &&
+                      !application.appealed_at && (
+                        <div className="mt-4">
+                          {!showAppealForm ? (
+                            <button
+                              type="button"
+                              className="btn btn-save-green"
+                              onClick={() => setShowAppealForm(true)}
+                            >
+                              Request Appeal
+                            </button>
+                          ) : (
+                            <form
+                              className="mt-2"
+                              onSubmit={handleAppealSubmit}
+                            >
+                              <div className="mb-3">
+                                <label className="form-label">
+                                  Why are you appealing this decision?
+                                </label>
+                                <textarea
+                                  className="form-control"
+                                  rows={4}
+                                  value={appealReason}
+                                  onChange={(e) => setAppealReason(e.target.value)}
+                                  placeholder="Explain why you believe this decision should be reconsidered..."
+                                />
+                              </div>
+                              <div className="mb-3">
+                                <label className="form-label">
+                                  Supporting document (optional)
+                                </label>
+                                <input
+                                  type="file"
+                                  className="form-control"
+                                  accept=".jpg,.jpeg,.png,.pdf"
+                                  onChange={(e) =>
+                                    setAppealFile(e.target.files?.[0] ?? null)
+                                  }
+                                />
+                              </div>
+                              {appealError && (
+                                <div className="error-box mb-3">{appealError}</div>
+                              )}
+                              <div className="d-flex gap-2">
+                                <button
+                                  type="submit"
+                                  className="btn btn-save-green"
+                                  disabled={appealSubmitting}
+                                >
+                                  {appealSubmitting ? "Submitting..." : "Submit Appeal"}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-secondary"
+                                  onClick={() => {
+                                    setShowAppealForm(false);
+                                    setAppealError("");
+                                  }}
+                                  disabled={appealSubmitting}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+                      )}
                     {config.showClaiming && (
                       <div className="mt-4">
                         <Link to="/ApplicantClaimingSchedule" className="btn btn-save-green">
