@@ -733,11 +733,6 @@ function AdminSchedule() {
               </p>
             </div>
 
-            <div ref={messageRef}>
-              {error && <div className="alert alert-danger">{error}</div>}
-              {success && <div className="alert alert-success">{success}</div>}
-            </div>
-
             <div className="page-card">
               <h4 className="sub-title sub-title-dark">Schedule Summary</h4>
               {loading ? (
@@ -796,6 +791,11 @@ function AdminSchedule() {
                   )}
                 </>
               )}
+            </div>
+
+            <div ref={messageRef}>
+              {error && <div className="alert alert-danger">{error}</div>}
+              {success && <div className="alert alert-success">{success}</div>}
             </div>
 
             {(loading || config) && (
