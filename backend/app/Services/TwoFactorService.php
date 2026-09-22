@@ -25,6 +25,13 @@ class TwoFactorService
     // show "Laravel (their email)" instead of your actual system name.
     const ISSUER = 'Mamatid SK-EAS';
 
+    // Sentinel secret used only by seeded test accounts (see
+    // TestAccountsSeeder) so QA/testers can log in without a real
+    // authenticator app — verify() below short-circuits to a fixed code
+    // instead of running TOTP against it. Never generated for a real user.
+    const STATIC_TEST_SECRET = 'STATIC-TEST-BYPASS-NOT-A-REAL-TOTP-SECRET';
+    const STATIC_TEST_CODE = '123456';
+
     public function __construct()
     {
         $this->engine = new Google2FA();
@@ -68,6 +75,10 @@ class TwoFactorService
         }
 
         $secret = decrypt($user->google2fa_secret);
+
+        if ($secret === self::STATIC_TEST_SECRET) {
+            return $code === self::STATIC_TEST_CODE;
+        }
 
         // Window of 1 tolerates minor clock drift (allows the previous/next 30s code too).
         return $this->engine->verifyKey($secret, $code, 1);

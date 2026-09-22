@@ -7,6 +7,16 @@ import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
 import Footer from "../../components/Footer";
 
+// Dev-only hint for the seeded TestAccountsSeeder staff accounts — never
+// shown in a production build.
+const IS_DEV = process.env.NODE_ENV !== "production";
+const TEST_ACCOUNT_EMAILS = [
+  "testadmin@skmamatid.com",
+  "testsuperadmin@skmamatid.com",
+  "testverifier1@skmamatid.com",
+  "testverifier2@skmamatid.com",
+];
+
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -203,6 +213,17 @@ const Login = () => {
                       </div>
                     )}
 
+                    {IS_DEV && (
+                      <div className="alert alert-secondary small text-start">
+                        <strong>Dev test accounts</strong> (password <code>pass1234</code>, 2FA code <code>123456</code>):
+                        <ul className="mb-0 ps-3">
+                          {TEST_ACCOUNT_EMAILS.map((testEmail) => (
+                            <li key={testEmail}>{testEmail}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
                     <form onSubmit={handleSubmit} className="text-start">
                       <div className="floating-field mb-3">
                         <input
@@ -339,6 +360,12 @@ const Login = () => {
                     <p className="text-muted text-start login-subtext-lg mb-4">
                       Enter the 6-digit code from your authenticator app.
                     </p>
+
+                    {IS_DEV && (
+                      <div className="alert alert-secondary small text-start">
+                        Dev test accounts: enter <code>123456</code>.
+                      </div>
+                    )}
 
                     {error && (
                       <div className="alert alert-danger login-error-alert">
