@@ -10,6 +10,32 @@ def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declare
 
     best_block, best_score = None, 0
 
+    # School names are frequently split across multiple stacked OCR lines
+    # rather than detected as one block -- e.g. a 3-line stylized logo
+    # reads as "Polytechnic" / "University" / "of the Philippines".
+    # Scoring each line individually against the FULL expected name means
+    # every single fragment fails fuzzy_match_school()'s length-ratio
+    # guard before any real comparison happens, since no lone fragment is
+    # ever close to 75% as long as the complete official name -- so a
+    # genuinely correct multi-line header can never pass. Try the
+    # header-region lines joined together, in reading order (top-to-
+    # bottom, left-to-right), as one combined candidate first, since
+    # that's what the header actually reads as on the physical document.
+    header_blocks = sorted(
+        get_blocks_in_region(blocks, page_w, page_h, "header"),
+        key=lambda b: (b.y_min, b.x_min),
+    )
+    if header_blocks:
+        combined_text = " ".join(b.text for b in header_blocks)
+        combined_score = score_school(combined_text)
+        if combined_score >= 85:
+            combined_confidence = sum(b.confidence for b in header_blocks) / len(header_blocks)
+            combined = combine_confidence(combined_confidence, combined_score)
+            return ExtractionResult(
+                value=combined_text, raw=combined_text, method="header_join",
+                confidence=combined, context='found in header (multi-line)',
+            )
+
     def is_better(score, block):
         # partial_ratio (used inside score_school) scores a short
         # fragment as a perfect match whenever it aligns cleanly against

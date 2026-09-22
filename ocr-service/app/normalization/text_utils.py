@@ -189,6 +189,21 @@ def fuzzy_match_school(extracted: str, expected: str, threshold: int = 85) -> di
         return {"score": 0, "passed": False}
     score = max(fuzz.token_sort_ratio(e1, e2), fuzz.partial_ratio(e1, e2))
 
+    # Stylized/logo-style header text (school names in particular) often
+    # gets its internal word-spacing garbled by OCR while the underlying
+    # LETTERS are still substantially correct -- e.g. a genuine read of
+    # "Polytechnic" coming back as "P o lytechnic" (confirmed on a real
+    # PUP school ID: header lines individually read at 85-90% OCR
+    # confidence, letters all correct, but spurious spaces mid-word).
+    # Same class of artifact reinsert_name_spacing() already corrects for
+    # names. Comparing letter sequences with spacing stripped from BOTH
+    # sides recovers a genuine match without being fooled by a scan that
+    # happens to have clean spacing (both sides are folded the same way,
+    # so a correctly-spaced extract isn't penalized or favored).
+    e1_nospace = e1.replace(' ', '')
+    e2_nospace = e2.replace(' ', '')
+    score = max(score, fuzz.ratio(e1_nospace, e2_nospace), fuzz.token_sort_ratio(e1_nospace, e2_nospace))
+
     # Aggregate similarity alone can stay high purely from generic words
     # shared with a genuinely DIFFERENT school (see _SCHOOL_STOPWORDS).
     # If the expected name has at least one real distinguishing word (a
