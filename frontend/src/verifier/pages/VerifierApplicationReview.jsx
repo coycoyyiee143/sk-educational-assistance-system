@@ -1667,14 +1667,8 @@ function VerifierApplicationReview() {
                                   </div>
                                   {check.passed ? (
                                     <div className="verifier-ocr-check-reason-row">
-                                      <span className="verifier-ocr-check-reason-label">
-                                        Flag Reason:
-                                      </span>
                                       <span className="verifier-ocr-check-reason-value-pass">
-                                        None
-                                      </span>
-                                      <span className="verifier-ocr-check-reason-message">
-                                        · {getPassedCheckMessage(check.check_name)}
+                                        {getPassedCheckMessage(check.check_name)}
                                       </span>
                                     </div>
                                   ) : (() => {
@@ -1853,14 +1847,8 @@ function VerifierApplicationReview() {
                                               </div>
                                               {check.passed ? (
                                                 <div className="verifier-ocr-check-reason-row">
-                                                  <span className="verifier-ocr-check-reason-label">
-                                                    Flag Reason:
-                                                  </span>
                                                   <span className="verifier-ocr-check-reason-value-pass">
-                                                    None
-                                                  </span>
-                                                  <span className="verifier-ocr-check-reason-message">
-                                                    · {getPassedCheckMessage(check.check_name)}
+                                                    {getPassedCheckMessage(check.check_name)}
                                                   </span>
                                                 </div>
                                               ) : (
