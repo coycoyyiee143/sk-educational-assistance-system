@@ -3,6 +3,7 @@ from typing import List
 from app.models import OcrBlock, ExtractionResult
 from app.utils.spatial import get_blocks_in_region
 from app.normalization.text_utils import fuzzy_match_school, combine_confidence, trim_to_match_window
+from app.normalization import get_known_school_names
 
 def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declared_school: str) -> ExtractionResult:
     def score_school(text: str) -> float:
@@ -119,4 +120,29 @@ def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declare
                 confidence=combined, context='found in header (multi-line)',
             )
 
-    return ExtractionResult(value=best_block.text if best_block else None, raw=best_block.text if best_block else None, method="none", confidence=0.0, context='school mismatch', found=False)
+    # Nothing matched the declared school -- before giving up, check
+    # whether the header text actually matches a DIFFERENT known school.
+    # That's a much more actionable signal than a bare "school mismatch"
+    # (mirrors check_document_type()'s "this looks like a School ID, not
+    # a Registration Form" treatment for the wrong document type).
+    # Reuses whatever candidate text scored highest against the declared
+    # school above -- the same text is the best guess for what's
+    # actually printed on the header, regardless of which school it
+    # turns out to belong to.
+    candidate_text = best_block.text if best_block else None
+    if header_blocks and combined_text and len(combined_text) > len(candidate_text or ""):
+        candidate_text = combined_text
+
+    detected_school = None
+    if candidate_text:
+        best_other_score = 0
+        for other_school in get_known_school_names(exclude=declared_school):
+            match = fuzzy_match_school(candidate_text, other_school)
+            if match["passed"] and match["score"] > best_other_score:
+                detected_school, best_other_score = other_school, match["score"]
+
+    return ExtractionResult(
+        value=best_block.text if best_block else None, raw=best_block.text if best_block else None,
+        method="none", confidence=0.0, context='school mismatch', found=False,
+        metadata={"detected_school": detected_school} if detected_school else {},
+    )

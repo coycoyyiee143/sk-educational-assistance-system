@@ -113,7 +113,7 @@ export const NOT_CLEARED_REASONS = [
 const CHECK_NAME_LABELS = {
     image_integrity: "Edited/Tampered Image Detection",
     ai_generation_provenance: "AI-Generated or AI-Edited Image",
-    cert_year_match: "Certificate Year",
+    cert_year_match: "Year Issued",
     identity_match: "Identity & Legal Name",
     residency_geofence: "Residency Geofence",
     repeated_auto_reupload_escalation: "Repeated Re-upload Issue",
