@@ -3,6 +3,7 @@ from difflib import SequenceMatcher
 from typing import List
 from app.models import OcrBlock
 from app.normalization.base_strategy import BaseSchoolStrategy
+from app.utils.spatial import get_blocks_in_region
 
 _INSTITUTION_KEYWORDS = {"UNIVERSITY", "OF", "PERPETUAL", "HELP", "SYSTEM", "DALTA"}
 _COURSE_LINE_KEYWORDS = {"COLLEGE", "DEPARTMENT", "SCHOOL", "COURSE"}
@@ -45,8 +46,23 @@ class UphsdStrategy(BaseSchoolStrategy):
         return blocks
 
     def _merge_institution_header(self, blocks: List[OcrBlock]) -> List[OcrBlock]:
+        # Scoped to the header region ONLY -- confirmed on a real UPHSD
+        # School ID that scanning the WHOLE page for these keywords
+        # wrongly swept in an unrelated "The Perpetualite" mention
+        # (a newsletter/motto reference) further down the card, merging
+        # it into the institution header. Same bug, same fix as UPLB's
+        # _merge_institution_header (see uplb.py). page_w/page_h are
+        # computed from these blocks directly rather than imported from
+        # app.extraction, to avoid a circular import with
+        # app.normalization's own package init.
+        if not blocks:
+            return blocks
+        page_w = max(b.x_max for b in blocks)
+        page_h = max(b.y_max for b in blocks)
+        header_region = get_blocks_in_region(blocks, page_w, page_h, "header")
+
         header_parts = [
-            b for b in blocks
+            b for b in header_region
             if _text_has_keyword(b.text, _INSTITUTION_KEYWORDS)
         ]
         if len(header_parts) < 2:
