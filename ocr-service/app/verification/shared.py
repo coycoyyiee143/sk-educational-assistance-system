@@ -102,7 +102,7 @@ def _check_name_or_reupload(blocks, page_w, page_h, first_name, middle_name, las
     if not res.value:
         return "auto_reupload", {
             "category": "name_not_detected",
-            "reason": "We couldn't detect a name on your document. Please make sure it is clearly visible, well-lit, and not cropped or covered, then upload again.",
+            "reason": "Applicant name not found in the document. Please make sure you uploaded your own ID and that your name is clearly visible, well-lit, and not cropped or covered, then upload again.",
         }
 
     if res.found and res.confidence < NAME_SCHOOL_CONFIDENCE_FLOOR:
