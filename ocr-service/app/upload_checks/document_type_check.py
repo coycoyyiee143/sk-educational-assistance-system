@@ -50,6 +50,23 @@ def check_document_type(blocks: List[OcrBlock], expected_type: str, image_path: 
     """
     full_text = " ".join(b.text.lower() for b in blocks)
 
+    # If the EXPECTED type's own fixed, universal phrase is confidently
+    # present -- e.g. "VOTER'S CERTIFICATION" genuinely read off this
+    # page at 90%+ OCR confidence -- that's decisive proof this already
+    # is the correct document. The face-size heuristic below exists only
+    # to catch School ID (which has no reliable text marker of its own,
+    # see the comment above DOCUMENT_TYPE_MARKERS) and must not be
+    # allowed to override a text match this strong. Confirmed as a real
+    # false positive, not hypothetical: a genuine Voter's Certification
+    # (COMELEC form, "VOTER'S CERTIFICATION" read at 96% confidence) has
+    # its own small biometrics-section photo, which on one real scan
+    # measured a borderline 0.0151 face-area ratio -- just over the
+    # 0.015 "large face" cutoff -- wrongly flagging it as a School ID
+    # despite the document unambiguously naming itself as the opposite.
+    own_markers = DOCUMENT_TYPE_MARKERS.get(expected_type)
+    if own_markers and any(fuzzy_contains(full_text, m, threshold=MARKER_MATCH_THRESHOLD) for m in own_markers):
+        return None
+
     for other_type, markers in DOCUMENT_TYPE_MARKERS.items():
         if other_type == expected_type:
             continue
@@ -73,7 +90,7 @@ def check_document_type(blocks: List[OcrBlock], expected_type: str, image_path: 
 
         if expected_type == "school_id" and not photo_result.has_large_face:
             return {
-                "reason": "This doesn't look like a School ID — no clear cardholder photo detected. Please upload a clear photo of your School ID.",
+                "reason": "This doesn't look like a School ID — no clear photo of the ID holder was detected. Please upload a clear photo of your School ID.",
                 "detected_type": "unknown",
             }
 
