@@ -174,10 +174,14 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
                 f"Certificate year matched, but the OCR read itself was low-confidence ({cert_year_res.confidence:.2f}) — please verify manually.",
                 extracted=cert_year_res.value, raw=cert_year_res.raw, expected=str(configured_cert_year), context=cert_year_res.context,
             )
+        elif cert_year_res.found and cert_year_res.confidence >= RAW_FIELD_CONFIDENCE_FLOOR:
+            # Confident read, but the year genuinely isn't the configured
+            # cycle — this is not a low-confidence-read problem, so don't
+            # tell the applicant/reviewer their document was hard to read.
+            reason = f"Certificate year ({cert_year_res.value}) does not match the current cycle ({configured_cert_year})."
+            checks["cert_year_match"] = _flag("cert_year_match", reason, extracted=cert_year_res.value, raw=cert_year_res.raw, expected=str(configured_cert_year), context=cert_year_res.context)
         else:
-            # Only reachable here for the LOW-confidence/not-found case —
-            # the high-confidence mismatch already short-circuited above.
-            reason = "Certificate year not found — please verify manually" if not cert_year_res.found else "Certificate year does not match current cycle (low confidence read — please verify manually)"
+            reason = "Certificate year not found — please verify manually" if not cert_year_res.found else f"Certificate year does not match current cycle (low confidence read, {cert_year_res.confidence:.2f} — please verify manually)"
             checks["cert_year_match"] = _flag("cert_year_match", reason, extracted=cert_year_res.value, raw=cert_year_res.raw, expected=str(configured_cert_year), context=cert_year_res.context)
 
     template_strategy = get_template_strategy(declared_school, "voters_certificate")
