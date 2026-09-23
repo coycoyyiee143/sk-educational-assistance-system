@@ -92,6 +92,44 @@ def fix_ocr_symbols(text: str) -> str:
     return text
 
 
+def _component_present(target: str, text: str, threshold: int = 85) -> bool:
+    """
+    Does `target` (a single distinguishing word/name component) appear
+    as a strong substring match somewhere in `text`? Shared by
+    fuzzy_match_name (first/last name components) and
+    fuzzy_match_school (a school's distinguishing word, e.g. "Los"/
+    "Baños" for UPLB) -- both need the same "independently confirm this
+    ISN'T a different match sharing generic words" guard.
+
+    A flat percentage threshold punishes SHORT targets far harder than
+    long ones -- one wrong character in a 4-letter word is a 25-point
+    hit via partial_ratio, so anything <=6 characters effectively
+    demands a PERFECT read even at an 85 bar (a single substitution
+    already caps out around 83.3% at length 6). Confirmed on a real
+    Voter's Certificate: "PAÑA" read as "PARA" -- not a diacritic-
+    stripping issue, PaddleOCR's English character dictionary (lang='en'
+    in ocr_engine.py) has no Ñ/ñ at all, so any Ñ-containing word NEVER
+    reads correctly and always substitutes some other character --
+    scored exactly 75% (below 85) for a single-edit miss on an
+    otherwise-correct 4-letter surname.
+
+    For short targets, tolerate exactly one edit (substitution/
+    insertion/deletion) against the best-aligning window instead of
+    enforcing the percentage bar -- a tighter, more principled guard
+    than just lowering the percentage threshold would be (lowering the
+    percentage for short strings risks accepting a GENUINELY different
+    short word that happens to share most letters; capping at
+    edit-distance 1 doesn't loosen that).
+    """
+    if not target or not text:
+        return False
+    if len(target) <= 6:
+        alignment = fuzz.partial_ratio_alignment(target, text)
+        window = text[alignment.dest_start:alignment.dest_end]
+        return Levenshtein.distance(target, window) <= 1
+    return fuzz.partial_ratio(target, text) >= threshold
+
+
 def fuzzy_match_name(extracted: str, first_name: str, middle_name: str,
                      last_name: str, threshold: int = 85) -> dict:
     if not extracted:
@@ -132,33 +170,7 @@ def fuzzy_match_name(extracted: str, first_name: str, middle_name: str,
     # word (e.g. "Regina Grace") and would never match a single split
     # token on its own.
     def component_present(target: str, threshold: int = 85) -> bool:
-        if not target or not extracted_norm:
-            return False
-        # A flat percentage threshold punishes SHORT names far harder
-        # than long ones -- one wrong character in a 4-letter surname is
-        # a 25-point hit via partial_ratio, so anything <=6 characters
-        # effectively demands a PERFECT read even at an 85 bar (a single
-        # substitution already caps out around 83.3% at length 6). This
-        # isn't hypothetical: confirmed on a real Voter's Certificate
-        # where "PAÑA" read as "PARA" -- not a diacritic-stripping issue,
-        # PaddleOCR's English character dictionary (lang='en' in
-        # ocr_engine.py) has no Ñ/ñ at all, so any Ñ-containing name
-        # NEVER reads correctly and always substitutes some other
-        # character -- scoring exactly 75% (below 85) for a single-edit
-        # miss on an otherwise-correct 4-letter surname.
-        #
-        # For short targets, tolerate exactly one edit (substitution/
-        # insertion/deletion) against the best-aligning window instead
-        # of enforcing the percentage bar -- a tighter, more principled
-        # guard than just lowering the percentage threshold would be
-        # (lowering the percentage for short strings risks accepting a
-        # GENUINELY different short surname that happens to share most
-        # letters; capping at edit-distance 1 doesn't loosen that).
-        if len(target) <= 6:
-            alignment = fuzz.partial_ratio_alignment(target, extracted_norm)
-            window = extracted_norm[alignment.dest_start:alignment.dest_end]
-            return Levenshtein.distance(target, window) <= 1
-        return fuzz.partial_ratio(target, extracted_norm) >= threshold
+        return _component_present(target, extracted_norm, threshold)
 
     if not (component_present(fn) and component_present(ln)):
         return {"score": best_score, "passed": False}
@@ -295,7 +307,7 @@ def fuzzy_match_school(extracted: str, expected: str, threshold: int = 85) -> di
     # nothing more specific to check for those, so they fall back to the
     # aggregate score alone.
     distinguishing = _distinguishing_words(e2)
-    if distinguishing and not any(fuzz.partial_ratio(w, e1) >= 85 for w in distinguishing):
+    if distinguishing and not any(_component_present(w, e1) for w in distinguishing):
         return {"score": score, "passed": False}
 
     return {"score": score, "passed": score >= threshold}
