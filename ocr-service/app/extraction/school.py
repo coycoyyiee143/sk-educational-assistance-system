@@ -2,11 +2,28 @@
 from typing import List
 from app.models import OcrBlock, ExtractionResult
 from app.utils.spatial import get_blocks_in_region
-from app.normalization.text_utils import fuzzy_match_school, combine_confidence
+from app.normalization.text_utils import fuzzy_match_school, combine_confidence, trim_to_match_window
 
 def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declared_school: str) -> ExtractionResult:
     def score_school(text: str) -> float:
         return fuzzy_match_school(text, declared_school)["score"]
+
+    # fuzzy_match_school() computes its OWN pass/fail via "passed", which
+    # additionally requires the expected name's distinguishing word (e.g.
+    # "LOS"/"BANOS" for UPLB) to actually appear in the extracted text --
+    # not just a high aggregate score. Every ">= 85" check below used to
+    # look at score_school()'s raw score alone, silently bypassing that
+    # guard entirely. Confirmed as a real false positive, not
+    # hypothetical: a genuine PUP School ID scanned for a UPLB-declared
+    # applicant (Nicole Marquez, case 191) scored 85.29 in aggregate
+    # against "University of the Philippines Los Baños" -- purely from
+    # sharing "University of the Philippines" -- and passed
+    # institution_match outright, despite the ID literally naming a
+    # different university and containing neither "Los" nor "Baños"
+    # anywhere. fuzzy_match_school() itself already said passed=False for
+    # this exact text; extract_school() just wasn't listening.
+    def passes_school(text: str) -> bool:
+        return fuzzy_match_school(text, declared_school)["passed"]
 
     best_block, best_score = None, 0
 
@@ -33,18 +50,20 @@ def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declare
         if is_better(score, block):
             best_score, best_block = score, block
 
-    if best_score >= 85 and best_block:
+    if best_score >= 85 and best_block and passes_school(best_block.text):
         combined = combine_confidence(best_block.confidence, best_score)
-        return ExtractionResult(value=best_block.text, raw=best_block.text, method="position", confidence=combined, context='found in header')
+        trimmed = trim_to_match_window(best_block.text, declared_school)
+        return ExtractionResult(value=trimmed, raw=best_block.text, method="position", confidence=combined, context='found in header')
 
     for block in blocks:
         score = score_school(block.text)
         if is_better(score, block):
             best_score, best_block = score, block
 
-    if best_score >= 85 and best_block:
+    if best_score >= 85 and best_block and passes_school(best_block.text):
         combined = combine_confidence(best_block.confidence, best_score)
-        return ExtractionResult(value=best_block.text, raw=best_block.text, method="pattern_scan", confidence=combined, context='found via layout scan')
+        trimmed = trim_to_match_window(best_block.text, declared_school)
+        return ExtractionResult(value=trimmed, raw=best_block.text, method="pattern_scan", confidence=combined, context='found via layout scan')
 
     # Last resort: no single block (including any school-strategy's own
     # preprocess-merged header block, e.g. PUP's _merge_institution_header)
@@ -88,14 +107,15 @@ def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declare
             combined_blocks.append(block)
             combined_text = " ".join(b.text for b in combined_blocks)
             combined_score = score_school(combined_text)
-            if combined_score >= 85:
+            if combined_score >= 85 and passes_school(combined_text):
                 break
 
-        if combined_score >= 85:
+        if combined_score >= 85 and passes_school(combined_text):
             combined_confidence = sum(b.confidence for b in combined_blocks) / len(combined_blocks)
             combined = combine_confidence(combined_confidence, combined_score)
+            trimmed = trim_to_match_window(combined_text, declared_school)
             return ExtractionResult(
-                value=combined_text, raw=combined_text, method="header_join",
+                value=trimmed, raw=combined_text, method="header_join",
                 confidence=combined, context='found in header (multi-line)',
             )
 
