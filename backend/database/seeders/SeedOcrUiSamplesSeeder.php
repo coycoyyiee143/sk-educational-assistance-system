@@ -226,6 +226,37 @@ class SeedOcrUiSamplesSeeder extends Seeder
                 200 => 'Eliza Marie|Roa|Galang',
             ],
         ],
+        [
+            'folder' => 'UPHS',
+            'school' => 'University of Perpetual Help System DALTA',
+            // Space-separated filenames ("ID 061.jpg") and an "ID" (not
+            // "SID") School ID subfolder -- confirmed by inspecting the
+            // actual UPHS folder, unlike every other school above.
+            'separator' => ' ',
+            'id_folder' => 'ID',
+            'people' => [
+                61 => 'Josh Erold|Gopolla|Asi',
+                62 => 'Miguel Angelo|Longasa|Santillan',
+                63 => 'Lorraine Nicole|Ramos|Mendoza',
+                64 => 'Danielle Sofia|Ramil|Ramirez',
+                65 => 'Nathan Gabriel|Asilo|Castillo',
+                66 => 'Patricia Mae|Eleonor|Dela Cruz',
+                67 => 'Kianna Rose|Antido|Villareal',
+                68 => 'Sean Patrick|Misa|Mercado',
+                69 => 'Bianca Therese|Narag|Espinosa',
+                70 => 'Andrian Louis|Curambao|Gutierrez',
+                71 => 'Patricia Elaine|Borsh|Salazar',
+                72 => 'Chelsea Dawn|Padilla|Yabut',
+                73 => 'Ethan James|Soyangco|Velasco',
+                74 => 'Aaron Blake|Salcedo|Aguilar',
+                75 => 'Daniel Joseph|Tuazon|Marquez',
+                76 => 'Noah|Morales|Santos',
+                77 => 'Hannah Beatrice|Medina|Ortega',
+                78 => 'Arianne Faith|Uy|Alonzo',
+                79 => 'Janelle Marie|Salvador|Zamora',
+                80 => 'Gado|Fernandez|Maderazzo',
+            ],
+        ],
     ];
 
     public function run(): void
@@ -342,18 +373,25 @@ class SeedOcrUiSamplesSeeder extends Seeder
         $cases = [];
 
         foreach ($schools as $school) {
+            // Per-school overrides for filename convention -- UPHS uses a
+            // space instead of a dash between the doc-type prefix and the
+            // number ("ID 061.jpg" not "ID-061.jpg"), and its School ID
+            // folder is named "ID" rather than every other school's "SID".
+            $sep = $school['separator'] ?? '-';
+            $idFolder = $school['id_folder'] ?? 'SID';
+
             foreach ($school['people'] as $number => $nameSpec) {
                 [$first, $middle, $last] = array_pad(explode('|', $nameSpec), 3, '');
                 $padded = str_pad((string) $number, 3, '0', STR_PAD_LEFT);
 
                 $allDocuments = [
-                    'school_id' => self::DATA_ROOT."/{$school['folder']}/SID/ID-{$padded}.jpg",
-                    'registration_form' => self::DATA_ROOT."/{$school['folder']}/RF/RF-{$padded}.jpg",
+                    'school_id' => self::DATA_ROOT."/{$school['folder']}/{$idFolder}/ID{$sep}{$padded}.jpg",
+                    'registration_form' => self::DATA_ROOT."/{$school['folder']}/RF/RF{$sep}{$padded}.jpg",
                     // PUP's 20th voter's certificate was scanned without
                     // a zero-padded filename (VC-20.jpg, not VC-020.jpg).
                     'voters_certificate' => ($school['folder'] === 'PUP' && $number === 20)
                         ? self::DATA_ROOT."/{$school['folder']}/VC/VC-20.jpg"
-                        : self::DATA_ROOT."/{$school['folder']}/VC/VC-{$padded}.jpg",
+                        : self::DATA_ROOT."/{$school['folder']}/VC/VC{$sep}{$padded}.jpg",
                 ];
 
                 $case = [
