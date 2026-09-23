@@ -2,6 +2,7 @@
 import re
 import unicodedata
 from rapidfuzz import fuzz
+from rapidfuzz.distance import Levenshtein
 
 def clean_text(text: str) -> str:
     return re.sub(r'\s+', ' ', text).strip()
@@ -25,6 +26,61 @@ def normalize_name(name: str) -> str:
     name = strip_diacritics(name)
     name = re.sub(r'[^\w\s]', '', name)
     return name.upper().strip()
+
+
+def trim_to_match_window(text: str, expected: str, padding: int = 20, max_length: int = 150) -> str:
+    """
+    Returns just the portion of `text` that actually matched `expected`,
+    plus a little surrounding context, instead of the whole raw string.
+
+    Exists because PaddleOCR's own text detector sometimes merges what a
+    human reads as several separate lines into ONE detected block --
+    confirmed on a real UPLB Registration Form where the university name
+    AND the entire admission-consent paragraph beneath it were read as a
+    single line. Callers matching against a school/name still find that
+    block via fuzzy_match_school()/fuzzy_match_name() (matching doesn't
+    care how long the string is), but returning the ENTIRE block as the
+    displayed "extracted" value shows a verifier hundreds of characters
+    of irrelevant paragraph text instead of the actual matched name.
+
+    Uses fuzz.partial_ratio_alignment on the UPPERCASED (not fully
+    normalize_name()'d) strings deliberately -- .upper() doesn't change
+    string length for the characters this deals with, so the returned
+    src_start/src_end line up with the ORIGINAL text's character
+    positions. Running this against the fully punctuation-stripped
+    normalize_name() output would shift those positions out of sync
+    with the string being sliced.
+
+    Falls back to returning `text` unchanged on anything shorter than
+    max_length (the normal case -- most extracted text is already just
+    a name or a short line) or if alignment fails for any reason.
+    """
+    if not text or not expected or len(text) <= max_length:
+        return text
+    try:
+        alignment = fuzz.partial_ratio_alignment(text.upper(), expected.upper())
+        start = max(0, alignment.src_start - padding)
+        end = min(len(text), alignment.src_end + padding)
+
+        # Padding is a fixed character count, so it routinely lands
+        # mid-word (e.g. "...CERTIFICATE OF REGI" instead of stopping at
+        # a word boundary) -- snap each edge outward/inward to the
+        # nearest space instead of cutting a word in half.
+        if start > 0:
+            space_idx = text.find(' ', start)
+            if space_idx != -1 and space_idx < end:
+                start = space_idx + 1
+        if end < len(text):
+            space_idx = text.rfind(' ', start, end)
+            if space_idx != -1 and space_idx > start:
+                end = space_idx
+
+        window = text[start:end].strip()
+        if not window:
+            raise ValueError("empty match window")
+        return f"{'…' if start > 0 else ''}{window}{'…' if end < len(text) else ''}"
+    except Exception:
+        return text[:max_length].rsplit(' ', 1)[0] + '…'
 
 
 def fix_ocr_symbols(text: str) -> str:
@@ -78,6 +134,30 @@ def fuzzy_match_name(extracted: str, first_name: str, middle_name: str,
     def component_present(target: str, threshold: int = 85) -> bool:
         if not target or not extracted_norm:
             return False
+        # A flat percentage threshold punishes SHORT names far harder
+        # than long ones -- one wrong character in a 4-letter surname is
+        # a 25-point hit via partial_ratio, so anything <=6 characters
+        # effectively demands a PERFECT read even at an 85 bar (a single
+        # substitution already caps out around 83.3% at length 6). This
+        # isn't hypothetical: confirmed on a real Voter's Certificate
+        # where "PAÑA" read as "PARA" -- not a diacritic-stripping issue,
+        # PaddleOCR's English character dictionary (lang='en' in
+        # ocr_engine.py) has no Ñ/ñ at all, so any Ñ-containing name
+        # NEVER reads correctly and always substitutes some other
+        # character -- scoring exactly 75% (below 85) for a single-edit
+        # miss on an otherwise-correct 4-letter surname.
+        #
+        # For short targets, tolerate exactly one edit (substitution/
+        # insertion/deletion) against the best-aligning window instead
+        # of enforcing the percentage bar -- a tighter, more principled
+        # guard than just lowering the percentage threshold would be
+        # (lowering the percentage for short strings risks accepting a
+        # GENUINELY different short surname that happens to share most
+        # letters; capping at edit-distance 1 doesn't loosen that).
+        if len(target) <= 6:
+            alignment = fuzz.partial_ratio_alignment(target, extracted_norm)
+            window = extracted_norm[alignment.dest_start:alignment.dest_end]
+            return Levenshtein.distance(target, window) <= 1
         return fuzz.partial_ratio(target, extracted_norm) >= threshold
 
     if not (component_present(fn) and component_present(ln)):
