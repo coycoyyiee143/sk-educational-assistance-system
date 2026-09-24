@@ -68,6 +68,21 @@ function ShieldIcon() {
     </svg>
   );
 }
+function BriefcaseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+    </svg>
+  );
+}
+function WrenchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.7 6.3a4 4 0 0 1-5.1 5.1L4 17l3 3 5.6-5.6a4 4 0 0 0 5.1-5.1l-2.5 2.5-2-2 2.5-2.5z" />
+    </svg>
+  );
+}
 function TrashIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -249,14 +264,12 @@ function ViewApplicantModal({ applicant, onClose }) {
 // placeholder password and a one-time setup link emailed to them
 // instead. Neither this form nor the admin submitting it ever sees or
 // chooses the account's real password.
-function AddPersonnelModal({ onClose, onSave, actingRole }) {
+function AddPersonnelModal({ onClose, onSave }) {
   const [form, setForm] = useState({ first_name: "", last_name: "", email: "", role: "", is_active: true });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const roleOptions = actingRole === "it_support"
-    ? [["sk_verifier", "Verifier"], ["sk_admin", "Admin"], ["it_support", "IT Support"]]
-    : [["sk_verifier", "Verifier"], ["sk_admin", "Admin"], ["superadmin", "Superadmin"], ["it_support", "IT Support"]];
+  const roleOptions = [["sk_verifier", "Verifier"], ["sk_admin", "Admin"], ["superadmin", "Superadmin"], ["it_support", "IT Support"]];
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -504,6 +517,16 @@ function AdminUsers() {
   const personnelTotalPages = Math.max(1, Math.ceil(filteredPersonnel.length / perPage));
   const personnelStart = (personnelPage - 1) * perPage;
   const pagedPersonnel = filteredPersonnel.slice(personnelStart, personnelStart + perPage);
+  const roleCards = [
+    { key: "sk_verifier", label: "Verifiers", accent: "blue", icon: <CheckCircleIcon /> },
+    { key: "sk_admin", label: "Admins", accent: "green", icon: <BriefcaseIcon /> },
+    { key: "superadmin", label: "Superadmins", accent: "orange", icon: <ShieldIcon /> },
+    { key: "it_support", label: "IT Support", accent: "gray", icon: <WrenchIcon /> },
+  ].map((c) => ({ ...c, value: personnel.filter((p) => p.role === c.key).length }));
+  function handleRoleCardClick(key) {
+    setRoleFilter((current) => (current === key ? "" : key));
+    setPersonnelPage(1);
+  }
   return (
     <div className="admin-layout">
       <AdminNavigation
@@ -556,6 +579,25 @@ function AdminUsers() {
                 </ul>
               </div>
             )}
+            <div className="row g-3 row-cols-2 row-cols-md-4">
+              {roleCards.map(({ key, label, value, accent, icon }) => (
+                <div className="col" key={key}>
+                  <button
+                    type="button"
+                    className={`admin-stat-card admin-stat-card-btn${roleFilter === key ? " admin-stat-card-active" : ""}`}
+                    onClick={() => handleRoleCardClick(key)}
+                    aria-pressed={roleFilter === key}
+                    title={roleFilter === key ? `Showing ${label} only — click to clear filter` : `Show ${label} only`}
+                  >
+                    <div className="admin-stat-top">
+                      <h2>{loading ? "..." : value}</h2>
+                      <span className={`admin-stat-icon admin-stat-icon-${accent}`}>{icon}</span>
+                    </div>
+                    <p className={`admin-stat-label admin-stat-label-${accent}`}>{label}</p>
+                  </button>
+                </div>
+              ))}
+            </div>
             {/* Personnel */}
             <div className="page-card">
               <div className="d-flex justify-content-between align-items-center mb-3">
@@ -602,12 +644,9 @@ function AdminUsers() {
                     ) : (
                       pagedPersonnel.map((p) => {
                         const isSelf = p.id === currentUser?.id;
-                        const isLocked = currentUser?.role === "it_support" && p.role === "superadmin";
-                        const restrictedReason = isSelf
-                          ? "This is your own account"
-                          : isLocked
-                          ? "Superadmin accounts can't be managed by IT Support"
-                          : null;
+                        const isUndeletable = currentUser?.role === "it_support" && p.role === "superadmin";
+                        const restrictedReason = isSelf ? "This is your own account" : null;
+                        const deleteRestrictedReason = restrictedReason || (isUndeletable ? "Superadmin accounts can't be deleted by IT Support" : null);
                         return (
                         <tr key={p.id}>
                           <td>{p.id}</td>
@@ -650,8 +689,8 @@ function AdminUsers() {
                               <button
                                 className="user-icon-btn user-icon-btn-delete"
                                 onClick={() => setDeleteTarget(p)}
-                                disabled={!!restrictedReason}
-                                title={restrictedReason || "Delete"}
+                                disabled={!!deleteRestrictedReason}
+                                title={deleteRestrictedReason || "Delete"}
                                 aria-label="Delete"
                               >
                                 <TrashIcon />
@@ -764,7 +803,7 @@ function AdminUsers() {
         <PanelFooter />
       </div>
       {viewApplicant && <ViewApplicantModal applicant={viewApplicant} onClose={() => setViewApplicant(null)} />}
-      {showAdd && <AddPersonnelModal onClose={() => setShowAdd(false)} onSave={savePersonnel} actingRole={currentUser?.role} />}
+      {showAdd && <AddPersonnelModal onClose={() => setShowAdd(false)} onSave={savePersonnel} />}
 
       {resetTarget && (
         <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>

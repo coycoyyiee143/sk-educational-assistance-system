@@ -20,20 +20,21 @@ use Illuminate\Validation\Rule;
 class AdminController extends Controller
 {
     // Roles an it_support account is allowed to create/edit/deactivate/
-    // delete/reset — deliberately excludes 'superadmin', so it_support
-    // can never touch (or elevate itself to) that role.
-    private const IT_SUPPORT_MANAGEABLE_ROLES = ['sk_verifier', 'sk_admin', 'it_support'];
+    // reset. Includes 'superadmin' — it_support can create and manage
+    // superadmin accounts, it just can't delete one (see
+    // assertCanDeleteTarget below).
+    private const IT_SUPPORT_MANAGEABLE_ROLES = ['sk_verifier', 'sk_admin', 'superadmin', 'it_support'];
 
     // All personnel roles — what a superadmin can manage.
     private const ALL_PERSONNEL_ROLES = ['sk_verifier', 'sk_admin', 'superadmin', 'it_support'];
 
-    // Blocks it_support from acting on a superadmin account. superadmin
-    // itself has no restriction. sk_admin never reaches these methods at
+    // Blocks it_support from deleting a superadmin account. superadmin
+    // itself has no restriction. sk_admin never reaches this method at
     // all — the route middleware already excludes it.
-    private function assertCanManageTarget(Request $request, User $target): void
+    private function assertCanDeleteTarget(Request $request, User $target): void
     {
         if ($request->user()->role === 'it_support' && $target->role === 'superadmin') {
-            abort(403, 'IT Support cannot manage superadmin accounts.');
+            abort(403, 'IT Support cannot delete superadmin accounts.');
         }
     }
 
@@ -177,7 +178,6 @@ class AdminController extends Controller
     public function updateUser(Request $request, $id)
     {
         $user = User::findOrFail($id);
-        $this->assertCanManageTarget($request, $user);
 
         $allowedRoles = $request->user()->role === 'it_support'
             ? self::IT_SUPPORT_MANAGEABLE_ROLES
@@ -243,8 +243,6 @@ class AdminController extends Controller
                 'message' => 'This action is only available for personnel accounts.',
             ], 422);
         }
-
-        $this->assertCanManageTarget($request, $user);
 
         $token = Str::random(64);
 
@@ -327,8 +325,6 @@ class AdminController extends Controller
             ], 422);
         }
 
-        $this->assertCanManageTarget($request, $user);
-
         $user->forceFill([
             'google2fa_secret'      => null,
             'google2fa_enabled_at'  => null,
@@ -393,7 +389,6 @@ class AdminController extends Controller
     public function toggleStatus(Request $request, $id)
     {
         $user = User::findOrFail($id);
-        $this->assertCanManageTarget($request, $user);
         $user->update(['is_active' => !$user->is_active]);
 
         $statusLabel = $user->is_active ? 'activated' : 'deactivated';
@@ -412,7 +407,7 @@ class AdminController extends Controller
     public function deleteUser(Request $request, $id)
     {
         $user = User::findOrFail($id);
-        $this->assertCanManageTarget($request, $user);
+        $this->assertCanDeleteTarget($request, $user);
         $name = "{$user->first_name} {$user->last_name}";
         $email = $user->email;
 

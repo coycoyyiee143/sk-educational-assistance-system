@@ -4860,6 +4860,25 @@ a:hover {
   min-height: 150px;
 }
 
+.admin-stat-card-btn {
+  width: 100%;
+  border: 2px solid transparent;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.admin-stat-card-btn:hover {
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.09);
+  transform: translateY(-1px);
+}
+
+.admin-stat-card-btn.admin-stat-card-active {
+  border-color: #1d4ed8;
+  box-shadow: 0 4px 14px rgba(29, 78, 216, 0.15);
+}
+
 .admin-stat-top {
   display: flex;
   align-items: center;
