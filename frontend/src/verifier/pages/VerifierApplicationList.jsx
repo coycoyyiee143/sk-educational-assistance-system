@@ -81,6 +81,8 @@ function VerifierApplicationList() {
   const [statusTab, setStatusTab] = useState(initialTab);
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [retryingOcr, setRetryingOcr] = useState(false);
+  const [retryMessage, setRetryMessage] = useState("");
   const hasRestoredScroll = useRef(false);
 
   const perPage = 20;
@@ -206,6 +208,21 @@ function VerifierApplicationList() {
     return pages;
   }
 
+  async function handleRetryAllFailedOcr() {
+    setRetryingOcr(true);
+    setRetryMessage("");
+
+    try {
+      const res = await api.post("/verifier/documents/retry-failed-ocr");
+      setRetryMessage(res.data.message);
+      await fetchData();
+    } catch {
+      setRetryMessage("Failed to queue OCR retries.");
+    } finally {
+      setRetryingOcr(false);
+    }
+  }
+
   function handleTabChange(key) {
     setStatusTab(key);
     setCurrentPage(1);
@@ -236,9 +253,37 @@ function VerifierApplicationList() {
             </div>
 
             <div className="page-card verifier-attention-card">
-              <h4 className="verifier-application-list-title">
-                Application List
-              </h4>
+              <div className="verifier-application-list-header">
+                <h4 className="verifier-application-list-title">
+                  Application List
+                </h4>
+
+                {/* Only worth showing once there's something to retry --
+                    kept visible through an in-flight retry and its result
+                    message even if the count has already dropped to 0 by
+                    then (documents flip to 'pending' as soon as they're
+                    queued), so the button doesn't vanish out from under a
+                    click the verifier just made. */}
+                {(counts.ocr_failed > 0 || retryingOcr || retryMessage) && (
+                  <div className="verifier-retry-all-ocr-wrap">
+                    <button
+                      type="button"
+                      className="verifier-retry-all-ocr-btn"
+                      onClick={handleRetryAllFailedOcr}
+                      disabled={retryingOcr || counts.ocr_failed === 0}
+                      title="Re-queue OCR for every failed document"
+                    >
+                      {retryingOcr ? "Retrying OCR..." : "Retry All Failed OCR"}
+                    </button>
+
+                    {retryMessage && (
+                      <span className="verifier-retry-all-ocr-msg">
+                        {retryMessage}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <div className="verifier-application-toolbar">
                 <div className="verifier-application-search">

@@ -279,6 +279,46 @@ class VerifierReviewTest extends TestCase
         $response->assertStatus(403);
     }
 
+    // ── retryAllFailedOcr() ─────────────────────────────────────
+
+    public function test_verifier_can_retry_all_failed_ocr_documents_in_active_config()
+    {
+        Queue::fake();
+        $verifier = $this->makeVerifier();
+        $config = ApplicationConfiguration::factory()->create(['is_active' => true]);
+        $app = $this->makeApplication(['config_id' => $config->id]);
+        $failedA = ApplicationDocument::factory()->create(['application_id' => $app->id, 'status' => 'failed']);
+        $failedB = ApplicationDocument::factory()->create(['application_id' => $app->id, 'status' => 'failed']);
+        $verified = ApplicationDocument::factory()->create(['application_id' => $app->id, 'status' => 'processed']);
+
+        $otherConfig = ApplicationConfiguration::factory()->create(['is_active' => false]);
+        $otherApp = $this->makeApplication(['config_id' => $otherConfig->id]);
+        $otherFailed = ApplicationDocument::factory()->create(['application_id' => $otherApp->id, 'status' => 'failed']);
+
+        $response = $this->actingAs($verifier, 'sanctum')
+            ->postJson('/api/verifier/documents/retry-failed-ocr');
+
+        $response->assertOk();
+        $response->assertJsonFragment(['queued' => 2]);
+        $this->assertDatabaseHas('application_documents', ['id' => $failedA->id, 'status' => 'pending']);
+        $this->assertDatabaseHas('application_documents', ['id' => $failedB->id, 'status' => 'pending']);
+        $this->assertDatabaseHas('application_documents', ['id' => $verified->id, 'status' => 'processed']);
+        $this->assertDatabaseHas('application_documents', ['id' => $otherFailed->id, 'status' => 'failed']);
+        Queue::assertPushedOn('ocr', ProcessOcrDocument::class);
+        Queue::assertPushed(ProcessOcrDocument::class, 2);
+    }
+
+    public function test_non_verifier_cannot_retry_all_failed_ocr()
+    {
+        Queue::fake();
+        $applicant = $this->makeApplicant();
+
+        $response = $this->actingAs($applicant, 'sanctum')
+            ->postJson('/api/verifier/documents/retry-failed-ocr');
+
+        $response->assertStatus(403);
+    }
+
     // ── stats() ─────────────────────────────────────────────────
 
     public function test_stats_counts_applications_by_status_for_active_config()

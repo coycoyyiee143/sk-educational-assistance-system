@@ -7974,6 +7974,52 @@ a:hover {
   font-size: 14px;
 }
 
+.verifier-application-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.verifier-application-list-header .verifier-application-list-title {
+  margin: 0;
+}
+
+.verifier-retry-all-ocr-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.verifier-retry-all-ocr-btn {
+  background: #b71c1c;
+  color: #ffffff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 15px;
+  font-family: 'Inter', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.verifier-retry-all-ocr-btn:hover:not(:disabled) {
+  background: #8e1414;
+}
+
+.verifier-retry-all-ocr-btn:disabled {
+  background: #c9c9c9;
+  cursor: not-allowed;
+}
+
+.verifier-retry-all-ocr-msg {
+  font-size: 12.5px;
+  color: #555555;
+}
+
 .verifier-application-list-title {
   margin: 0 0 18px;
   font-family: 'Hanken Grotesk', Arial, sans-serif;

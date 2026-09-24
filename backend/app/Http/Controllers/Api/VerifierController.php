@@ -568,6 +568,38 @@ class VerifierController extends Controller
         return response()->json(['message' => 'OCR retry queued.']);
     }
 
+    // Bulk version of retryOcr() for the Application List's "Retry All
+    // Failed OCR" button -- re-queues every OCR-failed document in the
+    // active period in one click instead of opening each application.
+    public function retryAllFailedOcr()
+    {
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+
+        if (!$activeConfig) {
+            return response()->json(['message' => 'No active application period.', 'queued' => 0]);
+        }
+
+        $documents = ApplicationDocument::with('application')
+            ->where('status', 'failed')
+            ->whereHas('application', fn($q) => $q->where('config_id', $activeConfig->id))
+            ->get();
+
+        foreach ($documents as $document) {
+            $document->update(['status' => 'pending']);
+
+            \App\Jobs\ProcessOcrDocument::dispatch(
+                $document->application,
+                $document,
+                $document->file_path
+            )->onQueue('ocr');
+        }
+
+        return response()->json([
+            'message' => "Queued OCR retry for {$documents->count()} document(s).",
+            'queued'  => $documents->count(),
+        ]);
+    }
+
     // Panel/demo use only (see ocr-service/app/routes.py's get_debug_mode) --
     // re-sends the document's ALREADY-STORED file to the OCR service with
     // debug=true, synchronously, and returns the result straight to the

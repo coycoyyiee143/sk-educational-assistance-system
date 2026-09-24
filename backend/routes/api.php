@@ -173,6 +173,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/verifier/applications/{id}/reupload', [VerifierController::class, 'requestReupload']);
         Route::post('/verifier/applications/{id}/appeal-decision', [VerifierController::class, 'appealDecision']);
         Route::get('/verifier/stats', [VerifierController::class, 'stats']);
+        Route::post('/verifier/documents/retry-failed-ocr', [VerifierController::class, 'retryAllFailedOcr']);
         Route::post('/verifier/documents/{document}/retry-ocr', [VerifierController::class, 'retryOcr']);
         Route::post('/verifier/documents/{document}/debug-preview', [VerifierController::class, 'previewDebugOcr']);
         Route::get('/verifier/claiming/search', [VerifierController::class, 'searchClaiming']);
