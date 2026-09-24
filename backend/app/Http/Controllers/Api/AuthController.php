@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\StudentProfile;
 use App\Models\FaceVerification;
+use App\Models\ApplicationConfiguration;
 use App\Models\PasswordHistory;
 use App\Notifications\ApplicationStatusNotification;
 use App\Services\FaceMatchingService;
@@ -327,6 +328,11 @@ class AuthController extends Controller
                 'local'
             );
 
+            // Stamp the period active at registration time, so a freshly-
+            // registered applicant isn't immediately asked to re-verify —
+            // mirrors FaceVerificationController::store()'s logic.
+            $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+
             FaceVerification::create([
                 'user_id'                  => $user->id,
                 'id_image_path'            => $idImagePath,
@@ -335,6 +341,7 @@ class AuthController extends Controller
                 'registration_match_score' => $result['score'],
                 'status'                   => 'verified',
                 'verified_at'              => now(),
+                'verified_config_id'       => $activeConfig?->id,
             ]);
 
             return $user;

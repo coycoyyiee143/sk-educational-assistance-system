@@ -579,7 +579,7 @@ function AdminUsers() {
                 </ul>
               </div>
             )}
-            <div className="row g-3 row-cols-2 row-cols-md-4">
+            <div className="row g-3 row-cols-2 row-cols-md-4 mb-4">
               {roleCards.map(({ key, label, value, accent, icon }) => (
                 <div className="col" key={key}>
                   <button
