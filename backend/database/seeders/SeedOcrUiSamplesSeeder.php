@@ -514,6 +514,17 @@ class SeedOcrUiSamplesSeeder extends Seeder
             $this->command->info("  [{$docType}] document #{$document->id} -> status: {$document->status}");
         }
 
+        // updateOrCreate() above always resets a re-run's status back to
+        // 'pending_prescreening', even when this application already has
+        // all 3 documents from a previous run -- ProcessOcrDocument (and
+        // the status recompute it triggers) only runs for a document
+        // that's newly created THIS run, so an application whose
+        // documents were all skipped as already-existing would otherwise
+        // stay stuck showing 'pending_prescreening' despite already being
+        // fully processed. Recomputing here covers both that case and the
+        // normal one (a no-op if any document isn't 'processed' yet).
+        Application::refreshStatusFromDocuments($application);
+
         $this->command->info("  Open /VerifierApplicationReview/{$application->id} as your verifier account to view/screenshot.");
     }
 }
