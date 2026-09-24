@@ -178,10 +178,10 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
             # Confident read, but the year genuinely isn't the configured
             # cycle — this is not a low-confidence-read problem, so don't
             # tell the applicant/reviewer their document was hard to read.
-            reason = f"Certificate year ({cert_year_res.value}) does not match the current cycle ({configured_cert_year})."
+            reason = f"Detected certificate year is {cert_year_res.value}, but this cycle requires {configured_cert_year}."
             checks["cert_year_match"] = _flag("cert_year_match", reason, extracted=cert_year_res.value, raw=cert_year_res.raw, expected=str(configured_cert_year), context=cert_year_res.context)
         else:
-            reason = "Certificate year not found — please verify manually" if not cert_year_res.found else f"Certificate year does not match current cycle (low confidence read, {cert_year_res.confidence:.2f} — please verify manually)"
+            reason = "Certificate year not found — please verify manually." if not cert_year_res.found else f"Detected certificate year appears to be {cert_year_res.value} (low-confidence read, {cert_year_res.confidence:.2f}) — please verify manually against the required {configured_cert_year}."
             checks["cert_year_match"] = _flag("cert_year_match", reason, extracted=cert_year_res.value, raw=cert_year_res.raw, expected=str(configured_cert_year), context=cert_year_res.context)
 
     template_strategy = get_template_strategy(declared_school, "voters_certificate")

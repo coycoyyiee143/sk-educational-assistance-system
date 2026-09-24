@@ -113,7 +113,10 @@ export const NOT_CLEARED_REASONS = [
 const CHECK_NAME_LABELS = {
     image_integrity: "Edited/Tampered Image Detection",
     ai_generation_provenance: "AI-Generated or AI-Edited Image",
-    cert_year_match: "Year Issued",
+    // Bare "Year Issued" reads ambiguous next to school_year_match's
+    // auto-labeled "School Year Match" — both are "year" checks on
+    // different fields, so this needs to say which one.
+    cert_year_match: "Certificate Year Issued",
     identity_match: "Identity & Legal Name",
     residency_geofence: "Residency Geofence",
     repeated_auto_reupload_escalation: "Repeated Re-upload Issue",
