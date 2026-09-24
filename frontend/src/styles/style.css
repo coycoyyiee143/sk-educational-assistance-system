@@ -8953,12 +8953,6 @@ a:hover {
   margin: 0;
 }
 
-.verifier-review-info-header-top-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
 .verifier-review-info-app-id {
   font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 14px;

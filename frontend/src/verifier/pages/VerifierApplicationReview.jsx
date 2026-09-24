@@ -940,21 +940,19 @@ function VerifierApplicationReview() {
                 <div className="verifier-review-info-header-top">
                   <h4 className="verifier-review-info-title">
                     Applicant Information
-                  </h4>
-
-                  <div className="verifier-review-info-header-top-right">
                     <span className="verifier-review-info-app-id">
+                      {" "}
                       #{app?.id}
                     </span>
+                  </h4>
 
-                    <span
-                      className={`status-badge ${getVerifierBadgeClass(
-                        app
-                      )}`}
-                    >
-                      {getVerifierStatusLabel(app)}
-                    </span>
-                  </div>
+                  <span
+                    className={`status-badge ${getVerifierBadgeClass(
+                      app
+                    )}`}
+                  >
+                    {getVerifierStatusLabel(app)}
+                  </span>
                 </div>
 
                 {showFlagSummary && (
