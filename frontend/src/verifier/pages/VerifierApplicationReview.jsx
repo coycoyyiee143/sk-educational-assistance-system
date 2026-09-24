@@ -1013,6 +1013,10 @@ function VerifierApplicationReview() {
                   <div className="verifier-review-details-grid verifier-review-details-grid-single">
                     {[
                       [
+                        "Application ID",
+                        app?.id ?? "—",
+                      ],
+                      [
                         "Applicant Full Name",
                         [user?.first_name, user?.middle_name, user?.last_name]
                           .filter(Boolean)
