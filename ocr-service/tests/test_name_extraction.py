@@ -111,6 +111,23 @@ def test_extract_adjacent_name_lines_skips_id_number_between_lines():
     assert "CASTILLO" in joined_text and "NATHAN" in joined_text
 
 
+def test_extract_adjacent_name_lines_joins_three_fragments_past_id_number():
+    # Same layout, but the first name is itself two words split across two
+    # separate lines (e.g. "Nathan Gabriel" as first name) — joining only
+    # a pair (surname + "NATHAN") misses "GABRIEL" and never clears the
+    # match threshold, since the first-name component must appear whole.
+    surname = block("CASTILLO", x_min=0, y_min=0, x_max=200, y_max=20)
+    id_number = block("28-1734-596", x_min=0, y_min=25, x_max=200, y_max=45)
+    given1 = block("NATHAN", x_min=0, y_min=50, x_max=200, y_max=70)
+    given2 = block("GABRIEL", x_min=0, y_min=75, x_max=200, y_max=95)
+    blocks = [surname, id_number, given1, given2]
+    result = extract_adjacent_name_lines(blocks, "Nathan Gabriel", "Asilo", "Castillo")
+    assert result is not None
+    joined_text, _, _ = result
+    assert "28-1734-596" not in joined_text
+    assert "CASTILLO" in joined_text and "NATHAN" in joined_text and "GABRIEL" in joined_text
+
+
 def test_extract_adjacent_name_lines_no_match_returns_none():
     blocks = [block("Completely unrelated line one"), block("Completely unrelated line two", y_min=25, y_max=45)]
     result = extract_adjacent_name_lines(blocks, FN, MN, LN)

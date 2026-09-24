@@ -12,6 +12,14 @@ from app.extraction.keyword_engine import extract_via_keyword
 # turn up on other real documents/layouts.
 NAME_AREA_NOISE_LABELS = ["sex", "civil status", "age"]
 
+# Max number of name-fragment lines to join into one candidate. Some ID
+# layouts print a surname, then an ID number, then TWO given-name lines
+# (e.g. a two-word first name split across its own line) -- joining only
+# a pair misses the second given-name fragment and never reaches the 85
+# score needed to pass. Bounded so the walk can't run away joining
+# unrelated lines on a busy page.
+MAX_NAME_JOIN_BLOCKS = 4
+
 _ID_NUMBER_RE = re.compile(r'^[\d\-/.\s]+$')
 
 def _looks_like_id_number(text: str) -> bool:
@@ -72,44 +80,57 @@ def extract_adjacent_name_lines(blocks: List[OcrBlock],
         t = text.lower().strip()
         return _looks_like_id_number(text) or any(re.search(r'\b' + re.escape(n) + r'\b', t) for n in noise_labels)
 
-    def walk_spatial(start_idx: int):
+    def walk_spatial(start_idx: int) -> List[List[OcrBlock]]:
         current = blocks[start_idx]
         joined = [blocks[start_idx]]
+        candidates = []
         hops = 0
-        while hops <= max_skip:
+        while len(joined) < MAX_NAME_JOIN_BLOCKS and hops <= max_skip:
             nxt = get_block_below(blocks, current)
             if not nxt:
-                return None
+                break
+            current = nxt
             if is_noise_text(nxt.text):
-                current = nxt
                 hops += 1
                 continue
             joined.append(nxt)
-            return joined
+            candidates.append(list(joined))
+            hops = 0
+        return candidates
 
-    def walk_list_order(start_idx: int):
+    def walk_list_order(start_idx: int) -> List[List[OcrBlock]]:
         joined = [blocks[start_idx]]
+        candidates = []
         list_idx = start_idx
         hops = 0
-        while hops <= max_skip:
+        while len(joined) < MAX_NAME_JOIN_BLOCKS and hops <= max_skip:
             list_idx += 1
             if list_idx >= len(blocks):
-                return None
+                break
             nxt = blocks[list_idx]
             if is_noise_text(nxt.text):
                 hops += 1
                 continue
             joined.append(nxt)
-            return joined
+            candidates.append(list(joined))
+            hops = 0
+        return candidates
 
     for i in range(len(blocks)):
-        for candidate_blocks in (walk_spatial(i), walk_list_order(i)):
-            if not candidate_blocks:
-                continue
+        for candidate_blocks in walk_spatial(i) + walk_list_order(i):
             joined_text = " ".join(b.text for b in candidate_blocks)
             match_result = fuzzy_match_name(joined_text, first_name, middle_name, last_name)
             score = match_result["score"] if match_result["passed"] else 0
-            if score > best_score or (score == best_score and best_pair and len(joined_text) > len(best_pair[0])):
+            # On a tie, prefer the SHORTER candidate. partial_ratio (used
+            # inside fuzzy_match_name) can score an unrelated leading
+            # fragment's text just as high as a clean match, since it
+            # only looks for the best-matching substring -- e.g. joining
+            # in an unrelated preceding line ("COLLEGE OF NURSING
+            # CASTILLO NATHAN") can tie a clean "CASTILLO NATHAN GABRIEL"
+            # match. Preferring longer on ties (as this used to) would
+            # pick the polluted one; shorter picks the minimal join that
+            # already clears the threshold.
+            if score > best_score or (score == best_score and best_pair and len(joined_text) < len(best_pair[0])):
                 best_score, best_pair = score, (joined_text, candidate_blocks)
 
     if best_pair and best_score >= 85:

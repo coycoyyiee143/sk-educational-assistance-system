@@ -266,6 +266,21 @@ def test_uphsd_bottom_name_merge_excludes_course_line():
     assert "College of Engineering" in merged_texts  # excluded from name merge, kept as-is
 
 
+def test_uphsd_bottom_name_merge_keeps_surname_when_given_name_splits_in_two():
+    # Real UPHSD School ID layout (confirmed on an actual sample): surname
+    # on its own row, then a two-word given name printed as two SEPARATE
+    # side-by-side blocks on the row below. A fixed "keep the last 2
+    # blocks by y_center" merge previously dropped the surname entirely
+    # here, since both given-name blocks sort after it.
+    student_no = block("28-1734-596", x_min=688, y_min=1370, x_max=944, y_max=1419)
+    surname = block("CASTILLO", x_min=67, y_min=1379, x_max=416, y_max=1474)
+    given1 = block("NATHAN", x_min=69, y_min=1496, x_max=274, y_max=1556)
+    given2 = block("GABRIEL", x_min=277, y_min=1495, x_max=488, y_max=1556)
+    merged = UphsdStrategy().preprocess_blocks([student_no, surname, given1, given2])
+    merged_texts = [b.text for b in merged]
+    assert "CASTILLO NATHAN GABRIEL" in merged_texts
+
+
 # ── CalambaDoctorsCollegeStrategy (CDC) ──────────────────────────────────
 
 def test_cdc_extracts_ay_phrase():

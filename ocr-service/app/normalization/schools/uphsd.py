@@ -101,8 +101,24 @@ class UphsdStrategy(BaseSchoolStrategy):
         if len(candidates) < 2:
             return blocks
 
+        # Reading order: top-to-bottom by row, left-to-right within a row.
+        # A row can hold MORE than one block -- e.g. a two-word given name
+        # ("NATHAN" / "GABRIEL") printed as two separate side-by-side OCR
+        # blocks on the same line below the surname. Taking a fixed
+        # "last 2 blocks" here (the previous approach) silently dropped
+        # the surname whenever the given-name row itself split into 2+
+        # blocks, since sorting by y_center alone put both given-name
+        # blocks after the surname and the slice kept only the tail.
         candidates.sort(key=lambda b: b.y_center)
-        candidates = candidates[-2:]
+        rows: List[List[OcrBlock]] = []
+        for b in candidates:
+            if rows and (b.y_center - rows[-1][-1].y_center) <= rows[-1][-1].height * 0.8:
+                rows[-1].append(b)
+            else:
+                rows.append([b])
+        for row in rows:
+            row.sort(key=lambda b: b.x_min)
+        candidates = [b for row in rows for b in row]
 
         merged_text = " ".join(b.text.strip() for b in candidates)
         avg_conf = sum(b.confidence for b in candidates) / len(candidates)
