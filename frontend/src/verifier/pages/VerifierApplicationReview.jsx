@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { usePolling } from "../../hooks/usePolling";
 import { useUserPhoto } from "../../hooks/useUserPhoto";
 import VerifierNavigation from "../components/VerifierNavigation";
@@ -139,6 +139,7 @@ function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
 function VerifierApplicationReview() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [app, setApp] = useState(null);
   const { url: profilePhotoUrl, status: profilePhotoStatus } = useUserPhoto(
@@ -834,7 +835,18 @@ function VerifierApplicationReview() {
                 type="button"
                 className="verifier-review-back-btn"
                 onClick={() =>
-                  navigate("/VerifierApplicationList")
+                  // Carries back whatever tab/page the list was on when
+                  // this review was opened (see the Link's state in
+                  // VerifierApplicationList) so the verifier lands back
+                  // where they left off instead of always resetting to
+                  // For Review page 1. If that state is missing (e.g. a
+                  // direct link or a refreshed review page), this is just
+                  // a plain navigation with no restore -- same as before.
+                  navigate("/VerifierApplicationList", {
+                    state: location.state?.verifierListRestore
+                      ? { verifierListRestore: location.state.verifierListRestore }
+                      : undefined,
+                  })
                 }
               >
                 <svg

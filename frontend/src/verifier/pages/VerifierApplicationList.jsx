@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Link, useSearchParams, useLocation } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import api from "../../services/api";
@@ -58,15 +58,30 @@ const AWAITING_APPLICANT_STATUSES = ["reupload_requested", "auto_reupload_reques
 
 function VerifierApplicationList() {
   const [searchParams] = useSearchParams();
+  const location = useLocation();
+
+  // Returning from a reviewed application (via its Back button) carries
+  // the tab/page/scroll we left off at in location.state -- restore
+  // that in preference to everything else, since it's the one case
+  // where NOT defaulting to "For Review" is actually what the verifier
+  // wants (they deliberately picked a different tab before clicking in).
+  // A fresh arrival (sidebar nav, a dashboard deep-link) has no
+  // location.state at all, so it falls through to the existing
+  // ?tab= query param, then finally the "for_review" default -- neither
+  // of those paths changes for a first-time visit.
+  const restoredState = location.state?.verifierListRestore;
   const requestedTab = searchParams.get("tab");
-  const initialTab = STATUS_TABS.some((t) => t.key === requestedTab) ? requestedTab : "for_review";
+  const initialTab = restoredState?.tab
+    ?? (STATUS_TABS.some((t) => t.key === requestedTab) ? requestedTab : "for_review");
+  const initialPage = restoredState?.page ?? 1;
 
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusTab, setStatusTab] = useState(initialTab);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(initialPage);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const hasRestoredScroll = useRef(false);
 
   const perPage = 10;
 
@@ -92,6 +107,22 @@ function VerifierApplicationList() {
   // is another all-day-open tab for verifiers, so pausing while the
   // tab is backgrounded and never overlapping requests matters here.
   usePolling(fetchData, { intervalMs: 10000 });
+
+  // Restores scroll position when returning from a reviewed application
+  // -- only once per mount (hasRestoredScroll guards against usePolling's
+  // periodic refetches re-triggering this after the verifier has already
+  // scrolled elsewhere), and only when this navigation actually came from
+  // a review page's Back button (restoredState present) with a saved
+  // position to go with it. Cleared from sessionStorage immediately after
+  // use so it can't leak into some later, unrelated fresh visit.
+  useEffect(() => {
+    if (loading || hasRestoredScroll.current || !restoredState) return;
+    const savedScrollY = sessionStorage.getItem("verifierListScrollY");
+    if (savedScrollY === null) return;
+    hasRestoredScroll.current = true;
+    sessionStorage.removeItem("verifierListScrollY");
+    window.scrollTo({ top: Number(savedScrollY), behavior: "auto" });
+  }, [loading, restoredState]);
 
   const counts = {
     all: applications.length,
@@ -324,6 +355,25 @@ function VerifierApplicationList() {
                             <Link
                               to={`/VerifierApplicationReview/${app.id}`}
                               className="verifier-review-btn"
+                              state={{
+                                verifierListRestore: {
+                                  tab: statusTab,
+                                  page: currentPage,
+                                },
+                              }}
+                              // scrollY is captured here, at click time, rather
+                              // than embedded in the state object above --
+                              // this component never re-renders on scroll, so
+                              // a value read during JSX render would reflect
+                              // whatever position was current at the LAST
+                              // re-render, not necessarily where the verifier
+                              // actually was when they clicked.
+                              onClick={() =>
+                                sessionStorage.setItem(
+                                  "verifierListScrollY",
+                                  String(window.scrollY)
+                                )
+                              }
                             >
                               {["approved", "rejected"].includes(
                                 app.status
