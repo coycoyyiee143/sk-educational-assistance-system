@@ -83,7 +83,7 @@ function VerifierApplicationList() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const hasRestoredScroll = useRef(false);
 
-  const perPage = 10;
+  const perPage = 20;
 
   // async + awaited so usePolling's overlap guard below knows when this
   // actually finishes, not just when it starts.
