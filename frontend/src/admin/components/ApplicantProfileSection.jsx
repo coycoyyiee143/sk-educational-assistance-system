@@ -151,6 +151,13 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
   ];
   if (ageCounts.unknown > 0) ageCards.push({ key: "unknown", value: ageCounts.unknown, label: `Unknown (${ageRates.unknown_rate ?? 0}%)` });
   function formatPurokLabel(row) {
+    // Phase numbers repeat across different subdivisions/villages, so a
+    // phase row (which carries a subdivision) needs the village name
+    // attached to mean anything — a bare "Phase 2" doesn't say which
+    // village. Purok rows have no subdivision and just show the number.
+    if (row.subdivision) {
+      return `${row.purok || "Unspecified"} — ${row.subdivision}`;
+    }
     return row.purok || "Unspecified";
   }
   function openSchoolProgramModal() {
@@ -378,7 +385,7 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
           <div className="applicant-profile-card-body">
             <div className="applicant-profile-section">
               <h6 className="applicant-profile-label">Phase</h6>
-              {visiblePhase.length === 0 ? <div className="applicant-profile-empty">No phase data available.</div> : visiblePhase.map((r) => <CategoryBar key={`phase-${r.purok}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxPhaseCount} />)}
+              {visiblePhase.length === 0 ? <div className="applicant-profile-empty">No phase data available.</div> : visiblePhase.map((r) => <CategoryBar key={`phase-${r.purok}-${r.subdivision || ""}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxPhaseCount} />)}
             </div>
             <div className="applicant-profile-section">
               <h6 className="applicant-profile-label">Purok</h6>
@@ -419,7 +426,7 @@ function ApplicantProfileSection({ selectedConfigId, section }) {
                     <div className="school-program-record-table">
                       <div className="school-program-record-header">Phase</div>
                       <div className="school-program-record-body">
-                        {modalPhases.length === 0 ? <div className="applicant-profile-empty school-program-record-empty">No phase data available.</div> : modalPhases.map((r) => <CategoryBar key={`phase-${r.purok}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxPhaseCount} modalRow />)}
+                        {modalPhases.length === 0 ? <div className="applicant-profile-empty school-program-record-empty">No phase data available.</div> : modalPhases.map((r) => <CategoryBar key={`phase-${r.purok}-${r.subdivision || ""}`} label={formatPurokLabel(r)} count={r.total} percentage={r.percentage} max={maxPhaseCount} modalRow />)}
                       </div>
                     </div>
                   </div>

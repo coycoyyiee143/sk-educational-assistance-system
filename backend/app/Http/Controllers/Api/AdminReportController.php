@@ -573,28 +573,39 @@ class AdminReportController extends Controller
             $query->clone()->selectRaw('year_level, COUNT(*) as total')
                 ->groupBy('year_level')->orderBy('year_level')->get()
         );
-        // Purok/Phase lives on student_profiles, not applications.
-        // Keep Purok and Phase as separate report distributions using
-        // the existing purok_type field; no profile or database changes needed.
+        // Purok/Phase lives on student_profiles, not applications. Phase
+        // numbers alone aren't unique across Mamatid — every subdivision
+        // numbers its own phases independently (e.g. "Phase 1" exists in
+        // both Mabuhay City and Grand Homes), so phase rows must group by
+        // (phase number, subdivision) together, not phase number alone.
+        // Purok entries are government-assigned barangay-wide and have no
+        // subdivision, so they still group by purok number only.
         $purokPhaseQuery = $query->clone()
             ->join('student_profiles', 'applications.user_id', '=', 'student_profiles.user_id')
             ->selectRaw("
                 student_profiles.purok_type,
                 COALESCE(student_profiles.purok, 'Unspecified') as purok,
+                LOWER(TRIM(COALESCE(student_profiles.subdivision, ''))) as subdivision_key,
+                MIN(TRIM(student_profiles.subdivision)) as subdivision,
                 COUNT(*) as total
             ")
             ->whereIn('student_profiles.purok_type', ['purok', 'phase'])
-            ->groupBy('student_profiles.purok_type', 'student_profiles.purok')
+            ->groupBy('student_profiles.purok_type', 'student_profiles.purok', 'subdivision_key')
             ->orderBy('student_profiles.purok');
         $byPurok = $addPercentage(
             (clone $purokPhaseQuery)
                 ->where('student_profiles.purok_type', 'purok')
                 ->get()
         );
+        // The SQL grouping above only collapses EXACT (case/whitespace-
+        // normalized) subdivision spellings. A genuine typo ("Mabuhay
+        // Citi" vs "Mabuhay City") still produces a different
+        // subdivision_key and would otherwise split the count into a
+        // separate row — merge those together too.
         $byPhase = $addPercentage(
-            (clone $purokPhaseQuery)
-                ->where('student_profiles.purok_type', 'phase')
-                ->get()
+            $this->mergeSimilarSubdivisions(
+                (clone $purokPhaseQuery)->where('student_profiles.purok_type', 'phase')->get()
+            )
         );
         return response()->json([
             'config'        => $config,
@@ -606,6 +617,62 @@ class AdminReportController extends Controller
             'by_phase'      => $byPhase,
         ]);
     }
+
+    // Subdivision is free-text with no canonical list, so near-duplicate
+    // spellings ("Mabuhay City" vs "Mabuhay Citi") need to be merged
+    // manually rather than relying on GROUP BY alone. Clusters subdivisions
+    // within the SAME phase number using similar_text() percent match —
+    // 85% mirrors the fuzzy-match threshold already used for name/school
+    // matching in ocr-service (app/verification/shared.py), kept the same
+    // here for consistency. The display name for each cluster is taken
+    // from whichever spelling variant has the most applicants under it.
+    private function mergeSimilarSubdivisions($rows)
+    {
+        $merged = collect();
+
+        foreach ($rows->groupBy('purok') as $purokNumber => $group) {
+            $clusters = [];
+
+            foreach ($group as $row) {
+                $matchedIndex = null;
+                foreach ($clusters as $index => $cluster) {
+                    similar_text($row->subdivision_key, $cluster['subdivision_key'], $percent);
+                    if ($percent >= 85) {
+                        $matchedIndex = $index;
+                        break;
+                    }
+                }
+
+                if ($matchedIndex === null) {
+                    $clusters[] = [
+                        'subdivision_key' => $row->subdivision_key,
+                        'subdivision'     => $row->subdivision,
+                        'best_total'      => (int) $row->total,
+                        'total'           => (int) $row->total,
+                    ];
+                    continue;
+                }
+
+                $clusters[$matchedIndex]['total'] += (int) $row->total;
+                if ((int) $row->total > $clusters[$matchedIndex]['best_total']) {
+                    $clusters[$matchedIndex]['best_total'] = (int) $row->total;
+                    $clusters[$matchedIndex]['subdivision'] = $row->subdivision;
+                }
+            }
+
+            foreach ($clusters as $cluster) {
+                $merged->push((object) [
+                    'purok_type'  => 'phase',
+                    'purok'       => $purokNumber,
+                    'subdivision' => $cluster['subdivision'],
+                    'total'       => $cluster['total'],
+                ]);
+            }
+        }
+
+        return $merged;
+    }
+
     public function submissionTrends(Request $request)
     {
         $config = $this->resolveConfig($request);

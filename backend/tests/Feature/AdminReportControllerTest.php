@@ -248,6 +248,98 @@ class AdminReportControllerTest extends TestCase
         $this->assertEquals(2, (int) $schoolARow['total']);
     }
 
+    protected function attachPurokProfile(Application $app, string $purokType, string $purok, ?string $subdivision = null)
+    {
+        StudentProfile::create([
+            'user_id'     => $app->user_id,
+            'purok_type'  => $purokType,
+            'purok'       => $purok,
+            'subdivision' => $subdivision,
+        ]);
+    }
+
+    public function test_phase_rows_group_by_subdivision_not_just_phase_number()
+    {
+        // Phase numbers repeat across different subdivisions/villages —
+        // "Phase 1" in Mabuhay City and "Phase 1" in Grand Homes must NOT
+        // be merged into a single "Phase 1" bucket.
+        $admin = $this->makeAdmin();
+        $config = $this->makeConfig();
+
+        $app1 = $this->makeApplication($config);
+        $this->attachPurokProfile($app1, 'phase', '1', 'Mabuhay City');
+        $app2 = $this->makeApplication($config);
+        $this->attachPurokProfile($app2, 'phase', '1', 'Grand Homes');
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/admin/reports/applicant-distribution?config_id={$config->id}");
+
+        $response->assertOk();
+        $byPhase = collect($response->json('by_phase'));
+        $this->assertCount(2, $byPhase);
+        $this->assertNotNull($byPhase->firstWhere('subdivision', 'Mabuhay City'));
+        $this->assertNotNull($byPhase->firstWhere('subdivision', 'Grand Homes'));
+    }
+
+    public function test_phase_rows_merge_case_and_whitespace_variants_of_same_subdivision()
+    {
+        $admin = $this->makeAdmin();
+        $config = $this->makeConfig();
+
+        $app1 = $this->makeApplication($config);
+        $this->attachPurokProfile($app1, 'phase', '2', 'Mabuhay City');
+        $app2 = $this->makeApplication($config);
+        $this->attachPurokProfile($app2, 'phase', '2', 'MABUHAY CITY');
+        $app3 = $this->makeApplication($config);
+        $this->attachPurokProfile($app3, 'phase', '2', '  mabuhay city  ');
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/admin/reports/applicant-distribution?config_id={$config->id}");
+
+        $response->assertOk();
+        $byPhase = collect($response->json('by_phase'));
+        $this->assertCount(1, $byPhase);
+        $this->assertEquals(3, (int) $byPhase->first()['total']);
+    }
+
+    public function test_phase_rows_merge_minor_typo_variants_of_same_subdivision()
+    {
+        $admin = $this->makeAdmin();
+        $config = $this->makeConfig();
+
+        $app1 = $this->makeApplication($config);
+        $this->attachPurokProfile($app1, 'phase', '2', 'Mabuhay City');
+        $app2 = $this->makeApplication($config);
+        $this->attachPurokProfile($app2, 'phase', '2', 'Mabuhay Citi');
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/admin/reports/applicant-distribution?config_id={$config->id}");
+
+        $response->assertOk();
+        $byPhase = collect($response->json('by_phase'));
+        $this->assertCount(1, $byPhase);
+        $this->assertEquals(2, (int) $byPhase->first()['total']);
+    }
+
+    public function test_purok_rows_still_group_by_purok_number_alone()
+    {
+        $admin = $this->makeAdmin();
+        $config = $this->makeConfig();
+
+        $app1 = $this->makeApplication($config);
+        $this->attachPurokProfile($app1, 'purok', '3');
+        $app2 = $this->makeApplication($config);
+        $this->attachPurokProfile($app2, 'purok', '3');
+
+        $response = $this->actingAs($admin, 'sanctum')
+            ->getJson("/api/admin/reports/applicant-distribution?config_id={$config->id}");
+
+        $response->assertOk();
+        $byPurok = collect($response->json('by_purok'));
+        $this->assertCount(1, $byPurok);
+        $this->assertEquals(2, (int) $byPurok->first()['total']);
+    }
+
     // ── ageDistribution() ─────────────────────────────────────────
 
     public function test_age_distribution_counts_minors_and_adults_from_seeded_profiles()
