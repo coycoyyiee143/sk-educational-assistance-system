@@ -339,22 +339,25 @@ function VerifierApplicationList() {
                 <table className="table table-bordered table-striped align-middle verifier-attention-table">
                   <colgroup>
                     <col style={{ width: "6%" }} />
-                    <col style={{ width: "17%" }} />
-                    <col style={{ width: "24%" }} />
-                    <col style={{ width: "21%" }} />
+                    <col style={{ width: "12%" }} />
+                    <col style={{ width: "29%" }} />
+                    <col style={{ width: "25%" }} />
                     <col style={{ width: "19%" }} />
-                    <col style={{ width: "13%" }} />
+                    <col style={{ width: "9%" }} />
                   </colgroup>
 
                   <thead>
                     <tr>
-                      <th title="Order by submission time within this filtered list">
+                      <th
+                        className="text-center"
+                        title="Order by submission time within this filtered list"
+                      >
                         #
                       </th>
-                      <th>Application ID</th>
+                      <th className="text-center">Application ID</th>
                       <th>Applicant Name</th>
-                      <th>Submission Date</th>
-                      <th>Status</th>
+                      <th>Submission Date &amp; Time</th>
+                      <th className="text-center">Status</th>
                       <th>Action</th>
                     </tr>
                   </thead>
@@ -372,19 +375,19 @@ function VerifierApplicationList() {
                     ) : pagedApplications.length > 0 ? (
                       pagedApplications.map((app, idx) => (
                         <tr key={app.id}>
-                          <td>{pageStart + idx + 1}</td>
+                          <td className="text-center">{pageStart + idx + 1}</td>
 
-                          <td>
+                          <td className="text-center">
                             {`APP-${app.id}`}
                           </td>
 
                           <td>{app.name}</td>
 
                           <td>
-                            <RelativeTime value={app.submitted_at} />
+                            <RelativeTime value={app.submitted_at} showSeconds />
                           </td>
 
-                          <td>
+                          <td className="text-center">
                             <StatusBadge app={app} />
                             {app.failed_documents_count > 0 && (
                               <span

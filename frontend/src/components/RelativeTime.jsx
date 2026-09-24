@@ -24,7 +24,7 @@ function formatRelative(date, now) {
 // audit context — verifiers need to eyeball precise FCFS order without
 // depending on hover, which doesn't work on tablets/touch), with the
 // relative "X ago" shown underneath as a lightweight glance aid.
-function RelativeTime({ value, fallback = "—", className }) {
+function RelativeTime({ value, fallback = "—", className, showSeconds = false }) {
   if (!value) return <span className={className}>{fallback}</span>;
 
   const date = new Date(value);
@@ -34,7 +34,7 @@ function RelativeTime({ value, fallback = "—", className }) {
 
   const exact = date.toLocaleString(undefined, {
     dateStyle: "medium",
-    timeStyle: "short",
+    timeStyle: showSeconds ? "medium" : "short",
   });
 
   return (
