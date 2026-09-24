@@ -178,10 +178,10 @@ function ViewApplicantModal({ applicant, onClose }) {
           <div className="modal-body">
             <div className="applicant-details-summary">
               <div className="applicant-details-avatar">
-                {applicantPhoto ? <img src={applicantPhoto} alt={`${applicant.first_name} ${applicant.last_name}`} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : initials || "A"}
+                {applicantPhoto ? <img src={applicantPhoto} alt={[applicant.first_name, applicant.middle_name, applicant.last_name].filter(Boolean).join(" ")} style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }} /> : initials || "A"}
               </div>
               <div className="applicant-details-summary-text">
-                <strong>{applicant.first_name} {applicant.last_name}</strong>
+                <strong>{[applicant.first_name, applicant.middle_name, applicant.last_name].filter(Boolean).join(" ")}</strong>
                 <span>Registered Applicant</span>
               </div>
               <span className={`applicant-detail-status ${applicant.is_active ? "applicant-detail-status-active" : "applicant-detail-status-inactive"}`}>
@@ -710,7 +710,7 @@ function AdminUsers() {
                       pagedApplicants.map((a) => (
                         <tr key={a.id}>
                           <td>{a.id}</td>
-                          <td>{a.first_name} {a.last_name}</td>
+                          <td>{[a.first_name, a.middle_name, a.last_name].filter(Boolean).join(" ")}</td>
                           <td>{a.email}</td>
                           <td><RoleBadge role={a.role} /></td>
                           <td><StatusBadge active={a.is_active} /></td>
@@ -776,7 +776,7 @@ function AdminUsers() {
               </div>
               <div className="modal-body">
                 <p className="mb-0">
-                  This will immediately invalidate {resetTarget.first_name} {resetTarget.last_name}'s
+                  This will immediately invalidate {[resetTarget.first_name, resetTarget.middle_name, resetTarget.last_name].filter(Boolean).join(" ")}'s
                   current password and log them out of all active sessions. A
                   link to set a new password will be emailed to <strong>{resetTarget.email}</strong>.
                 </p>
@@ -804,7 +804,7 @@ function AdminUsers() {
               </div>
               <div className="modal-body">
                 <p className="mb-0">
-                  This will clear the authenticator setup for {twoFATarget.first_name} {twoFATarget.last_name}
+                  This will clear the authenticator setup for {[twoFATarget.first_name, twoFATarget.middle_name, twoFATarget.last_name].filter(Boolean).join(" ")}
                   ({twoFATarget.email}). They will be walked through scanning a new
                   QR code the next time they log in. Only do this after confirming
                   their identity — this is the only way to recover a lost
@@ -834,7 +834,7 @@ function AdminUsers() {
               </div>
               <div className="modal-body">
                 <p className="mb-0">
-                  This will immediately lock {deactivateTarget.first_name} {deactivateTarget.last_name} ({deactivateTarget.email})
+                  This will immediately lock {[deactivateTarget.first_name, deactivateTarget.middle_name, deactivateTarget.last_name].filter(Boolean).join(" ")} ({deactivateTarget.email})
                   out of their account. They won't be able to log in until an admin reactivates it.
                 </p>
               </div>
@@ -861,7 +861,7 @@ function AdminUsers() {
               </div>
               <div className="modal-body">
                 <p className="mb-0">
-                  This will permanently delete {deleteTarget.first_name} {deleteTarget.last_name}'s ({deleteTarget.email}) account.
+                  This will permanently delete {[deleteTarget.first_name, deleteTarget.middle_name, deleteTarget.last_name].filter(Boolean).join(" ")}'s ({deleteTarget.email}) account.
                   This action cannot be undone.
                 </p>
               </div>

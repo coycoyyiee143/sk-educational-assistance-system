@@ -74,7 +74,7 @@ class AdminController extends Controller
     public function users(Request $request)
     {
         $applicants = User::where('role', 'applicant')
-            ->select('id', 'first_name', 'last_name', 'email', 'role', 'is_active', 'created_at', 'privacy_consent_at')
+            ->select('id', 'first_name', 'middle_name', 'last_name', 'email', 'role', 'is_active', 'created_at', 'privacy_consent_at')
             ->with(['faceVerification:id,user_id,status,registration_match_score,verified_at'])
             ->get();
 

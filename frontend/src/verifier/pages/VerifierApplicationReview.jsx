@@ -996,7 +996,9 @@ function VerifierApplicationReview() {
 
                   <div className="verifier-review-profile-content">
                     <h5 className="verifier-review-profile-name">
-                      {user?.first_name} {user?.last_name}
+                      {[user?.first_name, user?.middle_name, user?.last_name]
+                        .filter(Boolean)
+                        .join(" ")}
                     </h5>
                   </div>
                 </div>
@@ -1012,7 +1014,9 @@ function VerifierApplicationReview() {
                     {[
                       [
                         "Applicant Full Name",
-                        `${user?.first_name} ${user?.last_name}`,
+                        [user?.first_name, user?.middle_name, user?.last_name]
+                          .filter(Boolean)
+                          .join(" "),
                       ],
                       [
                         "Date of Birth",

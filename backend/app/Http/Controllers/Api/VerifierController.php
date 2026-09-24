@@ -86,7 +86,7 @@ class VerifierController extends Controller
             return [
                 'id'                    => $app->id,
                 'control_number'        => $app->control_number,
-                'name'                  => $app->user->first_name . ' ' . $app->user->last_name,
+                'name'                  => implode(' ', array_filter([$app->user->first_name, $app->user->middle_name, $app->user->last_name])),
                 'submitted_at'          => $app->submitted_at,
                 'updated_at'            => $app->updated_at,
                 'status'                => $app->status,
@@ -400,7 +400,7 @@ class VerifierController extends Controller
             ->map(function ($app, $index) {
                 return [
                     'id'            => $app->id,
-                    'name'          => trim($app->user->first_name . ' ' . $app->user->last_name),
+                    'name'          => implode(' ', array_filter([$app->user->first_name, $app->user->middle_name, $app->user->last_name])),
                     'school_name'   => $app->school_name,
                     'waitlisted_at' => $app->waitlisted_at,
                     'position'      => $index + 1,

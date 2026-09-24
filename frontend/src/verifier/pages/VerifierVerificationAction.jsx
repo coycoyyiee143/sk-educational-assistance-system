@@ -727,7 +727,9 @@ function VerifierVerificationAction() {
                       )}
                       <div className="verifier-review-profile-content">
                         <h5 className="verifier-review-profile-name">
-                          {app.user?.first_name} {app.user?.last_name}
+                          {[app.user?.first_name, app.user?.middle_name, app.user?.last_name]
+                            .filter(Boolean)
+                            .join(" ")}
                         </h5>
                       </div>
                     </div>
