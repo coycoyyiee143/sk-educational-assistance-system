@@ -8953,6 +8953,19 @@ a:hover {
   margin: 0;
 }
 
+.verifier-review-info-header-top-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.verifier-review-info-app-id {
+  font-family: 'Hanken Grotesk', Arial, sans-serif;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6b7280;
+}
+
 .verifier-review-info-label {
   font-family: 'Hanken Grotesk', Arial, sans-serif;
   font-size: 18px;
@@ -9141,14 +9154,9 @@ a:hover {
 
 .verifier-review-info-header-top {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 20px;
-}
-
-.verifier-review-info-header-top .status-badge {
-  position: relative;
-  top: 18px;
 }
 
 .verifier-review-flag-summary {

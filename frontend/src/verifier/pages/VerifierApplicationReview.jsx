@@ -942,13 +942,19 @@ function VerifierApplicationReview() {
                     Applicant Information
                   </h4>
 
-                  <span
-                    className={`status-badge ${getVerifierBadgeClass(
-                      app
-                    )}`}
-                  >
-                    {getVerifierStatusLabel(app)}
-                  </span>
+                  <div className="verifier-review-info-header-top-right">
+                    <span className="verifier-review-info-app-id">
+                      #{app?.id}
+                    </span>
+
+                    <span
+                      className={`status-badge ${getVerifierBadgeClass(
+                        app
+                      )}`}
+                    >
+                      {getVerifierStatusLabel(app)}
+                    </span>
+                  </div>
                 </div>
 
                 {showFlagSummary && (
@@ -1012,10 +1018,6 @@ function VerifierApplicationReview() {
 
                   <div className="verifier-review-details-grid verifier-review-details-grid-single">
                     {[
-                      [
-                        "Application ID",
-                        app?.id ?? "—",
-                      ],
                       [
                         "Applicant Full Name",
                         [user?.first_name, user?.middle_name, user?.last_name]
