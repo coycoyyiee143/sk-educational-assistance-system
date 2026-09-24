@@ -14,29 +14,19 @@ class ActivePeriodSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::create([
-            'first_name'        => 'SK Admin',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'admin@skmamatid.com',
-            'mobile_number'     => '09123456789',
-            'password'          => Hash::make('admin123'),
-            'role'              => 'sk_admin',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
+        $admin = User::where('email', 'admin@skmamatid.com')->first();
+        if (!$admin) {
+            $this->command->error('Run OpeningDaySeeder first — it creates the admin/verifier accounts this seeder builds on top of.');
+            return;
+        }
 
-        User::create([
-            'first_name'        => 'SK Verifier',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'verifier@skmamatid.com',
-            'mobile_number'     => '09876543210',
-            'password'          => Hash::make('verifier123'),
-            'role'              => 'sk_verifier',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
+        // Deactivate whatever was already active first — without this,
+        // running this seeder after another one that left a config active
+        // leaves TWO rows both is_active=true, which breaks the "the
+        // active config" assumption every
+        // ApplicationConfiguration::where('is_active', true)->first()/
+        // ->find() call in the app relies on.
+        ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
 
         $config = ApplicationConfiguration::create([
             'school_year'  => '2025-2026',

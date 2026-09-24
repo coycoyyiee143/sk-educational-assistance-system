@@ -76,7 +76,10 @@ function DocumentUploadStep({
                         <strong>Image Quality Guidelines</strong>
 
                         <p className="mb-0 mt-1">
-                            Upload clear, readable photos. Ensure good lighting,
+                            Use a <strong>scanned copy</strong> of your document, not a direct
+                            photo taken with your phone or camera. You may use a scanning
+                            app such as <strong>CamScanner, Microsoft Lens, or Adobe Scan</strong>{" "}
+                            to produce a clean, flattened scan. Ensure good lighting,
                             avoid blur, and keep the full document in frame. Images below{" "}
                             <strong>{MIN_SHORT_SIDE_PX}px</strong> on the shortest side will
                             be rejected automatically. Supported formats: JPG, PNG only —

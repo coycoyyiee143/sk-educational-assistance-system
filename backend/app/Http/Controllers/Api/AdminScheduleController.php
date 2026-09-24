@@ -34,17 +34,32 @@ class AdminScheduleController extends Controller
             ->count();
 
         $schedule = ClaimingSchedule::with(['lanes' => function ($q) {
-                $q->withCount('assignments')->orderBy('claiming_date')->orderBy('lane_name');
+                $q->withCount('assignments')
+                    ->with('verifier:id,first_name,last_name')
+                    ->with('requestedVerifier:id,first_name,last_name')
+                    ->with('assignments.application:id,control_number')
+                    ->orderBy('claiming_date')->orderBy('lane_name');
             }])
             ->where('config_id', $config->id)
             ->latest()
             ->first();
+
+        $schedule?->lanes->each->append('control_number_range');
+
+        // Active verifiers, for the "Assigned Verifier" picker on each lane
+        // row — fetched here so the schedule page can offer it inline
+        // instead of needing a separate lane-assignments page/endpoint.
+        $verifiers = \App\Models\User::where('role', 'sk_verifier')
+            ->where('is_active', true)
+            ->orderBy('first_name')
+            ->get(['id', 'first_name', 'last_name']);
 
         return response()->json([
             'config'                     => $config,
             'approved_count'             => $approvedCount,
             'unassigned_approved_count'  => $unassignedApprovedCount,
             'schedule'                   => $schedule,
+            'verifiers'                  => $verifiers,
         ]);
     }
 
@@ -56,8 +71,8 @@ class AdminScheduleController extends Controller
             'morning_end'           => 'nullable',
             'afternoon_start'       => 'nullable',
             'afternoon_end'         => 'nullable',
-            'grace_period_date'     => 'nullable|date',
-            'grace_period_end_date' => 'nullable|date|after_or_equal:grace_period_date',
+            'late_claiming_date'     => 'nullable|date',
+            'late_claiming_end_date' => 'nullable|date|after_or_equal:late_claiming_date',
             'lanes'                 => 'required|array|min:1',
             'lanes.*.lane_name'     => 'required|string',
             // Capacity is REQUIRED here — unlimited-capacity regular lanes
@@ -65,13 +80,32 @@ class AdminScheduleController extends Controller
             // added an edge case (an unlimited lane silently swallowing
             // every applicant that reaches it in fill order, never letting
             // later lanes get used). The one legitimate uncapped lane in
-            // this system — "Grace Period Claiming" — is created directly
+            // this system — "Late Claiming" — is created directly
             // by VerifierController's waitlist-promotion flow, not through
             // this admin-configured lane list, so it's unaffected by this.
             'lanes.*.capacity'      => 'required|integer|min:1',
             'lanes.*.batch'         => 'required|in:morning,afternoon',
             'lanes.*.claiming_date' => 'required|date',
+            'lanes.*.verifier_id'   => 'nullable|exists:users,id',
         ]);
+
+        // A verifier can only staff one lane per session at a time — same
+        // one-lane-per-session rule assignVerifier() enforces when editing
+        // an existing lane, applied here too since lanes can now be given
+        // a verifier right at schedule-creation time. Scoped to the same
+        // claiming_date + batch (morning/afternoon), since the same
+        // verifier can legitimately run one lane in the morning and
+        // another in the afternoon, or a lane on a different day.
+        $duplicateVerifierId = collect($request->lanes)
+            ->filter(fn ($lane) => !empty($lane['verifier_id']))
+            ->groupBy(fn ($lane) => $lane['claiming_date'] . '|' . $lane['batch'])
+            ->flatMap(fn ($group) => collect($group)->pluck('verifier_id')->duplicates())
+            ->first();
+        if ($duplicateVerifierId) {
+            return response()->json([
+                'message' => 'Each verifier can only be assigned to one lane. Please fix the duplicate verifier assignment before saving.',
+            ], 400);
+        }
 
         $config = ApplicationConfiguration::where('is_active', true)->first();
         if (!$config) {
@@ -97,24 +131,24 @@ class AdminScheduleController extends Controller
             ], 400);
         }
 
-        // Grace period is for people who missed THEIR claiming day and
+        // Late Claiming is for people who missed THEIR claiming day and
         // are being given one more chance — it only makes sense once
-        // every regular claiming day has actually happened. If it were
+        // every scheduled claiming day has actually happened. If it were
         // allowed to start before or during the claiming days, someone
-        // could show up during "grace period" for a lane that hasn't
+        // could show up during "Late Claiming" for a lane that hasn't
         // even had its real claiming day yet, which breaks the eligibility
-        // logic in GracePeriodEligibility (it assumes every original
-        // lane's date is already in the past by the time grace period
+        // logic in LateClaimingEligibility (it assumes every original
+        // lane's date is already in the past by the time Late Claiming
         // opens — see CLAIMING_RULES.md).
         $latestClaimingDate = collect($request->lanes)
             ->map(fn ($lane) => \Carbon\Carbon::parse($lane['claiming_date'])->startOfDay())
             ->max();
 
-        if ($request->grace_period_date) {
-            $graceStart = \Carbon\Carbon::parse($request->grace_period_date)->startOfDay();
-            if ($graceStart->lte($latestClaimingDate)) {
+        if ($request->late_claiming_date) {
+            $lateClaimingStart = \Carbon\Carbon::parse($request->late_claiming_date)->startOfDay();
+            if ($lateClaimingStart->lte($latestClaimingDate)) {
                 return response()->json([
-                    'message' => "Grace Period must start after every claiming date. The latest claiming date entered is {$latestClaimingDate->toDateString()}, but Grace Period is set to start {$graceStart->toDateString()}.",
+                    'message' => "Late Claiming must start after every claiming date. The latest claiming date entered is {$latestClaimingDate->toDateString()}, but Late Claiming is set to start {$lateClaimingStart->toDateString()}.",
                 ], 400);
             }
         }
@@ -131,7 +165,7 @@ class AdminScheduleController extends Controller
         $schedule->fill($request->only([
             'location', 'morning_start', 'morning_end',
             'afternoon_start', 'afternoon_end',
-            'grace_period_date', 'grace_period_end_date',
+            'late_claiming_date', 'late_claiming_end_date',
         ]));
         $schedule->save();
 
@@ -140,11 +174,23 @@ class AdminScheduleController extends Controller
             $schedule->lanes()->create($lane);
         }
 
+        $schedule->load(['lanes' => function ($q) {
+            $q->withCount('assignments')
+                ->with('verifier:id,first_name,last_name')
+                ->with('requestedVerifier:id,first_name,last_name')
+                ->with('assignments.application:id,control_number');
+        }]);
+        $schedule->lanes->each->append('control_number_range');
+
+        \App\Models\AuditLog::record(
+            'schedule_saved',
+            $schedule,
+            "Saved Scheduled Claiming for config #{$config->id} — {$schedule->lanes->count()} lane(s)"
+        );
+
         return response()->json([
             'message'  => 'Schedule saved.',
-            'schedule' => $schedule->load(['lanes' => function ($q) {
-                $q->withCount('assignments');
-            }]),
+            'schedule' => $schedule,
         ]);
     }
 
@@ -184,17 +230,120 @@ class AdminScheduleController extends Controller
             ? "Schedule activated. {$assignedCount} already-approved applicant(s) assigned and notified. New approvals will now be assigned automatically."
             : "Schedule activated. New approvals will now be assigned automatically.";
 
+        $schedule->load(['lanes' => function ($q) {
+            $q->withCount('assignments')
+                ->with('verifier:id,first_name,last_name')
+                ->with('requestedVerifier:id,first_name,last_name')
+                ->with('assignments.application:id,control_number');
+        }]);
+        $schedule->lanes->each->append('control_number_range');
+
+        \App\Models\AuditLog::record(
+            'schedule_activated',
+            $schedule,
+            "Activated schedule #{$schedule->id} — {$assignedCount} already-approved applicant(s) assigned"
+        );
+
         return response()->json([
             'message'  => $message,
-            'schedule' => $schedule->load(['lanes' => function ($q) {
-                $q->withCount('assignments');
-            }]),
+            'schedule' => $schedule,
+        ]);
+    }
+
+    /**
+     * Lets an admin adjust the Late Claiming window on an ALREADY-ACTIVE
+     * schedule, which store() otherwise blocks entirely (it fully
+     * replaces the lane list, which is unsafe once real assignments
+     * exist). Late Claiming itself has no such conflict — nothing reads
+     * or depends on its dates until Late Claiming actually opens — so
+     * it's safe to keep editable right up to that point.
+     *
+     * Once it's started, the START date specifically is locked —
+     * LateClaimingEligibility and the claiming:sweep-unclaimed command
+     * both assume it's stable, since retries/promotions may already be
+     * sitting on it. The END date has no such dependency, so it can
+     * still be pushed later (never earlier) even after Late Claiming has
+     * started or already ended — same "extend, never shrink" shape as
+     * ApplicationConfigurationController::extend().
+     */
+    public function updateLateClaiming(Request $request, $id)
+    {
+        $request->validate([
+            'late_claiming_date'     => 'nullable|date',
+            'late_claiming_end_date' => 'nullable|date|after_or_equal:late_claiming_date',
+        ]);
+
+        $schedule = ClaimingSchedule::with('lanes')->findOrFail($id);
+
+        $startAlreadyPassed = $schedule->late_claiming_date
+            && \Carbon\Carbon::parse($schedule->late_claiming_date)->startOfDay()->lte(now()->startOfDay());
+
+        if ($startAlreadyPassed) {
+            $currentStart = \Carbon\Carbon::parse($schedule->late_claiming_date)->startOfDay();
+            $newStart = $request->late_claiming_date
+                ? \Carbon\Carbon::parse($request->late_claiming_date)->startOfDay()
+                : null;
+
+            if (!$newStart || !$newStart->eq($currentStart)) {
+                return response()->json([
+                    'message' => 'Late Claiming has already started — its start date can no longer be changed, but you can still extend the end date.',
+                ], 400);
+            }
+
+            if ($request->late_claiming_end_date && $schedule->late_claiming_end_date) {
+                $currentEnd = \Carbon\Carbon::parse($schedule->late_claiming_end_date)->startOfDay();
+                $newEnd = \Carbon\Carbon::parse($request->late_claiming_end_date)->startOfDay();
+
+                if ($newEnd->lt($currentEnd)) {
+                    return response()->json([
+                        'message' => 'The end date can only be moved later, not earlier, once Late Claiming has started.',
+                    ], 400);
+                }
+            }
+        }
+
+        // Same rule store() enforces at creation time — Late Claiming
+        // must start after every scheduled claiming day, since
+        // LateClaimingEligibility assumes every original lane's date is
+        // already in the past by the time it opens.
+        if ($request->late_claiming_date && $schedule->lanes->isNotEmpty()) {
+            $latestClaimingDate = $schedule->lanes
+                ->map(fn ($lane) => \Carbon\Carbon::parse($lane->claiming_date)->startOfDay())
+                ->max();
+            $lateClaimingStart = \Carbon\Carbon::parse($request->late_claiming_date)->startOfDay();
+
+            if ($lateClaimingStart->lte($latestClaimingDate)) {
+                return response()->json([
+                    'message' => "Late Claiming must start after every claiming date. The latest claiming date is {$latestClaimingDate->toDateString()}, but Late Claiming is set to start {$lateClaimingStart->toDateString()}.",
+                ], 400);
+            }
+        }
+
+        $schedule->update($request->only(['late_claiming_date', 'late_claiming_end_date']));
+
+        $schedule->load(['lanes' => function ($q) {
+            $q->withCount('assignments')
+                ->with('verifier:id,first_name,last_name')
+                ->with('requestedVerifier:id,first_name,last_name')
+                ->with('assignments.application:id,control_number');
+        }]);
+        $schedule->lanes->each->append('control_number_range');
+
+        \App\Models\AuditLog::record(
+            'late_claiming_updated',
+            $schedule,
+            "Updated Late Claiming window on schedule #{$schedule->id} to {$schedule->late_claiming_date} - {$schedule->late_claiming_end_date}"
+        );
+
+        return response()->json([
+            'message'  => 'Late Claiming window updated.',
+            'schedule' => $schedule,
         ]);
     }
 
     public function printableLane($laneId)
     {
-        $lane = ClaimingLane::with(['assignments.application.user'])->findOrFail($laneId);
+        $lane = ClaimingLane::with(['assignments.application.user', 'verifier:id,first_name,last_name'])->findOrFail($laneId);
         $list = $lane->assignments
             ->map(function ($a) {
                 return [
@@ -208,48 +357,9 @@ class AdminScheduleController extends Controller
             'lane_name'     => $lane->lane_name,
             'batch'         => $lane->batch,
             'claiming_date' => $lane->claiming_date,
+            'verifier_name' => $lane->verifier ? trim($lane->verifier->first_name . ' ' . $lane->verifier->last_name) : 'Unassigned',
             'applicants'    => $list,
         ]);
-    }
-
-    /**
-     * Lists every lane for the active period's active schedule, plus
-     * every available verifier — so an admin can assign or reassign who's
-     * working which lane, ANYTIME (before or after activation, before or
-     * during claiming day). This is deliberately separate from
-     * store()/activate() — lane-verifier staffing is day-of operational
-     * reality for a small SK team, not something that should be locked
-     * once the schedule itself is finalized.
-     */
-    public function laneAssignments()
-    {
-        $config = ApplicationConfiguration::where('is_active', true)->first();
-        if (!$config) {
-            return response()->json(['lanes' => [], 'verifiers' => []]);
-        }
-
-        $schedule = ClaimingSchedule::where('config_id', $config->id)
-            ->where('is_active', true)
-            ->latest()
-            ->first();
-
-        if (!$schedule) {
-            return response()->json(['lanes' => [], 'verifiers' => []]);
-        }
-
-        $lanes = $schedule->lanes()
-            ->with('verifier:id,first_name,last_name')
-            ->where('lane_name', '!=', 'Grace Period Claiming')
-            ->orderBy('claiming_date')
-            ->orderBy('lane_name')
-            ->get(['id', 'lane_name', 'batch', 'claiming_date', 'verifier_id']);
-
-        $verifiers = \App\Models\User::where('role', 'sk_verifier')
-            ->where('is_active', true)
-            ->orderBy('first_name')
-            ->get(['id', 'first_name', 'last_name']);
-
-        return response()->json(['lanes' => $lanes, 'verifiers' => $verifiers]);
     }
 
     /**
@@ -265,24 +375,63 @@ class AdminScheduleController extends Controller
 
         $lane = ClaimingLane::findOrFail($laneId);
 
-        // Enforce one lane per verifier — same constraint selfAssignLane()
-        // already applies on the verifier side. Without this, an admin
-        // could put the same person on two lanes at once, which doesn't
-        // make sense physically (they can't be in two places at the same
-        // claiming session).
+        // Enforce one lane per verifier per session — same constraint
+        // selfAssignLane() already applies on the verifier side. Without
+        // this, an admin could put the same person on two lanes at once,
+        // which doesn't make sense physically (they can't be in two
+        // places at the same claiming session). Scoped to the same
+        // claiming_date + batch, since the same verifier can legitimately
+        // run a morning lane and an afternoon lane, or lanes on different
+        // days.
         if ($request->verifier_id) {
             ClaimingLane::where('claiming_schedule_id', $lane->claiming_schedule_id)
+                ->where('claiming_date', $lane->claiming_date)
+                ->where('batch', $lane->batch)
                 ->where('verifier_id', $request->verifier_id)
                 ->where('id', '!=', $lane->id)
                 ->update(['verifier_id' => null]);
         }
 
-        $lane->update(['verifier_id' => $request->verifier_id]);
+        // Setting it manually here always supersedes any pending
+        // self-assign request on this lane, whether this happens to match
+        // what was requested (i.e. approving it) or not.
+        $lane->update(['verifier_id' => $request->verifier_id, 'requested_verifier_id' => null]);
+
+        \App\Models\AuditLog::record(
+            'lane_verifier_assigned',
+            $lane,
+            $request->verifier_id
+                ? "Assigned verifier #{$request->verifier_id} to lane #{$lane->id} ({$lane->lane_name})"
+                : "Unassigned verifier from lane #{$lane->id} ({$lane->lane_name})"
+        );
 
         return response()->json([
             'message' => $request->verifier_id
                 ? 'Verifier assigned to lane.'
                 : 'Verifier unassigned from lane.',
+            'lane' => $lane->load('verifier:id,first_name,last_name'),
+        ]);
+    }
+
+    /**
+     * Admin dismisses a verifier's pending request to take over a lane
+     * (see VerifierController::selfAssignLane()) without assigning
+     * anyone — the lane's current verifier, if any, is left untouched.
+     */
+    public function dismissLaneRequest($laneId)
+    {
+        $lane = ClaimingLane::findOrFail($laneId);
+        $requestedVerifierId = $lane->requested_verifier_id;
+        $lane->update(['requested_verifier_id' => null]);
+
+        \App\Models\AuditLog::record(
+            'lane_request_dismissed',
+            $lane,
+            "Dismissed verifier #{$requestedVerifierId}'s request for lane #{$lane->id} ({$lane->lane_name})"
+        );
+
+        return response()->json([
+            'message' => 'Request dismissed.',
             'lane' => $lane->load('verifier:id,first_name,last_name'),
         ]);
     }
@@ -295,7 +444,7 @@ class AdminScheduleController extends Controller
      */
     public function printableLanePdf($laneId)
     {
-        $lane = ClaimingLane::with(['assignments.application.user'])->findOrFail($laneId);
+        $lane = ClaimingLane::with(['assignments.application.user', 'verifier:id,first_name,last_name'])->findOrFail($laneId);
         $list = $lane->assignments
             ->map(function ($a) {
                 return [
@@ -306,10 +455,15 @@ class AdminScheduleController extends Controller
             ->sortBy('control_number')
             ->values();
 
+            // SK prints these physically for the verifier running that lane
+            // to use on claiming day — the verifier's name needs to be ON
+            // the sheet itself so it's identifiable once printed, not just
+            // visible in the admin UI beforehand.
             $pdf = Pdf::loadView('claiming.lane-claiming-list', [
                 'title'        => $lane->lane_name . ' — Claiming List',
                 'batch'        => $lane->batch,
                 'claimingDate' => $lane->claiming_date,
+                'verifierName' => $lane->verifier ? trim($lane->verifier->first_name . ' ' . $lane->verifier->last_name) : 'Unassigned',
                 'applicants'   => $list,
             ]);
 
@@ -325,7 +479,7 @@ class AdminScheduleController extends Controller
      * applications. Two things happen atomically:
      * 1. Every still-waitlisted applicant for this config becomes
      *    not_selected — they passed every check but ran out of room by
-     *    the time grace period ended. Not a rejection.
+     *    the time Late Claiming ended. Not a rejection.
      * 2. closed_at is stamped, so this period now has a real "settled"
      *    timestamp distinct from its planned close_date.
      */
@@ -342,9 +496,9 @@ class AdminScheduleController extends Controller
             ->latest()
             ->first();
 
-        if ($schedule && $schedule->grace_period_end_date && now()->lt($schedule->grace_period_end_date)) {
+        if ($schedule && $schedule->late_claiming_end_date && now()->lt($schedule->late_claiming_end_date)) {
             return response()->json([
-                'message' => 'Cannot close this period until the grace period has ended (' . $schedule->grace_period_end_date . ').',
+                'message' => 'Cannot close this period until Late Claiming has ended (' . $schedule->late_claiming_end_date . ').',
             ], 400);
         }
 

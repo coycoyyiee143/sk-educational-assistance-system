@@ -21,20 +21,35 @@ class Application extends Model
         'student_id_number',
         'status',
         'rejection_reason',
+        'appeal_reason',
+        'appeal_document_path',
+        'appealed_at',
+        'appeal_decision_notes',
+        'appeal_decided_at',
         'submitted_at',
         'waitlisted_at',
         'attestation_accepted_at',
+        'viewing_verifier_id',
+        'viewing_heartbeat_at',
     ];
 
     protected $casts = [
         'submitted_at'  => 'datetime',
         'waitlisted_at' => 'datetime',
         'attestation_accepted_at' => 'datetime',
+        'appealed_at' => 'datetime',
+        'appeal_decided_at' => 'datetime',
+        'viewing_heartbeat_at' => 'datetime',
     ];
 
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function viewingVerifier()
+    {
+        return $this->belongsTo(User::class, 'viewing_verifier_id');
     }
 
     public function configuration()
@@ -76,33 +91,56 @@ class Application extends Model
      */
     public static function tryApprove(self $application): array
     {
-        return DB::transaction(function () use ($application) {
-            $app = self::where('id', $application->id)->lockForUpdate()->first();
+        // Retries a handful of times on a control_number collision — belt
+        // and suspenders alongside the MAX-based sequence below, in case
+        // some other process ever inserts a number out from under this
+        // locked transaction.
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            try {
+                return DB::transaction(function () use ($application) {
+                    $app = self::where('id', $application->id)->lockForUpdate()->first();
 
-            if ($app->status === 'approved') {
-                return ['result' => 'already_approved', 'control_number' => $app->control_number];
+                    if ($app->status === 'approved') {
+                        return ['result' => 'already_approved', 'control_number' => $app->control_number];
+                    }
+
+                    $config = ApplicationConfiguration::where('id', $app->config_id)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
+                        return ['result' => 'no_slots', 'control_number' => null];
+                    }
+
+                    $year = $config->open_date?->format('Y') ?? now()->year;
+                    $prefix = 'SK-' . $year . '-';
+
+                    // MAX-based rather than count-based: a count undercounts
+                    // the next free number whenever the sequence has gaps
+                    // (e.g. a control number reused after a reversal, or
+                    // seeded data), which previously produced duplicate
+                    // control numbers under concurrent approvals.
+                    $maxSequence = (int) self::where('config_id', $config->id)
+                        ->where('control_number', 'like', $prefix . '%')
+                        ->selectRaw("MAX(CAST(SUBSTRING(control_number, ?) AS UNSIGNED)) as max_seq", [strlen($prefix) + 1])
+                        ->value('max_seq');
+
+                    $controlNumber = $prefix . str_pad($maxSequence + 1, 4, '0', STR_PAD_LEFT);
+
+                    $app->update(['status' => 'approved', 'control_number' => $controlNumber]);
+                    $config->increment('slots_filled');
+
+                    return ['result' => 'approved', 'control_number' => $controlNumber];
+                });
+            } catch (\Illuminate\Database\QueryException $e) {
+                $isDuplicate = str_contains($e->getMessage(), 'control_number_unique')
+                    || (int) ($e->errorInfo[1] ?? 0) === 1062;
+
+                if (!$isDuplicate || $attempt === 4) {
+                    throw $e;
+                }
             }
-
-            $config = ApplicationConfiguration::where('id', $app->config_id)
-                ->lockForUpdate()
-                ->first();
-
-            if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
-                return ['result' => 'no_slots', 'control_number' => null];
-            }
-
-            $sequence = self::where('config_id', $config->id)
-                ->whereNotNull('control_number')
-                ->count() + 1;
-
-            $year = $config->open_date?->format('Y') ?? now()->year;
-            $controlNumber = 'SK-' . $year . '-' . str_pad($sequence, 4, '0', STR_PAD_LEFT);
-
-            $app->update(['status' => 'approved', 'control_number' => $controlNumber]);
-            $config->increment('slots_filled');
-
-            return ['result' => 'approved', 'control_number' => $controlNumber];
-        });
+        }
     }
 
     /**

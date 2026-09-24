@@ -23,6 +23,7 @@ function ApplicantDashboard() {
   // Shown once per login session — remembered via sessionStorage so
   // navigating between dashboard visits within the same login doesn't
   // keep re-triggering it, but a fresh login (new tab/session) will.
+  const [fileError, setFileError] = useState("");
   const [showPrivacyModal, setShowPrivacyModal] = useState(
     () => !sessionStorage.getItem("privacyNoticeShown")
   );
@@ -38,6 +39,12 @@ function ApplicantDashboard() {
     logout();
     navigate("/login");
   }
+
+  useEffect(() => {
+    if (!fileError) return;
+    const t = setTimeout(() => setFileError(""), 6000);
+    return () => clearTimeout(t);
+  }, [fileError]);
 
   useEffect(() => {
     Promise.all([
@@ -79,7 +86,7 @@ function ApplicantDashboard() {
       window.open(url, "_blank");
       setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch {
-      alert("Failed to load document.");
+      setFileError("Failed to load document.");
     }
   }
 
@@ -267,6 +274,8 @@ function ApplicantDashboard() {
 
             </div>
 
+            {fileError && <div className="alert alert-danger">{fileError}</div>}
+
             <ApplicationHistoryList
               applicationHistory={applicationHistory}
               onViewFile={handleViewHistoricalFile}
@@ -321,7 +330,7 @@ function ApplicantDashboard() {
             <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
               We collect and process personal information you provide
               through this system — including your name, birthdate,
-              contact details, uploaded valid ID, and photos — solely to
+              contact details, uploaded 2x2 photo, and live photos — solely to
               process your application for the Educational Assistance
               Program, verify your identity, and, where applicable, serve
               as reference during the claiming of your assistance.

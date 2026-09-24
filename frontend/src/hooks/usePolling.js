@@ -7,7 +7,11 @@ import { useEffect, useRef } from "react";
  * load across open tabs:
  * - Skips the tick entirely while the browser tab is not visible
  *   (Page Visibility API) — a backgrounded tab generates zero requests,
- *   and picks back up immediately once it's focused again.
+ *   and picks back up immediately once it's focused again (see the
+ *   visibilitychange listener below — it fires an immediate tick the
+ *   moment the tab regains visibility, instead of waiting for the
+ *   next already-scheduled interval tick, which could otherwise be
+ *   up to `intervalMs` away).
  * - Never overlaps requests: if a tick is still waiting on a response
  *   when the next interval fires, that tick is skipped rather than
  *   stacking a second request on top of a slow one.
@@ -47,9 +51,21 @@ export function usePolling(callback, { intervalMs = 10000, enabled = true } = {}
             if (!cancelled) tick();
         }, intervalMs);
 
+        // Fires an immediate tick the moment the tab becomes visible
+        // again — without this, a tab that was backgrounded when a
+        // scheduled tick would have fired just sits stale until
+        // whichever already-queued interval fires next (up to
+        // `intervalMs` later), even though the person just switched
+        // back specifically to check on it.
+        function handleVisibilityChange() {
+            if (!document.hidden && !cancelled) tick();
+        }
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
         return () => {
             cancelled = true;
             clearInterval(id);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
         };
     }, [enabled, intervalMs]);
 }

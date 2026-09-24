@@ -7,8 +7,11 @@ function FormStep({ form, setForm, onSubmit, loading, draftSaved, onSaveDraft, a
     const [courseDropdownOpen, setCourseDropdownOpen] = useState(false);
     const [showOtherCourseInput, setShowOtherCourseInput] = useState(false);
     const otherCourseInputRef = useRef(null);
+    const [otherSchool, setOtherSchool] = useState("");
     const [schoolSearch, setSchoolSearch] = useState("");
     const [schoolDropdownOpen, setSchoolDropdownOpen] = useState(false);
+    const [showOtherSchoolInput, setShowOtherSchoolInput] = useState(false);
+    const otherSchoolInputRef = useRef(null);
     const [yearLevelDropdownOpen, setYearLevelDropdownOpen] = useState(false);
 
     const filteredSchools = SCHOOLS.filter((s) =>
@@ -23,6 +26,12 @@ function FormStep({ form, setForm, onSubmit, loading, draftSaved, onSaveDraft, a
             otherCourseInputRef.current.focus();
         }
     }, [showOtherCourseInput]);
+
+    useEffect(() => {
+        if (showOtherSchoolInput && otherSchoolInputRef.current) {
+            otherSchoolInputRef.current.focus();
+        }
+    }, [showOtherSchoolInput]);
 
     const handleChange = (e) => {
         setForm({ ...form, [e.target.name]: e.target.value });
@@ -48,7 +57,7 @@ function FormStep({ form, setForm, onSubmit, loading, draftSaved, onSaveDraft, a
                                         type="text"
                                         className="form-control"
                                         placeholder="Search or select your school"
-                                        value={schoolDropdownOpen ? schoolSearch : form.schoolName}
+                                        value={schoolDropdownOpen ? schoolSearch : showOtherSchoolInput ? "Other" : form.schoolName}
                                         onFocus={() => {
                                             setSchoolDropdownOpen(true);
                                             setSchoolSearch("");
@@ -77,7 +86,7 @@ function FormStep({ form, setForm, onSubmit, loading, draftSaved, onSaveDraft, a
                                                 marginTop: "2px",
                                             }}
                                         >
-                                            {filteredSchools.length === 0 ? (
+                                            {filteredSchools.length === 0 && schoolSearch !== "" ? (
                                                 <div className="px-3 py-2 text-muted small">No matching school found.</div>
                                             ) : (
                                                 filteredSchools.map((s) => (
@@ -86,6 +95,7 @@ function FormStep({ form, setForm, onSubmit, loading, draftSaved, onSaveDraft, a
                                                         className="px-3 py-2"
                                                         style={{ cursor: "pointer" }}
                                                         onMouseDown={() => {
+                                                            setShowOtherSchoolInput(false);
                                                             setForm((f) => ({ ...f, schoolName: s }));
                                                             setSchoolDropdownOpen(false);
                                                             setSchoolSearch("");
@@ -97,9 +107,38 @@ function FormStep({ form, setForm, onSubmit, loading, draftSaved, onSaveDraft, a
                                                     </div>
                                                 ))
                                             )}
+                                            <div
+                                                className="px-3 py-2 border-top fw-semibold"
+                                                style={{ cursor: "pointer" }}
+                                                onMouseDown={() => {
+                                                    setShowOtherSchoolInput(true);
+                                                    setForm((f) => ({ ...f, schoolName: otherSchool }));
+                                                    setSchoolDropdownOpen(false);
+                                                    setSchoolSearch("");
+                                                }}
+                                                onMouseEnter={(e) => (e.currentTarget.style.background = "#fff3f3")}
+                                                onMouseLeave={(e) => (e.currentTarget.style.background = "white")}
+                                            >
+                                                Other
+                                            </div>
                                         </div>
                                     )}
                                 </div>
+                                {showOtherSchoolInput && (
+                                    <div className="mt-2">
+                                        <input
+                                            ref={otherSchoolInputRef}
+                                            className="form-control"
+                                            placeholder="Enter your school's name"
+                                            value={otherSchool}
+                                            onChange={(e) => {
+                                                setOtherSchool(e.target.value);
+                                                setForm((f) => ({ ...f, schoolName: e.target.value }));
+                                            }}
+                                            required
+                                        />
+                                    </div>
+                                )}
                                 <div className="form-text">
                                     Select the school as it appears on your Registration Form.
                                 </div>

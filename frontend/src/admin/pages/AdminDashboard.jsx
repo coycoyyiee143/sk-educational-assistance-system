@@ -1,66 +1,74 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
-
 function AdminDashboard() {
-  const [stats, setStats] = useState({ total: 0, incomplete: 0, pending: 0, approved: 0, rejected: 0, no_active_period: false });
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [stats, setStats] = useState({ total: 0, incomplete: 0, pending: 0, approved: 0, claimed: 0, rejected: 0, no_active_period: false });
   const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     api.get("/admin/stats")
       .then((res) => setStats(res.data))
-      .catch(() => { })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
-
   const cards = [
     {
-      label: "Total Applications",
+      label: "Total",
       value: stats.total,
       accent: "orange",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
         </svg>
       ),
     },
     {
-      label: "Pending Review",
+      label: "Pending",
       value: stats.pending,
       accent: "red",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="10" />
-          <path d="M12 8v4M12 16h.01" />
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 7v5l3.5 2" />
         </svg>
       ),
     },
     {
-      label: "Approved Applications",
+      label: "Approved",
       value: stats.approved,
       accent: "green",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" />
           <path d="M8 12l3 3 5-6" />
         </svg>
       ),
     },
     {
-      label: "Rejected Applications",
+      label: "Claimed",
+      value: stats.claimed,
+      accent: "blue",
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M20 6L9 17l-5-5" />
+        </svg>
+      ),
+    },
+    {
+      label: "Rejected",
       value: stats.rejected,
       accent: "gray",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" />
           <path d="M15 9l-6 6M9 9l6 6" />
         </svg>
       ),
     },
   ];
-
   const managementItems = [
     {
       label: "User Management",
@@ -106,9 +114,10 @@ function AdminDashboard() {
       desc: "Post updates & notices",
       accent: "red",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M3 11l18-5v12L3 14v-3z" />
-          <path d="M11.6 16.8a3 3 0 11-5.8-1.6" />
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M11 5L6 9H3v6h3l5 4V5z" />
+          <path d="M15.5 8.5a5 5 0 010 7" />
+          <path d="M18 6a8.5 8.5 0 010 12" />
         </svg>
       ),
     },
@@ -127,53 +136,44 @@ function AdminDashboard() {
       ),
     },
     {
-      label: "Generate Reports",
+      label: "Reports",
       to: "/AdminReports",
       desc: "View & export reports",
       accent: "purple",
       icon: (
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M3 3v18h18" />
-          <rect x="7" y="12" width="3" height="6" />
-          <rect x="12" y="8" width="3" height="10" />
-          <rect x="17" y="5" width="3" height="13" />
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5.5 3.5h9l4 4v13h-13v-17z" />
+          <path d="M14.5 3.5v4h4" />
+          <path d="M8.5 17v-3" />
+          <path d="M12 17v-6" />
+          <path d="M15.5 17v-4.5" />
         </svg>
       ),
     },
   ];
-
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation mobileOpen={mobileMenuOpen} onMobileClose={() => setMobileMenuOpen(false)} />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
         <section className="page-section">
           <div className="container-fluid">
-
             <div className="page-card">
               <h3 className="section-title mb-2">Admin Dashboard</h3>
               <p className="text-muted mb-0">
-                Overview of application statistics and quick access to system management tools.
+                {stats.school_year
+                  ? `Overview of application statistics for the current application period (${stats.school_year}) and quick access to system management tools.`
+                  : "Overview of application statistics and quick access to system management tools."}
               </p>
             </div>
-
             {!loading && stats.no_active_period && (
-              <div className="alert alert-warning">
-                No active application period is currently configured. Statistics will show once a period is activated.
-              </div>
+              <div className="alert alert-warning">No active application period is currently configured. Statistics will show once a period is activated.</div>
             )}
-
-            <div className="row g-4">
+            <div className="row g-3 row-cols-2 row-cols-md-5">
               {cards.map(({ label, value, accent, icon }) => (
-                <div className="col-md-3" key={label}>
+                <div className="col" key={label}>
                   <div className={`admin-stat-card admin-stat-${accent}`}>
                     <div className="admin-stat-top">
                       <h2>{loading ? "..." : value}</h2>
@@ -205,5 +205,4 @@ function AdminDashboard() {
     </div>
   );
 }
-
 export default AdminDashboard;

@@ -114,7 +114,7 @@ export const STATUS_CONFIG = {
         verifierLabel: "Waitlisted",
         boxClass: "status-box-pending",
         badgeClass: "status-pending",
-        applicantMessage: "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before the grace period ends.",
+        applicantMessage: "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before Late Claiming ends.",
         showClaiming: false,
         showReupload: false,
     },
@@ -134,6 +134,24 @@ export const STATUS_CONFIG = {
         applicantMessage: "We regret to inform you that your application did not meet the eligibility requirements. Please contact the SK office for further assistance.",
         showClaiming: false,
         showReupload: false,
+        // Only status that can offer an appeal button — gated further by
+        // application.appealed_at being unset (one appeal per rejection).
+        // See ApplicantStatus.jsx.
+        showAppeal: true,
+    },
+
+    // Applicant formally appealed a rejected application (see
+    // ApplicationController::appeal()). Sits here until a verifier resolves
+    // it via VerifierController::appealDecision() — approved routes back to
+    // for_review for a real re-check, denied returns to rejected.
+    appeal_requested: {
+        applicantLabel: "Appeal Under Review",
+        verifierLabel: "Appeal Requested",
+        boxClass: "status-box-pending",
+        badgeClass: "status-pending",
+        applicantMessage: "Your appeal has been submitted and is awaiting review by an SK Verifier. Please wait for further updates.",
+        showClaiming: false,
+        showReupload: false,
     },
 
     // [claiming_assignments.claim_status] Renamed from bare "pending" —
@@ -142,7 +160,7 @@ export const STATUS_CONFIG = {
     // applicant should ever hold this value at a time. The rename exists
     // specifically to prevent ambiguity: a superseded/historical
     // assignment (e.g. an original slot that already got replaced by a
-    // grace-period reassignment) is never left sitting at a "pending"-
+    // Late Claiming reassignment) is never left sitting at a "pending"-
     // sounding value — it gets its own honest terminal status (unclaimed)
     // instead, so no row's status can ever be misread out of context.
     pending_claiming: {
@@ -188,7 +206,7 @@ export const STATUS_CONFIG = {
     // [claiming_assignments.claim_status] This specific assignment's
     // window passed with no claim. Honest PER-ROW meaning: "this one
     // didn't happen" — NOT "the applicant's story is over." An original-
-    // slot assignment and a grace-period-retry assignment both use this
+    // slot assignment and a Late-Claiming-retry assignment both use this
     // identically when their own window lapses.
     //
     // An applicant's OVERALL claiming outcome is never read from one row
@@ -202,8 +220,8 @@ export const STATUS_CONFIG = {
     // still pending_claiming) — not a verifier-clicked button. There's no
     // judgment call to make; the absence of a claiming action already
     // tells the story. The SAME sweep is what should also create a new
-    // grace-period-retry assignment (claim_status: pending_claiming) for
-    // the applicant, if grace period hasn't ended yet — this reassignment
+    // Late-Claiming-retry assignment (claim_status: pending_claiming) for
+    // the applicant, if Late Claiming hasn't ended yet — this reassignment
     // mechanism does not exist yet for original no-shows (only the
     // waitlist-promotion path — promoteFromWaitlist()/promoteAllFromWaitlist()
     // — currently creates an equivalent new assignment).
@@ -212,7 +230,7 @@ export const STATUS_CONFIG = {
         verifierLabel: "Unclaimed",
         boxClass: "status-box-rejected",
         badgeClass: "status-rejected",
-        applicantMessage: "The claiming period has passed and your assistance was not claimed within the grace period. Please coordinate with the SK office.",
+        applicantMessage: "The claiming period has passed and your assistance was not claimed within Late Claiming. Please coordinate with the SK office.",
         showClaiming: false,
         showReupload: false,
     },
@@ -222,8 +240,8 @@ export const STATUS_CONFIG = {
     // person was never found ineligible, they simply ran out of room by
     // the time the period closed. Set only by AdminScheduleController::closePeriod().
     not_selected: {
-        applicantLabel: "Not Selected",
-        verifierLabel: "Not Selected",
+        applicantLabel: "Not Accommodated",
+        verifierLabel: "Not Accommodated — Slots Full",
         boxClass: "status-box-rejected",
         badgeClass: "status-rejected",
         applicantMessage: "You met all requirements and were on the waitlist, but no slot became available before the application period closed. This is not a rejection of your eligibility — please watch for the next application period.",

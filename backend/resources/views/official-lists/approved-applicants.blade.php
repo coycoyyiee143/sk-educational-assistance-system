@@ -4,6 +4,6 @@
     <meta charset="utf-8">
 </head>
 <body>
-    @include('reports.approved-applicants-content', ['forPdf' => true])
+    @include('official-lists.approved-applicants-content', ['forPdf' => true])
 </body>
 </html>

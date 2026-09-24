@@ -22,12 +22,20 @@ class ApplicationConfigurationController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/'],
+            // unique — a school year should map to exactly one period ever.
+            // "Start New Application Period" already assumes a fresh one is
+            // for a DIFFERENT school year; without this, a mistyped or
+            // reused label could silently create a second "2025-2026"
+            // alongside an existing one, confusing every report that
+            // groups by school_year.
+            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/', 'unique:application_configurations,school_year'],
             'open_date'          => 'required|date',
             'close_date'         => 'required|date|after:open_date',
             'is_unlimited'       => 'boolean',
             'slot_limit'         => 'required_if:is_unlimited,false|nullable|integer|min:1',
             'assistance_amount'  => 'required|integer|min:0',
+        ], [
+            'school_year.unique' => 'An application period for ' . $request->school_year . ' already exists in the records. Each school year can only be used once.',
         ]);
 
         ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
@@ -46,6 +54,12 @@ class ApplicationConfigurationController extends Controller
             'created_by'         => $request->user()->id,
         ]);
 
+        \App\Models\AuditLog::record(
+            'application_period_created',
+            $config,
+            "Created and activated application period #{$config->id} for school year {$config->school_year}"
+        );
+
         return response()->json([
             'message' => 'Application period activated.',
             'config'  => $config,
@@ -63,14 +77,18 @@ class ApplicationConfigurationController extends Controller
 
         $data = $request->validate([
             // Same format guarantee as store() above — see that comment
-            // for why this matters beyond just input tidiness.
-            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/'],
+            // for why this matters beyond just input tidiness. unique
+            // ignores this same row, so re-saving a config without
+            // touching its own school_year isn't rejected against itself.
+            'school_year'        => ['required', 'string', 'regex:/^\d{4}-\d{4}$/', 'unique:application_configurations,school_year,' . $config->id],
             'open_date'          => 'required|date',
             'close_date'         => 'required|date|after:open_date',
             'is_unlimited'       => 'boolean',
             'slot_limit'         => 'required_if:is_unlimited,false|nullable|integer|min:1',
             'assistance_amount'  => 'required|integer|min:0',
             'is_active'          => 'boolean',
+        ], [
+            'school_year.unique' => 'An application period for ' . $request->school_year . ' already exists in the records. Each school year can only be used once.',
         ]);
 
         // close_date is NOT editable through this general-purpose form,
@@ -136,6 +154,12 @@ class ApplicationConfigurationController extends Controller
 
         $config->update($data);
 
+        \App\Models\AuditLog::record(
+            'application_period_updated',
+            $config,
+            "Updated application period #{$config->id} settings"
+        );
+
         return response()->json(['message' => 'Configuration updated.', 'config' => $config]);
     }
 
@@ -164,7 +188,7 @@ class ApplicationConfigurationController extends Controller
         ]);
 
         // The whole point of AdminScheduleController::store()'s validation
-        // is that no claiming date (or grace period date) is ever allowed
+        // is that no claiming date (or Late Claiming date) is ever allowed
         // to fall on/before the application period's close_date. Extending
         // close_date forward could silently violate that invariant for a
         // schedule that was already set up under the OLD close_date — so
@@ -173,7 +197,7 @@ class ApplicationConfigurationController extends Controller
         // noticing. This applies whether the schedule is still a draft
         // or already active (applicants possibly already assigned) —
         // either way, the admin needs to consciously resolve the
-        // conflict (reschedule the lanes/grace period, or pick a less
+        // conflict (reschedule the lanes/Late Claiming, or pick a less
         // aggressive extension) rather than have it happen as a side
         // effect of extending the deadline.
         $newCloseDate = \Carbon\Carbon::parse($data['close_date'])->startOfDay();
@@ -184,7 +208,7 @@ class ApplicationConfigurationController extends Controller
 
         if ($schedule) {
             $conflictingLane = $schedule->lanes
-                ->where('lane_name', '!=', 'Grace Period Claiming')
+                ->where('lane_name', '!=', 'Late Claiming')
                 ->first(fn ($lane) => \Carbon\Carbon::parse($lane->claiming_date)->startOfDay()->lte($newCloseDate));
 
             if ($conflictingLane) {
@@ -193,9 +217,9 @@ class ApplicationConfigurationController extends Controller
                 ], 400);
             }
 
-            if ($schedule->grace_period_date && \Carbon\Carbon::parse($schedule->grace_period_date)->startOfDay()->lte($newCloseDate)) {
+            if ($schedule->late_claiming_date && \Carbon\Carbon::parse($schedule->late_claiming_date)->startOfDay()->lte($newCloseDate)) {
                 return response()->json([
-                    'message' => "Can't extend to {$newCloseDate->toDateString()} — Grace Period is already scheduled to start on {$schedule->grace_period_date}, which would then fall on or before the new closing date. Adjust the grace period dates first, or choose a shorter extension.",
+                    'message' => "Can't extend to {$newCloseDate->toDateString()} — Late Claiming is already scheduled to start on {$schedule->late_claiming_date}, which would then fall on or before the new closing date. Adjust the Late Claiming dates first, or choose a shorter extension.",
                 ], 400);
             }
         }

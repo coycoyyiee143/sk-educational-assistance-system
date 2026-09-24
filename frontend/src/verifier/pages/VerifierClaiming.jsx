@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, Fragment } from "react";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import ClaimingFaceVerify from "../components/ClaimingFaceVerify";
@@ -23,6 +23,11 @@ const NOT_CLEARED_QUICK_NOTES = [
   "Documents did not match.",
   "Requirements incomplete.",
 ];
+
+// Claiming is finalized for these — nothing left for a verifier to do but
+// look back at what happened, so they get a visual break from the
+// actionable queue above them and a "View" instead of "Select".
+const RESOLVED_CLAIM_STATUSES = ["claimed", "not_cleared", "unclaimed"];
 
 function ClaimStatusBadge({ status }) {
   const config = STATUS_CONFIG[status];
@@ -91,6 +96,12 @@ function VerifierClaiming() {
   const [notClearedReasons, setNotClearedReasons] = useState([]);
   const [notClearedOtherText, setNotClearedOtherText] = useState("");
   const [searching, setSearching] = useState(false);
+  // Separate from `searching` — that flag also covers the automatic
+  // searches (page load, lane-picker change) that never came from this
+  // button being clicked, and flashing "Searching..." on a button the
+  // verifier never touched (e.g. right as the page loads) reads as a
+  // bug. This only tracks the actual Search/Filter button submission.
+  const [manualSearching, setManualSearching] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [searchError, setSearchError] = useState("");
   const [claimError, setClaimError] = useState("");
@@ -98,8 +109,10 @@ function VerifierClaiming() {
   const [claimingFeedback, setClaimingFeedback] = useState(null);
   const [feedbackCountdown, setFeedbackCountdown] = useState(5);
   const [filePreview, setFilePreview] = useState(null);
+  const [fileError, setFileError] = useState("");
 
   const claimingActionRef = useRef(null);
+  const resultsRef = useRef(null);
 
   const [registrationPhotoUrl, setRegistrationPhotoUrl] =
     useState(null);
@@ -110,21 +123,52 @@ function VerifierClaiming() {
   ] = useState("idle");
 
   const [assignedLane, setAssignedLane] = useState(null);
+  // Full set of lanes this verifier holds — kept separately from
+  // `assignedLane` (which is just the first of these) because a verifier
+  // can legitimately be assigned to more than one lane at once (a
+  // morning lane AND a separate afternoon lane on the same day). Used to
+  // correctly tell "a lane I already have" apart from "someone else's
+  // lane" instead of only ever recognizing the single `assignedLane`.
+  const [assignedLanes, setAssignedLanes] = useState([]);
   const [allLanes, setAllLanes] = useState([]);
 
-  const [gracePeriodDates, setGracePeriodDates] = useState({
+  const [lateClaimingDates, setLateClaimingDates] = useState({
     start: null,
     end: null,
   });
 
   const [selectedLaneId, setSelectedLaneId] = useState("");
-  const [gracePeriodMode, setGracePeriodMode] = useState(false);
+  // Purely a client-side narrowing filter for the lane dropdown below
+  // ("date|batch", or "" for every session) — never sent to the backend
+  // itself, since the actual search filter is still selectedLaneId.
+  const [sessionFilter, setSessionFilter] = useState("");
+  const [lateClaimingMode, setLateClaimingMode] = useState(false);
   const [assigningLane, setAssigningLane] = useState(false);
+  const [laneRequestMessage, setLaneRequestMessage] = useState("");
+  const [pendingRequestLaneId, setPendingRequestLaneId] = useState(null);
+  // Surfaces the outcome of a request once an admin acts on it — approval
+  // is inferred from the lane showing up in assigned_lanes, rejection from
+  // requested_verifier_id going back to null WITHOUT that happening. Without
+  // this, the "waiting for an admin" message under pendingRequestLaneId had
+  // no way to ever clear itself once dismissed, since nothing polling the
+  // lane list was reconciling that piece of state against the fresh data.
+  const [laneRequestOutcome, setLaneRequestOutcome] = useState(null);
   const [lanesLoaded, setLanesLoaded] = useState(false);
+  const [lanesError, setLanesError] = useState(false);
+  // Set to { laneId, targetLane, conflictLane } while the "switch lane" /
+  // "add lane" confirmation modal is open. `conflictLane` is the lane
+  // this would vacate (same claiming_date + batch as targetLane), or
+  // null if this is a genuinely separate/additional lane.
+  const [laneConfirm, setLaneConfirm] = useState(null);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const modeManuallySetRef = useRef(false);
+  // Runs the session/lane auto-default (see fetchLanes) exactly once —
+  // on whichever fetchLanes() call first succeeds — so a later manual
+  // Retry after a failed load doesn't stomp a selection the verifier
+  // may have already made in the meantime.
+  const laneAutoDefaultedRef = useRef(false);
 
   const perPage = 10;
 
@@ -132,41 +176,173 @@ function VerifierClaiming() {
     (lane) => lane.claiming_date === todayStr()
   );
 
+  // Every distinct claiming_date + batch session across the schedule
+  // (e.g. "Sep 21 — Morning", "Sep 21 — Afternoon", "Sep 22 — Morning"...).
+  // With schedules running multiple days at 10+ lanes per session, listing
+  // every lane flat would mean 40+ options to scan through — picking a
+  // session first narrows the lane dropdown down to just that session's
+  // handful of lanes.
+  const BATCH_ORDER = { morning: 0, afternoon: 1 };
+  const sessionOptions = [
+    ...new Map(
+      allLanes.map((lane) => [
+        `${lane.claiming_date}|${lane.batch}`,
+        { key: `${lane.claiming_date}|${lane.batch}`, date: lane.claiming_date, batch: lane.batch },
+      ])
+    ).values(),
+  ].sort((a, b) =>
+    a.date === b.date
+      ? BATCH_ORDER[a.batch] - BATCH_ORDER[b.batch]
+      : a.date.localeCompare(b.date)
+  );
+
+  const laneDropdownOptions = sessionFilter
+    ? allLanes.filter((lane) => `${lane.claiming_date}|${lane.batch}` === sessionFilter)
+    : allLanes;
+
+  // Lookup of every lane this verifier already holds — used instead of
+  // comparing against the single `assignedLane` so a second lane held in
+  // a different session (e.g. an afternoon lane alongside a morning one)
+  // is correctly recognized as "mine" rather than "another verifier's".
+  const myLaneIds = new Set(assignedLanes.map((lane) => String(lane.id)));
+
+  // The lane search results actually reflect — driven by the dropdown
+  // (selectedLaneId), NOT by assignedLane. Those two can differ (a
+  // verifier can browse a lane that isn't theirs), and conflating them
+  // used to show a "Currently viewing: <assigned lane>" line that had
+  // nothing to do with what was actually in the results table below —
+  // exactly the mix-up that caused a verifier to act on the wrong
+  // lane's applicant without noticing.
+  const viewingLane = selectedLaneId
+    ? allLanes.find((lane) => String(lane.id) === selectedLaneId)
+    : null;
+
+  // Read via ref rather than the pendingRequestLaneId state directly —
+  // reconcileLaneRequest is called from silentRefreshLanes, which is a
+  // useCallback memoized on [selected, submitting] and so does NOT get
+  // recreated when a request is sent; reading the state variable through
+  // that stale closure would keep seeing pendingRequestLaneId as it was
+  // when silentRefreshLanes was last recreated, not the current value.
+  const pendingRequestLaneIdRef = useRef(null);
+  useEffect(() => {
+    pendingRequestLaneIdRef.current = pendingRequestLaneId;
+  }, [pendingRequestLaneId]);
+
+  // Timestamp of the last request sent, so reconcileLaneRequest can ignore
+  // a background poll response for a few seconds after — the 15s poll can
+  // have a GET already in flight when a request is submitted, and if that
+  // stale response (fetched before the request existed) lands afterward,
+  // it looks identical to "an admin already dismissed it": no
+  // requested_verifier_id, lane not in assigned_lanes. Without this guard
+  // that race cleared pendingRequestLaneId and fired a false "declined"
+  // message within moments of every request.
+  const pendingRequestSentAtRef = useRef(0);
+
+  // Compares fresh lane data against whatever request this verifier is
+  // still waiting on and, if an admin has since acted on it, clears the
+  // pending state and surfaces what happened — approved (now in
+  // assigned_lanes) or rejected (requested_verifier_id was cleared without
+  // that happening). Called from both the initial load and the silent
+  // background poll so the outcome shows up without a manual refresh.
+  function reconcileLaneRequest(fetchedAllLanes, fetchedAssignedLanes) {
+    const currentPendingId = pendingRequestLaneIdRef.current;
+    if (!currentPendingId) return;
+    if (Date.now() - pendingRequestSentAtRef.current < 5000) return;
+
+    const lane = (fetchedAllLanes ?? []).find(
+      (l) => String(l.id) === String(currentPendingId)
+    );
+    if (!lane || lane.requested_verifier_id) return;
+
+    const approved = (fetchedAssignedLanes ?? []).some(
+      (l) => String(l.id) === String(currentPendingId)
+    );
+    setPendingRequestLaneId(null);
+    setLaneRequestOutcome({
+      status: approved ? "approved" : "rejected",
+      laneName: lane.lane_name,
+    });
+  }
+
+  // Defaults the session/lane pickers to whatever's most relevant right
+  // now: today's session, and within it, the verifier's own lane if they
+  // have one today — falling back to "All Lanes" in today's session if
+  // they don't, or "All Sessions" / "All Lanes" outright if nothing is
+  // even scheduled for today. Shared by the initial load and by
+  // switchToScheduledMode() — that handler used to just re-apply the
+  // singular `assignedLane` (whichever of the verifier's lanes happens
+  // to sort first overall, not necessarily today's) without touching
+  // sessionFilter at all, so coming back from Late Claiming could leave
+  // selectedLaneId pointing at a lane outside the still-stale session
+  // filter — a value the Lane dropdown has no matching option for, which
+  // renders exactly like "All Lanes" was chosen even though it wasn't.
+  function applyDefaultSessionAndLane(allLanesData, assignedLanesData) {
+    const today = todayStr();
+    const todaysLanesData = allLanesData.filter((l) => l.claiming_date === today);
+
+    if (todaysLanesData.length === 0) {
+      setSessionFilter("");
+      setSelectedLaneId("");
+      return;
+    }
+
+    const myTodayLanes = assignedLanesData.filter((l) => l.claiming_date === today);
+    const preferredBatch = new Date().getHours() < 12 ? "morning" : "afternoon";
+
+    if (myTodayLanes.length > 0) {
+      const myLane =
+        myTodayLanes.find((l) => l.batch === preferredBatch) ?? myTodayLanes[0];
+      setSessionFilter(`${myLane.claiming_date}|${myLane.batch}`);
+      setSelectedLaneId(String(myLane.id));
+    } else {
+      const todaySession =
+        todaysLanesData.find((l) => l.batch === preferredBatch) ?? todaysLanesData[0];
+      setSessionFilter(`${todaySession.claiming_date}|${todaySession.batch}`);
+      setSelectedLaneId("");
+    }
+  }
+
   function fetchLanes() {
+    setLanesError(false);
+
     api
       .get("/verifier/claiming/lanes")
       .then((res) => {
         setAssignedLane(res.data.assigned_lane ?? null);
+        setAssignedLanes(res.data.assigned_lanes ?? []);
         setAllLanes(res.data.all_lanes ?? []);
+        reconcileLaneRequest(res.data.all_lanes, res.data.assigned_lanes);
 
-        if (res.data.assigned_lane) {
-          setSelectedLaneId(
-            String(res.data.assigned_lane.id)
-          );
+        if (!laneAutoDefaultedRef.current) {
+          laneAutoDefaultedRef.current = true;
+          applyDefaultSessionAndLane(res.data.all_lanes ?? [], res.data.assigned_lanes ?? []);
         }
 
-        setGracePeriodDates({
-          start: res.data.grace_period_date ?? null,
-          end: res.data.grace_period_end_date ?? null,
+        setLateClaimingDates({
+          start: res.data.late_claiming_date ?? null,
+          end: res.data.late_claiming_end_date ?? null,
         });
 
         if (!modeManuallySetRef.current) {
           const today = todayStr();
-          const gpStart = res.data.grace_period_date;
-          const gpEnd = res.data.grace_period_end_date;
+          const lateClaimingStart = res.data.late_claiming_date;
+          const lateClaimingEnd = res.data.late_claiming_end_date;
 
-          const isGracePeriodNow =
-            gpStart &&
-            gpEnd &&
-            today >= gpStart &&
-            today <= gpEnd;
+          const isLateClaimingNow =
+            lateClaimingStart &&
+            lateClaimingEnd &&
+            today >= lateClaimingStart &&
+            today <= lateClaimingEnd;
 
-          setGracePeriodMode(isGracePeriodNow);
+          setLateClaimingMode(isLateClaimingNow);
         }
 
         setLanesLoaded(true);
       })
-      .catch(() => setLanesLoaded(true));
+      .catch(() => {
+        setLanesError(true);
+        setLanesLoaded(true);
+      });
   }
 
   useEffect(() => {
@@ -176,18 +352,36 @@ function VerifierClaiming() {
   useEffect(() => {
     if (!lanesLoaded) return;
 
-    if (gracePeriodMode) {
-      handleSearch({
-        preventDefault: () => { },
-      });
-    } else if (assignedLane) {
-      handleSearch({
-        preventDefault: () => { },
-      });
-    }
+    // Always searches once lanes are loaded, not just when the verifier
+    // has an assigned lane — the session/lane defaulting above already
+    // resolved selectedLaneId to whatever's most relevant (their lane
+    // today, "All Lanes" in today's session, or fully open if nothing's
+    // scheduled today), so there's always something worth searching for
+    // now, even when that something is "everyone".
+    handleSearch({
+      preventDefault: () => { },
+    });
 
+    // Keyed on the lane's id rather than the `assignedLane` object itself —
+    // the background lane refresh below fetches a fresh object on every
+    // tick even when nothing actually changed, and re-running a "loud"
+    // handleSearch() (which resets selected/errors and flashes the
+    // Search button) on every one of those ticks would be exactly the
+    // disruption the silent poll below is trying to avoid.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lanesLoaded, gracePeriodMode, assignedLane]);
+  }, [lanesLoaded, lateClaimingMode, assignedLane?.id]);
+
+  useEffect(() => {
+    if (!fileError) return;
+    const t = setTimeout(() => setFileError(""), 6000);
+    return () => clearTimeout(t);
+  }, [fileError]);
+
+  useEffect(() => {
+    if (!laneRequestOutcome) return;
+    const t = setTimeout(() => setLaneRequestOutcome(null), 8000);
+    return () => clearTimeout(t);
+  }, [laneRequestOutcome]);
 
   // Silent background refresh — applicants get assigned to lanes in
   // real time as verifiers elsewhere approve applications (see
@@ -206,8 +400,10 @@ function VerifierClaiming() {
     if (selected || submitting) return;
 
     const params = {};
-    if (gracePeriodMode) {
-      params.grace_period = 1;
+    if (lateClaimingMode) {
+      params.late_claiming = 1;
+      if (controlNo.trim()) params.control_number = controlNo.trim();
+      if (applicantName.trim()) params.name = applicantName.trim();
     } else {
       if (!selectedLaneId && !controlNo.trim() && !applicantName.trim()) return;
       if (selectedLaneId) params.lane_id = selectedLaneId;
@@ -228,7 +424,7 @@ function VerifierClaiming() {
       // ticks and just let the next tick (or a manual Refresh) sort it
       // out.
     }
-  }, [selected, submitting, gracePeriodMode, selectedLaneId, controlNo, applicantName]);
+  }, [selected, submitting, lateClaimingMode, selectedLaneId, controlNo, applicantName]);
 
   // Was a raw setInterval with no visibility pause or overlap guard —
   // usePolling adds both. All the existing skip logic (selected/
@@ -236,6 +432,38 @@ function VerifierClaiming() {
   // inside silentRefreshResults above; only the timer mechanics moved.
   usePolling(silentRefreshResults, {
     intervalMs: 10000,
+    enabled: lanesLoaded,
+  });
+
+  // Silent background refresh for the lane/schedule data itself — an
+  // admin can change lane times/dates or approve a lane-change request
+  // while a verifier is already on this page, and until now none of
+  // that reflected here without a manual page reload. Mirrors
+  // silentRefreshResults above: skipped whenever an applicant is
+  // selected or a claim is mid-submit, and deliberately leaves
+  // selectedLaneId/lateClaimingMode/lanesError alone so it never
+  // clobbers a lane the verifier is actively browsing or a mode they
+  // manually switched to.
+  const silentRefreshLanes = useCallback(async () => {
+    if (selected || submitting) return;
+
+    try {
+      const res = await api.get("/verifier/claiming/lanes");
+      setAssignedLane(res.data.assigned_lane ?? null);
+      setAssignedLanes(res.data.assigned_lanes ?? []);
+      setAllLanes(res.data.all_lanes ?? []);
+      reconcileLaneRequest(res.data.all_lanes, res.data.assigned_lanes);
+      setLateClaimingDates({
+        start: res.data.late_claiming_date ?? null,
+        end: res.data.late_claiming_end_date ?? null,
+      });
+    } catch {
+      // Silent poll — a dropped tick isn't worth surfacing an error over.
+    }
+  }, [selected, submitting]);
+
+  usePolling(silentRefreshLanes, {
+    intervalMs: 15000,
     enabled: lanesLoaded,
   });
 
@@ -287,10 +515,10 @@ function VerifierClaiming() {
     );
   }
 
-  function switchToRegularMode() {
+  function switchToScheduledMode() {
     modeManuallySetRef.current = true;
 
-    setGracePeriodMode(false);
+    setLateClaimingMode(false);
     setResults([]);
     setCurrentPage(1);
     setSelected(null);
@@ -298,17 +526,13 @@ function VerifierClaiming() {
     setClaimError("");
     setClaimSuccess("");
 
-    if (assignedLane) {
-      setSelectedLaneId(
-        String(assignedLane.id)
-      );
-    }
+    applyDefaultSessionAndLane(allLanes, assignedLanes);
   }
 
-  function switchToGracePeriodMode() {
+  function switchToLateClaimingMode() {
     modeManuallySetRef.current = true;
 
-    setGracePeriodMode(true);
+    setLateClaimingMode(true);
     setResults([]);
     setCurrentPage(1);
     setSelected(null);
@@ -318,67 +542,206 @@ function VerifierClaiming() {
     setClaimSuccess("");
   }
 
-  async function handleSelfAssign(laneId) {
+  async function handleRequestLane(laneId) {
     setAssigningLane(true);
     setSearchError("");
+    setLaneRequestMessage("");
 
     try {
-      await api.post(
+      const res = await api.post(
         `/verifier/claiming/lanes/${laneId}/self-assign`
       );
+      const updatedLane = res.data.lane;
 
-      fetchLanes();
+      // Merge the updated lane in locally instead of calling fetchLanes()
+      // — that was a real bug: a pending REQUEST (lane already staffed)
+      // doesn't change assigned_lane at all, so fetchLanes()'s own
+      // "sync selectedLaneId to assigned_lane" effect immediately reset
+      // selectedLaneId back to the verifier's actual current lane,
+      // hiding the "request sent" message moments after it appeared —
+      // it only renders while selectedLaneId differs from assignedLane.
+      setAllLanes((prev) =>
+        prev.map((l) => {
+          if (String(l.id) === String(laneId)) return { ...l, ...updatedLane };
+
+          // Backend vacates any other lane this verifier held in the same
+          // claiming_date + batch session before assigning them here (see
+          // selfAssignLane()) — mirror that locally so the dropdown and
+          // assignedLanes stay accurate without a full refetch.
+          if (
+            !updatedLane?.requested_verifier_id &&
+            l.verifier_id === updatedLane?.verifier_id &&
+            l.claiming_date === updatedLane?.claiming_date &&
+            l.batch === updatedLane?.batch
+          ) {
+            return { ...l, verifier_id: null };
+          }
+
+          return l;
+        })
+      );
+      if (!updatedLane?.requested_verifier_id) {
+        // Lane was empty, so this was an immediate assignment, not just
+        // a request — assignedLane genuinely changed.
+        setAssignedLane(updatedLane);
+        setAssignedLanes((prev) => {
+          const sameSessionVacated = prev.filter(
+            (l) =>
+              String(l.id) === String(laneId) ||
+              l.claiming_date !== updatedLane.claiming_date ||
+              l.batch !== updatedLane.batch
+          );
+          return [
+            ...sameSessionVacated.filter((l) => String(l.id) !== String(laneId)),
+            updatedLane,
+          ];
+        });
+      }
 
       setSelectedLaneId(String(laneId));
+      setLaneRequestMessage(res.data.message);
+      // The lane was empty, so the backend assigned it immediately instead
+      // of just recording a request — nothing left pending on it.
+      if (updatedLane?.requested_verifier_id) {
+        pendingRequestSentAtRef.current = Date.now();
+        setPendingRequestLaneId(String(laneId));
+      } else {
+        setPendingRequestLaneId(null);
+      }
     } catch (err) {
       setSearchError(
         err.response?.data?.message ||
-        "Failed to self-assign lane."
+        "Failed to request lane."
       );
     } finally {
       setAssigningLane(false);
     }
   }
 
-  async function handleSearch(e) {
+  // Narrowing the session dropdown can leave selectedLaneId pointing at a
+  // lane that's no longer one of the options the lane dropdown is
+  // showing — clear it in that case rather than leaving a mismatched
+  // value the <select> can't actually display.
+  function handleSessionFilterChange(newSession) {
+    setSessionFilter(newSession);
+
+    if (!selectedLaneId || !newSession) return;
+
+    const currentLane = allLanes.find((l) => String(l.id) === selectedLaneId);
+    const currentSessionKey = currentLane ? `${currentLane.claiming_date}|${currentLane.batch}` : null;
+
+    if (currentSessionKey !== newSession) {
+      setSelectedLaneId("");
+    }
+  }
+
+  // Runs the search immediately with the newly picked lane instead of
+  // waiting for a separate "Search" click — picking a lane from a filter
+  // control reads as applying that filter right away, and previously it
+  // silently did nothing until the verifier either hit Search or
+  // reloaded the page.
+  function handleLaneSelectChange(newLaneId) {
+    setSelectedLaneId(newLaneId);
+    handleSearch({ preventDefault: () => {} }, { laneId: newLaneId });
+  }
+
+  // Clears just the text filters (control number / name) and re-runs the
+  // search immediately against whatever lane is still selected — mirrors
+  // the lane picker's "apply right away" behavior rather than leaving
+  // stale results up until the verifier hits Search again. Skips
+  // re-running it when there's nothing left to search by (no lane, not
+  // in Late Claiming), so clearing doesn't immediately throw the "select
+  // a lane or enter something" validation error back in the verifier's
+  // face.
+  function handleClearSearch() {
+    setControlNo("");
+    setApplicantName("");
+
+    if (lateClaimingMode || selectedLaneId) {
+      handleSearch({ preventDefault: () => {} }, { controlNo: "", applicantName: "" });
+    } else {
+      setSearchError("");
+      setResults([]);
+    }
+  }
+
+  // Opens the switch/add confirmation modal instead of requesting the
+  // lane immediately — self-assigning a lane in a session (claiming_date
+  // + batch) the verifier already holds a lane in SWITCHES them onto the
+  // new one (see selfAssignLane() vacating the old one), which used to
+  // happen with no warning at all. A lane in a different session is a
+  // harmless addition instead, so that gets a lighter confirmation.
+  function openLaneConfirm(laneId) {
+    const targetLane = allLanes.find((l) => String(l.id) === String(laneId));
+    if (!targetLane) return;
+
+    const conflictLane = assignedLanes.find(
+      (l) =>
+        String(l.id) !== String(laneId) &&
+        l.claiming_date === targetLane.claiming_date &&
+        l.batch === targetLane.batch
+    );
+
+    setLaneConfirm({ laneId, targetLane, conflictLane: conflictLane ?? null });
+  }
+
+  function confirmLaneRequest() {
+    if (!laneConfirm) return;
+    const { laneId } = laneConfirm;
+    setLaneConfirm(null);
+    handleRequestLane(laneId);
+  }
+
+  // `overrides` lets a filter control (lane picker, Clear button) run the
+  // search immediately with a value that hasn't landed in state yet —
+  // setSelectedLaneId/setControlNo/etc. are async, so reading straight
+  // from closure state on the very next line would still see the old
+  // value.
+  async function handleSearch(e, overrides = {}) {
     e.preventDefault();
+
+    const effectiveLaneId = overrides.laneId ?? selectedLaneId;
+    const effectiveControlNo = overrides.controlNo ?? controlNo;
+    const effectiveApplicantName = overrides.applicantName ?? applicantName;
 
     setSearchError("");
     setClaimError("");
     setClaimSuccess("");
     setSelected(null);
 
-    if (
-      !gracePeriodMode &&
-      !controlNo.trim() &&
-      !applicantName.trim() &&
-      !selectedLaneId
-    ) {
-      setSearchError(
-        "Please enter a control number, applicant name, or select a lane."
-      );
-
-      return;
-    }
-
+    // No longer blocks a fully-empty search: "All Lanes" (effectiveLaneId
+    // === "") is now a deliberate, selectable option meaning "show every
+    // applicant across every lane", not an accidental blank submit — this
+    // guard used to reject exactly that case with a "select a lane"
+    // error, so choosing All Lanes with no text filled in silently never
+    // reached the backend at all. Late Claiming has always allowed this
+    // same fully-open query; Scheduled Claiming now matches it.
     setSearching(true);
 
     try {
       const params = {};
 
-      if (gracePeriodMode) {
-        params.grace_period = 1;
+      if (lateClaimingMode) {
+        params.late_claiming = 1;
+
+        if (effectiveControlNo.trim()) {
+          params.control_number = effectiveControlNo.trim();
+        }
+
+        if (effectiveApplicantName.trim()) {
+          params.name = effectiveApplicantName.trim();
+        }
       } else {
-        if (selectedLaneId) {
-          params.lane_id = selectedLaneId;
+        if (effectiveLaneId) {
+          params.lane_id = effectiveLaneId;
         }
 
-        if (controlNo.trim()) {
-          params.control_number = controlNo.trim();
+        if (effectiveControlNo.trim()) {
+          params.control_number = effectiveControlNo.trim();
         }
 
-        if (applicantName.trim()) {
-          params.name = applicantName.trim();
+        if (effectiveApplicantName.trim()) {
+          params.name = effectiveApplicantName.trim();
         }
       }
 
@@ -404,14 +767,43 @@ function VerifierClaiming() {
     }
   }
 
+  // Wraps handleSearch specifically for the actual Search/Filter button
+  // (form submit) — not for the lane-picker/Clear auto-search calls,
+  // which already update results in place without the verifier needing
+  // to go looking for them, and not for the initial auto-search on page
+  // load, which shouldn't yank the viewport down before they've even
+  // seen the lane picker. A real submit means "find it for me", so the
+  // results card scrolls into view once there's something to show.
+  function handleSearchSubmit(e) {
+    setManualSearching(true);
+    handleSearch(e).finally(() => setManualSearching(false));
+
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
+  }
+
   function selectApplicant(app) {
     setSelected(app);
+
+    // For an already-resolved assignment, reflect what was actually
+    // recorded at claim time instead of always showing "Not Reviewed" —
+    // verified_documents only ever lists the docs that were matched (see
+    // VerifierController::updateClaimStatus), so anything not in that
+    // list is left as unreviewed rather than guessed at as "issue".
+    const verifiedDocuments =
+      app?.claiming_assignment?.verified_documents || [];
 
     setDocStatusState(
       DOC_TYPES.reduce(
         (acc, d) => ({
           ...acc,
-          [d.key]: "unreviewed",
+          [d.key]: verifiedDocuments.includes(d.key)
+            ? "matched"
+            : "unreviewed",
         }),
         {}
       )
@@ -577,9 +969,13 @@ function VerifierClaiming() {
       );
 
       setTimeout(() => {
+        // "nearest" instead of "center" — centering can overscroll far
+        // enough to push the face-verification panel above this ref up
+        // behind the sticky navbar; nearest only scrolls the minimum
+        // needed to bring the error into view.
         claimingActionRef.current?.scrollIntoView({
           behavior: "smooth",
-          block: "center",
+          block: "nearest",
         });
       }, 0);
     } finally {
@@ -606,7 +1002,7 @@ function VerifierClaiming() {
           "Document Preview",
       });
     } catch {
-      alert("Failed to load document.");
+      setFileError("Failed to load document.");
     }
   }
 
@@ -707,17 +1103,28 @@ function VerifierClaiming() {
       docStatus[d.key] === "unreviewed"
   ).length;
 
+  // A document flagged Issue Found means it does NOT match the physical
+  // copy — that's disqualifying on its own, same as an undecided one.
   const claimedBlocked =
     unreviewedCount > 0 ||
     issueDocs.length > 0;
 
-  const isResolved = [
-    "claimed",
-    "not_cleared",
-    "unclaimed",
-  ].includes(
+  const isResolved = RESOLVED_CLAIM_STATUSES.includes(
     selected?.claiming_assignment?.claim_status
   );
+
+  // Flags when the applicant currently open belongs to a lane the
+  // verifier doesn't hold — e.g. browsed in via "All Lanes" or another
+  // verifier's lane — so it's obvious before they act on someone outside
+  // their own lane, not just back on the results list they came from.
+  // Scoped to Scheduled Claiming only: Late Claiming pools everyone
+  // together regardless of their original lane, so lane ownership isn't
+  // a meaningful distinction there.
+  const selectedApplicantLane = selected?.claiming_assignment?.lane;
+  const isSelectedLaneNotMine =
+    !lateClaimingMode &&
+    selectedApplicantLane &&
+    !myLaneIds.has(String(selectedApplicantLane.id));
 
   const sortedResults = [...results].sort(
     (a, b) => {
@@ -737,6 +1144,14 @@ function VerifierClaiming() {
     }
   );
 
+  // Where the "already actioned" group starts in the full sorted list —
+  // used to drop a one-time divider row right before it, wherever that
+  // falls once paginated. -1 (nobody resolved) or 0 (everybody resolved)
+  // both correctly render no divider.
+  const firstResolvedIndex = sortedResults.findIndex((r) =>
+    RESOLVED_CLAIM_STATUSES.includes(r.claiming_assignment?.claim_status)
+  );
+
   const totalPages = Math.max(
     1,
     Math.ceil(
@@ -754,10 +1169,250 @@ function VerifierClaiming() {
     );
 
   const showResultsCard =
-    gracePeriodMode ||
+    lateClaimingMode ||
     searching ||
     results.length > 0 ||
     searchError;
+
+  // Late Claiming walk-ins have no lane/schedule structure backing up who
+  // they are, so identity comes first: Face Verification renders as Step
+  // 1 and Document Verification as Step 2 there. Scheduled claiming has no
+  // Face Verification step at all (see the docblock further down), so
+  // Document Verification renders alone with no step badge and takes the
+  // full width instead.
+  const documentVerificationPanel = (
+    <div
+      className={`verifier-claiming-split-col verifier-claiming-verification-col ${lateClaimingMode
+        ? "verifier-claiming-split-col-border"
+        : ""
+        }`}
+    >
+      <div className="verifier-claiming-step-heading">
+        <h4 className="verifier-claiming-search-title">
+          Document Verification
+        </h4>
+
+        {lateClaimingMode && (
+          <span className="verifier-claiming-step-badge">
+            Step 2
+          </span>
+        )}
+      </div>
+
+      {fileError && <div className="alert alert-danger">{fileError}</div>}
+
+      {laneRequestOutcome && (
+        <div
+          className={`alert ${laneRequestOutcome.status === "approved" ? "alert-success" : "alert-danger"
+            }`}
+        >
+          {laneRequestOutcome.status === "approved"
+            ? `Your request for ${laneRequestOutcome.laneName} was approved — it's now your lane.`
+            : `Your request for ${laneRequestOutcome.laneName} was declined by the admin.`}
+        </div>
+      )}
+
+      <div className="verifier-waitlist-notice">
+        <span className="verifier-waitlist-notice-icon">
+          !
+        </span>
+
+        <div className="verifier-waitlist-notice-body">
+          <p className="verifier-waitlist-notice-text">
+            {lateClaimingMode
+              ? "Confirm the physical documents match the approved record after identity has been verified."
+              : "Confirm the physical documents match the approved record."}
+          </p>
+        </div>
+      </div>
+
+      <div className="verifier-claiming-doc-list">
+        {DOC_TYPES.map(
+          (doc) => {
+            const uploadedDoc =
+              filteredDocs.find(
+                (d) =>
+                  d.document_type ===
+                  doc.key
+              );
+
+            const status =
+              docStatus[
+              doc.key
+              ];
+
+            return (
+              <div
+                className="verifier-claiming-doc-card"
+                key={
+                  doc.key
+                }
+              >
+                <div className="verifier-claiming-doc-top">
+                  <div className="verifier-claiming-doc-heading">
+                    <span className="verifier-claiming-doc-icon">
+                      <i
+                        className={
+                          doc.key ===
+                            "registration_form"
+                            ? "bi bi-file-earmark-text"
+                            : doc.key ===
+                              "school_id"
+                              ? "bi bi-mortarboard"
+                              : "bi bi-patch-check"
+                        }
+                      ></i>
+                    </span>
+
+                    <div className="verifier-claiming-doc-copy">
+                      <h6>
+                        {
+                          doc.label
+                        }
+                      </h6>
+
+                      {uploadedDoc ? (
+                        <button
+                          type="button"
+                          className="verifier-claiming-doc-file"
+                          onClick={() =>
+                            handleViewFile(
+                              uploadedDoc.id,
+                              uploadedDoc.file_name
+                            )
+                          }
+                        >
+                          {
+                            uploadedDoc.file_name
+                          }
+                        </button>
+                      ) : (
+                        <p>
+                          No uploaded copy available.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <span
+                    className={`verifier-claiming-doc-status ${status ===
+                      "matched"
+                      ? "verifier-claiming-doc-status-matched"
+                      : status ===
+                        "issue"
+                        ? "verifier-claiming-doc-status-issue"
+                        : "verifier-claiming-doc-status-unreviewed"
+                      }`}
+                  >
+                    {status ===
+                      "matched"
+                      ? "Matched"
+                      : status ===
+                        "issue"
+                        ? "Issue Found"
+                        : "Not Reviewed"}
+                  </span>
+                </div>
+
+                <div className="verifier-claiming-doc-actions">
+                  <button
+                    type="button"
+                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-match ${status ===
+                      "matched"
+                      ? "verifier-claiming-doc-action-active-match"
+                      : ""
+                      }`}
+                    onClick={() =>
+                      setDocStatus(
+                        doc.key,
+                        "matched"
+                      )
+                    }
+                  >
+                    <i className="bi bi-check-lg"></i>
+                    <span>
+                      Matched
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-issue ${status ===
+                      "issue"
+                      ? "verifier-claiming-doc-action-active-issue"
+                      : ""
+                      }`}
+                    onClick={() =>
+                      setDocStatus(
+                        doc.key,
+                        "issue"
+                      )
+                    }
+                  >
+                    <i className="bi bi-exclamation-circle"></i>
+                    <span>
+                      Issue Found
+                    </span>
+                  </button>
+                </div>
+              </div>
+            );
+          }
+        )}
+      </div>
+
+      <p className="verifier-claiming-step-note">
+        Physical copies required for auditing
+      </p>
+    </div>
+  );
+
+  const faceVerificationPanel = lateClaimingMode && selected && (
+    <div className="verifier-claiming-split-col verifier-claiming-verification-col">
+      <div className="verifier-claiming-step-heading">
+        <h4 className="verifier-claiming-mode-title">
+          Face Verification
+        </h4>
+
+        <span className="verifier-claiming-step-badge">
+          Step 1
+        </span>
+      </div>
+
+      <div className="verifier-waitlist-notice">
+        <span className="verifier-waitlist-notice-icon">
+          !
+        </span>
+
+        <div className="verifier-waitlist-notice-body">
+          <p className="verifier-waitlist-notice-text">
+            Verify the applicant’s identity using the registered photo first.
+          </p>
+        </div>
+      </div>
+
+      <div className="verifier-claiming-face-panel">
+        <ClaimingFaceVerify
+          applicationId={
+            selected?.id
+          }
+          required={
+            lateClaimingMode
+          }
+          registrationPhotoUrl={
+            registrationPhotoUrl
+          }
+          registrationPhotoStatus={
+            registrationPhotoStatus
+          }
+        />
+      </div>
+
+      <p className="verifier-claiming-step-note">
+        Confirm identity before reviewing documents
+      </p>
+    </div>
+  );
 
   return (
     <div className="verifier-layout">
@@ -813,6 +1468,20 @@ function VerifierClaiming() {
                       </h4>
                     </div>
                   </div>
+
+                  {isSelectedLaneNotMine && (
+                    <div className="verifier-claiming-lane-warning-notice">
+                      <div className="verifier-claiming-lane-warning-icon">!</div>
+
+                      <div className="verifier-claiming-lane-warning-text">
+                        This applicant is assigned to{" "}
+                        <strong>{selectedApplicantLane.lane_name}</strong> (
+                        {selectedApplicantLane.batch === "morning" ? "Morning" : "Afternoon"},{" "}
+                        {selectedApplicantLane.claiming_date}) — not a lane you hold. Double-check
+                        this is who you meant to process before taking any action.
+                      </div>
+                    </div>
+                  )}
 
                   <div className="verifier-review-profile-area">
                     <div className="verifier-review-profile-main">
@@ -937,17 +1606,6 @@ function VerifierClaiming() {
                               "—"}
                           </span>
                         </div>
-
-                        <div className="verifier-review-detail-item">
-                          <span className="verifier-review-detail-label">
-                            Student ID Number
-                          </span>
-
-                          <span className="verifier-review-detail-value">
-                            {selected.student_id_number ??
-                              "—"}
-                          </span>
-                        </div>
                       </div>
                     </div>
 
@@ -1038,7 +1696,7 @@ function VerifierClaiming() {
                           </span>
                         </div>
 
-                        {gracePeriodMode && (
+                        {lateClaimingMode && (
                           <div className="verifier-review-detail-item">
                             <span className="verifier-review-detail-label">
                               Assignment Type
@@ -1122,226 +1780,30 @@ function VerifierClaiming() {
                     Verification Process
                   </h4>
 
-                  <div className="verifier-claiming-split-card">
-                    <div className="verifier-claiming-split-col verifier-claiming-verification-col">
-                      <div className="verifier-claiming-step-heading">
-                        <h4 className="verifier-claiming-search-title">
-                          Document Verification
-                        </h4>
-
-                        <span className="verifier-claiming-step-badge">
-                          Step 1
-                        </span>
-                      </div>
-
-                      <div className="verifier-waitlist-notice">
-                        <span className="verifier-waitlist-notice-icon">
-                          !
-                        </span>
-
-                        <div className="verifier-waitlist-notice-body">
-                          <p className="verifier-waitlist-notice-text">
-                            Confirm the physical documents match the approved record before identity verification.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="verifier-claiming-doc-list">
-                        {DOC_TYPES.map(
-                          (doc) => {
-                            const uploadedDoc =
-                              filteredDocs.find(
-                                (d) =>
-                                  d.document_type ===
-                                  doc.key
-                              );
-
-                            const status =
-                              docStatus[
-                              doc.key
-                              ];
-
-                            return (
-                              <div
-                                className="verifier-claiming-doc-card"
-                                key={
-                                  doc.key
-                                }
-                              >
-                                <div className="verifier-claiming-doc-top">
-                                  <div className="verifier-claiming-doc-heading">
-                                    <span className="verifier-claiming-doc-icon">
-                                      <i
-                                        className={
-                                          doc.key ===
-                                            "registration_form"
-                                            ? "bi bi-file-earmark-text"
-                                            : doc.key ===
-                                              "school_id"
-                                              ? "bi bi-mortarboard"
-                                              : "bi bi-patch-check"
-                                        }
-                                      ></i>
-                                    </span>
-
-                                    <div className="verifier-claiming-doc-copy">
-                                      <h6>
-                                        {
-                                          doc.label
-                                        }
-                                      </h6>
-
-                                      {uploadedDoc ? (
-                                        <button
-                                          type="button"
-                                          className="verifier-claiming-doc-file"
-                                          onClick={() =>
-                                            handleViewFile(
-                                              uploadedDoc.id,
-                                              uploadedDoc.file_name
-                                            )
-                                          }
-                                        >
-                                          {
-                                            uploadedDoc.file_name
-                                          }
-                                        </button>
-                                      ) : (
-                                        <p>
-                                          No uploaded copy available.
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <span
-                                    className={`verifier-claiming-doc-status ${status ===
-                                      "matched"
-                                      ? "verifier-claiming-doc-status-matched"
-                                      : status ===
-                                        "issue"
-                                        ? "verifier-claiming-doc-status-issue"
-                                        : "verifier-claiming-doc-status-unreviewed"
-                                      }`}
-                                  >
-                                    {status ===
-                                      "matched"
-                                      ? "Matched"
-                                      : status ===
-                                        "issue"
-                                        ? "Issue Found"
-                                        : "Not Reviewed"}
-                                  </span>
-                                </div>
-
-                                <div className="verifier-claiming-doc-actions">
-                                  <button
-                                    type="button"
-                                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-match ${status ===
-                                      "matched"
-                                      ? "verifier-claiming-doc-action-active-match"
-                                      : ""
-                                      }`}
-                                    onClick={() =>
-                                      setDocStatus(
-                                        doc.key,
-                                        "matched"
-                                      )
-                                    }
-                                  >
-                                    <i className="bi bi-check-lg"></i>
-                                    <span>
-                                      Matched
-                                    </span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    className={`verifier-claiming-doc-action verifier-claiming-doc-action-issue ${status ===
-                                      "issue"
-                                      ? "verifier-claiming-doc-action-active-issue"
-                                      : ""
-                                      }`}
-                                    onClick={() =>
-                                      setDocStatus(
-                                        doc.key,
-                                        "issue"
-                                      )
-                                    }
-                                  >
-                                    <i className="bi bi-exclamation-circle"></i>
-                                    <span>
-                                      Issue Found
-                                    </span>
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          }
-                        )}
-                      </div>
-
-                      <p className="verifier-claiming-step-note">
-                        Physical copies required for auditing
-                      </p>
-                    </div>
-
-                    {/* Face verification is proof-of-identity for
-                       unscheduled grace-period walk-ins, where there's
-                       no lane/time structure backing up who this is.
-                       Regular claiming already has that structure (a
-                       scheduled lane, a control number, a verifier who
-                       selected them off that lane's own list), so this
-                       step is skipped entirely there rather than shown
-                       as merely optional — matches the backend, which
-                       already only enforces a passed face verification
-                       for grace-period 'claimed' actions (see
-                       VerifierController::updateClaimStatus). */}
-                    {gracePeriodMode && (
-                      <div className="verifier-claiming-split-col verifier-claiming-split-col-border verifier-claiming-verification-col">
-                        <div className="verifier-claiming-step-heading">
-                          <h4 className="verifier-claiming-mode-title">
-                            Face Verification
-                          </h4>
-
-                          <span className="verifier-claiming-step-badge">
-                            Step 2
-                          </span>
-                        </div>
-
-                        <div className="verifier-waitlist-notice">
-                          <span className="verifier-waitlist-notice-icon">
-                            !
-                          </span>
-
-                          <div className="verifier-waitlist-notice-body">
-                            <p className="verifier-waitlist-notice-text">
-                              Verify the applicant’s identity using the registered photo before updating the final claiming status.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="verifier-claiming-face-panel">
-                          <ClaimingFaceVerify
-                            applicationId={
-                              selected.id
-                            }
-                            required={
-                              gracePeriodMode
-                            }
-                            registrationPhotoUrl={
-                              registrationPhotoUrl
-                            }
-                            registrationPhotoStatus={
-                              registrationPhotoStatus
-                            }
-                          />
-                        </div>
-
-                        <p className="verifier-claiming-step-note">
-                          Final identity confirmation before claiming
-                        </p>
-                      </div>
+                  {/* Late Claiming walk-ins have no lane/schedule
+                     structure backing up who they are, so identity comes
+                     first — Face Verification renders as Step 1 and
+                     Document Verification as Step 2. Scheduled claiming has
+                     that structure already (a scheduled lane, a control
+                     number, a verifier who selected them off that lane's
+                     own list), so Face Verification is skipped entirely
+                     there rather than shown as merely optional — matches
+                     the backend, which already only enforces a passed
+                     face verification for Late Claiming 'claimed' actions
+                     (see VerifierController::updateClaimStatus). */}
+                  <div
+                    className={`verifier-claiming-split-card ${!lateClaimingMode
+                      ? "verifier-claiming-split-card-single"
+                      : ""
+                      }`}
+                  >
+                    {lateClaimingMode ? (
+                      <>
+                        {faceVerificationPanel}
+                        {documentVerificationPanel}
+                      </>
+                    ) : (
+                      documentVerificationPanel
                     )}
                   </div>
 
@@ -1352,7 +1814,7 @@ function VerifierClaiming() {
                   >
                     {isResolved ? (
                       <div className="alert alert-secondary mb-0">
-                        This application has already been marked as{" "}
+                        This applicant's claiming status is already finalized as{" "}
                         <ClaimStatusBadge
                           status={
                             selected
@@ -1360,7 +1822,7 @@ function VerifierClaiming() {
                               ?.claim_status
                           }
                         />
-                        . No further action is available here.
+                        {" "}— there's nothing further to do here.
                       </div>
                     ) : (
                       <>
@@ -1401,28 +1863,12 @@ function VerifierClaiming() {
                               <div className="verifier-waitlist-notice-body">
                                 <p className="verifier-waitlist-notice-text">
                                   <strong>
-                                    Cannot mark as Claimed yet.
+                                    Cannot mark as Claimed.
                                   </strong>{" "}
-                                  {unreviewedCount >
-                                    0 &&
-                                    `${unreviewedCount} document(s) have not been reviewed. `}
-                                  {issueDocs.length >
-                                    0 &&
-                                    `${issueDocs
-                                      .map(
-                                        (
-                                          d
-                                        ) =>
-                                          d.label
-                                      )
-                                      .join(
-                                        ", "
-                                      )} ${issueDocs.length ===
-                                        1
-                                        ? "was"
-                                        : "were"
-                                    } flagged with an issue. `}
-                                  Please complete document verification first.
+                                  {unreviewedCount > 0 &&
+                                    `${unreviewedCount} document${unreviewedCount === 1 ? "" : "s"} still ${unreviewedCount === 1 ? "needs" : "need"} to be reviewed. `}
+                                  {issueDocs.length > 0 &&
+                                    `${issueDocs.map((d) => d.label).join(", ")} ${issueDocs.length === 1 ? "was" : "were"} flagged with an issue — this applicant cannot be marked Claimed until it's resolved. `}
                                 </p>
                               </div>
                             </div>
@@ -1439,360 +1885,298 @@ function VerifierClaiming() {
                     Claiming Application
                   </h4>
 
-                  <div className="verifier-claiming-split-card">
-                    <div className="verifier-claiming-split-col">
-                      <h4 className="verifier-claiming-mode-title">
-                        Claiming Mode
-                      </h4>
+                  <div className="verifier-claiming-toolbar-row">
+                    <div className="verifier-claiming-mode-tabs">
+                      <button
+                        type="button"
+                        className={`verifier-claiming-mode-btn ${!lateClaimingMode ? "verifier-claiming-mode-btn-active" : ""}`}
+                        onClick={switchToScheduledMode}
+                      >
+                        Scheduled Claiming
+                      </button>
 
-                      <div className="verifier-claiming-phase">
-                        <span className="verifier-claiming-phase-label">
-                          Claiming Phase Selection
-                        </span>
+                      <button
+                        type="button"
+                        className={`verifier-claiming-mode-btn ${lateClaimingMode ? "verifier-claiming-mode-btn-active" : ""}`}
+                        onClick={switchToLateClaimingMode}
+                      >
+                        Late Claiming
+                      </button>
+                    </div>
 
-                        <div className="verifier-claiming-mode-tabs">
-                          <button
-                            type="button"
-                            className={`verifier-claiming-mode-btn ${!gracePeriodMode
-                              ? "verifier-claiming-mode-btn-active"
-                              : ""
-                              }`}
-                            onClick={
-                              switchToRegularMode
-                            }
-                          >
-                            Regular Claiming
-                          </button>
-
-                          <button
-                            type="button"
-                            className={`verifier-claiming-mode-btn ${gracePeriodMode
-                              ? "verifier-claiming-mode-btn-active"
-                              : ""
-                              }`}
-                            onClick={
-                              switchToGracePeriodMode
-                            }
-                          >
-                            Grace Period List
-                          </button>
+                    {lateClaimingMode ? (
+                      lateClaimingDates.start && lateClaimingDates.end ? (
+                        <div className="verifier-claiming-context verifier-claiming-context-warning verifier-claiming-context-compact">
+                          <i className="bi bi-calendar3"></i>
+                          <strong>Late Claiming</strong>
+                          {/* Math.max(1, ...) used to clamp a negative
+                             "days since start" (today before start) up to
+                             1, which showed "Day 1" even when Late
+                             Claiming hadn't started yet. Handling
+                             before-start and after-end explicitly instead
+                             of clamping avoids implying it's already
+                             underway (or still running) when it isn't. */}
+                          {todayStr() < lateClaimingDates.start ? (
+                            <span className="verifier-claiming-day-badge">
+                              Not Started Yet
+                            </span>
+                          ) : todayStr() > lateClaimingDates.end ? (
+                            <span className="verifier-claiming-day-badge">
+                              Ended
+                            </span>
+                          ) : (
+                            <span className="verifier-claiming-day-badge">
+                              Day{" "}
+                              {daysBetween(lateClaimingDates.start, todayStr()) + 1}/
+                              {daysBetween(lateClaimingDates.start, lateClaimingDates.end) + 1}
+                            </span>
+                          )}
+                          <span className="verifier-claiming-context-muted">
+                            {formatDateDisplay(lateClaimingDates.start)} – {formatDateDisplay(lateClaimingDates.end)}
+                          </span>
                         </div>
-                      </div>
-
-                      {gracePeriodMode ? (
-                        gracePeriodDates.start &&
-                          gracePeriodDates.end ? (
-                          <div className="verifier-claiming-context verifier-claiming-context-warning">
-                            <span className="verifier-claiming-context-icon">
-                              <i className="bi bi-calendar3"></i>
-                            </span>
-
-                            <div className="verifier-claiming-context-content">
-                              <strong>
-                                Grace Period
-                              </strong>
-
-                              <span>
-                                — Day{" "}
-                                {Math.max(
-                                  1,
-                                  daysBetween(
-                                    gracePeriodDates.start,
-                                    todayStr()
-                                  ) + 1
-                                )}
-                                /
-                                {daysBetween(
-                                  gracePeriodDates.start,
-                                  gracePeriodDates.end
-                                ) + 1}{" "}
-                                (
-                                {formatDateDisplay(
-                                  gracePeriodDates.start
-                                )}{" "}
-                                –{" "}
-                                {formatDateDisplay(
-                                  gracePeriodDates.end
-                                )}
-                                )
-                              </span>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="verifier-claiming-context verifier-claiming-context-neutral">
-                            <span className="verifier-claiming-notice-icon">
-                              <i className="bi bi-exclamation-lg"></i>
-                            </span>
-
-                            <div className="verifier-claiming-context-content">
-                              <span>
-                                No grace period configured for the active schedule.
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      ) : (
-                        <>
-                          <div className="verifier-claiming-context verifier-claiming-context-info">
-                            <span className="verifier-claiming-context-icon">
-                              <i className="bi bi-calendar3"></i>
-                            </span>
-
-                            <div className="verifier-claiming-context-content">
-                              <strong>
-                                Today —{" "}
-                                {formatDateDisplay(
-                                  todayStr()
-                                )}
-                              </strong>
-
-                              {todaysLanes.length >
-                                0 ? (
-                                <span>
-                                  — Lanes claiming today:{" "}
-                                  {todaysLanes
-                                    .map(
-                                      (
-                                        lane
-                                      ) =>
-                                        `${lane.lane_name
-                                        } (${lane.batch ===
-                                          "morning"
-                                          ? "Morning"
-                                          : "Afternoon"
-                                        })`
-                                    )
-                                    .join(
-                                      ", "
-                                    )}
-                                </span>
-                              ) : (
-                                <span>
-                                  — No lanes scheduled to claim today.
-                                </span>
-                              )}
-
-                              {assignedLane && (
-                                <span className="verifier-claiming-current-lane">
-                                  Currently viewing:{" "}
-                                  <strong>
-                                    {
-                                      assignedLane.lane_name
-                                    }
-                                  </strong>{" "}
-                                  (
-                                  {formatDateDisplay(
-                                    assignedLane.claiming_date
-                                  )}
-                                  )
-                                  {assignedLane.claiming_date <
-                                    todayStr() && (
-                                      <span className="text-danger ms-1">
-                                        — this lane&apos;s date has already passed
-                                      </span>
-                                    )}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="verifier-claiming-lane-section">
-                            <label className="verifier-claiming-label">
-                              Lane / Schedule
-                            </label>
-
-                            {assignedLane && (
-                              <div className="verifier-claiming-assigned-lane">
-                                You&apos;re currently assigned to{" "}
-                                <strong>
-                                  {
-                                    assignedLane.lane_name
-                                  }
-                                </strong>{" "}
-                                (
-                                {assignedLane.batch ===
-                                  "morning"
-                                  ? "Morning"
-                                  : "Afternoon"}
-                                ,{" "}
-                                {
-                                  assignedLane.claiming_date
-                                }
-                                ).
-                              </div>
-                            )}
-
-                            <select
-                              className="form-select verifier-claiming-select"
-                              value={
-                                selectedLaneId
-                              }
-                              onChange={(e) =>
-                                setSelectedLaneId(
-                                  e.target
-                                    .value
-                                )
-                              }
+                      ) : lanesError ? (
+                        <div className="verifier-claiming-context verifier-claiming-context-neutral verifier-claiming-context-compact">
+                          <i className="bi bi-exclamation-triangle"></i>
+                          <span>
+                            Couldn't load the claiming schedule.{" "}
+                            <button
+                              type="button"
+                              className="verifier-claiming-retry-link"
+                              onClick={fetchLanes}
                             >
-                              <option value="">
-                                All lanes
-                              </option>
+                              Retry
+                            </button>
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="verifier-claiming-context verifier-claiming-context-neutral verifier-claiming-context-compact">
+                          <i className="bi bi-exclamation-lg"></i>
+                          <span>No Late Claiming configured for the active schedule.</span>
+                        </div>
+                      )
+                    ) : allLanes.length === 0 ? (
+                      <div className="verifier-claiming-context verifier-claiming-context-neutral verifier-claiming-context-compact">
+                        <i className="bi bi-exclamation-lg"></i>
+                        <span>No claiming schedule has been set up yet for this application period. Check back once the SK Admin activates one.</span>
+                      </div>
+                    ) : (
+                      <div className="verifier-claiming-context verifier-claiming-context-info verifier-claiming-context-compact">
+                        <i className="bi bi-calendar3"></i>
+                        <strong>Today — {formatDateDisplay(todayStr())}</strong>
+                        <span className="verifier-claiming-context-muted">
+                          {todaysLanes.length > 0
+                            ? `${todaysLanes.length} lane${todaysLanes.length === 1 ? "" : "s"} claiming today`
+                            : "No lanes scheduled to claim today"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
 
-                              {allLanes.map(
-                                (
-                                  lane
-                                ) => (
-                                  <option
-                                    key={
-                                      lane.id
-                                    }
-                                    value={
-                                      lane.id
-                                    }
-                                  >
-                                    {
-                                      lane.claiming_date
-                                    }{" "}
-                                    —{" "}
-                                    {lane.batch ===
-                                      "morning"
-                                      ? "Morning"
-                                      : "Afternoon"}{" "}
-                                    —{" "}
-                                    {
-                                      lane.lane_name
-                                    }
-                                    {lane.verifier_id &&
-                                      lane.id !==
-                                      assignedLane?.id
-                                      ? " (assigned to another verifier)"
-                                      : ""}
+                  <div className={`verifier-claiming-split-card ${lateClaimingMode ? "verifier-claiming-split-card-single" : ""}`}>
+                    {!lateClaimingMode && (
+                      <div className="verifier-claiming-split-col">
+                          <label className="verifier-claiming-section-label">
+                            Choose a Lane to View
+                          </label>
+
+                          {assignedLanes.length > 0 && (
+                            <p className="verifier-claiming-assigned-lane">
+                              You hold{" "}
+                              {assignedLanes.map((lane, index) => (
+                                <span key={lane.id}>
+                                  {index > 0 && (index === assignedLanes.length - 1 ? " and " : ", ")}
+                                  <strong>{lane.lane_name}</strong> ({lane.batch === "morning" ? "AM" : "PM"}, {formatDateDisplay(lane.claiming_date)})
+                                </span>
+                              ))}
+                              .
+                            </p>
+                          )}
+
+                          <div className="verifier-claiming-lane-filter-row">
+                            <div className="verifier-claiming-lane-filter-field">
+                              <label className="verifier-claiming-sublabel">Day / Session</label>
+
+                              <select
+                                className="form-select verifier-claiming-select"
+                                value={sessionFilter}
+                                onChange={(e) => handleSessionFilterChange(e.target.value)}
+                              >
+                                <option value="">All Sessions</option>
+
+                                {sessionOptions.map((session) => (
+                                  <option key={session.key} value={session.key}>
+                                    {formatDateDisplay(session.date)} — {session.batch === "morning" ? "Morning" : "Afternoon"}
+                                    {session.date === todayStr() ? " (Today)" : ""}
                                   </option>
-                                )
-                              )}
-                            </select>
+                                ))}
+                              </select>
+                            </div>
 
-                            {selectedLaneId &&
-                              (!assignedLane ||
-                                String(
-                                  assignedLane.id
-                                ) !==
-                                selectedLaneId) && (
+                            <div className="verifier-claiming-lane-filter-field">
+                              <label className="verifier-claiming-sublabel">Lane</label>
+
+                              <select
+                                className="form-select verifier-claiming-select"
+                                value={selectedLaneId}
+                                onChange={(e) => handleLaneSelectChange(e.target.value)}
+                              >
+                                <option value="">
+                                  {sessionFilter ? "All Lanes (Any Session)" : "All Lanes"}
+                                </option>
+
+                                {laneDropdownOptions.map((lane) => {
+                                  const isMine = myLaneIds.has(String(lane.id));
+                                  const tag = isMine
+                                    ? " — Yours"
+                                    : lane.requested_verifier_id
+                                      ? " — Pending"
+                                      : lane.verifier_id
+                                        ? " — Taken"
+                                        : "";
+
+                                  return (
+                                    <option key={lane.id} value={lane.id}>
+                                      {sessionFilter
+                                        ? `${lane.lane_name}${tag}`
+                                        : `${formatDateDisplay(lane.claiming_date)} — ${lane.batch === "morning" ? "AM" : "PM"} — ${lane.lane_name}${tag}`}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                            </div>
+                          </div>
+
+                          {selectedLaneId &&
+                            !myLaneIds.has(selectedLaneId) && (
+                              pendingRequestLaneId === selectedLaneId ? (
+                                <p className="text-muted small mt-2 mb-0">
+                                  {laneRequestMessage || "Request sent — waiting for an admin to approve it."}
+                                </p>
+                              ) : (
                                 <button
                                   type="button"
                                   className="verifier-waitlist-action-btn mt-2"
-                                  onClick={() =>
-                                    handleSelfAssign(
-                                      selectedLaneId
-                                    )
-                                  }
-                                  disabled={
-                                    assigningLane
-                                  }
+                                  onClick={() => openLaneConfirm(selectedLaneId)}
+                                  disabled={assigningLane}
                                 >
                                   {assigningLane
-                                    ? "Assigning..."
-                                    : "Make this my lane"}
+                                    ? "Requesting..."
+                                    : `Request ${viewingLane?.lane_name ?? "This Lane"}`}
                                 </button>
-                              )}
-                          </div>
-                        </>
-                      )}
-                    </div>
+                              )
+                            )}
+                      </div>
+                    )}
 
-                    <div className="verifier-claiming-split-col verifier-claiming-split-col-border">
-                      <h4 className="verifier-claiming-search-title">
-                        Search Applicant
+                    <div className={`verifier-claiming-split-col ${!lateClaimingMode ? "verifier-claiming-split-col-border" : ""}`}>
+                      <h4 className="verifier-claiming-section-label">
+                        {lateClaimingMode
+                          ? "Filter Late Claiming List"
+                          : "Search Applicant"}
                       </h4>
 
-                      <div
-                        className={`verifier-claiming-search-box ${gracePeriodMode
-                          ? "verifier-claiming-search-disabled"
-                          : ""
-                          }`}
-                      >
+                      <div className="verifier-claiming-search-box">
                         <form
                           onSubmit={
-                            handleSearch
+                            handleSearchSubmit
                           }
                         >
-                          <fieldset
-                            disabled={
-                              gracePeriodMode
-                            }
-                            className="verifier-claiming-search-fieldset"
-                          >
-                            <div className="mb-3">
-                              <label className="verifier-claiming-label">
-                                Control Number
-                              </label>
+                          <fieldset className="verifier-claiming-search-fieldset verifier-claiming-search-row">
+                            <div className="verifier-claiming-search-inputs-row">
+                              <div className="verifier-claiming-search-field">
+                                <label className="verifier-claiming-label">
+                                  Control Number
+                                </label>
 
-                              <input
-                                type="text"
-                                className="form-control verifier-claiming-input"
-                                placeholder="e.g. SK-2026-0001"
-                                value={
-                                  controlNo
-                                }
-                                onChange={(
-                                  e
-                                ) =>
-                                  setControlNo(
-                                    e.target
-                                      .value
-                                  )
-                                }
-                              />
+                                <input
+                                  type="text"
+                                  className="form-control verifier-claiming-input"
+                                  placeholder="e.g. SK-2026-0001"
+                                  value={controlNo}
+                                  onChange={(e) => setControlNo(e.target.value)}
+                                />
+                              </div>
+
+                              <div className="verifier-claiming-search-field">
+                                <label className="verifier-claiming-label">
+                                  Applicant Name
+                                </label>
+
+                                <input
+                                  type="text"
+                                  className="form-control verifier-claiming-input"
+                                  placeholder="Enter first or last name"
+                                  value={applicantName}
+                                  onChange={(e) => setApplicantName(e.target.value)}
+                                />
+                              </div>
+
+                              {/* Late Claiming keeps the buttons inline with the
+                                 inputs — there's no lane picker beside it to match
+                                 the height of, so an extra row would only add
+                                 height for no benefit. Scheduled Claiming puts them
+                                 on their own row below instead (see the block after
+                                 this row) — that row's height is already absorbed
+                                 by the taller lane picker column beside it. */}
+                              {lateClaimingMode && (
+                                <>
+                                  <button
+                                    type="submit"
+                                    className="verifier-claiming-search-btn verifier-claiming-search-row-btn"
+                                    disabled={searching}
+                                  >
+                                    {manualSearching ? "Searching..." : "Filter"}
+                                  </button>
+
+                                  {(controlNo || applicantName) && (
+                                    <button
+                                      type="button"
+                                      className="verifier-claiming-clear-btn verifier-claiming-search-row-btn"
+                                      onClick={handleClearSearch}
+                                      disabled={searching}
+                                    >
+                                      Clear
+                                    </button>
+                                  )}
+                                </>
+                              )}
                             </div>
 
-                            <div className="mb-3">
-                              <label className="verifier-claiming-label">
-                                Applicant Name
-                              </label>
+                            {!lateClaimingMode && (
+                              <div className="verifier-claiming-search-actions-row">
+                                <button
+                                  type="submit"
+                                  className="verifier-claiming-search-btn verifier-claiming-search-row-btn"
+                                  disabled={searching}
+                                >
+                                  {manualSearching ? "Searching..." : "Search"}
+                                </button>
 
-                              <input
-                                type="text"
-                                className="form-control verifier-claiming-input"
-                                placeholder="Enter first or last name"
-                                value={
-                                  applicantName
-                                }
-                                onChange={(
-                                  e
-                                ) =>
-                                  setApplicantName(
-                                    e.target
-                                      .value
-                                  )
-                                }
-                              />
-                            </div>
-
-                            <button
-                              type="submit"
-                              className="verifier-claiming-search-btn"
-                              disabled={
-                                searching ||
-                                gracePeriodMode
-                              }
-                            >
-                              {searching &&
-                                !gracePeriodMode
-                                ? "Searching..."
-                                : "Search"}
-                            </button>
+                                {(controlNo || applicantName) && (
+                                  <button
+                                    type="button"
+                                    className="verifier-claiming-clear-btn verifier-claiming-search-row-btn"
+                                    onClick={handleClearSearch}
+                                    disabled={searching}
+                                  >
+                                    Clear
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </fieldset>
                         </form>
 
-                        {gracePeriodMode ? (
-                          <p className="verifier-claiming-search-disabled-text">
-                            Search is unavailable while viewing the Grace Period List.
+                        {lateClaimingMode ? (
+                          <p className="text-muted small mt-2 mb-0">
+                            Showing everyone currently in the Late Claiming pool. Leave both fields blank to see everyone.
                           </p>
                         ) : results.length ===
                           0 &&
                           !searching &&
                           !searchError ? (
-                          <p className="text-muted small mt-3 mb-0">
+                          <p className="text-muted small mt-2 mb-0">
                             No results yet — search above.
                           </p>
                         ) : null}
@@ -1802,15 +2186,15 @@ function VerifierClaiming() {
                 </div>
 
                 {showResultsCard && (
-                  <div className="page-card verifier-attention-card verifier-claiming-results-card">
+                  <div className="page-card verifier-attention-card verifier-claiming-results-card" ref={resultsRef}>
                     <div className="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
                       <h4 className="verifier-claiming-results-title mb-0">
-                        {gracePeriodMode
-                          ? "Grace Period Applicants"
+                        {lateClaimingMode
+                          ? "Late Claiming Applicants"
                           : "Search Results"}
                       </h4>
 
-                      {gracePeriodMode && (
+                      {lateClaimingMode && (
                         <button
                           type="button"
                           className="verifier-ocr-refresh-btn"
@@ -1847,6 +2231,28 @@ function VerifierClaiming() {
                       )}
                     </div>
 
+                    {!lateClaimingMode && (
+                      <div className="verifier-claiming-viewing-bar">
+                        Viewing:{" "}
+                        {viewingLane ? (
+                          <>
+                            <strong>{viewingLane.lane_name}</strong>{" "}
+                            (
+                            {viewingLane.batch === "morning" ? "Morning" : "Afternoon"},{" "}
+                            {viewingLane.claiming_date}
+                            )
+                            {!myLaneIds.has(String(viewingLane.id)) && (
+                              <span className="verifier-claiming-not-mine-badge ms-2">
+                                Not your lane
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <strong>All lanes</strong>
+                        )}
+                      </div>
+                    )}
+
                     {searchError && (
                       <div className="verifier-claiming-error-notice mt-3">
                         <span className="verifier-claiming-notice-icon">
@@ -1865,7 +2271,7 @@ function VerifierClaiming() {
                         <>
                           <div className="table-responsive mt-3 verifier-claiming-table-wrap">
                             <table className="table table-bordered table-striped align-middle verifier-attention-table verifier-claiming-results-table">
-                              {gracePeriodMode ? (
+                              {lateClaimingMode ? (
                                 <colgroup>
                                   <col
                                     style={{
@@ -1954,7 +2360,7 @@ function VerifierClaiming() {
                                     Status
                                   </th>
 
-                                  {gracePeriodMode && (
+                                  {lateClaimingMode && (
                                     <th>
                                       Type
                                     </th>
@@ -1971,7 +2377,7 @@ function VerifierClaiming() {
                                   <tr>
                                     <td
                                       colSpan={
-                                        gracePeriodMode
+                                        lateClaimingMode
                                           ? 6
                                           : 5
                                       }
@@ -1990,86 +2396,128 @@ function VerifierClaiming() {
                                 ) : (
                                   pagedResults.map(
                                     (
-                                      app
-                                    ) => (
-                                      <tr
-                                        key={
-                                          app.id
-                                        }
-                                      >
-                                        <td>
-                                          {
-                                            app.control_number
+                                      app,
+                                      idx
+                                    ) => {
+                                      const isRowResolved =
+                                        RESOLVED_CLAIM_STATUSES.includes(
+                                          app.claiming_assignment
+                                            ?.claim_status
+                                        );
+
+                                      const showDivider =
+                                        firstResolvedIndex > 0 &&
+                                        pageStart + idx ===
+                                        firstResolvedIndex;
+
+                                      return (
+                                        <Fragment
+                                          key={
+                                            app.id
                                           }
-                                        </td>
+                                        >
+                                          {showDivider && (
+                                            <tr className="verifier-claiming-results-divider">
+                                              <td
+                                                colSpan={
+                                                  lateClaimingMode
+                                                    ? 6
+                                                    : 5
+                                                }
+                                              >
+                                                Action Taken
+                                              </td>
+                                            </tr>
+                                          )}
 
-                                        <td>
-                                          {
-                                            app.user
-                                              ?.first_name
-                                          }{" "}
-                                          {
-                                            app.user
-                                              ?.last_name
-                                          }
-                                        </td>
-
-                                        <td>
-                                          {
-                                            app.school_name
-                                          }
-                                        </td>
-
-                                        <td className="verifier-claiming-status-cell">
-                                          <ClaimStatusBadge
-                                            status={
-                                              app.claiming_assignment
-                                                ?.claim_status
-                                            }
-                                          />
-                                        </td>
-
-                                        {gracePeriodMode && (
-                                          <td className="verifier-claiming-type-cell">
-                                            {app
-                                              .claiming_assignment
-                                              ?.source ===
-                                              "waitlist_promotion" && (
-                                                <span className="verifier-claiming-type-badge verifier-claiming-type-promoted">
-                                                  Promoted
-                                                </span>
-                                              )}
-
-                                            {(app
-                                              .claiming_assignment
-                                              ?.source ===
-                                              "grace_period_retry" ||
-                                              app
-                                                .claiming_assignment
-                                                ?.source ===
-                                              "original") && (
-                                                <span className="verifier-claiming-type-badge verifier-claiming-type-retrying">
-                                                  Retrying
-                                                </span>
-                                              )}
-                                          </td>
-                                        )}
-
-                                        <td className="verifier-attention-action">
-                                          <button
-                                            type="button"
-                                            className="btn-save-green"
-                                            onClick={() =>
-                                              selectApplicant(
-                                                app
-                                              )
+                                          <tr
+                                            className={
+                                              isRowResolved
+                                                ? "verifier-claiming-row-resolved"
+                                                : undefined
                                             }
                                           >
-                                            Select
-                                          </button>
-                                        </td>
-                                      </tr>
-                                    )
+                                            <td>
+                                              {
+                                                app.control_number
+                                              }
+                                            </td>
+
+                                            <td>
+                                              {
+                                                app.user
+                                                  ?.first_name
+                                              }{" "}
+                                              {
+                                                app.user
+                                                  ?.last_name
+                                              }
+                                            </td>
+
+                                            <td>
+                                              {
+                                                app.school_name
+                                              }
+                                            </td>
+
+                                            <td className="verifier-claiming-status-cell">
+                                              <ClaimStatusBadge
+                                                status={
+                                                  app.claiming_assignment
+                                                    ?.claim_status
+                                                }
+                                              />
+                                            </td>
+
+                                            {lateClaimingMode && (
+                                              <td className="verifier-claiming-type-cell">
+                                                {app
+                                                  .claiming_assignment
+                                                  ?.source ===
+                                                  "waitlist_promotion" && (
+                                                    <span className="verifier-claiming-type-badge verifier-claiming-type-promoted">
+                                                      Promoted
+                                                    </span>
+                                                  )}
+
+                                                {(app
+                                                  .claiming_assignment
+                                                  ?.source ===
+                                                  "late_claiming_retry" ||
+                                                  app
+                                                    .claiming_assignment
+                                                    ?.source ===
+                                                  "original") && (
+                                                    <span className="verifier-claiming-type-badge verifier-claiming-type-retrying">
+                                                      Retrying
+                                                    </span>
+                                                  )}
+                                              </td>
+                                            )}
+
+                                            <td className="verifier-attention-action">
+                                              <button
+                                                type="button"
+                                                className={
+                                                  isRowResolved
+                                                    ? "btn-view-muted"
+                                                    : "btn-save-green"
+                                                }
+                                                onClick={() =>
+                                                  selectApplicant(
+                                                    app
+                                                  )
+                                                }
+                                              >
+                                                {isRowResolved
+                                                  ? "View"
+                                                  : "Select"}
+                                              </button>
+                                            </td>
+                                          </tr>
+                                        </Fragment>
+                                      );
+                                    }
                                   )
                                 )}
                               </tbody>
@@ -2179,8 +2627,8 @@ function VerifierClaiming() {
                       !searching &&
                       !searchError && (
                         <p className="text-muted small mt-3 mb-0">
-                          {gracePeriodMode
-                            ? "No applicants currently in the grace period list."
+                          {lateClaimingMode
+                            ? "No applicants currently in the Late Claiming list."
                             : "No matching applicants found."}
                         </p>
                       )}
@@ -2641,6 +3089,72 @@ function VerifierClaiming() {
                   className="verifier-preview-modal-pdf"
                 />
               )}
+            </div>
+          </div>
+        )}
+
+        {laneConfirm && (
+          <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+            <div className="modal-dialog modal-dialog-centered">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <h5 className="modal-title">
+                    {laneConfirm.conflictLane ? "Switch Lanes?" : "Add Lane?"}
+                  </h5>
+                  <button
+                    type="button"
+                    className="btn-close"
+                    onClick={() => setLaneConfirm(null)}
+                    disabled={assigningLane}
+                  />
+                </div>
+                <div className="modal-body">
+                  {laneConfirm.conflictLane ? (
+                    <p className="mb-0">
+                      You&apos;re currently assigned to{" "}
+                      <strong>{laneConfirm.conflictLane.lane_name}</strong> for this same session (
+                      {laneConfirm.conflictLane.batch === "morning" ? "Morning" : "Afternoon"},{" "}
+                      {laneConfirm.conflictLane.claiming_date}). Requesting{" "}
+                      <strong>{laneConfirm.targetLane.lane_name}</strong> will{" "}
+                      <strong>switch</strong> you onto it — you will no longer be assigned to{" "}
+                      {laneConfirm.conflictLane.lane_name}. Continue?
+                    </p>
+                  ) : (
+                    <p className="mb-0">
+                      This will assign you to{" "}
+                      <strong>{laneConfirm.targetLane.lane_name}</strong> (
+                      {laneConfirm.targetLane.batch === "morning" ? "Morning" : "Afternoon"},{" "}
+                      {laneConfirm.targetLane.claiming_date})
+                      {assignedLanes.length > 0
+                        ? " in addition to your current lane — you'll hold both."
+                        : "."}{" "}
+                      Continue?
+                    </p>
+                  )}
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setLaneConfirm(null)}
+                    disabled={assigningLane}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-custom"
+                    onClick={confirmLaneRequest}
+                    disabled={assigningLane}
+                  >
+                    {assigningLane
+                      ? "Requesting..."
+                      : laneConfirm.conflictLane
+                        ? "Yes, Switch"
+                        : "Yes, Add Lane"}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
 use App\Models\PasswordHistory;
+use App\Models\TwoFactorResetRequest;
 use App\Mail\PersonnelAccountMail;
 use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
@@ -14,9 +15,29 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Rule;
 
 class AdminController extends Controller
 {
+    // Roles an it_support account is allowed to create/edit/deactivate/
+    // reset. Includes 'superadmin' — it_support can create and manage
+    // superadmin accounts, it just can't delete one (see
+    // assertCanDeleteTarget below).
+    private const IT_SUPPORT_MANAGEABLE_ROLES = ['sk_verifier', 'sk_admin', 'superadmin', 'it_support'];
+
+    // All personnel roles — what a superadmin can manage.
+    private const ALL_PERSONNEL_ROLES = ['sk_verifier', 'sk_admin', 'superadmin', 'it_support'];
+
+    // Blocks it_support from deleting a superadmin account. superadmin
+    // itself has no restriction. sk_admin never reaches this method at
+    // all — the route middleware already excludes it.
+    private function assertCanDeleteTarget(Request $request, User $target): void
+    {
+        if ($request->user()->role === 'it_support' && $target->role === 'superadmin') {
+            abort(403, 'IT Support cannot delete superadmin accounts.');
+        }
+    }
+
     public function stats()
     {
         $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
@@ -27,17 +48,26 @@ class AdminController extends Controller
                 'incomplete' => 0,
                 'pending'    => 0,
                 'approved'   => 0,
+                'claimed'    => 0,
                 'rejected'   => 0,
                 'no_active_period' => true,
             ]);
         }
-    
+
+        // "Approved" = holds/held a slot at any point in the pipeline
+        // (approved, claimed, or unclaimed) — matches slotHoldingStatuses()
+        // in AdminReportController. "Claimed" is a subset shown alongside
+        // it, not a replacement for it. "Rejected" combines the online
+        // prescreening rejection with the claiming-day not_cleared outcome,
+        // since both mean "did not receive funding."
         return response()->json([
+            'school_year' => $activeConfig->school_year,
             'total'      => Application::where('config_id', $activeConfig->id)->whereHas('documents')->count(),
             'incomplete' => Application::where('config_id', $activeConfig->id)->whereDoesntHave('documents')->count(),
             'pending'    => Application::where('config_id', $activeConfig->id)->whereIn('status', ['pending_prescreening', 'for_review'])->count(),
-            'approved'   => Application::where('config_id', $activeConfig->id)->where('status', 'approved')->count(),
-            'rejected'   => Application::where('config_id', $activeConfig->id)->where('status', 'rejected')->count(),
+            'approved'   => Application::where('config_id', $activeConfig->id)->whereIn('status', ['approved', 'claimed', 'unclaimed'])->count(),
+            'claimed'    => Application::where('config_id', $activeConfig->id)->where('status', 'claimed')->count(),
+            'rejected'   => Application::where('config_id', $activeConfig->id)->whereIn('status', ['rejected', 'not_cleared'])->count(),
             'no_active_period' => false,
         ]);
     }
@@ -49,7 +79,7 @@ class AdminController extends Controller
             ->with(['faceVerification:id,user_id,status,registration_match_score,verified_at'])
             ->get();
 
-        $personnel = User::whereIn('role', ['sk_verifier', 'sk_admin'])
+        $personnel = User::whereIn('role', self::ALL_PERSONNEL_ROLES)
             ->select('id', 'first_name', 'last_name', 'email', 'role', 'is_active', 'created_at', 'email_verified_at')
             ->get();
 
@@ -70,11 +100,15 @@ class AdminController extends Controller
      */
     public function createPersonnel(Request $request)
     {
+        $allowedRoles = $request->user()->role === 'it_support'
+            ? self::IT_SUPPORT_MANAGEABLE_ROLES
+            : self::ALL_PERSONNEL_ROLES;
+
         $request->validate([
             'first_name' => 'required|string',
             'last_name'  => 'required|string',
             'email'      => 'required|email|unique:users,email',
-            'role'       => 'required|in:sk_verifier,sk_admin',
+            'role'       => ['required', Rule::in($allowedRoles)],
             'is_active'  => 'boolean',
         ]);
 
@@ -145,11 +179,15 @@ class AdminController extends Controller
     {
         $user = User::findOrFail($id);
 
+        $allowedRoles = $request->user()->role === 'it_support'
+            ? self::IT_SUPPORT_MANAGEABLE_ROLES
+            : self::ALL_PERSONNEL_ROLES;
+
         $data = $request->validate([
             'first_name' => 'sometimes|string',
             'last_name'  => 'sometimes|string',
             'email'      => 'sometimes|email|unique:users,email,' . $id,
-            'role'       => 'sometimes|in:sk_verifier,sk_admin',
+            'role'       => ['sometimes', Rule::in($allowedRoles)],
             'is_active'  => 'sometimes|boolean',
         ]);
 
@@ -200,9 +238,9 @@ class AdminController extends Controller
             ], 422);
         }
 
-        if (!in_array($user->role, ['sk_verifier', 'sk_admin'])) {
+        if (!in_array($user->role, self::ALL_PERSONNEL_ROLES)) {
             return response()->json([
-                'message' => 'This action is only available for verifier and admin accounts.',
+                'message' => 'This action is only available for personnel accounts.',
             ], 422);
         }
 
@@ -292,6 +330,20 @@ class AdminController extends Controller
             'google2fa_enabled_at'  => null,
         ])->save();
 
+        // Any device remembered under the old secret must re-prove itself
+        // once the user re-enrolls, same as after a password change.
+        \App\Models\TrustedDevice::where('user_id', $user->id)->delete();
+
+        // Close out any pending "lost my authenticator" request(s) from
+        // this user — this reset is what they were asking for.
+        TwoFactorResetRequest::where('user_id', $user->id)
+            ->where('status', 'pending')
+            ->update([
+                'status'         => 'fulfilled',
+                'resolved_by_id' => $request->user()->id,
+                'resolved_at'    => now(),
+            ]);
+
         \App\Models\AuditLog::record(
             '2fa_reset',
             $user,
@@ -303,7 +355,38 @@ class AdminController extends Controller
         ]);
     }
 
-    public function toggleStatus($id)
+    /**
+     * Pending "lost my authenticator" requests, for the banner in
+     * Manage Users — see AuthController::requestTwoFactorHelp() for
+     * where these get created, and resetTwoFactor() above for where
+     * they get auto-resolved once actually handled.
+     */
+    public function pendingTwoFactorResetRequests()
+    {
+        $requests = TwoFactorResetRequest::with('user:id,first_name,last_name,email,role')
+            ->where('status', 'pending')
+            ->latest()
+            ->get();
+
+        return response()->json($requests);
+    }
+
+    // Dismiss without resetting — e.g. identity couldn't be confirmed,
+    // or the user got back into their authenticator on their own.
+    public function dismissTwoFactorResetRequest(Request $request, $id)
+    {
+        $resetRequest = TwoFactorResetRequest::findOrFail($id);
+
+        $resetRequest->update([
+            'status'         => 'dismissed',
+            'resolved_by_id' => $request->user()->id,
+            'resolved_at'    => now(),
+        ]);
+
+        return response()->json(['message' => 'Request dismissed.']);
+    }
+
+    public function toggleStatus(Request $request, $id)
     {
         $user = User::findOrFail($id);
         $user->update(['is_active' => !$user->is_active]);
@@ -321,9 +404,10 @@ class AdminController extends Controller
         ]);
     }
 
-    public function deleteUser($id)
+    public function deleteUser(Request $request, $id)
     {
         $user = User::findOrFail($id);
+        $this->assertCanDeleteTarget($request, $user);
         $name = "{$user->first_name} {$user->last_name}";
         $email = $user->email;
 
@@ -365,16 +449,19 @@ class AdminController extends Controller
         return response()->json($logs);
     }
 
-    // Returns ALL activity logs from Admin and Verifier accounts only.
-    // Applicant logs are intentionally excluded from this view.
+    // Returns ALL activity logs from personnel accounts only (verifier,
+    // admin, superadmin, it_support). Applicant logs are intentionally
+    // excluded from this view. Route is superadmin-only, so this is the
+    // one place superadmin can audit everyone else, including it_support's
+    // own account-management actions.
     public function masterActivityLog(Request $request)
     {
         $query = \App\Models\AuditLog::whereHas('user', function ($q) {
-            $q->whereIn('role', ['sk_admin', 'sk_verifier']);
+            $q->whereIn('role', self::ALL_PERSONNEL_ROLES);
         })->with('user:id,first_name,last_name,email,role');
 
-        // Optional filter: ?role=sk_verifier or ?role=sk_admin
-        if ($request->has('role') && in_array($request->role, ['sk_admin', 'sk_verifier'])) {
+        // Optional filter: ?role=sk_verifier, sk_admin, superadmin, or it_support
+        if ($request->has('role') && in_array($request->role, self::ALL_PERSONNEL_ROLES)) {
             $query->whereHas('user', function ($q) use ($request) {
                 $q->where('role', $request->role);
             });

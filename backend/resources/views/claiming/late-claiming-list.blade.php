@@ -36,7 +36,7 @@
             @endforelse
 
             @if($retrying->count() === 0 && $promoted->count() === 0)
-                <tr><td colspan="5">No applicants expected during grace period for this period.</td></tr>
+                <tr><td colspan="5">No applicants expected during Late Claiming for this period.</td></tr>
             @endif
         </tbody>
     </table>

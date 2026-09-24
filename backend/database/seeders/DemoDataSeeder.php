@@ -71,71 +71,68 @@ class DemoDataSeeder extends Seeder
 
     public function run(): void
     {
-        $admin = User::create([
-            'first_name'        => 'SK Admin',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'admin@skmamatid.com',
-            'mobile_number'     => '09123456789',
-            'password'          => Hash::make('admin123'),
-            'role'              => 'sk_admin',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
+        $admin = User::where('email', 'admin@skmamatid.com')->first();
+        $this->verifier = User::where('email', 'verifier@skmamatid.com')->first();
+        if (!$admin || !$this->verifier) {
+            $this->command->error('Run OpeningDaySeeder first — it creates the admin/verifier accounts this seeder builds on top of.');
+            return;
+        }
 
-        $this->verifier = User::create([
-            'first_name'        => 'SK Verifier',
-            'middle_name'       => 'Mamatid',
-            'last_name'         => 'Official',
-            'email'             => 'verifier@skmamatid.com',
-            'mobile_number'     => '09876543210',
-            'password'          => Hash::make('verifier123'),
-            'role'              => 'sk_verifier',
-            'is_active'         => true,
-            'email_verified_at' => now(),
-        ]);
-
-        // ── Historical Period 1: 2023-2024, completed, lower approval rate ──
+        // ── Historical Period 1: 2023-2024, completed, lower approval rate,
+        //    claimed/disbursed so its Disbursement Report has real data ──
         $config2023 = ApplicationConfiguration::create([
-            'school_year'  => '2023-2024',
-            'open_date'    => now()->subYears(3)->setMonth(7)->setDay(1)->startOfDay(),
-            'close_date'   => now()->subYears(3)->setMonth(7)->setDay(31)->endOfDay(),
-            'slot_limit'   => 100,
-            'slots_filled' => 62,
-            'is_unlimited' => false,
-            'is_active'    => false,
-            'created_by'   => $admin->id,
+            'school_year'        => '2023-2024',
+            'open_date'          => now()->subYears(3)->setMonth(7)->setDay(1)->startOfDay(),
+            'close_date'         => now()->subYears(3)->setMonth(7)->setDay(31)->endOfDay(),
+            'slot_limit'         => 100,
+            'slots_filled'       => 62,
+            'is_unlimited'       => false,
+            'is_active'          => false,
+            'assistance_amount'  => 1500,
+            'created_by'         => $admin->id,
         ]);
-        $this->seedApplicationsForPeriod($config2023, total: 78, approvedCount: 62, submittedAround: now()->subYears(3)->setMonth(7));
+        $this->seedApplicationsForPeriod($config2023, total: 78, approvedCount: 62, submittedAround: now()->subYears(3)->setMonth(7), withClaiming: true);
 
-        // ── Historical Period 2: 2024-2025, completed, mid approval rate ──
+        // ── Historical Period 2: 2024-2025, completed, mid approval rate,
+        //    claimed/disbursed so its Disbursement Report has real data ──
         $config2024 = ApplicationConfiguration::create([
-            'school_year'  => '2024-2025',
-            'open_date'    => now()->subYears(2)->setMonth(7)->setDay(1)->startOfDay(),
-            'close_date'   => now()->subYears(2)->setMonth(7)->setDay(31)->endOfDay(),
-            'slot_limit'   => 120,
-            'slots_filled' => 85,
-            'is_unlimited' => false,
-            'is_active'    => false,
-            'created_by'   => $admin->id,
+            'school_year'        => '2024-2025',
+            'open_date'          => now()->subYears(2)->setMonth(7)->setDay(1)->startOfDay(),
+            'close_date'         => now()->subYears(2)->setMonth(7)->setDay(31)->endOfDay(),
+            'slot_limit'         => 120,
+            'slots_filled'       => 85,
+            'is_unlimited'       => false,
+            'is_active'          => false,
+            'assistance_amount'  => 1800,
+            'created_by'         => $admin->id,
         ]);
-        $this->seedApplicationsForPeriod($config2024, total: 101, approvedCount: 85, submittedAround: now()->subYears(2)->setMonth(7));
+        $this->seedApplicationsForPeriod($config2024, total: 101, approvedCount: 85, submittedAround: now()->subYears(2)->setMonth(7), withClaiming: true);
 
         // ── Historical Period 3: 2025-2026, completed, higher approval rate,
-        //    fully claimed so this period powers Claiming Outcome Summary ──
+        //    fully claimed so this period powers Claiming Outcome Summary
+        //    AND the Disbursement Report ──
         $config2025 = ApplicationConfiguration::create([
-            'school_year'  => '2025-2026',
-            'open_date'    => now()->subYear()->setMonth(7)->setDay(1)->startOfDay(),
-            'close_date'   => now()->subYear()->setMonth(7)->setDay(31)->endOfDay(),
-            'slot_limit'   => 150,
-            'slots_filled' => 118,
-            'is_unlimited' => false,
-            'is_active'    => false,
-            'created_by'   => $admin->id,
+            'school_year'        => '2025-2026',
+            'open_date'          => now()->subYear()->setMonth(7)->setDay(1)->startOfDay(),
+            'close_date'         => now()->subYear()->setMonth(7)->setDay(31)->endOfDay(),
+            'slot_limit'         => 150,
+            'slots_filled'       => 118,
+            'is_unlimited'       => false,
+            'is_active'          => false,
+            'assistance_amount'  => 2000,
+            'created_by'         => $admin->id,
         ]);
         $this->seedApplicationsForPeriod($config2025, total: 133, approvedCount: 118, submittedAround: now()->subYear()->setMonth(7), withClaiming: true);
 
         // ── Active Period: 2026-2027, currently open, mixed live statuses ──
+        // Deactivate whatever was already active first — without this,
+        // running this seeder after another one that left a config active
+        // (e.g. ClaimingDayTestSeeder) leaves TWO rows both is_active=true,
+        // which breaks the "the active config" assumption every
+        // ApplicationConfiguration::where('is_active', true)->first()/
+        // ->find() call in the app relies on.
+        ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
+
         $configActive = ApplicationConfiguration::create([
             'school_year'  => '2026-2027',
             'open_date'    => now()->subDays(10)->startOfDay(),
@@ -148,7 +145,7 @@ class DemoDataSeeder extends Seeder
         ]);
         $this->seedActivePeriodMix($configActive);
 
-        $this->command->info('Demo data seeded: 3 completed periods (one with full claiming data) + 1 active period with realistic status distribution, profiles, and verifier reason data.');
+        $this->command->info('Demo data seeded: 3 completed periods, all with full claiming/disbursement data (distinct assistance_amount per year) + 1 active period with realistic status distribution, profiles, and verifier reason data.');
     }
 
     private function seedApplicationsForPeriod(ApplicationConfiguration $config, int $total, int $approvedCount, $submittedAround, bool $withClaiming = false): void
@@ -255,8 +252,8 @@ class DemoDataSeeder extends Seeder
         $schedule = ClaimingSchedule::create([
             'config_id'    => $config->id,
             'location'     => 'Barangay Mamatid Covered Court',
-            'is_published' => true,
-            'published_at' => $config->close_date->copy()->addDays(5),
+            'is_active' => true,
+            'activated_at' => $config->close_date->copy()->addDays(5),
         ]);
 
         $lane = ClaimingLane::create([
@@ -398,9 +395,15 @@ class DemoDataSeeder extends Seeder
         // real variety instead of an all-adult population.
         $isMinor = rand(1, 100) <= 15;
 
+        $purokType = rand(1, 100) <= 60 ? 'purok' : 'phase';
+
         $profileData = [
             'user_id'             => $user->id,
             'barangay'            => 'Mamatid',
+            'purok_type'          => $purokType,
+            'purok'               => $purokType === 'purok'
+                ? 'Purok ' . rand(1, 5)
+                : 'Phase ' . rand(1, 3),
             'is_profile_complete' => true,
         ];
 

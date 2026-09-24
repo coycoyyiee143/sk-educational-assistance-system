@@ -1,30 +1,60 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
+import { usePolling } from "../../hooks/usePolling";
 
 const emptyForm = {
-  location: "Barangay Mamatid Hall",
-  morning_start: "07:00",
+  location: "Barangay Mamatid Covered Court",
+  morning_start: "08:00",
   morning_end: "12:00",
   afternoon_start: "13:00",
   afternoon_end: "17:00",
-  grace_period_date: "",
-  grace_period_end_date: "",
+  late_claiming_date: "",
+  late_claiming_end_date: "",
 };
 
-const emptySessionLane = () => ({ lane_name: "", capacity: "" });
-const emptyDay = () => ({
-  date: "",
+const emptySessionLane = () => ({ lane_name: "", capacity: "", verifier_id: "" });
+const emptyDay = (dateStr = "") => ({
+  date: dateStr,
   morning: { enabled: true, lanes: [emptySessionLane()] },
   afternoon: { enabled: true, lanes: [emptySessionLane()] },
 });
+
+// NOT toISOString().slice(0, 10) — that formats in UTC, which rolls
+// local midnight back to the previous calendar day in any timezone
+// ahead of UTC (e.g. UTC+8), silently breaking every "day after X"
+// calculation below.
+function toLocalDateStr(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function todayStr() {
+  return toLocalDateStr(new Date());
+}
+
+// Matches ApplicantClaimingSchedule.jsx's own formatTime() — the native
+// <input type="time"> picker's displayed format follows the browser/OS
+// locale and can't be forced from here, but this label text is fully
+// under our control.
+function formatTime(timeStr) {
+  if (!timeStr) return "";
+  const [h, m] = timeStr.split(":").map(Number);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${period}`;
+}
 
 function groupLanesIntoDays(lanesArr) {
   if (!lanesArr || lanesArr.length === 0) return [emptyDay()];
   const map = {};
   lanesArr
-    .filter((l) => l.lane_name !== "Grace Period Claiming")
+    .filter((l) => l.lane_name !== "Late Claiming")
     .forEach((l) => {
       if (!map[l.claiming_date]) {
         map[l.claiming_date] = {
@@ -37,6 +67,7 @@ function groupLanesIntoDays(lanesArr) {
       map[l.claiming_date][l.batch].lanes.push({
         lane_name: l.lane_name,
         capacity: l.capacity ?? "",
+        verifier_id: l.verifier_id ?? "",
       });
     });
   const days = Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
@@ -50,7 +81,7 @@ function serializeLanes(days) {
       if (!day[session].enabled) return;
       day[session].lanes.forEach((lane, laneIdx) => {
         lanes.push({
-          lane_name: lane.lane_name.trim() || `Day ${dayIdx + 1} ${session === "morning" ? "AM" : "PM"} Lane ${laneIdx + 1}`,
+          lane_name: lane.lane_name.trim() || `Day ${dayIdx + 1} ${session === "morning" ? "Morning" : "Afternoon"} Lane ${laneIdx + 1}`,
           // Capacity is required now — no more "blank = auto-split",
           // since there's no fixed applicant pool to split at save time
           // under real-time assignment. Default to 1 if left blank so
@@ -59,6 +90,7 @@ function serializeLanes(days) {
           capacity: lane.capacity ? Number(lane.capacity) : 1,
           batch: session,
           claiming_date: day.date,
+          verifier_id: lane.verifier_id || null,
         });
       });
     });
@@ -69,40 +101,95 @@ function serializeLanes(days) {
 function nextDayStr(dateStr) {
   const d = new Date(`${dateStr}T00:00:00`);
   d.setDate(d.getDate() + 1);
-  return d.toISOString().slice(0, 10);
+  return toLocalDateStr(d);
+}
+
+// A claiming day must fall strictly after the application period's
+// close_date, so the earliest valid default is whichever is later:
+// today, or the day right after close_date.
+function firstValidDayDate(closeDate) {
+  if (!closeDate) return todayStr();
+  const dayAfterClose = nextDayStr(closeDate.slice(0, 10));
+  return dayAfterClose > todayStr() ? dayAfterClose : todayStr();
+}
+
+// "2026-09-28" -> "Sep 28" — the raw ISO strings read as a wall of
+// numbers in the summary cards, especially once paired with a second
+// date in a range. Year is dropped since these dates are always within
+// the current school year and adding it is just noise.
+function formatNiceDate(dateStr) {
+  if (!dateStr) return "—";
+  return new Date(`${dateStr}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function formatDateRange(dates) {
   const unique = [...new Set(dates.filter(Boolean))].sort();
   if (unique.length === 0) return "—";
-  if (unique.length === 1) return unique[0];
-  return `${unique[0]} to ${unique[unique.length - 1]}`;
+  if (unique.length === 1) return formatNiceDate(unique[0]);
+  return `${formatNiceDate(unique[0])} – ${formatNiceDate(unique[unique.length - 1])}`;
 }
 
 function AdminSchedule() {
+  const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [config, setConfig] = useState(null);
   const [approvedCount, setApprovedCount] = useState(0);
   const [unassignedApprovedCount, setUnassignedApprovedCount] = useState(0);
   const [schedule, setSchedule] = useState(null);
+  const [verifiers, setVerifiers] = useState([]);
+  const [assigningLaneId, setAssigningLaneId] = useState(null);
   const [form, setForm] = useState(emptyForm);
   const [days, setDays] = useState([emptyDay()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingLateClaiming, setSavingLateClaiming] = useState(false);
   const [activating, setActivating] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Save actions (e.g. Save Scheduled Claiming) live well down the page,
+  // but the resulting message renders at the very top — easy to trigger
+  // and never actually see. Scroll it into view whenever it appears so
+  // it isn't missed.
+  const messageRef = useRef(null);
+  useEffect(() => {
+    if ((error || success) && messageRef.current) {
+      messageRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [error, success]);
   const [lanePage, setLanePage] = useState(1);
   const lanePerPage = 10;
-  const [gracePeriodList, setGracePeriodList] = useState(null);
-  const [loadingGracePeriodList, setLoadingGracePeriodList] = useState(false);
+  const [lateClaimingList, setLateClaimingList] = useState(null);
+  const [loadingLateClaimingList, setLoadingLateClaimingList] = useState(false);
+  const [removeDayTarget, setRemoveDayTarget] = useState(null); // day index pending confirmation, or null
+  const [removeLaneTarget, setRemoveLaneTarget] = useState(null); // { dayIndex, session, laneIndex } pending confirmation, or null
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showActivateConfirm, setShowActivateConfirm] = useState(false);
+  // { laneId, laneName, verifierId, verifierName } pending confirmation,
+  // or null — verifierId/verifierName are null when the change unassigns
+  // the lane rather than assigning someone.
+  const [assignVerifierTarget, setAssignVerifierTarget] = useState(null);
+  // { type: 'approve' | 'dismiss', laneId, laneName, verifierId, verifierName }
+  // pending confirmation, or null.
+  const [laneRequestActionTarget, setLaneRequestActionTarget] = useState(null);
+  // Only offered after a Late Claiming date change — that's the one save
+  // path with no other way for applicants to find out the window moved
+  // (see updateLateClaiming() on the backend: it just updates the dates,
+  // nothing reads/notifies from it). The main schedule save doesn't need
+  // this: applicants aren't told to expect specific claiming dates ahead
+  // of being assigned a lane, so there's nothing there for them to have
+  // been counting on that just changed.
+  const [announceNudge, setAnnounceNudge] = useState(null);
 
-  const loadGracePeriodClaimingList = useCallback(() => {
-    setLoadingGracePeriodList(true);
-    api.get("/admin/reports/grace-period-claiming-list")
-      .then((res) => setGracePeriodList(res.data))
-      .catch(() => setGracePeriodList(null))
-      .finally(() => setLoadingGracePeriodList(false));
+  const loadLateClaimingList = useCallback(() => {
+    setLoadingLateClaimingList(true);
+    api.get("/admin/reports/late-claiming-list")
+      .then((res) => setLateClaimingList(res.data))
+      .catch(() => setLateClaimingList(null))
+      .finally(() => setLoadingLateClaimingList(false));
   }, []);
 
   const loadSchedule = useCallback((silent = false) => {
@@ -116,6 +203,7 @@ function AdminSchedule() {
         setConfig(res.data.config);
         setApprovedCount(res.data.approved_count);
         setUnassignedApprovedCount(res.data.unassigned_approved_count ?? 0);
+        setVerifiers(res.data.verifiers ?? []);
         const sched = res.data.schedule;
         setSchedule(sched);
         if (sched) {
@@ -125,12 +213,12 @@ function AdminSchedule() {
             morning_end: sched.morning_end?.slice(0, 5) ?? "12:00",
             afternoon_start: sched.afternoon_start?.slice(0, 5) ?? "13:00",
             afternoon_end: sched.afternoon_end?.slice(0, 5) ?? "17:00",
-            grace_period_date: sched.grace_period_date ?? "",
-            grace_period_end_date: sched.grace_period_end_date ?? "",
+            late_claiming_date: sched.late_claiming_date ?? "",
+            late_claiming_end_date: sched.late_claiming_end_date ?? "",
           });
           setDays(groupLanesIntoDays(sched.lanes));
-          if (sched.grace_period_date) {
-            loadGracePeriodClaimingList();
+          if (sched.late_claiming_date) {
+            loadLateClaimingList();
           }
         }
       })
@@ -145,11 +233,24 @@ function AdminSchedule() {
         setLoading(false);
         setRefreshing(false);
       });
-  }, [loadGracePeriodClaimingList]);
+  }, [loadLateClaimingList]);
 
   useEffect(() => {
     loadSchedule();
   }, [loadSchedule]);
+
+  // Only defaults the very first, still-blank claiming day of a brand
+  // new schedule — never a saved one — and only once close_date is
+  // known, so the suggested date is never one the "must be after
+  // close_date" rule would immediately reject.
+  useEffect(() => {
+    if (schedule || !config?.close_date) return;
+    setDays((prev) =>
+      prev.length === 1 && !prev[0].date
+        ? [emptyDay(firstValidDayDate(config.close_date))]
+        : prev
+    );
+  }, [schedule, config]);
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
@@ -165,11 +266,25 @@ function AdminSchedule() {
   }
 
   function addDay() {
-    setDays((prev) => [...prev, emptyDay()]);
+    setDays((prev) => {
+      const lastDate = [...prev].reverse().find((d) => d.date)?.date;
+      return [...prev, emptyDay(lastDate ? nextDayStr(lastDate) : firstValidDayDate(config?.close_date))];
+    });
   }
 
   function removeDay(dayIndex) {
+    const day = days[dayIndex];
+    const hasContent = day && (day.date || day.morning.lanes.length > 0 || day.afternoon.lanes.length > 0);
+    if (hasContent) {
+      setRemoveDayTarget(dayIndex);
+      return;
+    }
     setDays((prev) => prev.filter((_, i) => i !== dayIndex));
+  }
+
+  function confirmRemoveDay() {
+    setDays((prev) => prev.filter((_, i) => i !== removeDayTarget));
+    setRemoveDayTarget(null);
   }
 
   function addLane(dayIndex, session) {
@@ -180,10 +295,25 @@ function AdminSchedule() {
   }
 
   function removeLane(dayIndex, session, laneIndex) {
+    const lane = days[dayIndex]?.[session]?.lanes?.[laneIndex];
+    const hasContent = lane && (lane.lane_name.trim() || lane.capacity || lane.verifier_id);
+    if (hasContent) {
+      setRemoveLaneTarget({ dayIndex, session, laneIndex });
+      return;
+    }
     setDays((prev) => prev.map((d, i) => {
       if (i !== dayIndex) return d;
       return { ...d, [session]: { ...d[session], lanes: d[session].lanes.filter((_, li) => li !== laneIndex) } };
     }));
+  }
+
+  function confirmRemoveLane() {
+    const { dayIndex, session, laneIndex } = removeLaneTarget;
+    setDays((prev) => prev.map((d, i) => {
+      if (i !== dayIndex) return d;
+      return { ...d, [session]: { ...d[session], lanes: d[session].lanes.filter((_, li) => li !== laneIndex) } };
+    }));
+    setRemoveLaneTarget(null);
   }
 
   function setLaneField(dayIndex, session, laneIndex, key, value) {
@@ -200,8 +330,19 @@ function AdminSchedule() {
   }
 
   function handleReset() {
+    const hasContent = days.some((d) => d.date || d.morning.lanes.length > 0 || d.afternoon.lanes.length > 0);
+    if (hasContent) {
+      setShowResetConfirm(true);
+      return;
+    }
     setForm(emptyForm);
-    setDays([emptyDay()]);
+    setDays([emptyDay(firstValidDayDate(config?.close_date))]);
+  }
+
+  function confirmReset() {
+    setForm(emptyForm);
+    setDays([emptyDay(firstValidDayDate(config?.close_date))]);
+    setShowResetConfirm(false);
   }
 
   async function handleSubmit(e) {
@@ -235,9 +376,15 @@ function AdminSchedule() {
     const lanes = serializeLanes(days);
     setSaving(true);
     try {
-      const res = await api.post("/admin/claiming-schedule", { ...form, lanes });
+      // Late Claiming is a genuinely separate save action (its own button
+      // below) — deliberately not sent here, even if the admin already
+      // typed dates into those fields, so this button only ever touches
+      // claiming days/lanes. Whatever's in the Late Claiming fields stays
+      // in the form afterward, ready for that other button to save.
+      const { late_claiming_date, late_claiming_end_date, ...claimingDaysForm } = form;
+      const res = await api.post("/admin/claiming-schedule", { ...claimingDaysForm, lanes });
       setSchedule(res.data.schedule);
-      setSuccess("Schedule saved. Activate it below to start assigning approved applicants to lanes in real time.");
+      setSuccess("Scheduled Claiming saved. Save Late Claiming below if you want to set that window too, then activate when ready.");
     } catch (err) {
       setError(err.response?.data?.message || "Failed to save schedule.");
     } finally {
@@ -245,9 +392,55 @@ function AdminSchedule() {
     }
   }
 
-  async function handleActivate() {
+  // Only reachable while the schedule is active — before that, Late
+  // Claiming's dates just save as part of the normal full-form submit
+  // above.
+  async function handleSaveLateClaiming() {
+    setError("");
+    setSuccess("");
+    setSavingLateClaiming(true);
+    try {
+      const res = await api.patch(`/admin/claiming-schedule/${schedule.id}/late-claiming`, {
+        late_claiming_date: form.late_claiming_date || null,
+        late_claiming_end_date: form.late_claiming_end_date || null,
+      });
+      setSchedule(res.data.schedule);
+      setSuccess(res.data.message);
+      if (res.data.schedule?.late_claiming_date) {
+        loadLateClaimingList();
+        const start = res.data.schedule.late_claiming_date;
+        const end = res.data.schedule.late_claiming_end_date;
+        const range = end && end !== start ? `${start} to ${end}` : start;
+        setAnnounceNudge({
+          title: "Late Claiming Window Updated",
+          message: "Applicants aren't notified of this change automatically. Want to post an announcement about the new Late Claiming dates?",
+          prefill: {
+            title: "Late Claiming Schedule Update",
+            category: "Schedule Update",
+            content: `The Late Claiming period has been updated to ${range}. Please take note of this change and plan your claiming accordingly.`,
+          },
+        });
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update Late Claiming.");
+    } finally {
+      setSavingLateClaiming(false);
+    }
+  }
+
+  function goAnnounce() {
+    const prefill = announceNudge?.prefill;
+    setAnnounceNudge(null);
+    navigate("/AdminAnnouncements", { state: { prefill } });
+  }
+
+  function handleActivate() {
     if (!schedule) return;
-    if (!window.confirm("Activate this claiming schedule? From this point on, every newly-approved applicant is assigned to a lane and notified automatically, and lane setup can no longer be edited.")) return;
+    setShowActivateConfirm(true);
+  }
+
+  async function confirmActivate() {
+    setShowActivateConfirm(false);
     setActivating(true);
     setError("");
     setSuccess("");
@@ -256,10 +449,90 @@ function AdminSchedule() {
       setSuccess(res.data.message);
       setSchedule(res.data.schedule);
       loadSchedule(true);
+
+      // Individual applicants already get a per-lane notification when
+      // assigned (see ClaimingAssignmentService::assignToLane()), but
+      // nothing tells the wider public the schedule is live at all —
+      // same "nothing else announces this" gap as the Late Claiming nudge.
+      setAnnounceNudge({
+        title: "Schedule Activated",
+        message: "Applicants are being assigned to lanes automatically now, but there's no general public notice. Want to post an announcement about the claiming schedule?",
+        prefill: {
+          title: "Claiming Schedule Now Available",
+          category: "Schedule Update",
+          content: `The claiming schedule for ${formatDateRange(claimingDates)} at ${form.location} is now live. Approved applicants will be assigned a lane and notified automatically — check your dashboard for your assigned date, time, and lane.`,
+        },
+      });
     } catch (err) {
       setError(err.response?.data?.message || "Failed to activate schedule.");
     } finally {
       setActivating(false);
+    }
+  }
+
+  async function handleAssignVerifier(laneId, verifierId) {
+    setAssigningLaneId(laneId);
+    setError("");
+    try {
+      const res = await api.post(`/admin/claiming-schedule/lanes/${laneId}/assign-verifier`, {
+        verifier_id: verifierId || null,
+      });
+      setSchedule((prev) => ({
+        ...prev,
+        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, verifier_id: res.data.lane.verifier_id, verifier: res.data.lane.verifier, requested_verifier_id: null, requested_verifier: null } : l)),
+      }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update lane assignment.");
+    } finally {
+      setAssigningLaneId(null);
+    }
+  }
+
+  async function handleDismissRequest(laneId) {
+    setAssigningLaneId(laneId);
+    setError("");
+    try {
+      const res = await api.post(`/admin/claiming-schedule/lanes/${laneId}/dismiss-request`);
+      setSchedule((prev) => ({
+        ...prev,
+        lanes: prev.lanes.map((l) => (l.id === laneId ? { ...l, requested_verifier_id: res.data.lane.requested_verifier_id, requested_verifier: null } : l)),
+      }));
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to dismiss request.");
+    } finally {
+      setAssigningLaneId(null);
+    }
+  }
+
+  // Reassigning a verifier also silently bumps them off any other lane
+  // they hold in the same claiming_date + batch session (see
+  // assignVerifier() on the backend) — worth a confirmation rather than
+  // acting the instant the dropdown changes.
+  function requestAssignVerifier(lane, verifierId) {
+    const verifier = verifierId
+      ? verifiers.find((v) => String(v.id) === String(verifierId))
+      : null;
+    setAssignVerifierTarget({
+      laneId: lane.id,
+      laneName: lane.lane_name,
+      verifierId: verifierId || null,
+      verifierName: verifier ? `${verifier.first_name} ${verifier.last_name}` : null,
+    });
+  }
+
+  function confirmAssignVerifier() {
+    const { laneId, verifierId } = assignVerifierTarget;
+    setAssignVerifierTarget(null);
+    handleAssignVerifier(laneId, verifierId);
+  }
+
+  function confirmLaneRequestAction() {
+    const { type, laneId, verifierId } = laneRequestActionTarget;
+    setLaneRequestActionTarget(null);
+    if (type === "approve") {
+      handleAssignVerifier(laneId, verifierId);
+    } else {
+      handleDismissRequest(laneId);
     }
   }
 
@@ -283,41 +556,113 @@ function AdminSchedule() {
     }
   }
 
-  async function handleGracePeriodClaimingListExport() {
+  async function handleLateClaimingListExport() {
     try {
-      const res = await api.get("/admin/reports/grace-period-claiming-list/pdf", { responseType: "blob" });
+      const res = await api.get("/admin/reports/late-claiming-list/pdf", { responseType: "blob" });
       const url = window.URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `grace-period-claiming-list-${new Date().toISOString().slice(0, 10)}.pdf`);
+      link.setAttribute("download", `late-claiming-list-${new Date().toISOString().slice(0, 10)}.pdf`);
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
     } catch {
-      setError("Failed to generate grace period claiming list.");
+      setError("Failed to generate Late Claiming list.");
     }
   }
 
   const isActive = schedule?.is_active;
+
+  // Silent background refresh — once a schedule is active, lane
+  // assignments and verifier lane requests can change from other users
+  // (verifiers self-assigning/requesting a lane, applicants getting
+  // auto-assigned) while an admin is sitting on this page, and without
+  // this they'd only see it after a manual Refresh. Only enabled once
+  // active: the lane/day editing form above is disabled at that point
+  // (see `disabled={isActive}` on the fieldset), so there's no
+  // in-progress draft this could ever overwrite. Before activation, the
+  // admin is actively composing the schedule, so this stays off to
+  // avoid silently wiping unsaved edits mid-edit.
+  usePolling(() => loadSchedule(true), {
+    intervalMs: 20000,
+    enabled: Boolean(isActive) && !loading,
+  });
+  // Late Claiming's own window stays editable even once the schedule is
+  // active (store() blocks the rest of the form since it fully replaces
+  // the lane list, which is unsafe once real assignments exist — but
+  // nothing depends on Late Claiming's dates until it actually opens).
+  // Locked only once today has reached the currently-saved start date.
+  const lateClaimingHasStarted = Boolean(
+    schedule?.late_claiming_date && schedule.late_claiming_date <= todayStr()
+  );
   const hasApproved = approvedCount > 0;
   const totalLanesCount = days.reduce((sum, d) =>
     sum + (d.morning.enabled ? d.morning.lanes.length : 0) + (d.afternoon.enabled ? d.afternoon.lanes.length : 0), 0);
+  // Helps SK size lane capacities against actual demand while still
+  // drafting the form — without this, it's easy to under-provision
+  // (leaving people stuck "Awaiting a Lane" once activated) or
+  // over-provision with no way to tell without doing the math
+  // themselves. Compared against the period's slot_limit rather than
+  // just how many are approved SO FAR — SK reliably fills every slot
+  // they open up (same as when they've expanded slot_limit before), so
+  // the real target is the full limit, not just today's approved count.
+  // Only approvedCount itself is a meaningful target for an unlimited
+  // period, since there's no ceiling to plan against there.
+  const totalCapacityCount = days.reduce((sum, d) => {
+    const sumSession = (session) => session.enabled
+      ? session.lanes.reduce((s, l) => s + (Number(l.capacity) || 0), 0)
+      : 0;
+    return sum + sumSession(d.morning) + sumSession(d.afternoon);
+  }, 0);
+  const targetSlotCount = config?.is_unlimited ? approvedCount : (config?.slot_limit ?? approvedCount);
+  // A slot_limit this large (SK's has run 2000-3000) divided across
+  // however few lanes happen to be drafted right now can suggest an
+  // impossible per-lane number — a single lane realistically maxes out
+  // around 100 (SK's own past max), not the 1000+ a naive split could
+  // suggest. Past this ceiling, suggest adding more lanes/days instead,
+  // framed in SK's usual unit — 10 lanes per batch (a morning or
+  // afternoon session) — rather than a raw, harder-to-plan-around count.
+  const MAX_REASONABLE_LANE_CAPACITY = 100;
+  const LANES_PER_BATCH = 10;
+  // Only worth suggesting a split while capacity hasn't actually met the
+  // target yet — once it already has, showing "divide the target evenly"
+  // reads as "you should change this" even though nothing needs fixing.
+  const stillUnderTarget = totalCapacityCount < targetSlotCount;
+  const naivePerLane = stillUnderTarget && totalLanesCount > 0 ? Math.ceil(targetSlotCount / totalLanesCount) : null;
+  const suggestedCapacityPerLane = naivePerLane && naivePerLane <= MAX_REASONABLE_LANE_CAPACITY ? naivePerLane : null;
+  const suggestedLaneCount = naivePerLane && naivePerLane > MAX_REASONABLE_LANE_CAPACITY
+    ? Math.ceil(targetSlotCount / MAX_REASONABLE_LANE_CAPACITY)
+    : null;
   const claimingDates = days.map(d => d.date).filter(Boolean);
   const latestClaimingDateStr = claimingDates.length > 0
     ? claimingDates.slice().sort().slice(-1)[0]
     : null;
+
+  // Late claiming can't overlap the regular claiming days, so once at
+  // least one is dated, default it to the very next day instead of
+  // leaving the admin to work out the earliest valid date themselves —
+  // only for a schedule being set up fresh, never overriding a saved
+  // schedule that intentionally left it blank.
+  useEffect(() => {
+    if (schedule || !latestClaimingDateStr) return;
+    setForm((f) => {
+      if (f.late_claiming_date) return f;
+      const start = nextDayStr(latestClaimingDateStr);
+      return { ...f, late_claiming_date: start, late_claiming_end_date: f.late_claiming_end_date || start };
+    });
+  }, [latestClaimingDateStr, schedule]);
   const summaryItems = schedule ? [
     { label: "Total Approved Applicants", value: approvedCount },
     { label: "Awaiting a Lane", value: unassignedApprovedCount },
     { label: "Total Lanes", value: totalLanesCount },
     { label: "Claiming Dates", value: formatDateRange(claimingDates) },
     {
-      label: "Grace Period",
-      value: form.grace_period_date
-        ? (form.grace_period_end_date
-          ? `${form.grace_period_date} to ${form.grace_period_end_date}`
-          : form.grace_period_date)
+      label: "Late Claiming",
+      value: form.late_claiming_date
+        ? (form.late_claiming_end_date
+          ? `${formatNiceDate(form.late_claiming_date)} – ${formatNiceDate(form.late_claiming_end_date)}`
+          : formatNiceDate(form.late_claiming_date))
         : "Not set",
     },
   ] : [];
@@ -326,7 +671,19 @@ function AdminSchedule() {
   // its live assignments_count — there's no separate preview snapshot to
   // reconcile against, since applicants land on a lane the moment
   // they're approved, not at some future publish step.
-  const displayedLanes = (schedule?.lanes ?? []).filter((l) => l.lane_name !== "Grace Period Claiming");
+  // Lanes come back in whatever order the DB returns them, not grouped
+  // by claiming day — sort chronologically (day, then morning before
+  // afternoon, then lane name) so Day 1's lanes list together before
+  // Day 2's instead of interleaving.
+  const BATCH_ORDER = { morning: 0, afternoon: 1 };
+  const displayedLanes = (schedule?.lanes ?? [])
+    .filter((l) => l.lane_name !== "Late Claiming")
+    .slice()
+    .sort((a, b) =>
+      a.claiming_date.localeCompare(b.claiming_date) ||
+      (BATCH_ORDER[a.batch] ?? 0) - (BATCH_ORDER[b.batch] ?? 0) ||
+      a.lane_name.localeCompare(b.lane_name)
+    );
   const laneTotalPages = Math.max(1, Math.ceil(displayedLanes.length / lanePerPage));
   const lanePageStart = (lanePage - 1) * lanePerPage;
   const pagedLanes = displayedLanes.slice(lanePageStart, lanePageStart + lanePerPage);
@@ -355,16 +712,13 @@ function AdminSchedule() {
 
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
 
         <section className="page-section">
@@ -373,14 +727,11 @@ function AdminSchedule() {
             <div className="page-card">
               <h3 className="section-title mb-2">Claiming Schedule Management</h3>
               <p className="text-muted mb-0">
-                Set the claiming dates, batches, lane capacities, and grace period. Once activated, approved
+                Set the claiming dates, batches, lane capacities, and Late Claiming. Once activated, approved
                 applicants are assigned to a lane and notified automatically, in real time, as they're approved —
                 no separate publish step.
               </p>
             </div>
-
-            {error && <div className="alert alert-danger">{error}</div>}
-            {success && <div className="alert alert-success">{success}</div>}
 
             <div className="page-card">
               <h4 className="sub-title sub-title-dark">Schedule Summary</h4>
@@ -442,6 +793,11 @@ function AdminSchedule() {
               )}
             </div>
 
+            <div ref={messageRef}>
+              {error && <div className="alert alert-danger">{error}</div>}
+              {success && <div className="alert alert-success">{success}</div>}
+            </div>
+
             {(loading || config) && (
               <div className="page-card">
                 <h4 className="sub-title sub-title-dark">Create Claiming Schedule</h4>
@@ -495,7 +851,38 @@ function AdminSchedule() {
                       </div>
 
                       <hr className="my-4" />
-                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Claiming Days</h5>
+                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Scheduled Claiming</h5>
+
+                      <div className={`schedule-notice mb-3 ${totalCapacityCount >= targetSlotCount ? "schedule-notice-green" : "schedule-notice-yellow"}`}>
+                        <div className="schedule-notice-icon">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                            <circle cx="9" cy="7" r="4" />
+                            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                          </svg>
+                        </div>
+                        <div>
+                          <strong>{totalCapacityCount} total slot{totalCapacityCount === 1 ? "" : "s"}</strong> allocated across {totalLanesCount} lane{totalLanesCount === 1 ? "" : "s"} —{" "}
+                          {config?.is_unlimited
+                            ? `${approvedCount} approved applicant${approvedCount === 1 ? "" : "s"} currently need${approvedCount === 1 ? "s" : ""} one (unlimited period, no fixed target).`
+                            : `this period's slot limit is ${targetSlotCount}.`}{" "}
+                          {totalCapacityCount < targetSlotCount
+                            ? `Add ${targetSlotCount - totalCapacityCount} more slot(s) to cover the full ${config?.is_unlimited ? "current" : "slot limit"}.`
+                            : `Capacity covers the full ${config?.is_unlimited ? "current approved count" : "slot limit"}.`}{" "}
+                          {suggestedCapacityPerLane && (
+                            <div className="mt-2">
+                              <strong>Suggested:</strong> about {suggestedCapacityPerLane} per lane to divide {targetSlotCount} slots evenly across {totalLanesCount} lane{totalLanesCount === 1 ? "" : "s"}.
+                            </div>
+                          )}
+                          {suggestedLaneCount && (
+                            <div className="mt-2">
+                              {targetSlotCount} slots across just {totalLanesCount} lane{totalLanesCount === 1 ? "" : "s"} would mean an unrealistic {naivePerLane} per lane.{" "}
+                              <strong>Suggested:</strong> around {suggestedLaneCount} lane{suggestedLaneCount === 1 ? "" : "s"} total (about {Math.ceil(suggestedLaneCount / LANES_PER_BATCH)} batch{Math.ceil(suggestedLaneCount / LANES_PER_BATCH) === 1 ? "" : "es"} of {LANES_PER_BATCH} lanes) spread across your claiming days, at up to {MAX_REASONABLE_LANE_CAPACITY} each.
+                            </div>
+                          )}
+                        </div>
+                      </div>
 
                       {days.map((day, dayIdx) => (
                         <div className="sub-card schedule-day-card mb-3" key={dayIdx}>
@@ -516,10 +903,13 @@ function AdminSchedule() {
                                 className="form-control"
                                 value={day.date}
                                 onChange={(e) => setDayDate(dayIdx, e.target.value)}
+                                min={config?.close_date ? nextDayStr(config.close_date.slice(0, 10)) : undefined}
                                 required
                               />
                               {config?.close_date && (
-                                <div className="form-text">Must be after {config.close_date.slice(0, 10)}</div>
+                                <div className="form-text">
+                                  Must be after the application period's closing date ({config.close_date.slice(0, 10)})
+                                </div>
                               )}
                             </div>
                           </div>
@@ -536,8 +926,8 @@ function AdminSchedule() {
                                 />
                                 <label className="form-check-label fw-semibold" htmlFor={`day-${dayIdx}-${session}`}>
                                   {session === "morning"
-                                    ? `Morning Session (${form.morning_start} – ${form.morning_end})`
-                                    : `Afternoon Session (${form.afternoon_start} – ${form.afternoon_end})`}
+                                    ? `Morning Session (${formatTime(form.morning_start)} – ${formatTime(form.morning_end)})`
+                                    : `Afternoon Session (${formatTime(form.afternoon_start)} – ${formatTime(form.afternoon_end)})`}
                                 </label>
                               </div>
 
@@ -548,6 +938,7 @@ function AdminSchedule() {
                                       <tr>
                                         <th>Lane / Station Name (optional)</th>
                                         <th style={{ width: "220px" }}>Capacity *</th>
+                                        <th style={{ width: "220px" }}>Assigned Verifier</th>
                                         {!isActive && <th style={{ width: "90px" }}></th>}
                                       </tr>
                                     </thead>
@@ -558,7 +949,7 @@ function AdminSchedule() {
                                             <input
                                               type="text"
                                               className="form-control form-control-sm"
-                                              placeholder={`Day ${dayIdx + 1} ${session === "morning" ? "AM" : "PM"} Lane ${laneIdx + 1}`}
+                                              placeholder={`Day ${dayIdx + 1} ${session === "morning" ? "Morning" : "Afternoon"} Lane ${laneIdx + 1}`}
                                               value={lane.lane_name}
                                               onChange={(e) => setLaneField(dayIdx, session, laneIdx, "lane_name", e.target.value)}
                                             />
@@ -573,6 +964,20 @@ function AdminSchedule() {
                                               onChange={(e) => setLaneField(dayIdx, session, laneIdx, "capacity", e.target.value)}
                                               required
                                             />
+                                          </td>
+                                          <td>
+                                            <select
+                                              className="form-select form-select-sm"
+                                              value={lane.verifier_id}
+                                              onChange={(e) => setLaneField(dayIdx, session, laneIdx, "verifier_id", e.target.value)}
+                                            >
+                                              <option value="">Unassigned</option>
+                                              {verifiers.map((v) => (
+                                                <option key={v.id} value={v.id}>
+                                                  {v.first_name} {v.last_name}
+                                                </option>
+                                              ))}
+                                            </select>
                                           </td>
                                           {!isActive && (
                                             <td>
@@ -612,29 +1017,47 @@ function AdminSchedule() {
                           + Add Claiming Day
                         </button>
                       )}
+                    </fieldset>
 
-                      <hr className="my-4" />
-                      <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Grace Period</h5>
-
-                      <div className="visibility-notice visibility-notice-compact mb-3">
-                        <div className="visibility-notice-icon">!</div>
-                        <div className="visibility-notice-body">
-                          <p className="visibility-notice-text mb-0">
-                            A second chance for applicants who missed their claiming day, and for anyone
-                            promoted from the waitlist after this schedule was set up. Leave both dates blank
-                            if this period won't have one.
-                          </p>
-                        </div>
+                    {!isActive && (
+                      <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
+                        <button type="button" className="btn btn-secondary" onClick={handleReset}>
+                          Clear
+                        </button>
+                        <button type="submit" className="btn btn-custom" disabled={saving}>
+                          {saving ? "Saving..." : "Save Scheduled Claiming"}
+                        </button>
                       </div>
+                    )}
 
-                      <div className="row g-3 mb-3">
-                        <div className="col-md-6">
+                    <hr className="my-4" />
+                    <h5 className="sub-title sub-title-dark mb-3" style={{ fontSize: "18px" }}>Late Claiming</h5>
+
+                    <div className="visibility-notice visibility-notice-compact mb-3">
+                      <div className="visibility-notice-icon">!</div>
+                      <div className="visibility-notice-body">
+                        <p className="visibility-notice-text mb-0">
+                          A second chance for applicants who missed their claiming day, and for anyone
+                          promoted from the waitlist after this schedule was set up. Leave both dates blank
+                          if this period won't have one.
+                          {isActive && (
+                            lateClaimingHasStarted
+                              ? " Late Claiming has already started, so its start date is now locked — but you can still push the end date later to extend it."
+                              : " Unlike the rest of this schedule, this can still be changed while the schedule is active — right up until Late Claiming actually starts."
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="row g-3 mb-3">
+                      <div className="col-md-6">
+                        <fieldset disabled={lateClaimingHasStarted}>
                           <label className="form-label">Start Date</label>
                           <input
                             type="date"
                             className="form-control"
-                            value={form.grace_period_date}
-                            onChange={set("grace_period_date")}
+                            value={form.late_claiming_date}
+                            onChange={set("late_claiming_date")}
                             min={latestClaimingDateStr ? nextDayStr(latestClaimingDateStr) : undefined}
                           />
                           {latestClaimingDateStr ? (
@@ -646,27 +1069,38 @@ function AdminSchedule() {
                               Enter at least one claiming day above first.
                             </div>
                           )}
-                        </div>
-                        <div className="col-md-6">
-                          <label className="form-label">End Date</label>
-                          <input
-                            type="date"
-                            className="form-control"
-                            value={form.grace_period_end_date}
-                            onChange={set("grace_period_end_date")}
-                            min={form.grace_period_date || undefined}
-                          />
-                        </div>
+                        </fieldset>
                       </div>
-                    </fieldset>
+                      <div className="col-md-6">
+                        <label className="form-label">End Date</label>
+                        <input
+                          type="date"
+                          className="form-control"
+                          value={form.late_claiming_end_date}
+                          onChange={set("late_claiming_end_date")}
+                          min={
+                            lateClaimingHasStarted
+                              ? (schedule?.late_claiming_end_date || form.late_claiming_date || undefined)
+                              : (form.late_claiming_date || undefined)
+                          }
+                        />
+                        {lateClaimingHasStarted && (
+                          <div className="form-text">
+                            Can only be moved later, not earlier, since Late Claiming has already started.
+                          </div>
+                        )}
+                      </div>
+                    </div>
 
-                    {!isActive && (
+                    {schedule && (
                       <div className="mt-4 d-flex justify-content-end gap-2 flex-wrap">
-                        <button type="button" className="btn btn-secondary" onClick={handleReset}>
-                          Clear
-                        </button>
-                        <button type="submit" className="btn btn-custom" disabled={saving}>
-                          {saving ? "Saving..." : "Save Schedule"}
+                        <button
+                          type="button"
+                          className="btn btn-custom"
+                          disabled={savingLateClaiming}
+                          onClick={handleSaveLateClaiming}
+                        >
+                          {savingLateClaiming ? "Saving..." : "Save Late Claiming"}
                         </button>
                       </div>
                     )}
@@ -696,13 +1130,14 @@ function AdminSchedule() {
                 <div className="table-responsive mt-3">
                   <table className="table table-bordered table-striped align-middle announcement-table" style={{ tableLayout: "fixed" }}>
                     <colgroup>
-                      <col style={{ width: "16%" }} />
-                      <col style={{ width: "12%" }} />
                       <col style={{ width: "14%" }} />
                       <col style={{ width: "10%" }} />
-                      <col style={{ width: "22%" }} />
-                      <col style={{ width: "16%" }} />
-                      {isActive && <col style={{ width: "10%" }} />}
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "8%" }} />
+                      <col style={{ width: "12%" }} />
+                      <col style={{ width: "10%" }} />
+                      <col style={{ width: "26%" }} />
+                      {isActive && <col style={{ width: "8%" }} />}
                     </colgroup>
 
                     <thead>
@@ -713,6 +1148,7 @@ function AdminSchedule() {
                         <th>Capacity</th>
                         <th>Control Number Range</th>
                         <th>Assigned Applicants</th>
+                        <th>Assigned Verifier</th>
                         {isActive && <th>Print</th>}
                       </tr>
                     </thead>
@@ -728,6 +1164,83 @@ function AdminSchedule() {
                           <td>
                             {lane.assignments_count ?? 0}
                             {lane.capacity ? ` / ${lane.capacity}` : ""}
+                          </td>
+                          <td>
+                            {/* Before activation, verifiers are set via the
+                                Claiming Days form above + Save Scheduled
+                                Claiming — editing here too would let a
+                                live change get silently overwritten the
+                                next time that form is saved, since saving
+                                fully recreates every lane from the form's
+                                own state. This becomes the only way to
+                                reassign once active, since the form itself
+                                locks at that point. */}
+                            {!isActive ? (
+                              <span className="text-muted small">
+                                {lane.verifier ? `${lane.verifier.first_name} ${lane.verifier.last_name}` : "Unassigned"}
+                              </span>
+                            ) : (
+                            <>
+                            <select
+                              className="form-select form-select-sm"
+                              value={lane.verifier_id ?? ""}
+                              onChange={(e) => requestAssignVerifier(lane, e.target.value)}
+                              disabled={assigningLaneId === lane.id}
+                            >
+                              <option value="">Unassigned</option>
+                              {verifiers.map((v) => (
+                                <option key={v.id} value={v.id}>
+                                  {v.first_name} {v.last_name}
+                                </option>
+                              ))}
+                            </select>
+                            {lane.requested_verifier_id && (
+                              <div className="lane-request-notice">
+                                <div className="lane-request-notice-icon">
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <circle cx="12" cy="12" r="9" />
+                                    <polyline points="12 7 12 12 15 14" />
+                                  </svg>
+                                </div>
+                                <div className="lane-request-notice-body">
+                                  <span className="lane-request-notice-label">Lane Request</span>
+                                  <p className="lane-request-notice-name">
+                                    {lane.requested_verifier ? `${lane.requested_verifier.first_name} ${lane.requested_verifier.last_name}` : "A verifier"} wants this lane
+                                  </p>
+                                  <div className="lane-request-notice-actions">
+                                    <button
+                                      type="button"
+                                      className="lane-request-action-btn lane-request-action-approve"
+                                      disabled={assigningLaneId === lane.id}
+                                      onClick={() => setLaneRequestActionTarget({
+                                        type: "approve",
+                                        laneId: lane.id,
+                                        laneName: lane.lane_name,
+                                        verifierId: lane.requested_verifier_id,
+                                        verifierName: lane.requested_verifier ? `${lane.requested_verifier.first_name} ${lane.requested_verifier.last_name}` : "This verifier",
+                                      })}
+                                    >
+                                      Approve
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className="lane-request-action-btn lane-request-action-dismiss"
+                                      disabled={assigningLaneId === lane.id}
+                                      onClick={() => setLaneRequestActionTarget({
+                                        type: "dismiss",
+                                        laneId: lane.id,
+                                        laneName: lane.lane_name,
+                                        verifierName: lane.requested_verifier ? `${lane.requested_verifier.first_name} ${lane.requested_verifier.last_name}` : "This verifier",
+                                      })}
+                                    >
+                                      Dismiss
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                            </>
+                            )}
                           </td>
                           {isActive && (
                             <td>
@@ -749,7 +1262,7 @@ function AdminSchedule() {
                       ))}
                       {pagedLanes.length === 0 && (
                         <tr>
-                          <td colSpan={isActive ? 7 : 6} className="text-muted">
+                          <td colSpan={isActive ? 8 : 7} className="text-muted">
                             No lanes configured yet.
                           </td>
                         </tr>
@@ -815,25 +1328,33 @@ function AdminSchedule() {
               </div>
             )}
 
-            {schedule?.grace_period_date && (
+            {schedule?.late_claiming_date && (
               <div className="page-card">
                 <div className="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                  <h4 className="sub-title sub-title-dark mb-0">Grace Period Claiming List</h4>
+                  <h4 className="sub-title sub-title-dark mb-0">Late Claiming List</h4>
                   <div className="d-flex gap-2">
                     <button
                       className="btn btn-outline-custom btn-sm"
-                      onClick={loadGracePeriodClaimingList}
-                      disabled={loadingGracePeriodList}
+                      onClick={loadLateClaimingList}
+                      disabled={loadingLateClaimingList}
                     >
-                      {loadingGracePeriodList ? "Loading..." : "Refresh"}
+                      {loadingLateClaimingList ? "Loading..." : "Refresh"}
                     </button>
-                    <button type="button" className="btn btn-custom btn-sm" onClick={handleGracePeriodClaimingListExport}>
+                    <button type="button" className="btn btn-custom btn-sm" onClick={handleLateClaimingListExport}>
                       Print List
                     </button>
                   </div>
                 </div>
+                <p className="text-muted small mb-1">
+                  Everyone expected during Late Claiming — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
+                </p>
                 <p className="text-muted small mb-3">
-                  Everyone expected during grace period — original no-shows still eligible to retry, plus any applicants newly promoted from the waitlist. Updates live as claim statuses and promotions change.
+                  <strong>Scheduled Claiming:</strong> {formatDateRange(claimingDates)}
+                  {" · "}
+                  <strong>Late Claiming:</strong>{" "}
+                  {schedule.late_claiming_end_date && schedule.late_claiming_end_date !== schedule.late_claiming_date
+                    ? `${formatNiceDate(schedule.late_claiming_date)} – ${formatNiceDate(schedule.late_claiming_end_date)}`
+                    : formatNiceDate(schedule.late_claiming_date)}
                 </p>
                 <div className="table-responsive">
                   <table className="table table-bordered table-striped align-middle announcement-table">
@@ -846,8 +1367,8 @@ function AdminSchedule() {
                       </tr>
                     </thead>
                     <tbody>
-                      {gracePeriodList?.entries?.length > 0 ? (
-                        gracePeriodList.entries.map((entry, i) => (
+                      {lateClaimingList?.entries?.length > 0 ? (
+                        lateClaimingList.entries.map((entry, i) => (
                           <tr key={`${entry.control_number}-${i}`}>
                             <td>{i + 1}</td>
                             <td>{entry.control_number}</td>
@@ -858,7 +1379,11 @@ function AdminSchedule() {
                       ) : (
                         <tr>
                           <td colSpan={4} className="text-muted">
-                            {loadingGracePeriodList ? "Loading..." : "No applicants expected during grace period for this period."}
+                            {loadingLateClaimingList
+                              ? "Loading..."
+                              : latestClaimingDateStr && latestClaimingDateStr >= todayStr()
+                                ? `Claiming days for this period run through ${latestClaimingDateStr} — Late Claiming eligibility (no-shows and waitlist promotions) can't be determined until they conclude.`
+                                : "No applicants expected during Late Claiming for this period so far — this list updates live."}
                           </td>
                         </tr>
                       )}
@@ -873,6 +1398,211 @@ function AdminSchedule() {
 
         <PanelFooter />
       </div>
+
+      {removeDayTarget !== null && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Remove This Day?</h5>
+                <button type="button" className="btn-close" onClick={() => setRemoveDayTarget(null)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">Its date and lane setup for both sessions will be lost.</p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setRemoveDayTarget(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmRemoveDay}>
+                  Yes, Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {removeLaneTarget !== null && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Remove This Lane?</h5>
+                <button type="button" className="btn-close" onClick={() => setRemoveLaneTarget(null)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">Its name, capacity, and verifier assignment will be lost.</p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setRemoveLaneTarget(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmRemoveLane}>
+                  Yes, Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assignVerifierTarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {assignVerifierTarget.verifierId ? "Assign This Verifier?" : "Unassign This Lane's Verifier?"}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setAssignVerifierTarget(null)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  {assignVerifierTarget.verifierId ? (
+                    <>
+                      {assignVerifierTarget.verifierName} will be assigned to {assignVerifierTarget.laneName}.
+                      If they're already on another lane in this same session, they'll be removed from it.
+                    </>
+                  ) : (
+                    <>{assignVerifierTarget.laneName} will be left without an assigned verifier.</>
+                  )}
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setAssignVerifierTarget(null)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-custom" onClick={confirmAssignVerifier}>
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {laneRequestActionTarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">
+                  {laneRequestActionTarget.type === "approve" ? "Approve This Lane Request?" : "Dismiss This Lane Request?"}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setLaneRequestActionTarget(null)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  {laneRequestActionTarget.type === "approve" ? (
+                    <>
+                      {laneRequestActionTarget.verifierName} will be assigned to {laneRequestActionTarget.laneName}.
+                      If they're already on another lane in this same session, they'll be removed from it.
+                    </>
+                  ) : (
+                    <>
+                      {laneRequestActionTarget.verifierName}'s request for {laneRequestActionTarget.laneName} will be
+                      dismissed. The lane's current verifier, if any, is left unchanged.
+                    </>
+                  )}
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setLaneRequestActionTarget(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className={laneRequestActionTarget.type === "approve" ? "btn btn-custom" : "btn btn-danger"}
+                  onClick={confirmLaneRequestAction}
+                >
+                  {laneRequestActionTarget.type === "approve" ? "Yes, Approve" : "Yes, Dismiss"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showResetConfirm && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Reset The Schedule Form?</h5>
+                <button type="button" className="btn-close" onClick={() => setShowResetConfirm(false)} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">All days and lanes you've configured so far will be discarded.</p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowResetConfirm(false)}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmReset}>
+                  Yes, Reset
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showActivateConfirm && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Activate This Claiming Schedule?</h5>
+                <button type="button" className="btn-close" onClick={() => setShowActivateConfirm(false)} disabled={activating} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  From this point on, every newly-approved applicant is assigned to a lane and
+                  notified automatically, and lane setup can no longer be edited.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setShowActivateConfirm(false)} disabled={activating}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-custom" onClick={confirmActivate} disabled={activating}>
+                  {activating ? "Activating..." : "Yes, Activate"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {announceNudge && (
+        <div className="feedback-popup-backdrop">
+          <div className="feedback-popup feedback-popup-success">
+            <div className="feedback-popup-icon-wrap">
+              <span className="feedback-popup-icon">✓</span>
+            </div>
+            <h4 className="feedback-popup-title">{announceNudge.title}</h4>
+            <p className="feedback-popup-message">
+              {announceNudge.message}
+            </p>
+            <div className="feedback-popup-confirm-actions">
+              <button
+                type="button"
+                className="feedback-popup-cancel"
+                onClick={() => setAnnounceNudge(null)}
+              >
+                Not Now
+              </button>
+              <button
+                type="button"
+                className="feedback-popup-proceed"
+                onClick={goAnnounce}
+              >
+                Create Announcement
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,11 +3,14 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ApplicationConfiguration;
+use App\Models\FaceVerification;
 use App\Models\PasswordHistory;
 use App\Rules\NotRecentlyUsedPassword;
 use App\Rules\NotObviouslyWeakPassword;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rules\Password;
 
 class ProfileController extends Controller
@@ -51,6 +54,12 @@ class ProfileController extends Controller
 
         public function update(Request $request)
     {
+        if ($this->needsFaceReverify($request->user())) {
+            return response()->json([
+                'message' => 'Please re-verify your face for the current application period before saving profile changes.',
+            ], 403);
+        }
+
         $data = $this->validateProfile($request);
         $profile = $request->user()->profile;
 
@@ -90,7 +99,7 @@ class ProfileController extends Controller
             \App\Models\AuditLog::record(
                 'profile_updated',
                 $profile,
-                "You updated your profile information"
+                "Updated profile information ({$fieldList})"
             );
         }
         return response()->json([
@@ -102,6 +111,12 @@ class ProfileController extends Controller
     public function updateAccount(Request $request)
     {
         $user = $request->user();
+
+        if ($this->needsFaceReverify($user)) {
+            return response()->json([
+                'message' => 'Please re-verify your face for the current application period before saving profile changes.',
+            ], 403);
+        }
 
         $data = $request->validate([
             'first_name'    => 'required|string',
@@ -120,11 +135,76 @@ class ProfileController extends Controller
             \App\Models\AuditLog::record(
                 'account_updated',
                 $user,
-                "You updated your profile information"
+                "Updated account information ({$fieldList})"
             );
         }
 
         return response()->json(['message' => 'Account updated.', 'user' => $user]);
+    }
+
+    /**
+     * Any authenticated role can set their own avatar (topbar photo) —
+     * used first for verifiers, since they don't go through the
+     * applicant's registration face-verification flow and so have no
+     * other photo on file. Old file is removed so re-uploading doesn't
+     * pile up orphaned files on the private disk.
+     */
+    public function uploadAvatar(Request $request)
+    {
+        $request->validate([
+            'avatar' => 'required|file|mimes:jpg,jpeg,png|max:5120',
+        ]);
+
+        $user = $request->user();
+
+        if ($user->avatar_path && Storage::disk('local')->exists($user->avatar_path)) {
+            Storage::disk('local')->delete($user->avatar_path);
+        }
+
+        $file = $request->file('avatar');
+        $path = $file->storeAs(
+            "avatars/{$user->id}",
+            'avatar_' . time() . '.' . $file->getClientOriginalExtension(),
+            'local'
+        );
+
+        $user->update(['avatar_path' => $path]);
+
+        \App\Models\AuditLog::record(
+            'account_updated',
+            $user,
+            'Updated profile photo'
+        );
+
+        return response()->json(['message' => 'Profile photo updated.', 'user' => $user->fresh()]);
+    }
+
+    /**
+     * Streams the avatar for the given user — owner, any sk_verifier, or
+     * any sk_admin can view it, same access rule as the applicant
+     * profile-photo route (FaceVerificationController::profilePhoto).
+     */
+    public function avatarPhoto(Request $request, $userId)
+    {
+        $viewer = $request->user();
+        $isOwner    = (int) $viewer->id === (int) $userId;
+        $isVerifier = $viewer->role === 'sk_verifier';
+        $isAdmin    = $viewer->role === 'sk_admin';
+
+        if (!$isOwner && !$isVerifier && !$isAdmin) {
+            abort(403, 'You are not authorized to view this photo.');
+        }
+
+        $user = \App\Models\User::findOrFail($userId);
+
+        if (!$user->avatar_path || !Storage::disk('local')->exists($user->avatar_path)) {
+            abort(404, 'No profile photo on file.');
+        }
+
+        return Storage::disk('local')->response(
+            $user->avatar_path,
+            basename($user->avatar_path)
+        );
     }
 
     // Password policy: 8 char min, lowercase + number, breach-checked,
@@ -160,6 +240,11 @@ class ProfileController extends Controller
         $keepIds = PasswordHistory::where('user_id', $user->id)->latest()->take(5)->pluck('id');
         PasswordHistory::where('user_id', $user->id)->whereNotIn('id', $keepIds)->delete();
 
+        // A remembered device only ever shortcuts the 2FA step, never the
+        // password — but if the password leaked, any device trusted under
+        // it should stop being able to skip 2FA too.
+        \App\Models\TrustedDevice::where('user_id', $user->id)->delete();
+
         // Log the password change without exposing any password content
         \App\Models\AuditLog::record(
             'password_changed',
@@ -168,6 +253,28 @@ class ProfileController extends Controller
         );
 
         return response()->json(['message' => 'Password updated.']);
+    }
+
+    /**
+     * Only applicants go through the face-verification flow at all
+     * (verifiers/admins never have a FaceVerification row — see
+     * uploadAvatar()'s doc comment) — scoping to role here keeps this
+     * gate from locking every non-applicant out of their own account.
+     */
+    private function needsFaceReverify($user): bool
+    {
+        if ($user->role !== 'applicant') {
+            return false;
+        }
+
+        $activeConfig = ApplicationConfiguration::where('is_active', true)->first();
+        if (!$activeConfig) {
+            return false;
+        }
+
+        $verification = FaceVerification::where('user_id', $user->id)->first();
+
+        return !$verification || $verification->verified_config_id !== $activeConfig->id;
     }
 
     private function validateProfile(Request $request): array

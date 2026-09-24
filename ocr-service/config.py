@@ -64,12 +64,12 @@ class Config:
             "sy_keywords": ["school year"],
         },
         "Calamba Doctor's College": {
-            # Format: "1st/2nd Semester AY 20XX - 20XX"
+            # Format: 1st/2nd Semester AY 20XX - 20XX
             "sy_format": "YYYY-YYYY",
             "sy_keywords": ["ay"],
         },
         "Calamba Doctors College": {
-            # Format: "1st/2nd Semester AY 20XX - 20XX"
+            # Format: 1st/2nd Semester AY 20XX - 20XX
             "sy_format": "YYYY-YYYY",
             "sy_keywords": ["ay"],
         },
@@ -92,13 +92,26 @@ class Config:
             "sy_keywords": ["sch. yr.", "sch yr"],
         },
         "Polytechnic University of the Philippines": {
-            # Format: "A.Y.: 20XX-20XX  TERM: First/Second Semester"
+            # Format: A.Y.: 20XX-20XX  TERM: First/Second Semester
             "sy_format": "YYYY-YYYY",
             "sy_keywords": ["a.y."],
         },
         "PUP": {
-            # Format: "A.Y.: 20XX-20XX  TERM: First/Second Semester"
+            # Format: A.Y.: 20XX-20XX  TERM: First/Second Semester
             "sy_format": "YYYY-YYYY",
             "sy_keywords": ["a.y."],
+        },
+        "NU": {
+            # Format: School Year: 20XX-20XX
+            #         Term: 1
+            "sy_format": "YYYY-YYYY",
+            "sy_keywords": ["school year:"],
+        },
+        "UPLB": {
+            # Format: TERM & SY
+            #       First Semester,
+            #         2025-2026
+            "sy_format": "YYYY-YYYY",
+            "sy_keywords": ["term", "sy"],
         },
     }

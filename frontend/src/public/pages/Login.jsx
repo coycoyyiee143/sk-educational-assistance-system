@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, Link } from "react-router-dom";
 import { QRCodeSVG } from "qrcode.react";
 import api from "../../services/api";
 import { useAuth } from "../../context/AuthContext";
@@ -23,9 +23,25 @@ const Login = () => {
   const [secret, setSecret] = useState(null);
   const [setupEmail, setSetupEmail] = useState(null);
   const [code, setCode] = useState("");
+  const [rememberDevice, setRememberDevice] = useState(false);
+  const [helpRequested, setHelpRequested] = useState(false);
+  const [helpMessage, setHelpMessage] = useState("");
+  const [helpLoading, setHelpLoading] = useState(false);
+  const codeInputRef = useRef(null);
+
+  // Native autoFocus makes the browser auto-scroll the input into view,
+  // which on the 2fa_setup step shoves the QR code above it up behind the
+  // sticky navbar. Focusing manually with preventScroll avoids that scroll
+  // entirely while still landing the cursor in the field.
+  useEffect(() => {
+    if (step === "2fa_setup" || step === "2fa_verify") {
+      codeInputRef.current?.focus({ preventScroll: true });
+    }
+  }, [step]);
 
   function goToRoleHome(user) {
-    if (user.role === "sk_admin") navigate("/AdminDashboard");
+    if (user.role === "sk_admin" || user.role === "superadmin") navigate("/AdminDashboard");
+    else if (user.role === "it_support") navigate("/AdminUsers");
     else if (user.role === "sk_verifier") navigate("/VerifierDashboard");
     else navigate("/ApplicantDashboard");
   }
@@ -39,7 +55,8 @@ const Login = () => {
     }
     setLoading(true);
     try {
-      const response = await api.post("/login", { email, password });
+      const deviceToken = localStorage.getItem("device_token");
+      const response = await api.post("/login", { email, password, device_token: deviceToken });
       const data = response.data;
 
       if (data.requires_2fa_setup) {
@@ -85,9 +102,13 @@ const Login = () => {
       const response = await api.post(endpoint, {
         pending_token: pendingToken,
         code: code.trim(),
+        remember_device: rememberDevice,
       });
 
-      const { token, user } = response.data;
+      const { token, user, device_token } = response.data;
+      if (device_token) {
+        localStorage.setItem("device_token", device_token);
+      }
       login(user, token);
       goToRoleHome(user);
     } catch (err) {
@@ -105,10 +126,28 @@ const Login = () => {
     setQrCodeUrl(null);
     setSecret(null);
     setSetupEmail(null);
+    setRememberDevice(false);
+    setHelpRequested(false);
+    setHelpMessage("");
   }
 
+  const handleRequestTwoFactorHelp = async () => {
+    setHelpLoading(true);
+    setHelpMessage("");
+    try {
+      const response = await api.post("/2fa/request-help", { pending_token: pendingToken });
+      setHelpMessage(response.data.message);
+      setHelpRequested(true);
+    } catch (err) {
+      setHelpMessage(err.response?.data?.message || "Couldn't send the request. Please try again.");
+    } finally {
+      setHelpLoading(false);
+    }
+  };
+
   if (user) {
-    if (user.role === "sk_admin") return <Navigate to="/AdminDashboard" replace />;
+    if (user.role === "sk_admin" || user.role === "superadmin") return <Navigate to="/AdminDashboard" replace />;
+    if (user.role === "it_support") return <Navigate to="/AdminUsers" replace />;
     if (user.role === "sk_verifier") return <Navigate to="/VerifierDashboard" replace />;
     return <Navigate to="/ApplicantDashboard" replace />;
   }
@@ -117,24 +156,24 @@ const Login = () => {
     <>
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
-          <a className="navbar-brand navbar-brand-custom" href="/">
+          <Link className="navbar-brand navbar-brand-custom" to="/">
             <img src="/icons/logo-in.png" alt="SK Logo" />
             <div className="brand-text">
               <h5>SK Barangay Mamatid</h5>
               <span>Educational Assistance System</span>
             </div>
-          </a>
+          </Link>
           <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
             <span className="navbar-toggler-icon"></span>
           </button>
           <div className="collapse navbar-collapse justify-content-end" id="mainNavbar">
             <ul className="navbar-nav">
-              <li className="nav-item"><a className="nav-link" href="/">Home</a></li>
-              <li className="nav-item"><a className="nav-link" href="/requirements">Requirements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/announcements">Announcements</a></li>
-              <li className="nav-item"><a className="nav-link" href="/events">Events</a></li>
-              <li className="nav-item"><a className="nav-link active" href="/login">Login</a></li>
-              <li className="nav-item"><a className="nav-link" href="/register">Register</a></li>
+              <li className="nav-item"><Link className="nav-link" to="/">Home</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/requirements">Requirements</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/announcements">Announcements</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/events">Events</Link></li>
+              <li className="nav-item"><Link className="nav-link active" to="/login">Login</Link></li>
+              <li className="nav-item"><Link className="nav-link" to="/register">Register</Link></li>
             </ul>
           </div>
         </div>
@@ -207,13 +246,13 @@ const Login = () => {
                         </button>
                       </div>
                       <div className="text-end mb-3">
-                        <a href="/forgot-password" className="login-link-lg">Forgot Password?</a>
+                        <Link to="/forgot-password" className="login-link-lg">Forgot Password?</Link>
                       </div>
                       <button type="submit" className="btn btn-danger w-100 login-btn-lg" disabled={loading}>
                         {loading ? "Logging in..." : "Login"}
                       </button>
                       <p className="text-center mt-3 login-register-lg">
-                        Don't have an account? <a href="/register">Register here</a>
+                        Don't have an account? <Link to="/register">Register here</Link>
                       </p>
                     </form>
                   </>
@@ -254,6 +293,7 @@ const Login = () => {
                     <form onSubmit={handleTwoFactorSubmit} className="text-start">
                       <div className="floating-field mb-3">
                         <input
+                          ref={codeInputRef}
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
@@ -263,9 +303,20 @@ const Login = () => {
                           placeholder="123456"
                           value={code}
                           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                          autoFocus
                         />
                         <label htmlFor="twoFaCode" className="floating-label">6-digit code</label>
+                      </div>
+                      <div className="form-check mb-3">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="rememberDeviceSetup"
+                          checked={rememberDevice}
+                          onChange={(e) => setRememberDevice(e.target.checked)}
+                        />
+                        <label className="form-check-label" htmlFor="rememberDeviceSetup">
+                          Remember this device
+                        </label>
                       </div>
                       <button type="submit" className="btn btn-danger w-100 login-btn-lg" disabled={loading}>
                         {loading ? "Confirming..." : "Confirm & Continue"}
@@ -299,6 +350,7 @@ const Login = () => {
                     <form onSubmit={handleTwoFactorSubmit} className="text-start">
                       <div className="floating-field mb-3">
                         <input
+                          ref={codeInputRef}
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
@@ -308,9 +360,20 @@ const Login = () => {
                           placeholder="123456"
                           value={code}
                           onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                          autoFocus
                         />
                         <label htmlFor="twoFaCode" className="floating-label">6-digit code</label>
+                      </div>
+                      <div className="form-check mb-3">
+                        <input
+                          type="checkbox"
+                          className="form-check-input"
+                          id="rememberDeviceVerify"
+                          checked={rememberDevice}
+                          onChange={(e) => setRememberDevice(e.target.checked)}
+                        />
+                        <label className="form-check-label" htmlFor="rememberDeviceVerify">
+                          Remember this device
+                        </label>
                       </div>
                       <button type="submit" className="btn btn-danger w-100 login-btn-lg" disabled={loading}>
                         {loading ? "Verifying..." : "Verify"}
@@ -324,6 +387,26 @@ const Login = () => {
                         ← Back
                       </button>
                     </form>
+
+                    {helpMessage && (
+                      <div className={`alert ${helpRequested ? "alert-success" : "alert-danger"} mt-3`}>
+                        {helpMessage}
+                      </div>
+                    )}
+
+                    {!helpRequested && (
+                      <p className="text-center mt-3 login-register-lg">
+                        Lost your authenticator?{" "}
+                        <button
+                          type="button"
+                          className="btn btn-link p-0 login-link-lg"
+                          onClick={handleRequestTwoFactorHelp}
+                          disabled={helpLoading}
+                        >
+                          {helpLoading ? "Sending..." : "Request help"}
+                        </button>
+                      </p>
+                    )}
                   </>
                 )}
 

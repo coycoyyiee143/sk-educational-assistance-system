@@ -1,12 +1,16 @@
 import { useState, useEffect } from "react";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import ApplicantRecordsSection from "../components/ApplicantRecordsSection";
 import ApplicantProfileSection from "../components/ApplicantProfileSection";
 import VerificationOutcomesSection from "../components/VerificationOutcomesSection";
 import DisbursementReportSection from "../components/DisbursementReportSection";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
+import { useAuth } from "../../context/AuthContext";
 function AdminReports() {
+  const { user } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [periods, setPeriods] = useState([]);
   const [selectedConfigId, setSelectedConfigId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -15,25 +19,32 @@ function AdminReports() {
       .then((res) => {
         setPeriods(res.data);
         const active = res.data.find((p) => p.is_active);
-        setSelectedConfigId(active ? String(active.id) : res.data[0] ? String(res.data[0].id) : "");
+        setSelectedConfigId(
+          active
+            ? String(active.id)
+            : res.data[0]
+              ? String(res.data[0].id)
+              : ""
+        );
       })
+      .catch(() => setPeriods([]))
       .finally(() => setLoading(false));
   }, []);
   if (loading) {
     return (
       <div className="admin-layout">
-        <AdminNavigation />
+        <AdminNavigation
+          mobileOpen={mobileMenuOpen}
+          onMobileClose={() => setMobileMenuOpen(false)}
+        />
         <div className="admin-main">
           <div className="admin-topbar">
-            <div className="admin-topbar-user">
-              <div className="admin-topbar-user-text">
-                <span className="admin-topbar-user-name">Admin User</span>
-                <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-              </div>
-              <div className="admin-topbar-avatar"></div>
-            </div>
+            <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
           </div>
-          <div className="d-flex justify-content-center align-items-center" style={{ height: "60vh" }}>
+          <div
+            className="d-flex justify-content-center align-items-center"
+            style={{ height: "60vh" }}
+          >
             <div className="spinner-border text-danger" role="status" />
           </div>
           <PanelFooter />
@@ -43,49 +54,112 @@ function AdminReports() {
   }
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
         <section className="page-section">
           <div className="container-fluid">
             <div className="page-card">
-              <div className="d-flex justify-content-between align-items-start flex-wrap gap-3">
-                <div>
+              <div className="reports-header-layout">
+                <div className="reports-header-content">
                   <h3 className="section-title mb-2">Reports</h3>
-                  <p className="text-muted mb-0">Applicant statistics, verification outcomes, and budget planning tools for the educational assistance program.</p>
+                  <p className="text-muted mb-0">
+                    Applicant statistics, verification outcomes, and budget
+                    planning tools for the educational assistance program.
+                  </p>
+                  <div className="reports-period-field">
+                    <label htmlFor="reports-viewing-period">
+                      VIEWING PERIOD
+                    </label>
+                    <div className="reports-period-select-wrap">
+                      <select
+                        id="reports-viewing-period"
+                        value={selectedConfigId}
+                        onChange={(e) => setSelectedConfigId(e.target.value)}
+                      >
+                        {periods.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.school_year}
+                            {p.is_active ? " (Active)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <svg
+                        className="reports-period-chevron"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m7 10 5 5 5-5" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ minWidth: "220px" }}>
-                  <label className="form-label small text-muted mb-1">Viewing Period</label>
-                  <select className="form-select" value={selectedConfigId} onChange={(e) => setSelectedConfigId(e.target.value)}>
-                    {periods.map((p) => (
-                      <option key={p.id} value={p.id}>{p.school_year}{p.is_active ? " (Active)" : ""}</option>
-                    ))}
-                  </select>
-                </div>
+                {user?.role === "superadmin" && (
+                  <a
+                    href="/AdminBudgetPlanning"
+                    className="report-records-preview-btn reports-budget-btn"
+                  >
+                    Go to Budget Planning
+                  </a>
+                )}
               </div>
             </div>
-            <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
-            <div className="report-profile-layout-grid">
-              <ApplicantProfileSection selectedConfigId={selectedConfigId} section="school" />
-              <ApplicantProfileSection selectedConfigId={selectedConfigId} section="age" />
-              <VerificationOutcomesSection selectedConfigId={selectedConfigId} section="issues" />
-              <ApplicantProfileSection selectedConfigId={selectedConfigId} section="purok" />
-            </div>
-            <VerificationOutcomesSection selectedConfigId={selectedConfigId} section="claiming" />
-            <DisbursementReportSection selectedConfigId={selectedConfigId} />
-            <div className="page-card">
-              <div className="d-flex justify-content-end flex-wrap gap-3">
-                <a href="/AdminBudgetPlanning" className="btn btn-custom">Go to Budget Planning →</a>
+            {periods.length === 0 ? (
+              <div className="page-card">
+                <div className="visibility-notice">
+                  <div className="visibility-notice-icon">!</div>
+
+                  <div className="visibility-notice-body">
+                    <strong className="visibility-notice-title">
+                      No Viewing Period Available
+                    </strong>
+
+                    <p className="visibility-notice-text">
+                      There is no application period set up yet. Reports will
+                      appear here once an application configuration is
+                      created.
+                    </p>
+                  </div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <ApplicantRecordsSection selectedConfigId={selectedConfigId} />
+                <div className="report-profile-layout-grid">
+                  <ApplicantProfileSection
+                    selectedConfigId={selectedConfigId}
+                    section="school"
+                  />
+                  <ApplicantProfileSection
+                    selectedConfigId={selectedConfigId}
+                    section="age"
+                  />
+                  <VerificationOutcomesSection
+                    selectedConfigId={selectedConfigId}
+                    section="issues"
+                  />
+                  <ApplicantProfileSection
+                    selectedConfigId={selectedConfigId}
+                    section="purok"
+                  />
+                </div>
+                <VerificationOutcomesSection
+                  selectedConfigId={selectedConfigId}
+                  section="claiming"
+                />
+                <DisbursementReportSection selectedConfigId={selectedConfigId} />
+              </>
+            )}
           </div>
         </section>
         <PanelFooter />

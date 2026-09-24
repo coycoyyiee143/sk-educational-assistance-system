@@ -1,10 +1,11 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef } from "react";
 import "bootstrap/dist/js/bootstrap.bundle.min.js";
-import { useNavigate, Navigate } from "react-router-dom";
+import { useNavigate, Navigate, Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import api from "../../services/api";
 import Footer from "../../components/Footer";
 import FaceCapture from "../../applicant/components/FaceCapture";
+import { checkWhiteBackground, checkContainsFace } from "../../applicant/utils/imageChecks";
 
 // Small reusable block: renders one red line per message for a given
 // backend field key, or nothing if there's no error for that field.
@@ -20,6 +21,21 @@ function FieldError({ errors, field }) {
     </div>
   );
 }
+
+// Matches the form's actual visual top-to-bottom field order — NOT the
+// backend's own field order in checkDuplicate()'s validate() rules,
+// which lists email before mobile_number even though mobile_number
+// renders above email on screen. Used to pick which erroring field to
+// scroll to when several come back at once.
+const FIELD_ORDER = [
+  "first_name",
+  "middle_name",
+  "last_name",
+  "mobile_number",
+  "email",
+  "birthdate",
+  "password",
+];
 
 const Register = () => {
   const [form, setForm] = useState({
@@ -41,13 +57,30 @@ const Register = () => {
   // duplicate check, network failures) still show as a top banner.
   const [generalError, setGeneralError] = useState("");
   // Per-field errors from Laravel's {errors: {field: [messages]}}
-  // shape, rendered directly under the matching input.
+  // shape, rendered directly under the matching input. Still used for
+  // pure client-side pre-checks (password length/match) that never hit
+  // the server at all.
   const [fieldErrors, setFieldErrors] = useState({});
+  // Server-side duplicate/validation errors from /register/check are
+  // shown in a modal instead of inline — collected together so every
+  // problem (email taken, mobile taken, etc.) surfaces at once rather
+  // than the applicant fixing one, resubmitting, and only then seeing
+  // the next.
+  const [duplicateErrorMessages, setDuplicateErrorMessages] = useState([]);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  // Which fields the duplicate-check response flagged — the modal shows
+  // the actual messages, this just drives the red border on the fields
+  // themselves so it's still obvious AT A GLANCE which inputs need
+  // fixing, not just buried in the modal's text list.
+  const [errorFieldNames, setErrorFieldNames] = useState([]);
 
   const [loading, setLoading] = useState(false);
 
   const [idImage, setIdImage] = useState(null);
   const [idPreview, setIdPreview] = useState(null);
+  const [idPhotoError, setIdPhotoError] = useState("");
+  const [idPhotoChecking, setIdPhotoChecking] = useState(false);
+  const [idDragActive, setIdDragActive] = useState(false);
   const idFileInputRef = useRef(null);
 
   const [step, setStep] = useState("form");
@@ -74,6 +107,12 @@ const Register = () => {
   const setFieldRef = (key) => (el) => {
     fieldRefs.current[key] = el;
   };
+
+  // Red border on an input, whether the error came from the server
+  // (errorFieldNames, shown via the duplicate-check modal) or a pure
+  // client-side pre-check (fieldErrors, e.g. password mismatch).
+  const invalidClass = (field) =>
+    fieldErrors[field] || errorFieldNames.includes(field) ? " is-invalid" : "";
 
   /* ========================================
      FORM
@@ -107,51 +146,51 @@ const Register = () => {
     });
   };
 
-  function handleIdChange(e) {
-    const file = e.target.files[0];
-
+  async function processIdFile(file) {
     if (!file) return;
 
-    setIdImage(file);
-    setIdPreview(URL.createObjectURL(file));
     setGeneralError("");
+    setIdPhotoError("");
+    setIdImage(null);
+    setIdPreview(null);
+
+    setIdPhotoChecking(true);
+    try {
+      const bgCheck = await checkWhiteBackground(file);
+      if (!bgCheck.valid) {
+        setIdPhotoError(
+          "Your 2x2 photo must have a plain white background. Please retake or upload a photo taken against a white backdrop."
+        );
+        return;
+      }
+
+      const faceCheck = await checkContainsFace(file);
+      if (!faceCheck.valid) {
+        setIdPhotoError(
+          "We couldn't detect a face in this photo. Please upload an actual 2x2 photo of yourself, not an ID or document scan."
+        );
+        return;
+      }
+
+      setIdImage(file);
+      setIdPreview(URL.createObjectURL(file));
+    } finally {
+      setIdPhotoChecking(false);
+    }
   }
 
-  // The native file input resets itself when the browser restores this
-  // page from back/forward cache (bfcache) — but our React state for
-  // the preview doesn't know that happened, so the old preview would
-  // otherwise keep showing next to an input that says "No file chosen."
-  // Clear our state to match whenever that restore happens.
-  useEffect(() => {
-    function handlePageShow(e) {
-      if (e.persisted) {
-        setIdImage(null);
-        setIdPreview(null);
-        if (idFileInputRef.current) idFileInputRef.current.value = "";
-      }
-    }
+  function handleIdChange(e) {
+    const file = e.target.files[0];
+    processIdFile(file);
+    e.target.value = "";
+  }
 
-    window.addEventListener("pageshow", handlePageShow);
-    return () => window.removeEventListener("pageshow", handlePageShow);
-  }, []);
-
-  // The native file input resets itself when the browser restores this
-  // page from back/forward cache (bfcache) — but our React state for
-  // the preview doesn't know that happened, so the old preview would
-  // otherwise keep showing next to an input that says "No file chosen."
-  // Clear our state to match whenever that restore happens.
-  useEffect(() => {
-    function handlePageShow(e) {
-      if (e.persisted) {
-        setIdImage(null);
-        setIdPreview(null);
-        if (idFileInputRef.current) idFileInputRef.current.value = "";
-      }
-    }
-
-    window.addEventListener("pageshow", handlePageShow);
-    return () => window.removeEventListener("pageshow", handlePageShow);
-  }, []);
+  function handleIdDrop(e) {
+    e.preventDefault();
+    setIdDragActive(false);
+    const file = e.dataTransfer.files?.[0];
+    processIdFile(file);
+  }
 
   const handleNext = async (e) => {
     e.preventDefault();
@@ -160,6 +199,8 @@ const Register = () => {
 
     setGeneralError("");
     setFieldErrors({});
+    setDuplicateErrorMessages([]);
+    setErrorFieldNames([]);
 
     const passwordRule = /^(?=.*[a-z])(?=.*\d).{8,}$/;
     if (!passwordRule.test(form.password)) {
@@ -169,11 +210,6 @@ const Register = () => {
 
     if (form.password !== form.confirmPassword) {
       setFieldErrors({ password: ["Passwords do not match."] });
-      return;
-    }
-
-    if (!idImage) {
-      setGeneralError("Please upload a valid ID.");
       return;
     }
 
@@ -202,19 +238,28 @@ const Register = () => {
       const errors = err.response?.data?.errors;
 
       if (errors) {
-        setFieldErrors(errors);
+        // Every field's messages, flattened together — all shown at
+        // once in the modal instead of one field at a time across
+        // repeated submit attempts.
+        setDuplicateErrorMessages(Object.values(errors).flat());
+        setErrorFieldNames(Object.keys(errors));
+        setShowDuplicateModal(true);
 
-        // Scroll to the first field that actually has an error. A
-        // small delay lets React finish rendering the error text first
-        // — scrollIntoView needs the element (and its new height, now
-        // that the error message pushed things down) to already exist.
-        const firstErrorField = Object.keys(errors)[0];
-        setTimeout(() => {
-          fieldRefs.current[firstErrorField]?.scrollIntoView({
-            behavior: "smooth",
-            block: "center",
-          });
-        }, 50);
+        // Scroll to the TOPMOST erroring field, not just whichever key
+        // happens to come first in the backend's response object —
+        // FIELD_ORDER reflects the form's actual visual top-to-bottom
+        // layout, which doesn't match the backend's own field order
+        // (e.g. mobile_number appears above email on screen, but after
+        // it in the validate() rules).
+        const firstErrorField = FIELD_ORDER.find((f) => errors[f]);
+        if (firstErrorField) {
+          setTimeout(() => {
+            fieldRefs.current[firstErrorField]?.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }, 50);
+        }
       } else {
         setGeneralError(
           err.response?.data?.message ||
@@ -295,10 +340,19 @@ const Register = () => {
   ======================================== */
 
   if (user) {
-    if (user.role === "sk_admin") {
+    if (user.role === "sk_admin" || user.role === "superadmin") {
       return (
         <Navigate
           to="/AdminDashboard"
+          replace
+        />
+      );
+    }
+
+    if (user.role === "it_support") {
+      return (
+        <Navigate
+          to="/AdminUsers"
           replace
         />
       );
@@ -330,9 +384,9 @@ const Register = () => {
       <>
         <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
           <div className="container">
-            <a
+            <Link
               className="navbar-brand navbar-brand-custom"
-              href="/"
+              to="/"
             >
               <img
                 src="/icons/sk-logo.jpg"
@@ -345,7 +399,7 @@ const Register = () => {
                   Educational Assistance System
                 </span>
               </div>
-            </a>
+            </Link>
           </div>
         </nav>
 
@@ -364,8 +418,8 @@ const Register = () => {
 
                 <p>
                   Before creating your account, we need
-                  to confirm that the person registering
-                  matches the ID you uploaded. Your
+                  your latest 2x2 photo and a live photo
+                  to confirm it's really you. Your
                   captured photo will also be used as
                   your profile photo in the system and
                   may be used by SK staff as a reference
@@ -383,50 +437,92 @@ const Register = () => {
                   </div>
 
                   <div>
-                    <h3>Reference ID</h3>
+                    <h3>Latest 2x2 Photo</h3>
 
                     <p>
-                      Your uploaded identification
+                      Upload a clear, recent 2x2 photo
                     </p>
                   </div>
                 </div>
 
-                <div className="identity-id-preview">
+                <input
+                  type="file"
+                  ref={idFileInputRef}
+                  accept="image/jpeg,image/png,image/jpg"
+                  onChange={handleIdChange}
+                  style={{ display: "none" }}
+                />
+
+                <div
+                  className={`identity-id-preview ${
+                    idDragActive ? "is-dragging" : ""
+                  }`}
+                  role="button"
+                  onClick={() => idFileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIdDragActive(true);
+                  }}
+                  onDragLeave={() => setIdDragActive(false)}
+                  onDrop={handleIdDrop}
+                >
                   {idPreview ? (
                     <img
                       src={idPreview}
-                      alt="Uploaded ID"
+                      alt="2x2 preview"
                     />
                   ) : (
                     <span>
-                      No ID preview available
+                      Click or drag a photo here
                     </span>
                   )}
                 </div>
 
-                <div className="identity-id-ready">
-                  <div className="identity-ready-check">
-                    ✓
+                {idPhotoChecking && (
+                  <div className="text-muted small mt-2">
+                    Checking photo background...
                   </div>
+                )}
 
-                  <div>
-                    <strong>
-                      ID ready for comparison
-                    </strong>
-
-                    <span>
-                      This image will be matched
-                      against your live photo.
-                    </span>
+                {idPhotoError && (
+                  <div className="text-danger small mt-2">
+                    {idPhotoError}
                   </div>
-                </div>
+                )}
+
+                <button
+                  type="button"
+                  className="identity-upload-btn mt-2"
+                  onClick={() => idFileInputRef.current?.click()}
+                >
+                  {idImage ? "Change photo" : "Choose File"}
+                </button>
+
+                {idImage && !idPhotoError && (
+                  <div className="identity-id-ready">
+                    <div className="identity-ready-check">
+                      ✓
+                    </div>
+
+                    <div>
+                      <strong>
+                        Photo ready for comparison
+                      </strong>
+
+                      <span>
+                        This image will be matched
+                        against your live photo.
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="identity-scan-card">
                 <div className="identity-scan-top">
                   <div>
                     <span className="identity-live-label">
-                      STEP 2 OF 2
+                      STEP 2
                     </span>
 
                     <h2>
@@ -454,6 +550,7 @@ const Register = () => {
                   <FaceCapture
                     mode="registration"
                     externalIdImage={idImage}
+                    hideIdUpload
                     submitLabel={
                       loading
                         ? "Creating account..."
@@ -682,9 +779,9 @@ const Register = () => {
     <>
       <nav className="navbar navbar-expand-lg sticky-top navbar-custom">
         <div className="container">
-          <a
+          <Link
             className="navbar-brand navbar-brand-custom"
-            href="/"
+            to="/"
           >
             <img
               src="/icons/sk-logo.jpg"
@@ -698,7 +795,7 @@ const Register = () => {
                 Educational Assistance System
               </span>
             </div>
-          </a>
+          </Link>
 
           <button
             className="navbar-toggler"
@@ -715,57 +812,57 @@ const Register = () => {
           >
             <ul className="navbar-nav">
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/"
+                  to="/"
                 >
                   Home
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/requirements"
+                  to="/requirements"
                 >
                   Requirements
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/announcements"
+                  to="/announcements"
                 >
                   Announcements
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/events"
+                  to="/events"
                 >
                   Events
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link"
-                  href="/login"
+                  to="/login"
                 >
                   Login
-                </a>
+                </Link>
               </li>
 
               <li className="nav-item">
-                <a
+                <Link
                   className="nav-link active"
-                  href="/register"
+                  to="/register"
                 >
                   Register
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -831,7 +928,7 @@ const Register = () => {
 
                       <input
                         name="firstName"
-                        className="form-control"
+                        className={`form-control${invalidClass("first_name")}`}
                         placeholder="First Name"
                         value={form.firstName}
                         onChange={handleChange}
@@ -847,7 +944,7 @@ const Register = () => {
 
                       <input
                         name="middleName"
-                        className="form-control"
+                        className={`form-control${invalidClass("middle_name")}`}
                         placeholder="Middle Name"
                         value={form.middleName}
                         onChange={handleChange}
@@ -865,7 +962,7 @@ const Register = () => {
 
                       <input
                         name="lastName"
-                        className="form-control"
+                        className={`form-control${invalidClass("last_name")}`}
                         placeholder="Last Name"
                         value={form.lastName}
                         onChange={handleChange}
@@ -878,15 +975,19 @@ const Register = () => {
                   <div className="row">
                     <div className="col-md-6 mb-3" ref={setFieldRef("mobile_number")}>
                       <label className="form-label">
-                        Mobile Number
+                        Mobile Number{" "}
+                        <span className="text-danger">
+                          *
+                        </span>
                       </label>
 
                       <input
                         name="mobile"
-                        className="form-control"
+                        className={`form-control${invalidClass("mobile_number")}`}
                         placeholder="Mobile Number"
                         value={form.mobile}
                         onChange={handleChange}
+                        required
                       />
                       <FieldError errors={fieldErrors} field="mobile_number" />
                     </div>
@@ -907,7 +1008,7 @@ const Register = () => {
                         <input
                           type="email"
                           name="email"
-                          className="form-control"
+                          className={`form-control${invalidClass("email")}`}
                           placeholder="Email"
                           value={form.email}
                           onChange={handleChange}
@@ -949,7 +1050,7 @@ const Register = () => {
                       <input
                         type="date"
                         name="birthdate"
-                        className="form-control"
+                        className={`form-control${invalidClass("birthdate")}`}
                         value={form.birthdate}
                         onChange={handleChange}
                         required
@@ -976,62 +1077,6 @@ const Register = () => {
                     </div>
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Valid ID{" "}
-                      <span className="text-danger">
-                        *
-                      </span>
-                    </label>
-
-                    <p className="text-muted small mb-2">
-                      Upload a clear photo of a
-                      government-issued or school ID
-                      showing your face. We'll ask you
-                      to take a live photo next to
-                      confirm it's really you.
-                    </p>
-
-                    <input
-                      type="file"
-                      ref={idFileInputRef}
-                      accept="image/jpeg,image/png,image/jpg"
-                      onChange={handleIdChange}
-                      required
-                      style={{ display: "none" }}
-                    />
-
-                    <div
-                      className="document-upload-picker"
-                      onClick={() => idFileInputRef.current?.click()}
-                    >
-                      <span className="document-upload-button">
-                        Choose File
-                      </span>
-
-                      <span
-                        className={`document-upload-filename ${
-                          idImage ? "has-file" : ""
-                        }`}
-                      >
-                        {idImage ? idImage.name : "No file chosen"}
-                      </span>
-                    </div>
-
-                    {idPreview && (
-                      <img
-                        src={idPreview}
-                        alt="ID preview"
-                        className="mt-2 rounded border"
-                        style={{
-                          maxWidth: "260px",
-                          maxHeight: "180px",
-                          objectFit: "contain",
-                        }}
-                      />
-                    )}
-                  </div>
-
                   <div className="mb-3" ref={setFieldRef("password")}>
                     <label className="form-label">
                       Password{" "}
@@ -1042,7 +1087,7 @@ const Register = () => {
                       <input
                         type={showPass ? "text" : "password"}
                         name="password"
-                        className="form-control register-input-eye"
+                        className={`form-control register-input-eye${invalidClass("password")}`}
                         placeholder="Min 8 characters, with a lowercase letter and a number"
                         value={form.password}
                         onChange={handleChange}
@@ -1196,9 +1241,9 @@ const Register = () => {
 
                   <p className="text-center mt-3">
                     Already have an account?{" "}
-                    <a href="/login">
+                    <Link to="/login">
                       Login
-                    </a>
+                    </Link>
                   </p>
                 </form>
               </div>
@@ -1243,9 +1288,9 @@ const Register = () => {
             <p style={{ fontSize: "13px", color: "#374151", lineHeight: 1.7 }}>
               In accordance with the Data Privacy Act of 2012 (RA 10173),
               SK Barangay Mamatid collects your personal information
-              (name, birthdate, contact details, valid ID, and photo)
+              (name, birthdate, contact details, and photos)
               solely for the purpose of processing your application for
-              the Educational Assistance Program. Your uploaded ID and
+              the Educational Assistance Program. Your uploaded 2x2 and
               live photo will be used strictly for identity verification
               and may be referenced by SK staff during claiming.
             </p>
@@ -1275,6 +1320,58 @@ const Register = () => {
                 }}
               >
                 I Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDuplicateModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            background: "rgba(17, 24, 39, 0.48)",
+            backdropFilter: "blur(3px)",
+            WebkitBackdropFilter: "blur(3px)",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "480px",
+              maxHeight: "80vh",
+              overflowY: "auto",
+              padding: "28px 26px",
+              borderRadius: "16px",
+              background: "#fff",
+              border: "1px solid #e5e7eb",
+              boxShadow: "0 24px 60px rgba(0, 0, 0, 0.22)",
+              fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <h4 className="text-danger mb-3" style={{ fontWeight: 700 }}>
+              Please Fix the Following
+            </h4>
+
+            <ul style={{ fontSize: "14px", color: "#374151", lineHeight: 1.8, paddingLeft: "20px", margin: 0 }}>
+              {duplicateErrorMessages.map((msg, i) => (
+                <li key={i}>{msg}</li>
+              ))}
+            </ul>
+
+            <div className="d-flex justify-content-end mt-3">
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={() => setShowDuplicateModal(false)}
+              >
+                Okay
               </button>
             </div>
           </div>

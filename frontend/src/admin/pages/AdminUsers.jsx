@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import AdminNavigation from "../components/AdminNavigation";
+import AdminTopbarUser from "../components/AdminTopbarUser";
 import api from "../../services/api";
 import PanelFooter from "../../components/PanelFooter";
 import { useAuth } from "../../context/AuthContext";
+import { useUserPhoto } from "../../hooks/useUserPhoto";
 function StatusBadge({ active }) {
   return <span className={active ? "status-badge status-active" : "status-badge status-inactive"}>{active ? "Active" : "Inactive"}</span>;
 }
 function RoleBadge({ role }) {
-  const map = { applicant: "role-applicant", sk_verifier: "role-verifier", sk_admin: "role-admin" };
-  const labels = { applicant: "Applicant", sk_verifier: "Verifier", sk_admin: "Admin" };
+  const map = { applicant: "role-applicant", sk_verifier: "role-verifier", sk_admin: "role-admin", superadmin: "role-admin", it_support: "role-admin" };
+  const labels = { applicant: "Applicant", sk_verifier: "Verifier", sk_admin: "Admin", superadmin: "Superadmin", it_support: "IT Support" };
   return <span className={map[role] ?? "role-applicant"}>{labels[role] ?? role}</span>;
 }
 // Shown alongside StatusBadge for personnel — distinguishes "active
@@ -26,6 +28,70 @@ function SetupPendingBadge({ emailVerifiedAt }) {
     >
       Setup Pending
     </span>
+  );
+}
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+function CheckCircleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" />
+      <path d="m8 12 3 3 5-6" />
+    </svg>
+  );
+}
+function BanIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="4.9" y1="4.9" x2="19.1" y2="19.1" />
+    </svg>
+  );
+}
+function KeyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+    </svg>
+  );
+}
+function ShieldIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+    </svg>
+  );
+}
+function BriefcaseIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" />
+      <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+    </svg>
+  );
+}
+function WrenchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.7 6.3a4 4 0 0 1-5.1 5.1L4 17l3 3 5.6-5.6a4 4 0 0 0 5.1-5.1l-2.5 2.5-2-2 2.5-2.5z" />
+    </svg>
+  );
+}
+function TrashIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 6h18" />
+      <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </svg>
   );
 }
 function getPageNumbers(currentPage, totalPages) {
@@ -95,18 +161,16 @@ function FaceVerificationBadge({ faceVerification }) {
   );
 }
 function ViewApplicantModal({ applicant, onClose }) {
+  // The applicant's uploaded 2x2 reference photo — same source shown on
+  // the verifier review pages — not the dead profile_photo_url/photo_url/
+  // etc. fields the backend never actually sets. Called before the
+  // early return below so the hook always runs in the same order.
+  const { url: applicantPhoto } = useUserPhoto(applicant?.id);
   if (!applicant) return null;
   const initials = `${applicant.first_name?.charAt(0) ?? ""}${applicant.last_name?.charAt(0) ?? ""}`.toUpperCase();
   const registeredDate = applicant.created_at
     ? new Date(applicant.created_at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
     : "—";
-  const applicantPhoto =
-    applicant.profile_photo_url ||
-    applicant.photo_url ||
-    applicant.image_url ||
-    applicant.avatar_url ||
-    applicant.profile?.photo_url ||
-    null;
   return (
     <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
       <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: "700px", width: "calc(100% - 32px)" }}>
@@ -205,6 +269,7 @@ function AddPersonnelModal({ onClose, onSave }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const roleOptions = [["sk_verifier", "Verifier"], ["sk_admin", "Admin"], ["superadmin", "Superadmin"], ["it_support", "IT Support"]];
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -252,8 +317,9 @@ function AddPersonnelModal({ onClose, onSave }) {
                   <label className="form-label">Role</label>
                   <select className="form-select" value={form.role} onChange={set("role")} required>
                     <option value="" disabled>Select role</option>
-                    <option value="sk_verifier">Verifier</option>
-                    <option value="sk_admin">Admin</option>
+                    {roleOptions.map(([value, label]) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -272,6 +338,7 @@ function AddPersonnelModal({ onClose, onSave }) {
 }
 function AdminUsers() {
   const { user: currentUser } = useAuth();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [applicants, setApplicants] = useState([]);
   const [personnel, setPersonnel] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -289,8 +356,20 @@ function AdminUsers() {
   const [resetting, setResetting] = useState(false);
   const [twoFATarget, setTwoFATarget] = useState(null); // confirm-dialog target (2FA reset)
   const [resettingTwoFA, setResettingTwoFA] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState(null); // confirm-dialog target (deactivate only — activating is non-destructive)
+  const [deactivating, setDeactivating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null); // confirm-dialog target (delete)
+  const [deleting, setDeleting] = useState(false);
+  const [togglingId, setTogglingId] = useState(null); // id currently being (re)activated — guards double-click
+  const [pendingTwoFARequests, setPendingTwoFARequests] = useState([]);
+  const [dismissingRequestId, setDismissingRequestId] = useState(null);
   const roleMenuRef = useRef(null);
   const perPage = 10;
+  function loadPendingTwoFARequests() {
+    api.get("/admin/2fa-reset-requests")
+      .then((res) => setPendingTwoFARequests(res.data))
+      .catch(() => { });
+  }
   function loadUsers() {
     api.get("/admin/users")
       .then((res) => {
@@ -300,7 +379,7 @@ function AdminUsers() {
       .catch(() => { })
       .finally(() => setLoading(false));
   }
-  useEffect(() => { loadUsers(); }, []);
+  useEffect(() => { loadUsers(); loadPendingTwoFARequests(); }, []);
   useEffect(() => {
     if (!error && !success) return;
     const t = setTimeout(() => {
@@ -317,20 +396,49 @@ function AdminUsers() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
   async function toggleStatus(id) {
+    setTogglingId(id);
     try {
       await api.patch(`/admin/users/${id}/toggle-status`);
       loadUsers();
     } catch {
       setError("Failed to update status.");
+    } finally {
+      setTogglingId(null);
     }
   }
-  async function deleteUser(id) {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
+  // Deactivating locks the account out immediately, so it goes through a
+  // confirm modal like the other account-impacting actions below.
+  // Re-activating isn't destructive, so that path calls toggleStatus directly.
+  function handleToggleClick(p) {
+    if (p.is_active) setDeactivateTarget(p);
+    else toggleStatus(p.id);
+  }
+  async function confirmDeactivate() {
+    if (!deactivateTarget) return;
+    setDeactivating(true);
+    setError("");
     try {
-      await api.delete(`/admin/users/${id}`);
+      await api.patch(`/admin/users/${deactivateTarget.id}/toggle-status`);
+      setDeactivateTarget(null);
+      loadUsers();
+    } catch {
+      setError("Failed to update status.");
+    } finally {
+      setDeactivating(false);
+    }
+  }
+  async function confirmDeleteUser() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setError("");
+    try {
+      await api.delete(`/admin/users/${deleteTarget.id}`);
+      setDeleteTarget(null);
       loadUsers();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to delete user.");
+    } finally {
+      setDeleting(false);
     }
   }
   async function savePersonnel(form) {
@@ -371,37 +479,63 @@ function AdminUsers() {
       setSuccess(res.data?.message || "2FA has been reset.");
       setTwoFATarget(null);
       loadUsers();
+      loadPendingTwoFARequests();
     } catch (err) {
       setError(err.response?.data?.message || "Failed to reset 2FA.");
     } finally {
       setResettingTwoFA(false);
     }
   }
+  // Dismisses a "lost my authenticator" request without resetting
+  // anything — e.g. identity couldn't be confirmed, or the requester
+  // got back into their authenticator on their own.
+  async function dismissTwoFARequest(id) {
+    setDismissingRequestId(id);
+    try {
+      await api.post(`/admin/2fa-reset-requests/${id}/dismiss`);
+      loadPendingTwoFARequests();
+    } catch {
+      setError("Failed to dismiss request.");
+    } finally {
+      setDismissingRequestId(null);
+    }
+  }
   const filteredApplicants = applicants.filter((a) =>
     `${a.first_name} ${a.last_name} ${a.email}`.toLowerCase().includes(applicantSearch.toLowerCase())
   );
-  const filteredPersonnel = personnel.filter((p) =>
-    `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(personnelSearch.toLowerCase()) &&
-    (!roleFilter || p.role === roleFilter)
-  );
+  const filteredPersonnel = personnel
+    .filter((p) =>
+      `${p.first_name} ${p.last_name} ${p.email}`.toLowerCase().includes(personnelSearch.toLowerCase()) &&
+      (!roleFilter || p.role === roleFilter)
+    )
+    // Your own account always leads the list, so it's easy to find and
+    // never buried behind pagination.
+    .sort((a, b) => (b.id === currentUser?.id) - (a.id === currentUser?.id));
   const applicantTotalPages = Math.max(1, Math.ceil(filteredApplicants.length / perPage));
   const applicantStart = (applicantPage - 1) * perPage;
   const pagedApplicants = filteredApplicants.slice(applicantStart, applicantStart + perPage);
   const personnelTotalPages = Math.max(1, Math.ceil(filteredPersonnel.length / perPage));
   const personnelStart = (personnelPage - 1) * perPage;
   const pagedPersonnel = filteredPersonnel.slice(personnelStart, personnelStart + perPage);
+  const roleCards = [
+    { key: "sk_verifier", label: "Verifiers", accent: "blue", icon: <CheckCircleIcon /> },
+    { key: "sk_admin", label: "Admins", accent: "green", icon: <BriefcaseIcon /> },
+    { key: "superadmin", label: "Superadmins", accent: "orange", icon: <ShieldIcon /> },
+    { key: "it_support", label: "IT Support", accent: "gray", icon: <WrenchIcon /> },
+  ].map((c) => ({ ...c, value: personnel.filter((p) => p.role === c.key).length }));
+  function handleRoleCardClick(key) {
+    setRoleFilter((current) => (current === key ? "" : key));
+    setPersonnelPage(1);
+  }
   return (
     <div className="admin-layout">
-      <AdminNavigation />
+      <AdminNavigation
+        mobileOpen={mobileMenuOpen}
+        onMobileClose={() => setMobileMenuOpen(false)}
+      />
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-user">
-            <div className="admin-topbar-user-text">
-              <span className="admin-topbar-user-name">Admin User</span>
-              <span className="admin-topbar-user-role">Sangguniang Kabataan</span>
-            </div>
-            <div className="admin-topbar-avatar"></div>
-          </div>
+          <AdminTopbarUser onMenuOpen={() => setMobileMenuOpen(true)} />
         </div>
         <section className="page-section">
           <div className="container-fluid">
@@ -411,6 +545,59 @@ function AdminUsers() {
             </div>
             {error && <div className="alert alert-danger">{error}</div>}
             {success && <div className="alert alert-success">{success}</div>}
+
+            {pendingTwoFARequests.length > 0 && (
+              <div className="alert alert-warning">
+                <strong>{pendingTwoFARequests.length} pending 2FA reset request{pendingTwoFARequests.length > 1 ? "s" : ""}</strong>
+                <p className="mb-2">Verify identity before resetting — see below.</p>
+                <ul className="list-unstyled mb-0">
+                  {pendingTwoFARequests.map((r) => (
+                    <li key={r.id} className="d-flex justify-content-between align-items-center flex-wrap gap-2 py-1">
+                      <span>
+                        {r.user?.first_name} {r.user?.last_name} ({r.user?.email}) — requested{" "}
+                        {new Date(r.created_at).toLocaleString()}
+                      </span>
+                      <span>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-custom me-2"
+                          onClick={() => setTwoFATarget(r.user)}
+                        >
+                          Reset now
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline-secondary"
+                          disabled={dismissingRequestId === r.id}
+                          onClick={() => dismissTwoFARequest(r.id)}
+                        >
+                          {dismissingRequestId === r.id ? "Dismissing..." : "Dismiss"}
+                        </button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="row g-3 row-cols-2 row-cols-md-4 mb-4">
+              {roleCards.map(({ key, label, value, accent, icon }) => (
+                <div className="col" key={key}>
+                  <button
+                    type="button"
+                    className={`admin-stat-card admin-stat-card-btn${roleFilter === key ? " admin-stat-card-active" : ""}`}
+                    onClick={() => handleRoleCardClick(key)}
+                    aria-pressed={roleFilter === key}
+                    title={roleFilter === key ? `Showing ${label} only — click to clear filter` : `Show ${label} only`}
+                  >
+                    <div className="admin-stat-top">
+                      <h2>{loading ? "..." : value}</h2>
+                      <span className={`admin-stat-icon admin-stat-icon-${accent}`}>{icon}</span>
+                    </div>
+                    <p className={`admin-stat-label admin-stat-label-${accent}`}>{label}</p>
+                  </button>
+                </div>
+              ))}
+            </div>
             {/* Personnel */}
             <div className="page-card">
               <div className="d-flex justify-content-between align-items-center mb-3">
@@ -424,6 +611,8 @@ function AdminUsers() {
                         <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter(""); setPersonnelPage(1); setShowRoleMenu(false); }}>All Roles</button>
                         <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter("sk_admin"); setPersonnelPage(1); setShowRoleMenu(false); }}>Admin</button>
                         <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter("sk_verifier"); setPersonnelPage(1); setShowRoleMenu(false); }}>Verifier</button>
+                        <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter("superadmin"); setPersonnelPage(1); setShowRoleMenu(false); }}>Superadmin</button>
+                        <button type="button" className="table-toolbar-menu-item" onClick={() => { setRoleFilter("it_support"); setPersonnelPage(1); setShowRoleMenu(false); }}>IT Support</button>
                       </div>
                     )}
                   </div>
@@ -437,12 +626,12 @@ function AdminUsers() {
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle announcement-table">
                   <colgroup>
-                    <col style={{ width: "7%" }} />
-                    <col style={{ width: "17%" }} />
+                    <col style={{ width: "5%" }} />
+                    <col style={{ width: "20%" }} />
                     <col style={{ width: "24%" }} />
+                    <col style={{ width: "15%" }} />
                     <col style={{ width: "10%" }} />
-                    <col style={{ width: "14%" }} />
-                    <col style={{ width: "28%" }} />
+                    <col style={{ width: "26%" }} />
                   </colgroup>
                   <thead>
                     <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
@@ -453,7 +642,12 @@ function AdminUsers() {
                     ) : pagedPersonnel.length === 0 ? (
                       <tr><td colSpan={6} className="text-center text-muted py-4">No personnel accounts found.</td></tr>
                     ) : (
-                      pagedPersonnel.map((p) => (
+                      pagedPersonnel.map((p) => {
+                        const isSelf = p.id === currentUser?.id;
+                        const isUndeletable = currentUser?.role === "it_support" && p.role === "superadmin";
+                        const restrictedReason = isSelf ? "This is your own account" : null;
+                        const deleteRestrictedReason = restrictedReason || (isUndeletable ? "Superadmin accounts can't be deleted by IT Support" : null);
+                        return (
                         <tr key={p.id}>
                           <td>{p.id}</td>
                           <td>{p.first_name} {p.last_name}</td>
@@ -465,28 +659,47 @@ function AdminUsers() {
                           </td>
                           <td>
                             <div className="user-action-group">
-                              <button className={`user-action-btn ${p.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(p.id)}>{p.is_active ? "Deactivate" : "Activate"}</button>
                               <button
-                                className="user-action-btn"
+                                className={`user-icon-btn ${p.is_active ? "user-icon-btn-deactivate" : "user-icon-btn-activate"}`}
+                                onClick={() => handleToggleClick(p)}
+                                disabled={!!restrictedReason || togglingId === p.id}
+                                title={restrictedReason || (p.is_active ? "Deactivate" : "Activate")}
+                                aria-label={p.is_active ? "Deactivate" : "Activate"}
+                              >
+                                {p.is_active ? <BanIcon /> : <CheckCircleIcon />}
+                              </button>
+                              <button
+                                className="user-icon-btn user-icon-btn-reset-password"
                                 onClick={() => setResetTarget(p)}
-                                disabled={p.id === currentUser?.id}
-                                title={p.id === currentUser?.id ? "Use Change Password in your own account settings instead" : undefined}
+                                disabled={!!restrictedReason}
+                                title={restrictedReason || "Reset Password"}
+                                aria-label="Reset Password"
                               >
-                                Reset Password
+                                <KeyIcon />
                               </button>
                               <button
-                                className="user-action-btn"
+                                className="user-icon-btn user-icon-btn-reset-2fa"
                                 onClick={() => setTwoFATarget(p)}
-                                disabled={p.id === currentUser?.id}
-                                title={p.id === currentUser?.id ? "You can't reset your own 2FA this way" : "Clears their authenticator setup — use if they lost their device or QR code"}
+                                disabled={!!restrictedReason}
+                                title={restrictedReason || "Reset 2FA — clears their authenticator setup, use if they lost their device or QR code"}
+                                aria-label="Reset 2FA"
                               >
-                                Reset 2FA
+                                <ShieldIcon />
                               </button>
-                              <button className="user-action-btn user-action-delete" onClick={() => deleteUser(p.id)}>Delete</button>
+                              <button
+                                className="user-icon-btn user-icon-btn-delete"
+                                onClick={() => setDeleteTarget(p)}
+                                disabled={!!deleteRestrictedReason}
+                                title={deleteRestrictedReason || "Delete"}
+                                aria-label="Delete"
+                              >
+                                <TrashIcon />
+                              </button>
                             </div>
                           </td>
                         </tr>
-                      ))
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -517,12 +730,12 @@ function AdminUsers() {
               <div className="table-responsive">
                 <table className="table table-bordered table-striped align-middle announcement-table">
                   <colgroup>
-                    <col style={{ width: "8%" }} />
-                    <col style={{ width: "20%" }} />
-                    <col style={{ width: "28%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "12%" }} />
-                    <col style={{ width: "20%" }} />
+                    <col style={{ width: "5%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "26%" }} />
+                    <col style={{ width: "15%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "22%" }} />
                   </colgroup>
                   <thead>
                     <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr>
@@ -542,14 +755,25 @@ function AdminUsers() {
                           <td><StatusBadge active={a.is_active} /></td>
                           <td>
                             <div className="user-action-group">
-                              <button className="user-action-btn user-action-view" onClick={() => setViewApplicant(a)}>View</button>
-                              <button className={`user-action-btn ${a.is_active ? "user-action-deactivate" : "user-action-activate"}`} onClick={() => toggleStatus(a.id)}>{a.is_active ? "Deactivate" : "Activate"}</button>
+                              <button className="user-icon-btn user-icon-btn-view" onClick={() => setViewApplicant(a)} title="View" aria-label="View">
+                                <EyeIcon />
+                              </button>
                               <button
-                                className="user-action-btn"
-                                onClick={() => setTwoFATarget(a)}
-                                title="Clears their authenticator setup — use if they lost their device or QR code"
+                                className={`user-icon-btn ${a.is_active ? "user-icon-btn-deactivate" : "user-icon-btn-activate"}`}
+                                onClick={() => handleToggleClick(a)}
+                                disabled={togglingId === a.id}
+                                title={a.is_active ? "Deactivate" : "Activate"}
+                                aria-label={a.is_active ? "Deactivate" : "Activate"}
                               >
-                                Reset 2FA
+                                {a.is_active ? <BanIcon /> : <CheckCircleIcon />}
+                              </button>
+                              <button
+                                className="user-icon-btn user-icon-btn-reset-2fa"
+                                onClick={() => setTwoFATarget(a)}
+                                title="Reset 2FA — clears their authenticator setup, use if they lost their device or QR code"
+                                aria-label="Reset 2FA"
+                              >
+                                <ShieldIcon />
                               </button>
                             </div>
                           </td>
@@ -632,6 +856,60 @@ function AdminUsers() {
                 </button>
                 <button type="button" className="btn btn-custom" onClick={confirmResetTwoFA} disabled={resettingTwoFA}>
                   {resettingTwoFA ? "Resetting..." : "Yes, Reset 2FA"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deactivateTarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Deactivate Account?</h5>
+                <button type="button" className="btn-close" onClick={() => setDeactivateTarget(null)} disabled={deactivating} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  This will immediately lock {deactivateTarget.first_name} {deactivateTarget.last_name} ({deactivateTarget.email})
+                  out of their account. They won't be able to log in until an admin reactivates it.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setDeactivateTarget(null)} disabled={deactivating}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmDeactivate} disabled={deactivating}>
+                  {deactivating ? "Deactivating..." : "Yes, Deactivate"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Delete User?</h5>
+                <button type="button" className="btn-close" onClick={() => setDeleteTarget(null)} disabled={deleting} />
+              </div>
+              <div className="modal-body">
+                <p className="mb-0">
+                  This will permanently delete {deleteTarget.first_name} {deleteTarget.last_name}'s ({deleteTarget.email}) account.
+                  This action cannot be undone.
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button type="button" className="btn btn-secondary" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+                  Cancel
+                </button>
+                <button type="button" className="btn btn-danger" onClick={confirmDeleteUser} disabled={deleting}>
+                  {deleting ? "Deleting..." : "Yes, Delete"}
                 </button>
               </div>
             </div>

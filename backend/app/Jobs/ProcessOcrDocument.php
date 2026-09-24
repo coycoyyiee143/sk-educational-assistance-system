@@ -448,7 +448,7 @@ class ProcessOcrDocument implements ShouldQueue
 
             $application->user->notify(new ApplicationStatusNotification(
                 'Waitlisted',
-                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before the grace period ends."
+                "Your application met all requirements, but all slots for this period are currently filled. This does not guarantee a slot — you will only be approved if a slot opens up. If a slot opens, we will notify you before Late Claiming ends."
             ));
             return;
         }

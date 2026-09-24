@@ -11,39 +11,28 @@ use App\Models\ClaimingSchedule;
 use App\Models\StudentProfile;
 use App\Models\User;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Hash;
 
 class ClaimingFaceTestSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@skmamatid.com'],
-            [
-                'first_name'        => 'SK Admin',
-                'middle_name'       => 'Mamatid',
-                'last_name'         => 'Official',
-                'mobile_number'     => '09123456789',
-                'password'          => Hash::make('admin123'),
-                'role'              => 'sk_admin',
-                'is_active'         => true,
-                'email_verified_at' => now(),
-            ]
-        );
+        $admin = User::where('email', 'admin@skmamatid.com')->first();
+        if (!$admin) {
+            $this->command->error('Run OpeningDaySeeder first — it creates the admin/verifier accounts this seeder builds on top of.');
+            return;
+        }
 
-        User::firstOrCreate(
-            ['email' => 'verifier@skmamatid.com'],
-            [
-                'first_name'        => 'SK Verifier',
-                'middle_name'       => 'Mamatid',
-                'last_name'         => 'Official',
-                'mobile_number'     => '09876543210',
-                'password'          => Hash::make('verifier123'),
-                'role'              => 'sk_verifier',
-                'is_active'         => true,
-                'email_verified_at' => now(),
-            ]
-        );
+        // Deactivate whatever else was already active first — without
+        // this, running this seeder after another one that left a config
+        // active leaves TWO rows both is_active=true, which breaks the
+        // "the active config" assumption every
+        // ApplicationConfiguration::where('is_active', true)->first()/
+        // ->find() call in the app relies on. Only when actually creating
+        // a new row — firstOrCreate() finding an existing match here
+        // shouldn't touch anyone else's active state.
+        if (!ApplicationConfiguration::where('school_year', '2025-2026')->exists()) {
+            ApplicationConfiguration::where('is_active', true)->update(['is_active' => false]);
+        }
 
         $config = ApplicationConfiguration::firstOrCreate(
             ['school_year' => '2025-2026'],
@@ -66,10 +55,10 @@ class ClaimingFaceTestSeeder extends Seeder
             ['config_id' => $config->id],
             [
                 'location'              => 'Barangay Mamatid Covered Court',
-                'is_published'          => true,
-                'published_at'          => now()->subDays(2),
-                'grace_period_date'     => now()->addWeek()->startOfWeek()->addDay()->toDateString(),
-                'grace_period_end_date' => now()->addWeek()->startOfWeek()->addDays(5)->toDateString(),
+                'is_active'          => true,
+                'activated_at'          => now()->subDays(2),
+                'late_claiming_date'     => now()->addWeek()->startOfWeek()->addDay()->toDateString(),
+                'late_claiming_end_date' => now()->addWeek()->startOfWeek()->addDays(5)->toDateString(),
             ]
         );
 

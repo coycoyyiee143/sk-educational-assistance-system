@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
+use App\Models\FaceVerification;
 use Illuminate\Http\Request;
 
 class ApplicationController extends Controller
@@ -44,6 +45,18 @@ class ApplicationController extends Controller
         if (!$config->is_unlimited && $config->slots_filled >= $config->slot_limit) {
             return response()->json(['message' => 'No more slots available.'], 400);
         }
+
+        // Same gate as ProfileController::needsFaceReverify() — applying
+        // under a period is exactly the case this feature exists for, so
+        // it can't be bypassed by skipping the Profile page and applying
+        // directly. Frontend mirror lives in ApplicantSubmission.jsx.
+        $verification = FaceVerification::where('user_id', $request->user()->id)->first();
+        if (!$verification || $verification->verified_config_id !== $config->id) {
+            return response()->json([
+                'message' => 'Please re-verify your face for the current application period before applying.',
+            ], 403);
+        }
+
         $profile = $request->user()->profile;
         if (!$profile || !$profile->birthdate) {
             return response()->json([
@@ -109,7 +122,7 @@ class ApplicationController extends Controller
         \App\Models\AuditLog::record(
             'application_submitted',
             $application,
-            "You submitted an application."
+            "Submitted an application."
         );
         return response()->json([
             'message'     => 'Application submitted.',
@@ -179,6 +192,91 @@ class ApplicationController extends Controller
             'message'     => 'Application updated.',
             'application' => $application,
         ]);
+    }
+
+    // Lets an applicant formally request reconsideration of a rejected
+    // application. One-shot: appealed_at being already set blocks a second
+    // request for the same rejection — the applicant must wait for a
+    // verifier decision (see VerifierController::appealDecision()) rather
+    // than being able to resubmit indefinitely.
+    public function appeal(Request $request, $id)
+    {
+        $application = Application::where('id', $id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        if ($application->status !== 'rejected') {
+            return response()->json([
+                'message' => 'Only a rejected application can be appealed.',
+            ], 400);
+        }
+
+        if ($application->appealed_at) {
+            return response()->json([
+                'message' => 'You have already submitted an appeal for this application.',
+            ], 400);
+        }
+
+        $request->validate([
+            'reason'   => 'required|string',
+            'document' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:5120',
+        ]);
+
+        $updateData = [
+            'status'       => 'appeal_requested',
+            'appeal_reason' => $request->reason,
+            'appealed_at'  => now(),
+        ];
+
+        if ($request->hasFile('document')) {
+            $file     = $request->file('document');
+            $fileName = time() . '_' . $file->getClientOriginalName();
+            $updateData['appeal_document_path'] = $file->storeAs(
+                "documents/{$application->id}",
+                $fileName,
+                'local'
+            );
+        }
+
+        $application->update($updateData);
+
+        \App\Models\AuditLog::record(
+            'application_appeal_requested',
+            $application,
+            "Requested an appeal for application #{$application->id}. Reason: {$request->reason}"
+        );
+
+        return response()->json([
+            'message'     => 'Appeal submitted.',
+            'application' => $application,
+        ]);
+    }
+
+    /**
+     * Authenticated appeal-document streaming, same access rule as
+     * DocumentController::show(): owning applicant, sk_verifier, or
+     * sk_admin.
+     */
+    public function appealDocument(Request $request, $id)
+    {
+        $application = Application::findOrFail($id);
+
+        $user = $request->user();
+        $isOwner    = $user->id === $application->user_id;
+        $isVerifier = $user->role === 'sk_verifier';
+        $isAdmin    = $user->role === 'sk_admin';
+
+        if (!$isOwner && !$isVerifier && !$isAdmin) {
+            abort(403, 'You are not authorized to view this document.');
+        }
+
+        if (!$application->appeal_document_path || !\Illuminate\Support\Facades\Storage::disk('local')->exists($application->appeal_document_path)) {
+            abort(404, 'File not found.');
+        }
+
+        return \Illuminate\Support\Facades\Storage::disk('local')->response(
+            $application->appeal_document_path
+        );
     }
 
     public function claimingSchedule(Request $request)
