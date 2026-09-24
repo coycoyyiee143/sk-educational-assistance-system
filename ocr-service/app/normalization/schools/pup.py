@@ -1,5 +1,6 @@
 import re
 from typing import List
+from rapidfuzz import fuzz
 from app.models import OcrBlock
 from app.normalization.base_strategy import BaseSchoolStrategy
 
@@ -32,15 +33,36 @@ class PupStrategy(BaseSchoolStrategy):
         return blocks
 
     def _merge_institution_header(self, blocks: List[OcrBlock]) -> List[OcrBlock]:
-        header_parts = [
-            b for b in blocks
-            if b.text.strip().upper() in _INSTITUTION_KEYWORDS
-        ]
+        header_parts = [b for b in blocks if self._is_institution_keyword(b.text)]
         if len(header_parts) < 2:
             return blocks
 
         header_parts.sort(key=lambda b: b.y_center)
-        merged_text = " ".join(b.text.strip() for b in header_parts)
+        words = [b.text.strip() for b in header_parts]
+
+        # PUP's official name always has "of the" between "University" and
+        # "Philippines" -- but that connector is printed in a much smaller
+        # subscript font under the 3 big logo lines, and PaddleOCR often
+        # fails to detect it as a block AT ALL (not garbled -- just never
+        # produced), even on an otherwise decent, in-focus photo. Once
+        # we're confident this IS a PUP header (>=2 of its distinctive
+        # words matched above), splice the missing connector back in
+        # rather than let its mere absence drag an otherwise-correct
+        # header below fuzzy_match_school()'s pass threshold -- confirmed
+        # on a real PUP ID where "POLYTECHNIC UNIVERSITY PHILIPPINES"
+        # (every real word correct) scored only 79.3 without "of the",
+        # short of the required 85, purely because that one small line
+        # was never detected.
+        has_of = any(w.strip().upper() == "OF" for w in words)
+        has_the = any(w.strip().upper() == "THE" for w in words)
+        if not has_of and not has_the:
+            insert_at = next(
+                (i for i, w in enumerate(words) if w.strip().upper() == "PHILIPPINES"),
+                len(words),
+            )
+            words.insert(insert_at, "of the")
+
+        merged_text = " ".join(words)
         avg_conf = sum(b.confidence for b in header_parts) / len(header_parts)
 
         merged_block = OcrBlock(
@@ -55,6 +77,22 @@ class PupStrategy(BaseSchoolStrategy):
         remaining = [b for b in blocks if b not in header_parts]
         remaining.append(merged_block)
         return remaining
+
+    def _is_institution_keyword(self, text: str) -> bool:
+        cleaned = text.strip().upper()
+        if cleaned in _INSTITUTION_KEYWORDS:
+            return True
+        # Tolerate simple OCR spacing artifacts on the longer, distinctive
+        # keywords only -- confirmed on a real PUP ID reading "POLYTECHNIC"
+        # as "P OLYTECHNIC" (letters all correct, spurious space). Short
+        # filler words like "OF"/"THE" are excluded here since a fuzzy
+        # match against a 2-3 letter word is meaningless -- almost any
+        # short OCR noise scores high against them.
+        no_space = cleaned.replace(" ", "")
+        return any(
+            len(kw) >= 8 and fuzz.ratio(no_space, kw) >= 90
+            for kw in _INSTITUTION_KEYWORDS
+        )
 
     def _merge_name_above_student_number(self, blocks: List[OcrBlock]) -> List[OcrBlock]:
         # PUP prints the name as up to two stacked lines directly above the

@@ -194,8 +194,37 @@ def test_pup_merges_institution_header_split_across_lines():
     noise = block("eftf", x_min=0, y_min=75, x_max=50, y_max=95)
     merged = s.preprocess_blocks([b1, b2, b3, noise])
     merged_texts = [b.text for b in merged]
-    assert "POLYTECHNIC UNIVERSITY PHILIPPINES" in merged_texts
+    # "of the" is spliced in even though no block for it was detected --
+    # that connector is printed in a tiny subscript font PaddleOCR
+    # frequently misses entirely, and it's a fixed part of PUP's official
+    # name whenever the header's distinctive words are already present.
+    assert "POLYTECHNIC UNIVERSITY of the PHILIPPINES" in merged_texts
     assert "eftf" in merged_texts  # noise untouched, not part of institution header
+
+
+def test_pup_merge_tolerates_spacing_artifact_in_keyword():
+    s = PupStrategy()
+    # Confirmed on a real PUP School ID: "POLYTECHNIC" OCR'd with a
+    # spurious mid-word space ("P OLYTECHNIC") -- letters all correct,
+    # just split. Should still be recognized as the same keyword.
+    b1 = block("P OLYTECHNIC", x_min=0, y_min=0, x_max=100, y_max=20)
+    b2 = block("UNIVERSITY", x_min=0, y_min=25, x_max=100, y_max=45)
+    b3 = block("PHILIPPINES", x_min=0, y_min=50, x_max=100, y_max=70)
+    merged = s.preprocess_blocks([b1, b2, b3])
+    merged_texts = [b.text for b in merged]
+    assert "P OLYTECHNIC UNIVERSITY of the PHILIPPINES" in merged_texts
+
+
+def test_pup_merge_does_not_insert_of_the_when_already_present():
+    s = PupStrategy()
+    b1 = block("POLYTECHNIC", x_min=0, y_min=0, x_max=100, y_max=20)
+    b2 = block("UNIVERSITY", x_min=0, y_min=25, x_max=100, y_max=45)
+    b3 = block("OF", x_min=0, y_min=50, x_max=30, y_max=65)
+    b4 = block("THE", x_min=35, y_min=50, x_max=60, y_max=65)
+    b5 = block("PHILIPPINES", x_min=0, y_min=70, x_max=100, y_max=90)
+    merged = s.preprocess_blocks([b1, b2, b3, b4, b5])
+    merged_texts = [b.text for b in merged]
+    assert "POLYTECHNIC UNIVERSITY OF THE PHILIPPINES" in merged_texts
 
 
 def test_pup_header_merge_requires_at_least_two_keyword_blocks():

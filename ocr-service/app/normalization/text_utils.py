@@ -279,6 +279,27 @@ def fuzzy_match_school(extracted: str, expected: str, threshold: int = 85) -> di
     # a legitimate longer official-name variant.
     if len(e1) < 0.75 * len(e2):
         return {"score": 0, "passed": False}
+
+    # A short, acronym-length expected name (e.g. "NU", "PUP", "SVCC") has
+    # no distinguishing word for the guard below to check --
+    # _distinguishing_words() requires len>=3, and an acronym-only official
+    # name IS that one short word -- so without this branch the match
+    # would fall through to the raw partial_ratio/token_sort_ratio score
+    # alone. A 2-3 letter sequence is short enough to coincidentally align
+    # with a near-perfect score INSIDE a completely unrelated word or
+    # sentence: confirmed on a real PUP School ID where "NU" scored high
+    # enough to pass fuzzy_match_school() against ordinary course/degree
+    # boilerplate text that never mentioned NU anywhere, which then
+    # surfaced to a verifier as "Detected school appears to be NU." here
+    # matching one whole WORD in the extracted text closely enough --
+    # rather than letting the acronym align as a substring across a long,
+    # unrelated run of text -- keeps a genuine short match (e.g. an actual
+    # "NU" logo line) working while blocking that false positive.
+    if len(e2) <= 6:
+        tokens = [t for t in e1.split() if t]
+        token_score = max((fuzz.ratio(t, e2) for t in tokens), default=0)
+        return {"score": token_score, "passed": token_score >= threshold}
+
     score = max(fuzz.token_sort_ratio(e1, e2), fuzz.partial_ratio(e1, e2))
 
     # Stylized/logo-style header text (school names in particular) often

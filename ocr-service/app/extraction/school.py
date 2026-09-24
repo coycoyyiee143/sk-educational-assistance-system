@@ -116,9 +116,33 @@ def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declare
         if other_result and (detected_result is None or other_result.confidence > detected_result.confidence):
             detected_school, detected_result = other_school, other_result
 
+    # best_score lets callers (see _check_school's flag_reason wording)
+    # distinguish "this text is genuinely close to the declared school,
+    # just short of the pass bar" from "this is just whichever unrelated
+    # text happened to score least-badly" -- declared_best_block is
+    # whatever scored HIGHEST even when that's nowhere close, e.g. a
+    # course-description line scoring ~38 purely from incidental shared
+    # words like "of" (confirmed on a real PUP School ID where OCR missed
+    # the header almost entirely). Without this, a caller has no way to
+    # tell a near-miss from a coincidence and risks calling the latter
+    # "text resembling" the school, which overstates how close it is.
+    best_score = (
+        fuzzy_match_school(declared_best_block.text, declared_school)["score"]
+        if declared_best_block else 0
+    )
+
     return ExtractionResult(
         value=declared_best_block.text if declared_best_block else None,
         raw=declared_best_block.text if declared_best_block else None,
         method="none", confidence=0.0, context='school mismatch', found=False,
-        metadata={"detected_school": detected_school} if detected_school else {},
+        metadata={
+            **({"detected_school": detected_school} if detected_school else {}),
+            # Lets shared.py's _check_school_or_reupload() gate a confident
+            # different-school detection the same way name_mismatch gates
+            # on CONFIDENT_MISMATCH_THRESHOLD -- a detected_school alone
+            # only means it passed its own 85 fuzzy-score threshold, not
+            # that the underlying OCR read was itself reliable.
+            **({"detected_confidence": detected_result.confidence} if detected_result else {}),
+            "best_score": best_score,
+        },
     )

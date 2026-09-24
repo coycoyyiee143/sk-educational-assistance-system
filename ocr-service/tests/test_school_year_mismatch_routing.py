@@ -51,7 +51,12 @@ def make_blocks_with_year_in_top_half(year_line_block):
     # regardless of its actual y value.
     return [
         block("Republic of the Philippines", 0.95, y=0),
-        block("Pamantasan ng Cabuyao", 0.95, y=40),
+        # Deliberately NOT a real registered school's name here -- these
+        # tests are about school-YEAR routing, and a real school name in
+        # generic filler would (correctly) trip the separate
+        # institution_mismatch confident-different-school gate whenever
+        # the declared_school below isn't this one.
+        block("Office of the Registrar", 0.95, y=40),
         block("Registration Form", 0.95, y=80),
         block("Name: Juan Dela Cruz", 0.95, y=120),
         year_line_block,

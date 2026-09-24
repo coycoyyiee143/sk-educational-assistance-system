@@ -155,3 +155,22 @@ def test_san_isidro_multiword_barangay_still_works():
     result = extract_barangay(blocks)
     assert result.found is False
     assert "San Isidro" in result.context
+
+
+def test_contradiction_populates_value_not_just_context():
+    # A SUGGESTED_DISAPPROVAL contradiction used to leave value/raw as
+    # None (via extraction_failed()), so a verifier saw "not extracted"
+    # in the EXTRACTED VALUE column even though the flag_reason clearly
+    # named the detected barangay -- confusing, since the information
+    # was right there just not surfaced in the right field. The detected
+    # barangay must now show up as `value` too, on both the
+    # "Barangay:"-labeled path and the unanchored whole-page fallback.
+    labeled = [block("Barangay: Banlic, Cabuyao, Laguna")]
+    result = extract_barangay(labeled)
+    assert result.found is False
+    assert result.value == "Banlic"
+
+    unanchored = [block("Address: Purok 3, Brgy. Banlic, Cabuyao")]
+    result2 = extract_barangay(unanchored)
+    assert result2.found is False
+    assert result2.value == "Banlic"

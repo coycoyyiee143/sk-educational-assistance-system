@@ -1,6 +1,6 @@
 # app/verification/school_id.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions
-from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name_or_reupload, _check_school
+from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name_or_reupload, _check_school_or_reupload
 from app.upload_checks.image_quality_check import check_image_quality
 from app.upload_checks.skew_check import check_skew
 from app.utils.spatial import get_blocks_in_region
@@ -94,10 +94,23 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
         expected_name = f"{first_name} {middle_name} {last_name}".strip()
         name_result = _flag("identity_match", name_result["reason"], expected=expected_name)
 
-    institution_check = _check_school(blocks, page_w, page_h, declared_school)
+    institution_tag, institution_result = _check_school_or_reupload(blocks, page_w, page_h, declared_school)
+    if institution_tag == "auto_reupload":
+        gate_result = {
+            "document": "school_id",
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": institution_result["category"],
+            "auto_reupload_reason": institution_result["reason"],
+        }
+        if not debug:
+            return gate_result
+        gate_failures.append(gate_result)
+        institution_result = _flag("institution_match", institution_result["reason"], expected=declared_school)
+
     checks = {
         "identity_match":    name_result,
-        "institution_match": institution_check,
+        "institution_match": institution_result,
     }
 
     template_strategy = get_template_strategy(declared_school, "school_id")

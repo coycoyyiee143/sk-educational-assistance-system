@@ -58,3 +58,37 @@ def test_legitimate_longer_official_name_variant_still_passes():
     # it only blocks reads that are TOO SHORT relative to expected.
     result = fuzzy_match_school("Pamantasan ng Cabuyao University", "Pamantasan ng Cabuyao")
     assert result["passed"] is True
+
+
+# Same false-positive class as the "Pamantasan" bug above, but for a
+# SHORT, acronym-only expected name (e.g. "NU"). _distinguishing_words()
+# only kicks in for words >=3 chars, so a 2-letter acronym never gets that
+# extra guard and previously fell through to a raw partial_ratio score --
+# short enough to coincidentally align with a near-perfect score inside
+# completely unrelated text. Confirmed on a real PUP School ID, where
+# extract_school()'s "which OTHER school does this look like" fallback
+# reported "Detected school appears to be NU" purely from ordinary
+# course/degree boilerplate text that never mentioned NU anywhere.
+
+def test_short_acronym_does_not_falsely_match_unrelated_text():
+    result = fuzzy_match_school(
+        "Bachelor of Science in Information Technology continued", "NU"
+    )
+    assert result["passed"] is False
+
+
+def test_short_acronym_does_not_falsely_match_other_school_header():
+    result = fuzzy_match_school("POLYTECHNIC UNIVERSITY OF THE PHILIPPINES", "NU")
+    assert result["passed"] is False
+
+
+def test_short_acronym_still_matches_as_its_own_word():
+    # A genuine, isolated read of the acronym itself (e.g. an actual "NU"
+    # logo line) must still pass.
+    result = fuzzy_match_school("NU", "NU")
+    assert result["passed"] is True
+
+
+def test_short_acronym_still_matches_among_other_words():
+    result = fuzzy_match_school("NATIONAL UNIVERSITY NU MANILA", "NU")
+    assert result["passed"] is True

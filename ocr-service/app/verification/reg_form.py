@@ -1,6 +1,6 @@
 # app/verification/reg_form.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions, extract_school_year
-from app.verification.shared import CONFIDENCE_THRESHOLD, RAW_FIELD_CONFIDENCE_FLOOR, _pass, _flag, _check_name_or_reupload, _check_school
+from app.verification.shared import CONFIDENCE_THRESHOLD, RAW_FIELD_CONFIDENCE_FLOOR, _pass, _flag, _check_name_or_reupload, _check_school_or_reupload
 from app.upload_checks.document_type_check import check_document_type
 from app.upload_checks.image_quality_check import check_image_quality
 from app.upload_checks.skew_check import check_skew
@@ -99,9 +99,23 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
         expected_name = f"{first_name} {middle_name} {last_name}".strip()
         name_result = _flag("identity_match", name_result["reason"], expected=expected_name)
 
+    institution_tag, institution_result = _check_school_or_reupload(blocks, page_w, page_h, declared_school)
+    if institution_tag == "auto_reupload":
+        gate_result = {
+            "document": "registration_form",
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": institution_result["category"],
+            "auto_reupload_reason": institution_result["reason"],
+        }
+        if not debug:
+            return gate_result
+        gate_failures.append(gate_result)
+        institution_result = _flag("institution_match", institution_result["reason"], expected=declared_school)
+
     checks = {
         "identity_match": name_result,
-        "institution_match": _check_school(blocks, page_w, page_h, declared_school)
+        "institution_match": institution_result,
     }
     sy_res = extract_school_year(blocks, page_w, page_h, declared_school, configured_school_year)
 

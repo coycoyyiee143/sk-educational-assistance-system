@@ -6,7 +6,16 @@ from app.utils.spatial import get_block_to_right, get_block_below, get_block_abo
 
 FIELD_KEYWORDS = {
     "name": ["student name", "name of student", "name", "name of voter", "voter's name", "voters name", "apellido"],
-    "school_year": ["school year", "s.y.", "sy", "academic year", "a.y.", "ay", "sch. yr.", "sch yr", "school year sem"],
+    # Ordered longest/most-distinctive first on purpose (see
+    # find_label_block's docstring) -- confirmed on a real UPHSD
+    # Registration Form where this list's OLD order let the 2-letter "sy"
+    # keyword match a standalone "SY" inside "ARAAS SY" (garbled OCR noise
+    # near the page's logo/motto area) before ever reaching the actual
+    # "Sch.Yr." label further down, locking the whole field onto the wrong
+    # block. "s.y."/"a.y."/"ay"/"sy" are short enough to coincidentally
+    # match noise or unrelated text, so they're tried last, only once every
+    # longer, more specific label has already had its chance.
+    "school_year": ["school year sem", "school year", "academic year", "sch. yr.", "sch yr", "s.y.", "a.y.", "ay", "sy"],
     "barangay": ["barangay", "brgy", "brgy.", "precinct"],
     "date_issued": ["date issued", "date of issuance", "issuance date", "issued"],
 }
@@ -24,9 +33,19 @@ def find_label_block(blocks: List[OcrBlock], field_name: str) -> Optional[OcrBlo
     keywords = FIELD_KEYWORDS.get(field_name, [])
 
     for kw in keywords:
+        # Whitespace-insensitive fallback for abbreviated, period-heavy
+        # labels -- confirmed on a real UPHSD Registration Form reading
+        # "Sch.Yr." with no space before "Yr.", which the space-containing
+        # "sch. yr." keyword entry never matched at all (not a wrong-value
+        # problem -- the label itself was never found, so this field fell
+        # straight through to the page-wide fallback scan). Comparing with
+        # spaces stripped from both sides catches that without having to
+        # enumerate every spacing permutation of every abbreviation.
+        kw_nospace = kw.replace(' ', '')
         for block in blocks:
             t = block.text.lower().strip().rstrip(':').strip()
-            if t == kw or (len(kw) > 3 and kw in t):
+            t_nospace = t.replace(' ', '')
+            if t == kw or (len(kw) > 3 and (kw in t or kw_nospace in t_nospace)):
                 return block
             if len(kw) <= 3 and re.search(r'\b' + re.escape(kw) + r'\b', t):
                 return block

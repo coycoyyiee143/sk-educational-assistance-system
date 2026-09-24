@@ -4,11 +4,10 @@ This is the single source of truth for how the system decides whether a
 document verification problem gets **auto-reupload** (system asks the
 applicant to try again, no human involved) or **verifier routing**
 (a human SK verifier has to look at it). Status: low-quality /
-wrong-document-type / wrong-cert-year / **name_mismatch** are all
-implemented. `institution_mismatch` (school) is blocked on missing
-extraction infrastructure — see its own section below. Guardian/minor
-handling is implemented (partly pre-existing, partly added alongside
-name_mismatch) — see that section for what's what.
+wrong-document-type / wrong-cert-year / **name_mismatch** /
+**institution_mismatch** are all implemented. Guardian/minor handling is
+implemented (partly pre-existing, partly added alongside name_mismatch) —
+see that section for what's what.
 
 If a defense panel asks "why doesn't the system just reject automatically"
 or "why does a human have to look at this one," the answer is always one
@@ -49,7 +48,7 @@ of the two principles below.
 | Cert year wrong, **high OCR confidence only** (≥0.9) | **Auto-reupload** (`wrong_cert_year`) | 3 tries | Only short-circuits when the read is confident; a low-confidence or not-found year falls through to the ambiguous case below instead |
 | School year wrong, **confident, on an allowlisted school** (Pamantasan ng Cabuyao / University of Cabuyao, STI College Calamba, PUP) | **Auto-reupload** (`wrong_school_year`) — implemented | 3 tries | See "School year auto-reupload" section below — scoped per-school, not a blanket confidence gate |
 | Name on document confidently doesn't match applicant (label found, OCR read reliable, no match anywhere on the page) | **Auto-reupload** (`name_mismatch`) — implemented | 3 tries | Same class of mistake as wrong-document-type: most likely explanation is the applicant mistakenly uploaded someone else's or an old document |
-| School/institution on document confidently doesn't match declared school | **Blocked — see Known Limitations** (`institution_mismatch`) | 3 tries (reserved, unused) | `extract_school()` has no keyword-label anchoring, so there's no way yet to distinguish a confident mismatch from "nothing matched" — see below |
+| School/institution on document confidently identified as a DIFFERENT, known school (not just "no match") | **Auto-reupload** (`institution_mismatch`) — implemented | 3 tries | See "Institution mismatch auto-reupload" section below — deliberately narrower than name_mismatch: does NOT cover "nothing found" or "no confident match to anything," only a positively identified different school |
 | Guardian name on voter's certificate confidently doesn't match guardian on file (minor applicants only) | **Auto-reupload** (`name_mismatch`, guardian variant) — implemented | 3 tries | Same identity-mismatch logic, just checked against guardian instead of applicant |
 | Name/school/guardian-name match is ambiguous — no label found at all, OR OCR confidence on the label/value is weak, OR similarity score is borderline | **Verifier** | Uncapped | Genuinely unsure whether it's a real mismatch or just a bad scan of the right document — a human has to make the call |
 | School year not found/low-confidence, or wrong on a non-allowlisted school (SVCC, PUP, UPHSD); cert year low-confidence or not-found | **Verifier** (existing design) | Uncapped | See "School year auto-reupload" section for why these schools aren't allowlisted yet |
@@ -274,26 +273,52 @@ flagging here so it isn't mistaken for intentional.
 
 
 
-Unlike name matching, `extract_school()` (`ocr-service/app/extraction/school.py`)
-has **no keyword-label search at all** — no equivalent of name's
-"Name:" text-anchoring. It only does positional matching (header
-region, then whole-page pattern scan). When it doesn't find a match,
-it always returns the same generic `method: "none"`, `confidence: 0.0`
-result, regardless of whether the document confidently shows a
-*different* school or simply has no readable school text at all.
-There is currently no way to tell those two cases apart.
+## Institution mismatch auto-reupload (`institution_mismatch`) — implemented, deliberately narrow
 
-Building `institution_mismatch` on top of that today would either
-silently never fire (since confidence is always 0.0 on a non-match, it
-would never clear `CONFIDENT_MISMATCH_THRESHOLD`), or require guessing
-at a different, unvalidated signal. Real fix: add a keyword-anchored
-extraction path to `school.py` (a `"school"` entry in
-`FIELD_KEYWORDS`, similar to how `"name"` works in
-`keyword_engine.py`), which is new extraction work, not a
-`shared.py`/routing change. `institution_mismatch` stays in
-`config/document_verification.php`'s `capped_categories` list — it's
-harmless to leave configured now, it simply won't be produced by
-anything until this extraction work is done.
+`extract_school()` (`ocr-service/app/extraction/school.py`) has no
+keyword-label search the way name matching does — no equivalent of
+"Name:" text-anchoring. It only does positional matching (header region,
+then whole-page pattern scan, then a header-join fallback). This was
+previously the reason `institution_mismatch` was blocked entirely: on a
+non-match, `extract_school()` always returned the same generic
+`method: "none"`, `confidence: 0.0` result, with no way to tell "the page
+confidently shows a *different* school" from "there's no readable school
+text at all."
+
+That gap was closed, originally for an unrelated bug fix: `extract_school()`
+already runs the identical 3-tier search against every OTHER known school
+when the declared one doesn't match (built to catch a real false-positive
+where a 2-letter acronym like "NU" coincidentally matched unrelated
+boilerplate text — see the `fuzzy_match_school()` short-name fix below).
+That search only reports a `detected_school` when the other school
+independently clears its own 85-similarity threshold — a genuine positive
+identification, not a guess. Its own OCR+similarity confidence
+(`detected_confidence`) was then exposed in `extract_school()`'s metadata
+specifically to support this feature.
+
+**What's implemented:** `shared.py::_check_school_or_reupload()` (renamed
+from `_check_school`) auto-reuploads only when `detected_school` is set
+AND `detected_confidence >= CONFIDENT_MISMATCH_THRESHOLD` (reuses 0.75,
+same reasoning as the name-mismatch tier — see Thresholds section).
+Everything else — nothing found at all, or a low-scoring/ambiguous best
+guess that doesn't confidently identify any specific other school — stays
+verifier-routed exactly as before. This is deliberately **narrower** than
+`name_mismatch`, which also auto-reuploads on a true zero-match
+(`name_not_detected`); no equivalent "nothing found" tier was added for
+school, since there's no way to distinguish a wrong upload from a
+genuinely bad scan of the right document once nothing else registers
+either.
+
+**Worked example of what still correctly stays verifier-routed:** a real
+UPHSD Registration Form whose header OCR'd as "CALAMBA SOUTHERN
+UNIVERSITY" — 99.6% OCR confidence, but not a match (confident or
+otherwise) to any known registered school, including the declared one.
+High confidence in the *read* doesn't mean high confidence in what it
+*means* — the system can't tell whether this is a misread of a genuinely
+correct UPHSD document or an actually-wrong upload, so per the core
+principle (#3, ambiguous cases route to a human), it stays a verifier
+call. `institution_mismatch` auto-reupload would not, and should not,
+fire here.
 
 **Separate bug found and fixed while investigating this:**
 `fuzzy_match_school()` (`ocr-service/app/normalization/text_utils.py`)

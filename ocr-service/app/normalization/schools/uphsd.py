@@ -92,11 +92,23 @@ class UphsdStrategy(BaseSchoolStrategy):
         def is_course_line(b: OcrBlock) -> bool:
             return _text_has_keyword(b.text, _COURSE_LINE_KEYWORDS)
 
+        # Upper bound confirmed against a real UPHSD School ID
+        # (test_uphsd_bottom_name_merge_keeps_surname_when_given_name_splits_in_two):
+        # the surname/given-name rows span up to ~3.3x anchor.height below
+        # the student number, so 4x leaves margin without being so loose it
+        # sweeps in unrelated content further down. Without ANY upper bound
+        # here, this swept up virtually the entire rest of a Registration
+        # Form below the same student-number-shaped pattern (which also
+        # appears there) -- confirmed merging 150+ blocks, including the
+        # whole subject/grades table, into one 2000+ character block that
+        # then broke identity/school-year/institution extraction alike. A
+        # School ID has nothing meaningful below the name, so this bound is
+        # a no-op there.
         candidates = [
             b for b in blocks
             if b is not anchor
             and not is_course_line(b)
-            and b.y_center >= anchor.y_center - anchor.height
+            and anchor.y_center - anchor.height <= b.y_center <= anchor.y_center + anchor.height * 4
         ]
         if len(candidates) < 2:
             return blocks

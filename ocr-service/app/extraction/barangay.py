@@ -113,9 +113,15 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
         
         for brgy in known_laguna_barangays:
             if brgy != "mamatid" and _contains_word(raw_lower, brgy):
-                return extraction_failed(
-                    "barangay",
-                    f"Contradiction: Detected residency layout pointing to Brgy. {brgy.title()}.",
+                # value/raw carry the actually-detected barangay (not None,
+                # which extraction_failed() would otherwise force) so a
+                # verifier sees "Banlic" in EXTRACTED VALUE instead of
+                # "not extracted" -- the flag_reason already names it, but
+                # that shouldn't be the ONLY place it shows up.
+                return ExtractionResult(
+                    value=brgy.title(), raw=raw, method="keyword", confidence=combined_confidence,
+                    context=f"Contradiction: Detected residency layout pointing to Brgy. {brgy.title()}.",
+                    found=False,
                     metadata={"flag": "SUGGESTED_DISAPPROVAL", "bbox": [target_block.x_min, target_block.y_min, target_block.x_max, target_block.y_max]}
                 )
 
@@ -143,9 +149,12 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
 
         for brgy in known_laguna_barangays:
             if brgy != "mamatid" and _contains_word(txt_lower, brgy):
-                return extraction_failed(
-                    "barangay",
-                    f"Contradiction: Detected residency layout pointing to Brgy. {brgy.title()}.",
+                # See the anchored-match branch above for why value/raw
+                # carry the detected barangay instead of None here.
+                return ExtractionResult(
+                    value=brgy.title(), raw=block.text, method="pattern_scan", confidence=block.confidence,
+                    context=f"Contradiction: Detected residency layout pointing to Brgy. {brgy.title()}.",
+                    found=False,
                     metadata={"flag": "SUGGESTED_DISAPPROVAL", "bbox": [block.x_min, block.y_min, block.x_max, block.y_max]}
                 )
             

@@ -112,8 +112,30 @@ def run_ocr(image_path: str) -> list:
             # this retry exists for (a doc where enhancement is a genuine
             # net win) while blocking one where it plainly isn't.
             REGRESSION_TOLERANCE = 0.05
+
+            # MIN_TRIGGER_TOLERANCE is deliberately much tighter than
+            # REGRESSION_TOLERANCE above -- confirmed on a real PUP School
+            # ID where avg_conf was already 0.9108 (comfortably above the
+            # 0.85 "reads fine overall" bar) and only a single decorative
+            # slogan line ("The Country's 1st Polytechnic U", 0.595)
+            # tripped the min_conf<0.65 retry. The enhanced pass nudged
+            # that one line's confidence up but, in the process, garbled
+            # the institution header from a clean "POLYTECHNIC" /
+            # "UNIVERSITY" / "PHILIPPINES" (0.94-0.98 each, a passing
+            # institution_match) into "P OLYTECHNIC" / "UNIvERSIty" /
+            # "Pattirrines" (a failing one) -- yet avg_conf only dropped to
+            # 0.8937, a 0.017 drop that sailed under the 0.05 tolerance
+            # and let the swap through anyway. When the document already
+            # reads well overall, the min-triggered retry is almost always
+            # chasing a low-value line (decorative text, a watermark) --
+            # there's little to gain and, as here, real already-good
+            # content to lose, so barely any regression should be
+            # tolerated before assuming the swap did collateral damage
+            # elsewhere.
+            MIN_TRIGGER_TOLERANCE = 0.01
+
             improved_avg = avg_conf < 0.85 and avg2 > avg_conf and min2 >= min_conf - REGRESSION_TOLERANCE
-            improved_min = min_conf < 0.65 and min2 > min_conf and avg2 >= avg_conf - REGRESSION_TOLERANCE
+            improved_min = min_conf < 0.65 and min2 > min_conf and avg2 >= avg_conf - MIN_TRIGGER_TOLERANCE
 
             if improved_avg or improved_min:
                 extracted = extracted2

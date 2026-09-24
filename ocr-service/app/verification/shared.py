@@ -24,6 +24,15 @@ NAME_SCHOOL_CONFIDENCE_FLOOR = 0.65
 # here (not a no-op like it would be for the name/school floor above).
 RAW_FIELD_CONFIDENCE_FLOOR = 0.5
 
+# Minimum raw fuzzy_match_school() score (0-100, the pass bar is 85) for
+# _check_school's flag_reason to describe the best-guess text as
+# "resembling" the declared school. Below this, the "best" candidate is
+# just whichever unrelated text happened to score least-badly (confirmed
+# on a real PUP School ID where a course-description line scored ~38
+# purely off incidental shared words like "of") -- not a genuine near-miss,
+# so it shouldn't be described as one.
+SCHOOL_RESEMBLANCE_SCORE_FLOOR = 65
+
 # The category name emitted for a confident name mismatch. Must match
 # whatever config/document_verification.php lists in capped_categories
 # on the Laravel side -- kept as a constant here (used once, below)
@@ -31,6 +40,11 @@ RAW_FIELD_CONFIDENCE_FLOOR = 0.5
 # AUTO_REUPLOAD_VERIFICATION_RULES.md for why. If you rename this,
 # also update the matching entry in document_verification.php.
 NAME_MISMATCH_CATEGORY = "name_mismatch"
+
+# Same convention as NAME_MISMATCH_CATEGORY above. Already reserved
+# (unused, until now) in config/document_verification.php's
+# capped_categories -- see AUTO_REUPLOAD_VERIFICATION_RULES.md.
+INSTITUTION_MISMATCH_CATEGORY = "institution_mismatch"
 
 # Threshold for treating a "found a Name field, but it doesn't match
 # this applicant" read as confident enough to auto-reupload rather
@@ -137,25 +151,88 @@ def _check_name(blocks, page_w, page_h, first_name, middle_name, last_name):
         return _pass("name_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=expected_name)
     return _flag("name_match", res.context, extracted=res.value, raw=res.raw, expected=expected_name)
 
-def _check_school(blocks, page_w, page_h, declared_school):
+def _check_school_or_reupload(blocks, page_w, page_h, declared_school):
+    """
+    Same underlying extraction as the old _check_school, but splits out a
+    CONFIDENT MISMATCH auto_reupload-eligible tier the same way
+    _check_name_or_reupload does for names:
+
+    - CONFIDENT MISMATCH: a DIFFERENT, known school was positively
+      identified on the page — it already independently passed its own
+      85-similarity fuzzy-match threshold (see extract_school()'s
+      "which OTHER school is this" search), AND that detection's own
+      blended OCR+similarity confidence clears CONFIDENT_MISMATCH_THRESHOLD.
+      Most likely an honest mistaken upload (wrong file, a sibling's
+      document from a different school).
+    - AMBIGUOUS (everything else — nothing found at all, or a low-scoring/
+      not-confidently-a-different-school best guess): stays verifier-routed,
+      unchanged from before. Deliberately does NOT cover "nothing found" the
+      way name's NOT_DETECTED tier does — confirmed on a real UPHSD
+      Registration Form where the header OCR'd as "CALAMBA SOUTHERN
+      UNIVERSITY" (high confidence, but not a match to any known school,
+      confident or otherwise): the system genuinely can't tell a misread of
+      the right document from an actually-wrong one there, so it has to stay
+      a human call.
+
+    See AUTO_REUPLOAD_VERIFICATION_RULES.md for the full reasoning.
+
+    Returns a tuple: ("auto_reupload", {"category": ..., "reason": ...})
+    or ("check", check_dict) — callers branch on the first element, same
+    contract as _check_name_or_reupload.
+    """
     res = extract_school(blocks, page_w, page_h, declared_school)
     if res.found and res.confidence < NAME_SCHOOL_CONFIDENCE_FLOOR:
-        return _flag(
+        return "check", _flag(
             "school_match",
             f"School text matched, but the OCR read itself was low-confidence ({res.confidence:.2f}) — please verify manually.",
             extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=declared_school,
         )
     if res.found:
-        return _pass("school_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=declared_school)
-    # Verifier-facing only (stored straight into VerificationCheck.flag_reason,
-    # never routed through the applicant-facing auto_reupload flow — see
-    # school_id.py/reg_form.py, both always treat this as a "check"), so this
-    # stays a factual observation for the reviewer, not an applicant
-    # instruction like "please upload again".
+        return "check", _pass("school_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=declared_school)
+
+    # Three distinct cases, not two -- "no matching school name was found"
+    # is only true when nothing on the page scored high enough against
+    # ANY school to even guess from (res.value is None). When res.value
+    # IS set but didn't pass, extract_school() found text that at least
+    # resembles the declared school (e.g. "POLYTECHINIC of the
+    # PHILIPPINES" -- clearly PUP's header, just missing "University"
+    # because OCR dropped that one line) and it's simply not confident
+    # enough to auto-confirm. Blaming "no matching school name" on that
+    # reads as if the page had nothing to do with the declared school at
+    # all, which is misleading and makes an easy verifier call sound like
+    # a bigger problem than it is.
     detected_school = res.metadata.get("detected_school") if res.metadata else None
-    reason = (
-        f"Detected school appears to be {detected_school}, not the declared {declared_school}."
-        if detected_school
-        else f"Could not confirm this is a {declared_school} document — no matching school name was found on the page."
-    )
-    return _flag("school_match", reason, extracted=res.value, raw=res.raw, expected=declared_school, metadata=res.metadata)
+    detected_confidence = res.metadata.get("detected_confidence", 0.0) if res.metadata else 0.0
+
+    if detected_school and detected_confidence >= CONFIDENT_MISMATCH_THRESHOLD:
+        return "auto_reupload", {
+            "category": INSTITUTION_MISMATCH_CATEGORY,
+            "reason": (
+                f"The school shown on this document doesn't match your declared school "
+                f"({declared_school}) — it appears to be {detected_school} instead. Please "
+                f"make sure you're uploading the correct document and try again."
+            ),
+        }
+
+    # res.value is whatever scored HIGHEST against the declared school even
+    # when that's nowhere close (e.g. a course-description line scoring
+    # ~38 purely off incidental shared words like "of") -- calling that
+    # "text resembling" the school overstates it just as much as claiming
+    # nothing was found at all. Only phrase it that way once the score is
+    # genuinely in "close, just short of the 85 pass bar" territory;
+    # below that, it's a coincidence, not a near-miss, so it falls back to
+    # the plain "nothing found" wording.
+    best_score = res.metadata.get("best_score", 0) if res.metadata else 0
+    if detected_school:
+        # Passed its own 85 threshold but the DETECTION's own confidence
+        # was too weak to trust for auto-reupload (see the gate above) --
+        # still worth naming for the verifier, just not auto-actionable.
+        reason = f"Detected school appears to be {detected_school}, not the declared {declared_school}."
+    elif res.value and best_score >= SCHOOL_RESEMBLANCE_SCORE_FLOOR:
+        reason = (
+            f"Found text resembling {declared_school} on the page (\"{res.value}\"), "
+            f"but not confidently enough to auto-confirm — needs verifier confirmation."
+        )
+    else:
+        reason = f"Could not confirm this is a {declared_school} document — no matching school name was found on the page."
+    return "check", _flag("school_match", reason, extracted=res.value, raw=res.raw, expected=declared_school, metadata=res.metadata)
