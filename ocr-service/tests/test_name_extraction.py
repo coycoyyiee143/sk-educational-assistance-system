@@ -96,6 +96,21 @@ def test_extract_adjacent_name_lines_skips_noise_label_between_lines():
     assert "DELA CRUZ" in joined_text and "JUAN REYES" in joined_text
 
 
+def test_extract_adjacent_name_lines_skips_id_number_between_lines():
+    # Real-world school/voter ID layout: surname, then an ID number line,
+    # then the given name — the ID number isn't a fixed label so it can't
+    # go in noise_labels, but it still needs to be skipped over like one.
+    surname = block("CASTILLO", x_min=0, y_min=0, x_max=200, y_max=20)
+    id_number = block("28-1734-596", x_min=0, y_min=25, x_max=200, y_max=45)
+    given = block("NATHAN", x_min=0, y_min=50, x_max=200, y_max=70)
+    blocks = [surname, id_number, given]
+    result = extract_adjacent_name_lines(blocks, "Nathan", "Gabriel", "Castillo")
+    assert result is not None
+    joined_text, _, _ = result
+    assert "28-1734-596" not in joined_text
+    assert "CASTILLO" in joined_text and "NATHAN" in joined_text
+
+
 def test_extract_adjacent_name_lines_no_match_returns_none():
     blocks = [block("Completely unrelated line one"), block("Completely unrelated line two", y_min=25, y_max=45)]
     result = extract_adjacent_name_lines(blocks, FN, MN, LN)

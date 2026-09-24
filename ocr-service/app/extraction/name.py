@@ -12,6 +12,21 @@ from app.extraction.keyword_engine import extract_via_keyword
 # turn up on other real documents/layouts.
 NAME_AREA_NOISE_LABELS = ["sex", "civil status", "age"]
 
+_ID_NUMBER_RE = re.compile(r'^[\d\-/.\s]+$')
+
+def _looks_like_id_number(text: str) -> bool:
+    """
+    Catches ID/registration numbers (e.g. "28-1734-596") sitting between
+    name lines on ID cards -- these interrupt a surname/given-name split
+    just like "Sex" or "Civil Status" do on other layouts, but aren't a
+    fixed label so they can't go in NAME_AREA_NOISE_LABELS. Requires the
+    text be made up ONLY of digits/dashes/slashes/dots/whitespace (no
+    letters), so it never mistakenly skips a real name fragment.
+    """
+    stripped = text.strip()
+    digit_count = sum(c.isdigit() for c in stripped)
+    return len(stripped) >= 5 and bool(_ID_NUMBER_RE.match(stripped)) and digit_count >= 4
+
 def extract_stacked_name_fields(blocks: List[OcrBlock]) -> Optional[Tuple[str, str, List[OcrBlock]]]:
     last_name_idx, first_name_idx = -1, -1
     for i, b in enumerate(blocks):
@@ -55,7 +70,7 @@ def extract_adjacent_name_lines(blocks: List[OcrBlock],
 
     def is_noise_text(text: str) -> bool:
         t = text.lower().strip()
-        return any(re.search(r'\b' + re.escape(n) + r'\b', t) for n in noise_labels)
+        return _looks_like_id_number(text) or any(re.search(r'\b' + re.escape(n) + r'\b', t) for n in noise_labels)
 
     def walk_spatial(start_idx: int):
         current = blocks[start_idx]
