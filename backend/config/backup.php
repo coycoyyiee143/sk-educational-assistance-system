@@ -27,4 +27,18 @@ return [
 
     'script_path' => env('BACKUP_SCRIPT_PATH', dirname(base_path()) . '/scripts/backup.sh'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Staleness threshold
+    |--------------------------------------------------------------------------
+    |
+    | Backups run daily (see BACKUP.md) — a latest backup older than this
+    | many hours means the last one or more scheduled runs didn't happen.
+    | Shared by AdminReportController::backupStatus() (UI badge) and the
+    | CheckBackupHealth command (email alert), so they never disagree.
+    |
+    */
+
+    'stale_after_hours' => env('BACKUP_STALE_AFTER_HOURS', 26),
+
 ];

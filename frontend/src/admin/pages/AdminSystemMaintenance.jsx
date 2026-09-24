@@ -38,6 +38,7 @@ function AdminSystemMaintenance() {
   const [runningBackup, setRunningBackup] = useState(false);
   const [runBackupMessage, setRunBackupMessage] = useState("");
   const [runBackupSuccess, setRunBackupSuccess] = useState(true);
+  const [downloadingFile, setDownloadingFile] = useState("");
 
   const loadBackupStatus = () => {
     setBackupLoading(true);
@@ -72,12 +73,37 @@ function AdminSystemMaintenance() {
       .finally(() => setRunningBackup(false));
   };
 
+  const handleDownloadBackup = (backupName, file) => {
+    const downloadKey = `${backupName}:${file}`;
+    setDownloadingFile(downloadKey);
+    api
+      .get(`/admin/backup-download/${backupName}`, {
+        params: { file },
+        responseType: "blob",
+      })
+      .then((res) => {
+        const url = URL.createObjectURL(res.data);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${backupName}_${file}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      })
+      .catch(() => setBackupError("Failed to download backup file."))
+      .finally(() => setDownloadingFile(""));
+  };
+
   const latestBackup = backup?.backups?.[0];
 
-  // Backups run daily (see BACKUP.md) — anything older than ~26 hours
-  // means the last one or more scheduled runs didn't happen.
+  // Backups run daily (see BACKUP.md) — anything older than the
+  // configured threshold means the last one or more scheduled runs
+  // didn't happen. Threshold comes from the backend (backup.stale_after_hours)
+  // so this stays in sync with CheckBackupHealth's alerting logic.
+  const staleAfterHours = backup?.stale_after_hours ?? 26;
   const backupIsStale = latestBackup
-    ? Date.now() - new Date(latestBackup.created_at).getTime() > 26 * 60 * 60 * 1000
+    ? Date.now() - new Date(latestBackup.created_at).getTime() > staleAfterHours * 60 * 60 * 1000
     : false;
   const backupBadgeLabel = !backup?.configured
     ? "Not Configured"
@@ -243,11 +269,11 @@ function AdminSystemMaintenance() {
                       <div className="table-responsive mt-3">
                         <table className="table table-bordered table-striped align-middle announcement-table">
                           <thead>
-                            <tr><th>Backup</th><th>Date</th><th>Size</th><th>Status</th></tr>
+                            <tr><th>Backup</th><th>Date</th><th>Size</th><th>Status</th><th>Download</th></tr>
                           </thead>
                           <tbody>
                             {!backup.backups || backup.backups.length === 0 ? (
-                              <tr><td colSpan={4} className="text-center text-muted py-4">No backups recorded.</td></tr>
+                              <tr><td colSpan={5} className="text-center text-muted py-4">No backups recorded.</td></tr>
                             ) : (
                               backup.backups.map((b) => (
                                 <tr key={b.name}>
@@ -258,6 +284,24 @@ function AdminSystemMaintenance() {
                                     <span className={`status-badge ${b.complete ? "status-active" : "status-inactive"}`}>
                                       {b.complete ? "Complete" : "Incomplete"}
                                     </span>
+                                  </td>
+                                  <td>
+                                    {["database.sql.gz", "storage-private.tar.gz"].map((file) => {
+                                      const key = `${b.name}:${file}`;
+                                      return (
+                                        <button
+                                          key={file}
+                                          type="button"
+                                          className="btn btn-outline-danger btn-sm me-1"
+                                          style={{ fontSize: "12px" }}
+                                          onClick={() => handleDownloadBackup(b.name, file)}
+                                          disabled={downloadingFile === key}
+                                          title={`Download ${file}`}
+                                        >
+                                          {downloadingFile === key ? "…" : file === "database.sql.gz" ? "DB" : "Files"}
+                                        </button>
+                                      );
+                                    })}
                                   </td>
                                 </tr>
                               ))

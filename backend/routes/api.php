@@ -79,6 +79,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         // new dated backup, never overwrites/deletes anything live).
         // Restore is deliberately NOT exposed here — CLI-only, see BACKUP.md.
         Route::post('/admin/backup-run', [AdminReportController::class, 'runBackup']);
+        // Read-only file download of one backup archive — restore itself
+        // stays CLI/SSH-only, see BACKUP.md.
+        Route::get('/admin/backup-download/{name}', [AdminReportController::class, 'downloadBackup']);
     });
     // Master activity log and budget forecasting — superadmin only.
     Route::middleware(['role:superadmin'])->group(function () {

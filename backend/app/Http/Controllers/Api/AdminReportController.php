@@ -1038,9 +1038,10 @@ class AdminReportController extends Controller
         $backupPath = config('backup.path');
         if (!$backupPath || !is_dir($backupPath)) {
             return response()->json([
-                'configured' => false,
-                'path'       => $backupPath,
-                'backups'    => [],
+                'configured'        => false,
+                'path'              => $backupPath,
+                'backups'           => [],
+                'stale_after_hours' => config('backup.stale_after_hours'),
             ]);
         }
         $folders = collect(scandir($backupPath))
@@ -1063,9 +1064,10 @@ class AdminReportController extends Controller
                 ];
             });
         return response()->json([
-            'configured' => true,
-            'path'       => $backupPath,
-            'backups'    => $folders,
+            'configured'        => true,
+            'path'              => $backupPath,
+            'backups'           => $folders,
+            'stale_after_hours' => config('backup.stale_after_hours'),
         ]);
     }
     /**
@@ -1098,5 +1100,40 @@ class AdminReportController extends Controller
         }
         \App\Models\AuditLog::record('backup_run', null, 'Manual backup triggered from System Maintenance page');
         return response()->json(['message' => 'Backup completed.']);
+    }
+    /**
+     * Download one file (database dump or files archive) from a specific
+     * backup folder — the only way to get a backup off the server besides
+     * SSH. Read-only, unlike restore (deliberately CLI/SSH-only, see
+     * BACKUP.md), so it's safe to expose as a button.
+     *
+     * $name is validated against the exact dated-folder format backup.sh
+     * produces, and the resolved real path is checked against the backup
+     * root, before any filesystem access — both needed to rule out path
+     * traversal via a crafted folder name.
+     */
+    public function downloadBackup(Request $request, string $name)
+    {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$/', $name)) {
+            abort(404);
+        }
+        $request->validate([
+            'file' => 'required|in:database.sql.gz,storage-private.tar.gz',
+        ]);
+        $backupPath = config('backup.path');
+        if (!$backupPath || !is_dir($backupPath)) {
+            abort(404);
+        }
+        $filePath = realpath($backupPath . DIRECTORY_SEPARATOR . $name . DIRECTORY_SEPARATOR . $request->file);
+        $backupRoot = realpath($backupPath);
+        if (!$filePath || !$backupRoot || !str_starts_with($filePath, $backupRoot . DIRECTORY_SEPARATOR) || !is_file($filePath)) {
+            abort(404);
+        }
+        \App\Models\AuditLog::record(
+            'backup_downloaded',
+            null,
+            "Downloaded {$request->file} from backup {$name}"
+        );
+        return response()->download($filePath);
     }
 }

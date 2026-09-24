@@ -23,6 +23,5 @@ class DatabaseSeeder extends Seeder
         //$this->call(VerifierClaimingUiTestSeeder::class); // for testing VerifierClaiming.jsx layout/UI: multiple lanes, statuses, and Late Claiming sources at once
         //$this->call(MainSeeder::class); // full scenario, two verifiers, tests Reviewed By / Disbursed By
         //$this->call(BudgetForecastDemoSeeder::class); // standalone — all 4 Budget Planning tools with a 6-cycle growth+spike+response story; don't stack with DemoDataSeeder
-        $this->call(TestAccountsSeeder::class); // for QA/testers to log in without a real authenticator app
     }
 }
