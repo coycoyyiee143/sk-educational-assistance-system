@@ -8063,10 +8063,10 @@ a:hover {
   gap: 7px;
   min-height: 38px;
   padding: 7px 12px;
-  border: 1px solid #e0e3e6;
+  border: 1px solid #d0d0d0;
   border-radius: 8px;
-  background: #fafafa;
-  color: #444c54;
+  background: #eeeeee;
+  color: #777777;
   font-family: 'Inter', Arial, sans-serif;
   font-size: 12px;
   font-weight: 500;
@@ -8075,31 +8075,32 @@ a:hover {
   transition: background .15s ease, border-color .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
 }
 
+/* Red is reserved for "For Review" specifically -- these are every other
+   tab, so their hover is a neutral gray step up from the base fill
+   instead of a color. */
 .verifier-application-filter-btn:hover {
-  background: #f3f4f5;
-  border-color: #d5d9dd;
-  color: #252a2f;
+  background: #dcdfe2;
+  border-color: #b8bcc0;
+  color: #33383c;
   box-shadow: 0 2px 4px rgba(0, 0, 0, .06);
 }
 
-/* Was a near-invisible light-gray tint, barely different from the default
-   unselected look. A solid dark fill fixed that but then competed with
-   "For Review"'s red for attention — a bold border reads as clearly
-   "selected" without trying to out-shine the one tab that should actually
-   stand out. "For Review" and "All" override this with their own more
-   specific active styles below. */
+/* Selected state steps to a solid mid-gray fill -- clearly "selected"
+   without using red (reserved for "For Review") or a near-black gray
+   (read as too heavy/harsh here). "For Review" and "All" override this
+   with their own more specific active styles. */
 .verifier-application-filter-btn-active {
-  background: #e4e6e8;
-  border-color: #b5bac0;
-  color: #2f3438;
+  background: #707070;
+  border-color: #707070;
+  color: #ffffff;
   font-weight: 700;
   box-shadow: 0 1px 3px rgba(0, 0, 0, .08);
 }
 
 .verifier-application-filter-btn-active:hover {
-  background: #dadce0;
-  border-color: #a5abb2;
-  color: #1f2326;
+  background: #5c5c5c;
+  border-color: #5c5c5c;
+  color: #ffffff;
 }
 
 .verifier-application-filter-count {
@@ -8159,33 +8160,52 @@ a:hover {
   gap: 8px;
 }
 
-/* "For Review" is the verifier's actual job — colored solid even when not
-   selected, and noticeably bigger than every other tab, so it reads as
-   the primary thing to click rather than one option among equals. */
+/* "For Review" is the verifier's actual job, so it's noticeably bigger
+   than every other tab. Unselected, it uses the same light-red pairing as
+   .verifier-table-pagination-arrow:hover (a faded look, not a solid fill)
+   -- once it's the ACTIVE (clicked/selected) tab it switches to the
+   original solid brand red so selecting it still reads as a clear, deliberate
+   state change rather than a small tint shift. */
 .verifier-application-filter-btn-primary {
-  background: #b71c1c;
+  background: #fce4e4;
   border-color: #b71c1c;
-  color: #ffffff;
+  color: #b71c1c;
   font-size: 13.5px;
   font-weight: 700;
   padding: 9px 16px;
-  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.25);
+  box-shadow: 0 2px 6px rgba(183, 28, 28, 0.15);
 }
 
 .verifier-application-filter-btn-primary:hover {
-  background: #a01818;
+  background: #f8d0d0;
   border-color: #a01818;
-  color: #ffffff;
+  color: #a01818;
 }
 
 .verifier-application-filter-btn-primary.verifier-application-filter-btn-active {
-  background: #8e0000;
-  border-color: #8e0000;
+  background: #b71c1c;
+  border-color: #b71c1c;
   color: #ffffff;
   box-shadow: 0 0 0 3px rgba(183, 28, 28, 0.2), 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
+.verifier-application-filter-btn-primary.verifier-application-filter-btn-active:hover {
+  background: #8e0000;
+  border-color: #8e0000;
+  color: #ffffff;
+}
+
+/* Unselected "For Review" now has a light background (see above), so the
+   count badge needs dark-on-light here -- the old white-on-translucent-
+   white only worked against the solid dark-red fill the ACTIVE state
+   below still uses, and was unreadable against the lighter unselected
+   look. */
 .verifier-application-filter-btn-primary .verifier-application-filter-count {
+  background: rgba(183, 28, 28, 0.15);
+  color: #b71c1c;
+}
+
+.verifier-application-filter-btn-primary.verifier-application-filter-btn-active .verifier-application-filter-count {
   background: rgba(255, 255, 255, 0.25);
   color: #ffffff;
 }
@@ -8205,15 +8225,26 @@ a:hover {
   color: #626b74;
 }
 
+/* "All" is de-emphasized above ONLY while unselected -- once it IS the
+   active tab it needs to look unmistakably selected, the same as every
+   other non-"For Review" tab, not just a slightly darker version of its
+   own quiet look (that read as still-unselected). Reuses the same solid
+   gray .verifier-application-filter-btn-active uses. */
 .verifier-application-filter-btn-all.verifier-application-filter-btn-active {
-  background: #f1f2f3;
-  border-color: #d3d7db;
-  color: #444c54;
+  background: #707070;
+  border-color: #707070;
+  color: #ffffff;
+}
+
+.verifier-application-filter-btn-all.verifier-application-filter-btn-active:hover {
+  background: #5c5c5c;
+  border-color: #5c5c5c;
+  color: #ffffff;
 }
 
 .verifier-application-filter-btn-all.verifier-application-filter-btn-active .verifier-application-filter-count {
-  background: #e3e6e9;
-  color: #626b74;
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
 }
 
 .verifier-application-filter-divider {
@@ -9226,22 +9257,7 @@ a:hover {
   font-family: 'Inter', Arial, sans-serif;
 }
 
-.verifier-ocr-flag-section {
-  font-family: 'Inter', Arial, sans-serif;
-}
-
-.verifier-ocr-flag-title {
-  font-family: 'Inter', Arial, sans-serif;
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .verifier-ocr-check-label {
-  font-family: 'Inter', Arial, sans-serif;
-  font-size: 13px;
-}
-
-.verifier-ocr-other-input {
   font-family: 'Inter', Arial, sans-serif;
   font-size: 13px;
 }
@@ -9353,20 +9369,11 @@ a:hover {
 .verifier-ocr-raw,
 .verifier-ocr-raw-title,
 .verifier-ocr-raw-text,
-.verifier-ocr-flag-section,
-.verifier-ocr-flag-title,
-.verifier-ocr-check-label,
-.verifier-ocr-other-input {
+.verifier-ocr-check-label {
   font-family: 'Inter', Arial, sans-serif;
 }
 
-.verifier-ocr-flag-title {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.verifier-ocr-check-label,
-.verifier-ocr-other-input {
+.verifier-ocr-check-label {
   font-size: 13px;
 }
 
@@ -9698,11 +9705,6 @@ a:hover {
 }
 
 
-.verifier-ocr-review-flags {
-  padding: 14px 16px 16px;
-  border-top: 1px solid #c9c9c9;
-}
-
 @media (max-width: 900px) {
   .verifier-ocr-review-layout {
     grid-template-columns: 1fr;
@@ -10024,35 +10026,6 @@ a:hover {
   border-radius: 10px;
 }
 
-.verifier-ocr-flag-options {
-  display: grid;
-  grid-template-rows: repeat(3, auto);
-  grid-auto-flow: column;
-  grid-auto-columns: 1fr;
-  column-gap: 28px;
-  row-gap: 8px;
-  margin-top: 12px;
-  padding-left: 8px;
-}
-
-.verifier-ocr-flag-option {
-  position: relative;
-  margin: 0;
-  min-width: 0;
-}
-
-.verifier-ocr-other-inline {
-  position: absolute;
-  top: 28px;
-  left: 24px;
-  width: calc(100% - 24px);
-  margin: 0;
-  z-index: 2;
-}
-
-.verifier-ocr-review-flags[open] {
-  padding-bottom: 42px;
-}
 
 .verifier-ocr-preview-image-wrap {
   position: relative;

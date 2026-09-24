@@ -7,9 +7,6 @@ import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
 import api from "../../services/api";
 import {
-  getReasonsByDocType,
-  getFlatReasons,
-  OTHER,
   getCheckDisplayLabel,
   translateFlagReason,
   stripTechnicalDetail,
@@ -101,41 +98,6 @@ const DOCUMENT_TABS = [
   { number: 3, type: "voters_certificate", label: "Voter Certificate" },
 ];
 
-function prefillFromLatestAction(latestAction, reasonsByDocType, appStatus) {
-  const base = {
-    registration_form: { reasons: [], otherText: "" },
-    school_id: { reasons: [], otherText: "" },
-    voters_certificate: { reasons: [], otherText: "" },
-  };
-
-  if (
-    !latestAction ||
-    latestAction.action !== "reupload_requested" ||
-    !latestAction.reupload_details ||
-    appStatus !== "reupload_requested"
-  ) {
-    return base;
-  }
-
-  latestAction.reupload_details.forEach((d) => {
-    const flat = getFlatReasons(
-      reasonsByDocType[d.document_type] || { primary: [], additional: [] }
-    );
-    const stored = d.reason_categories || [];
-    const knownIds = stored
-      .map((c) => flat.find((r) => r.verifierLabel === c)?.id)
-      .filter(Boolean);
-    const custom = stored.filter((c) => !flat.some((r) => r.verifierLabel === c));
-
-    base[d.document_type] = {
-      reasons: custom.length > 0 ? [...knownIds, OTHER] : knownIds,
-      otherText: custom.join(" "),
-    };
-  });
-
-  return base;
-}
-
 function VerifierApplicationReview() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -169,7 +131,6 @@ function VerifierApplicationReview() {
   });
   const [previewFiles, setPreviewFiles] = useState({});
   const [zoomPreview, setZoomPreview] = useState(null);
-  const [openFlagDocId, setOpenFlagDocId] = useState(null);
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   // Measured heights of the sticky topbar and sticky document tabs bar,
@@ -178,12 +139,6 @@ function VerifierApplicationReview() {
   // value that breaks the moment either element's content/height changes.
   const [topbarHeight, setTopbarHeight] = useState(0);
   const [tabsHeight, setTabsHeight] = useState(0);
-
-  const [flaggedDocs, setFlaggedDocs] = useState({
-    registration_form: { reasons: [], otherText: "" },
-    school_id: { reasons: [], otherText: "" },
-    voters_certificate: { reasons: [], otherText: "" },
-  });
 
   useEffect(() => {
     if (!actionError) return;
@@ -196,20 +151,6 @@ function VerifierApplicationReview() {
       .get(`/verifier/applications/${id}`)
       .then((res) => {
         setApp(res.data);
-
-        const reasonsByDocType = getReasonsByDocType(
-          res.data.configuration?.school_year
-        );
-
-        const latestAction = res.data.verifier_actions?.[0];
-
-        setFlaggedDocs(
-          prefillFromLatestAction(
-            latestAction,
-            reasonsByDocType,
-            res.data.status
-          )
-        );
       })
       .catch(() => setError("Failed to load application."))
       .finally(() => setLoading(false));
@@ -219,9 +160,6 @@ function VerifierApplicationReview() {
   // needs to watch (waiting on OCR, or waiting on this verifier's own
   // review) — so a document that finishes processing, or gets
   // re-uploaded by the applicant, shows up without a manual refresh.
-  // Deliberately only updates `app` itself, NOT `flaggedDocs` — that
-  // holds this verifier's in-progress typed review notes, and a poll
-  // tick must never overwrite something they're actively filling in.
   // Self-terminating: once `app.status` leaves the watched set (this
   // verifier submits a decision, or someone else does), `enabled`
   // recalculates to false and polling stops on its own.
@@ -442,10 +380,6 @@ function VerifierApplicationReview() {
   const user = app.user;
   const profile = user?.profile;
 
-  const reasonsByDocType = getReasonsByDocType(
-    app.configuration?.school_year
-  );
-
   const latestAction = app.verifier_actions?.[0];
 
   const formatTimestamp = (dateString) => {
@@ -636,34 +570,6 @@ function VerifierApplicationReview() {
       : { text: "Passed", state: "passed" };
   }
 
-  function toggleReason(docType, reasonText) {
-    setFlaggedDocs((prev) => {
-      const current = prev[docType].reasons;
-
-      const updated = current.includes(reasonText)
-        ? current.filter((r) => r !== reasonText)
-        : [...current, reasonText];
-
-      return {
-        ...prev,
-        [docType]: {
-          ...prev[docType],
-          reasons: updated,
-        },
-      };
-    });
-  }
-
-  function setOtherText(docType, text) {
-    setFlaggedDocs((prev) => ({
-      ...prev,
-      [docType]: {
-        ...prev[docType],
-        otherText: text,
-      },
-    }));
-  }
-
   function setCheckpointFilterFor(docType, value) {
     setCheckpointFilters((prev) => ({ ...prev, [docType]: value }));
   }
@@ -687,7 +593,6 @@ function VerifierApplicationReview() {
 
       setApp(res.data);
       setActiveRawDocId(null);
-      setOpenFlagDocId(null);
     } catch {
       setActionError("Failed to refresh OCR verification results.");
     } finally {
@@ -790,12 +695,7 @@ function VerifierApplicationReview() {
   }
 
   function handleProceed() {
-    navigate(
-      `/VerifierVerificationAction/${app.id}`,
-      {
-        state: { flaggedDocs },
-      }
-    );
+    navigate(`/VerifierVerificationAction/${app.id}`);
   }
 
   async function handleViewFile(docId) {
@@ -1297,8 +1197,6 @@ function VerifierApplicationReview() {
                       !PREVIEW_INTEGRITY_CHECK_NAMES.includes(check.check_name)
                   );
 
-                  const flagState = flaggedDocs[tab.type];
-                  const docReasonGroups = reasonsByDocType[tab.type] || { primary: [], additional: [] };
                   const previewFile = previewFiles[doc.id];
 
                   const confidence = doc.ocr_result?.confidence_score
@@ -1973,104 +1871,6 @@ function VerifierApplicationReview() {
                             )}
                         </div>
                       </div>
-
-                      <details
-                        className="verifier-ocr-flag-section verifier-ocr-review-flags"
-                        open={openFlagDocId === doc.id}
-                        onToggle={(e) => {
-                          if (e.currentTarget.open) {
-                            setOpenFlagDocId(doc.id);
-                          } else if (openFlagDocId === doc.id) {
-                            setOpenFlagDocId(null);
-                          }
-                        }}
-                      >
-                        <summary
-                          className="text-danger fw-semibold verifier-ocr-flag-title"
-                          style={{ cursor: "pointer" }}
-                        >
-                          Flag an issue with this document
-                        </summary>
-
-                        <div className="verifier-ocr-flag-options">
-                          {docReasonGroups.primary.map((reason) => (
-                            <div
-                              className="form-check verifier-ocr-flag-option"
-                              key={reason.id}
-                            >
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id={`flag-${tab.type}-${reason.id}`}
-                                checked={flagState.reasons.includes(reason.id)}
-                                onChange={() => toggleReason(tab.type, reason.id)}
-                              />
-
-                              <label
-                                className="form-check-label small verifier-ocr-check-label"
-                                htmlFor={`flag-${tab.type}-${reason.id}`}
-                              >
-                                {reason.verifierLabel}
-                              </label>
-                            </div>
-                          ))}
-
-                          {docReasonGroups.additional.length > 0 && (
-                            <>
-                              <div className="verifier-action-subsection-label">Additional reasons</div>
-                              {docReasonGroups.additional.map((reason) => (
-                                <div
-                                  className="form-check verifier-ocr-flag-option"
-                                  key={reason.id}
-                                >
-                                  <input
-                                    className="form-check-input"
-                                    type="checkbox"
-                                    id={`flag-${tab.type}-${reason.id}`}
-                                    checked={flagState.reasons.includes(reason.id)}
-                                    onChange={() => toggleReason(tab.type, reason.id)}
-                                  />
-
-                                  <label
-                                    className="form-check-label small verifier-ocr-check-label"
-                                    htmlFor={`flag-${tab.type}-${reason.id}`}
-                                  >
-                                    {reason.verifierLabel}
-                                  </label>
-                                </div>
-                              ))}
-                            </>
-                          )}
-
-                          <div className="form-check verifier-ocr-flag-option">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id={`flag-${tab.type}-other`}
-                              checked={flagState.reasons.includes(OTHER)}
-                              onChange={() => toggleReason(tab.type, OTHER)}
-                            />
-
-                            <label
-                              className="form-check-label small verifier-ocr-check-label"
-                              htmlFor={`flag-${tab.type}-other`}
-                            >
-                              {OTHER}
-                            </label>
-
-                            {flagState.reasons.includes(OTHER) && (
-                              <input
-                                className="form-control form-control-sm verifier-ocr-other-input verifier-ocr-other-inline"
-                                placeholder="Specify the issue..."
-                                value={flagState.otherText}
-                                onChange={(e) =>
-                                  setOtherText(tab.type, e.target.value)
-                                }
-                              />
-                            )}
-                          </div>
-                        </div>
-                      </details>
                     </div>
                   );
                 })}

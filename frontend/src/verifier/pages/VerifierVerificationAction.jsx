@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import VerifierNavigation from "../components/VerifierNavigation";
 import VerifierTopbar from "../components/VerifierTopbar";
 import PanelFooter from "../../components/PanelFooter";
@@ -138,7 +138,7 @@ function getAutoDetectedFailures(app, reasonsByDocType) {
   return result;
 }
 
-function getApprovalWarnings(app, incomingFlags) {
+function getApprovalWarnings(app) {
   if (!app) return [];
 
   const warnings = [];
@@ -167,19 +167,11 @@ function getApprovalWarnings(app, incomingFlags) {
       });
   });
 
-  Object.entries(incomingFlags || {}).forEach(([docType, f]) => {
-    if (!f.reasons || f.reasons.length === 0) return;
-    const docLabel = docLabelByType[docType] || docType;
-    warnings.push(`${docLabel}: flagged for ${f.reasons.length} issue(s)`);
-  });
-
   return warnings;
 }
 function VerifierVerificationAction() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
-  const incomingFlags = location.state?.flaggedDocs || {};
   const [app, setApp] = useState(null);
   const { url: profilePhotoUrl, status: profilePhotoStatus } = useUserPhoto(
     app?.user?.id
@@ -210,7 +202,7 @@ function VerifierVerificationAction() {
   const reasonsByDocType = getReasonsByDocType(app?.configuration?.school_year);
   const [approveNotes, setApproveNotes] = useState("");
   const [approveAck, setApproveAck] = useState(false);
-  const approvalWarnings = getApprovalWarnings(app, incomingFlags);
+  const approvalWarnings = getApprovalWarnings(app);
   const docLabelByType = Object.fromEntries(DOC_TYPES.map((d) => [d.key, d.label]));
   const detectedFailures = getAutoDetectedFailures(app || {}, reasonsByDocType);
   const detectedWarnings = DOC_TYPES.flatMap(({ key }) => {
@@ -236,15 +228,7 @@ function VerifierVerificationAction() {
   const [rejectDocs, setRejectDocs] = useState(() => {
     const base = {};
     DOC_TYPES.forEach((d) => {
-      const flagged = incomingFlags[d.key];
-      base[d.key] = flagged
-        ? {
-          reasonIds: flagged.reasons.filter((r) => r !== OTHER),
-          dynamicReasons: [],
-          otherChecked: !!flagged.reasons.includes(OTHER),
-          otherText: flagged.otherText || "",
-        }
-        : { reasonIds: [], dynamicReasons: [], otherChecked: false, otherText: "" };
+      base[d.key] = { reasonIds: [], dynamicReasons: [], otherChecked: false, otherText: "" };
     });
     return base;
   });
@@ -257,14 +241,7 @@ function VerifierVerificationAction() {
   const [reuploadDocs, setReuploadDocs] = useState(() => {
     const base = {};
     DOC_TYPES.forEach((d) => {
-      const flagged = incomingFlags[d.key];
-      base[d.key] = {
-        ...emptyDocState(),
-        checked: !!(flagged && flagged.reasons.length > 0),
-        reasonIds: flagged ? flagged.reasons.filter((r) => r !== OTHER) : [],
-        otherChecked: !!(flagged && flagged.reasons.includes(OTHER)),
-        otherText: flagged?.otherText || "",
-      };
+      base[d.key] = emptyDocState();
     });
     return base;
   });
@@ -603,14 +580,8 @@ function VerifierVerificationAction() {
   }
 
   // Whether a document type has anything worth showing a reason group for
-  // in the Reject modal (either manually flagged on the Review page, or
-  // system-detected on this page). `reasonIds`/`dynamicReasons`/`otherChecked`
-  // already reflect both sources (they're seeded from incomingFlags on
-  // mount and merged with detected failures) — checking incomingFlags
-  // directly here as well was a bug: the Review page always passes a
-  // `{reasons: [], otherText: ""}` entry for every document type whether
-  // or not it was actually flagged, so that used to make every document
-  // group show up regardless of whether it had anything in it.
+  // in the Reject modal — system-detected failures merged in on mount
+  // (see the auto-detect effects above).
   function rejectDocHasContent(docType) {
     const state = rejectDocs[docType];
     return (
