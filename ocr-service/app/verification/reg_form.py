@@ -177,7 +177,15 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
         # not in the auto-reupload allowlist above, or below the 0.9
         # confidence bar even on an allowlisted school. Genuinely
         # ambiguous either way — stays verifier-routed, not auto-reupload.
-        reason = "School year not found — possible watermark interference, please verify manually" if not sy_res.found else "School year mismatch"
+        if not sy_res.found:
+            reason = "School year not found — possible watermark interference, please verify manually."
+        elif sy_res.confidence >= RAW_FIELD_CONFIDENCE_FLOOR:
+            # Confident read, but it genuinely isn't the configured cycle —
+            # say what was actually detected, same as cert_year_match/
+            # school_match, instead of a bare "mismatch".
+            reason = f"Detected school year is {sy_res.value}, but this cycle requires {configured_school_year}."
+        else:
+            reason = f"Detected school year appears to be {sy_res.value} (low-confidence read, {sy_res.confidence:.2f}) — please verify manually against the required {configured_school_year}."
         checks["school_year_match"] = _flag("school_year_match", reason, extracted=sy_res.raw, raw=sy_res.raw, expected=configured_school_year, context=sy_res.context)
 
     template_strategy = get_template_strategy(declared_school, "registration_form")

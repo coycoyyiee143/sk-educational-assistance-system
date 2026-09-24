@@ -117,6 +117,12 @@ const CHECK_NAME_LABELS = {
     identity_match: "Identity & Legal Name",
     residency_geofence: "Residency Geofence",
     repeated_auto_reupload_escalation: "Repeated Re-upload Issue",
+    // "institution_match" is the stored check_name (unchanged, already in
+    // seeded/production data) — overridden here only so the displayed
+    // label uses "School" like every other check/label in this app
+    // (School ID, School Year Match, school_name), instead of the
+    // auto-titlecased "Institution Match".
+    institution_match: "School Match",
 };
 
 export function getCheckDisplayLabel(checkName) {

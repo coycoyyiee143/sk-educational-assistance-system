@@ -153,5 +153,9 @@ def _check_school(blocks, page_w, page_h, declared_school):
     # stays a factual observation for the reviewer, not an applicant
     # instruction like "please upload again".
     detected_school = res.metadata.get("detected_school") if res.metadata else None
-    reason = f"Detected institution appears to be {detected_school}, not the declared {declared_school}." if detected_school else res.context
+    reason = (
+        f"Detected school appears to be {detected_school}, not the declared {declared_school}."
+        if detected_school
+        else f"Could not confirm this is a {declared_school} document — no matching school name was found on the page."
+    )
     return _flag("school_match", reason, extracted=res.value, raw=res.raw, expected=declared_school, metadata=res.metadata)
