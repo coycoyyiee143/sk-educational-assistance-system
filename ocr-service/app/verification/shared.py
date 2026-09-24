@@ -147,6 +147,11 @@ def _check_school(blocks, page_w, page_h, declared_school):
         )
     if res.found:
         return _pass("school_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=declared_school)
+    # Verifier-facing only (stored straight into VerificationCheck.flag_reason,
+    # never routed through the applicant-facing auto_reupload flow — see
+    # school_id.py/reg_form.py, both always treat this as a "check"), so this
+    # stays a factual observation for the reviewer, not an applicant
+    # instruction like "please upload again".
     detected_school = res.metadata.get("detected_school") if res.metadata else None
-    reason = f"This looks like a {detected_school} document, not {declared_school}. Please upload the correct document type." if detected_school else res.context
+    reason = f"Detected institution appears to be {detected_school}, not the declared {declared_school}." if detected_school else res.context
     return _flag("school_match", reason, extracted=res.value, raw=res.raw, expected=declared_school, metadata=res.metadata)
