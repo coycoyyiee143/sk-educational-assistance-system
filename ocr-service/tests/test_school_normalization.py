@@ -258,9 +258,18 @@ def test_uphsd_merges_institution_header_exact_keywords():
     s = UphsdStrategy()
     b1 = block("UNIVERSITY OF", x_min=0, y_min=0, x_max=100, y_max=20)
     b2 = block("PERPETUAL HELP SYSTEM DALTA", x_min=0, y_min=25, x_max=150, y_max=45)
-    merged = s.preprocess_blocks([b1, b2])
+    # _merge_institution_header computes "header region" as the top 25% of
+    # a page height inferred from the given blocks -- with only these 2
+    # short blocks, that inferred height is unrealistically tiny (45px),
+    # so b2 (y=25-45) lands OUTSIDE its own artificially-shrunk "header".
+    # A filler block far down the page (mimicking a real full page's
+    # actual height, same pattern PUP's own passing equivalent test uses)
+    # fixes the header-region math without changing any production code.
+    noise = block("eftf", x_min=0, y_min=800, x_max=50, y_max=820)
+    merged = s.preprocess_blocks([b1, b2, noise])
     merged_texts = [b.text for b in merged]
     assert "UNIVERSITY OF PERPETUAL HELP SYSTEM DALTA" in merged_texts
+    assert "eftf" in merged_texts  # noise untouched, not part of institution header
 
 
 def test_uphsd_merges_institution_header_with_ocr_typo_fuzzy_match():
@@ -379,7 +388,17 @@ def test_uplb_merges_institution_header_split_by_statue_graphic():
     b2 = block("y of the Philippines", x_min=405, y_min=20, x_max=600, y_max=50)
     b3 = block("LOS BANOS", x_min=400, y_min=55, x_max=600, y_max=85)
     other = block("THE", x_min=100, y_min=10, x_max=130, y_max=30)
-    merged = s.preprocess_blocks([b1, b2, b3, other])
+    # _merge_institution_header computes "header region" as the top 25% of
+    # a page height inferred from the given blocks -- with only these 4
+    # short blocks, that inferred height is unrealistically tiny (85px),
+    # so b3 (y=55-85) lands OUTSIDE its own artificially-shrunk "header".
+    # A filler block far down the page (mimicking a real full page's
+    # actual height) fixes the header-region math without changing any
+    # production code. "THE" stays excluded regardless -- it's not in
+    # _INSTITUTION_KEYWORDS at all, so position was never why it's kept
+    # separate.
+    filler = block("Scanned with CamScanner", x_min=0, y_min=800, x_max=200, y_max=820)
+    merged = s.preprocess_blocks([b1, b2, b3, other, filler])
     merged_texts = [b.text for b in merged]
     assert "Univers y of the Philippines LOS BANOS" in merged_texts
     assert "THE" in merged_texts  # short seal-text fragment left untouched
