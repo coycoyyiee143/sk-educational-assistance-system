@@ -24,8 +24,71 @@ SCHOOL_STRATEGY_REGISTRY = {
     "Calamba Doctor's College": CalambaDoctorsCollegeStrategy(),
     "Calamba Doctors College": CalambaDoctorsCollegeStrategy(),
     "NU": NuStrategy(),
+    # Full official name, same strategy instance -- registering this
+    # matters beyond just letting the dropdown value resolve: without a
+    # longer alias, get_known_school_names() (used for "which OTHER
+    # school is this" detection) would only ever have the bare 2-letter
+    # "NU" to offer, which is exactly the pathologically-short-name class
+    # of false positive fixed earlier for fuzzy_match_school (a 2-letter
+    # acronym can coincidentally match unrelated text). A real, distinctive
+    # full name gives that detection something meaningful to match against.
+    # Deliberately just "National University", not "National University
+    # Laguna" -- confirmed the actual printed IDs/reg forms only say
+    # "National University", no campus suffix, so matching against a
+    # name that includes "Laguna" would never find it.
+    "National University": NuStrategy(),
     "UPLB": UplbStrategy(),
     "University of the Philippines Los Baños": UplbStrategy(),
+
+    # Every other school on SK's actual declared-school roster --
+    # registered here so get_known_school_names() (the "which OTHER
+    # school is this" cross-check used by the institution_mismatch
+    # auto-reupload tier) can recognize them too, not just the handful
+    # with dedicated header-merging strategies. Confirmed as a real gap
+    # on a live Registration Form whose header genuinely read "LAGUNA
+    # STATE POLYTECHNIC UNIVERSITY" (#9 on this roster) while the
+    # declared school ("National University") matched via unrelated body
+    # text -- the cross-check found nothing because LSPU had never been
+    # registered anywhere, silently passing an institution mismatch.
+    # Each gets ITS OWN BaseSchoolStrategy() instance (not one shared
+    # instance) because get_known_school_names() dedupes by id(strategy)
+    # -- sharing one instance across all of these would collapse them
+    # into a single entry.
+    "AMA Computer College": BaseSchoolStrategy(),
+    "Batangas State University": BaseSchoolStrategy(),
+    "Calamba Institute": BaseSchoolStrategy(),
+    "City College of Calamba": BaseSchoolStrategy(),
+    "Colegio de San Juan de Letran": BaseSchoolStrategy(),
+    "Don Bosco College": BaseSchoolStrategy(),
+    "Laguna Colleges of Business and Arts": BaseSchoolStrategy(),
+    "Laguna State Polytechnic University": BaseSchoolStrategy(),
+    "Lyceum of the Philippines": BaseSchoolStrategy(),
+    "Mapua-Malayan College of Laguna": BaseSchoolStrategy(),
+    "Our Lady of Assumption College": BaseSchoolStrategy(),
+    "PHINMA Rizal College of Laguna": BaseSchoolStrategy(),
+    "St. Ignatius": BaseSchoolStrategy(),
+    "St. Michael College of Laguna": BaseSchoolStrategy(),
+    "Philippine Women's University": BaseSchoolStrategy(),
+    "University of Perpetual Help System JONELTA Biñan": BaseSchoolStrategy(),
+    "University of Perpetual Help Las Piñas": BaseSchoolStrategy(),
+    "Unibersidad ng Pilipinas": BaseSchoolStrategy(),
+    "Westbridge Institute of Technology": BaseSchoolStrategy(),
+    "Our Lady of Fatima University": BaseSchoolStrategy(),
+    "Saint Benilde International School": BaseSchoolStrategy(),
+    "San Pedro College": BaseSchoolStrategy(),
+    "Trimex College of Biñan": BaseSchoolStrategy(),
+    "STI Santa Rosa": BaseSchoolStrategy(),
+    "Arellano University": BaseSchoolStrategy(),
+    "Philippine Merchant Marine School": BaseSchoolStrategy(),
+    "PNTC College": BaseSchoolStrategy(),
+    "Saint John and Paul Educational Foundation Inc.": BaseSchoolStrategy(),
+    "Pamantasan ng Lungsod ng Maynila": BaseSchoolStrategy(),
+    "Pamantasan ng Lungsod ng Muntinlupa": BaseSchoolStrategy(),
+    "St. John Colleges": BaseSchoolStrategy(),
+    "Citi Global Colleges": BaseSchoolStrategy(),
+    "Philippine Nautical Technology": BaseSchoolStrategy(),
+    "Far Eastern University": BaseSchoolStrategy(),
+    "University of Santo Tomas": BaseSchoolStrategy(),
 }
 
 def get_strategy_for_school(school_name: str) -> BaseSchoolStrategy:
