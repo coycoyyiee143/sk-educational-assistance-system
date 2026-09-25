@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Application;
 use App\Models\ApplicationConfiguration;
+use App\Models\ApplicationDocument;
 use App\Models\ClaimingAssignment;
 use App\Models\ClaimingLane;
 use App\Models\ClaimingSchedule;
@@ -12,6 +13,7 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 
 /**
  * Seeds a SCHEDULED claiming day scenario — deliberately separate from
@@ -59,21 +61,48 @@ class ClaimingDayTestSeeder extends Seeder
 
     public const SCHOOL_YEAR = '2026-2027 (Claiming Day Test)';
 
+    /**
+     * Real sample document images (not the "seeded_placeholder_*" 404
+     * stand-ins other seeders use) so a verifier can actually open "View
+     * File" during a claiming day demo and see something. Rotated across
+     * applicants purely for visual variety — same 3 sets reused, not
+     * unique per applicant. Falls back to the placeholder path if a set's
+     * files aren't present on this machine, so the seeder still runs
+     * elsewhere; just without real pics to view.
+     */
+    private array $documentSets = [
+        [
+            'school_id'          => 'C:/Users/DELL/Documents/documents/ela id.jpg',
+            'registration_form'  => 'C:/Users/DELL/Documents/documents/ela reg form.jpg',
+            'voters_certificate' => 'C:/Users/DELL/Documents/documents/ela voters.jpg',
+        ],
+        [
+            'school_id'          => 'C:/Users/DELL/Documents/documents/id.jpg',
+            'registration_form'  => 'C:/Users/DELL/Documents/documents/my latest reg form.jpg',
+            'voters_certificate' => 'C:/Users/DELL/Documents/documents/my voters cert 2026.jpg',
+        ],
+        [
+            'school_id'          => 'C:/Users/DELL/Documents/documents/arlyn id.png',
+            'registration_form'  => 'C:/Users/DELL/Documents/documents/irah latest reg form.jpg',
+            'voters_certificate' => 'C:/Users/DELL/Documents/documents/voters cert 2025.jpg',
+        ],
+    ];
+
     public function run(): void
     {
         $this->cleanupPreviousRun();
 
-        $primaryVerifier = User::where('role', 'sk_verifier')->first();
+        $primaryVerifier = User::where('email', 'raeahyes@gmail.com')->where('role', 'sk_verifier')->first();
         if (!$primaryVerifier) {
-            $this->command->error('No sk_verifier user found in the database. Create one first, then re-run this seeder.');
+            $this->command->error("Verifier account raeahyes@gmail.com not found (or isn't an sk_verifier). Create/fix it first, then re-run this seeder.");
             return;
         }
 
         $admin = User::where('role', 'sk_admin')->first();
 
         // Two extra verifier accounts, only created if they don't exist
-        // yet — never touches your real verifier account, which becomes
-        // Lane A's verifier below.
+        // yet — never touches raeahyes@gmail.com (Verifierist Test),
+        // which becomes Lane A's verifier below.
         $verifier2 = User::firstOrCreate(
             ['email' => 'verifier2@skmamatid.com'],
             [
@@ -205,7 +234,7 @@ class ClaimingDayTestSeeder extends Seeder
 
         for ($i = 1; $i <= $count; $i++) {
             $applicant = $this->makeApplicant($i);
-            $apps->push(Application::create([
+            $app = Application::create([
                 'user_id'           => $applicant->id,
                 'config_id'         => $config->id,
                 'school_name'       => $this->schools[array_rand($this->schools)],
@@ -215,7 +244,9 @@ class ClaimingDayTestSeeder extends Seeder
                 'status'            => 'approved',
                 'control_number'    => 'SK-CDTEST-' . now()->format('Y') . '-' . str_pad((string) $i, 4, '0', STR_PAD_LEFT),
                 'submitted_at'      => now()->subDays(20 - $i),
-            ]));
+            ]);
+            $this->attachDocuments($app, $i);
+            $apps->push($app);
         }
 
         return $apps;
@@ -225,7 +256,7 @@ class ClaimingDayTestSeeder extends Seeder
     {
         for ($i = 1; $i <= $count; $i++) {
             $applicant = $this->makeApplicant(100 + $i);
-            Application::create([
+            $app = Application::create([
                 'user_id'           => $applicant->id,
                 'config_id'         => $config->id,
                 'school_name'       => $this->schools[array_rand($this->schools)],
@@ -235,6 +266,50 @@ class ClaimingDayTestSeeder extends Seeder
                 'status'            => 'waitlisted',
                 'waitlisted_at'     => now()->subHours($count - $i + 1),
                 'submitted_at'      => now()->subHours($count - $i + 1)->subHours(2),
+            ]);
+            $this->attachDocuments($app, 100 + $i);
+        }
+    }
+
+    /**
+     * Copies a rotating set of real sample images into storage (same path
+     * shape a real upload uses) and creates the matching ApplicationDocument
+     * rows, so "View File" in the verifier UI shows an actual picture
+     * instead of 404ing on a placeholder path. Falls back to the old
+     * placeholder path per document if its source file is missing.
+     */
+    private function attachDocuments(Application $app, int $seq): void
+    {
+        $set = $this->documentSets[$seq % count($this->documentSets)];
+
+        foreach (['registration_form', 'school_id', 'voters_certificate'] as $docType) {
+            $sourcePath = $set[$docType] ?? null;
+
+            if ($sourcePath && file_exists($sourcePath)) {
+                $fileName = "seeded_{$app->id}_{$docType}." . pathinfo($sourcePath, PATHINFO_EXTENSION);
+                $storagePath = "documents/{$app->id}/{$fileName}";
+                Storage::disk('local')->put($storagePath, file_get_contents($sourcePath));
+
+                ApplicationDocument::create([
+                    'application_id' => $app->id,
+                    'document_type'  => $docType,
+                    'file_path'      => $storagePath,
+                    'file_name'      => $fileName,
+                    'mime_type'      => mime_content_type($sourcePath) ?: 'image/jpeg',
+                    'version'        => 1,
+                    'status'         => 'processed',
+                ]);
+                continue;
+            }
+
+            ApplicationDocument::create([
+                'application_id' => $app->id,
+                'document_type'  => $docType,
+                'file_path'      => "documents/{$app->id}/seeded_placeholder_{$docType}.jpg",
+                'file_name'      => "seeded_placeholder_{$docType}.jpg",
+                'mime_type'      => 'image/jpeg',
+                'version'        => 1,
+                'status'         => 'processed',
             ]);
         }
     }
