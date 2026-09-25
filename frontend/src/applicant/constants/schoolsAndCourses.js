@@ -1,17 +1,24 @@
+// NOTE: these strings are looked up VERBATIM (exact match) by
+// ocr-service's SCHOOL_STRATEGY_REGISTRY (app/normalization/__init__.py)
+// to pick an OCR header-matching strategy and to power the institution-
+// mismatch cross-check. If you add/rename a school here, add/rename the
+// matching key over there too, or that school silently loses its
+// dedicated strategy and drops out of the "which OTHER school is this"
+// detection.
 export const SCHOOLS = [
     "AMA Computer College",
     "Batangas State University",
     "Calamba Doctors College",
     "Calamba Institute",
     "City College of Calamba",
-    "Collegio de San Juan de Letran",
+    "Colegio de San Juan de Letran",
     "Don Bosco College",
     "Laguna Colleges of Business and Arts",
     "Laguna State Polytechnic University",
     "Lyceum of the Philippines",
-    "Mapúa- Malayan College of Laguna",
+    "Mapua-Malayan College of Laguna",
     "National University",
-    "Our Lady of Assumption College (OLAC)",
+    "Our Lady of Assumption College",
     "Pamantasan ng Cabuyao",
     "Polytechnic University of the Philippines",
     "PHINMA Rizal College of Laguna",
@@ -23,7 +30,7 @@ export const SCHOOLS = [
     "University of Perpetual Help System DALTA Calamba",
     "University of Perpetual Help System JONELTA Biñan",
     "University of Perpetual Help Las Piñas",
-    "University of the Philippines (UP)",
+    "Unibersidad ng Pilipinas",
     "Westbridge Institute of Technology",
     "Our Lady of Fatima University",
     "Saint Benilde International School",
@@ -37,7 +44,7 @@ export const SCHOOLS = [
     "Pamantasan ng Lungsod ng Maynila",
     "Pamantasan ng Lungsod ng Muntinlupa",
     "St. John Colleges",
-    "CITI Global Colleges",
+    "Citi Global Colleges",
     "Philippine Nautical Technology",
     "Far Eastern University",
     "University of Santo Tomas",
