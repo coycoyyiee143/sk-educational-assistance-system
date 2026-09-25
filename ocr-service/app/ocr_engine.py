@@ -201,6 +201,63 @@ def ensure_uplb_reg_form_header(image_path: str, extracted: list, declared_schoo
     return extracted
 
 
+# SVCC's Registration Form prints "Name: <LAST>, <FIRST> <MIDDLE>" directly
+# under a diagonal watermark ribbon that runs right through that one line.
+# Confirmed on a real SVCC sample (RF-046.jpg): PaddleOCR's text DETECTOR
+# (not just recognition) drops that line entirely on the raw color image --
+# the Student# line right above it and the Course line right below it both
+# read at 95%+, while nothing else on the page is affected -- so run_ocr()'s
+# confidence-based retry above never triggers: a fully MISSING line adds
+# nothing to avg/min confidence, it just isn't in the output to drag either
+# stat down. The existing grayscale+CLAHE+sharpen+Otsu preprocess_image()
+# pass already recovers it fine once actually tried (confirmed: 0.836
+# confidence on the enhanced pass vs. zero detection on the raw one) -- same
+# shape of fix as ensure_uplb_reg_form_header above, just SVCC's watermark
+# in place of UPLB's red header ink as the thing silently defeating the
+# raw-image detector.
+_SVCC_SCHOOL_NAMES = {"ST. VINCENT COLLEGE OF CABUYAO", "ST VINCENT COLLEGE OF CABUYAO", "SVCC"}
+
+
+def _has_name_label(extracted: list) -> bool:
+    from app.extraction.blocks import parse_ocr_blocks
+    from app.extraction.keyword_engine import find_label_block
+    return find_label_block(parse_ocr_blocks(extracted), "name") is not None
+
+
+def ensure_svcc_reg_form_name(image_path: str, extracted: list, declared_school: str) -> list:
+    from app.normalization.text_utils import strip_diacritics, clean_text
+    from app.extraction.blocks import parse_ocr_blocks
+    from app.extraction.keyword_engine import find_label_block
+
+    if strip_diacritics(declared_school or "").strip().upper() not in _SVCC_SCHOOL_NAMES:
+        return extracted
+    if _has_name_label(extracted):
+        return extracted
+
+    ocr = get_ocr()
+    preprocessed_path = preprocess_image(image_path)
+    try:
+        results2 = ocr.ocr(preprocessed_path, cls=True)
+        extracted2 = parse_results(results2)
+    finally:
+        import os
+        if preprocessed_path != image_path and os.path.exists(preprocessed_path):
+            os.unlink(preprocessed_path)
+
+    name_block2 = find_label_block(parse_ocr_blocks(extracted2), "name")
+    if name_block2 is None:
+        return extracted
+
+    # Merge in just the recovered Name line's ORIGINAL dict entry (not the
+    # OcrBlock reconstruction) so downstream extraction gets the same
+    # bbox/confidence shape every other line has -- same approach as the
+    # UPLB header merge above.
+    for item in extracted2:
+        if clean_text(item.get("text", "")) == name_block2.text:
+            return extracted + [item]
+    return extracted
+
+
 def parse_results(results) -> list:
     extracted = []
     if not results or not results[0]:
