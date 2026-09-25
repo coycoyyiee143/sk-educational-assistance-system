@@ -452,7 +452,7 @@ function VerifierApplicationReview() {
     const messages = {
       cert_year_match: "Exact integer equality",
       identity_match: "Exact identity match",
-      residency_geofence: "Exact boundary geofence match",
+      residency_geofence: "Barangay matches declared residency",
     };
 
     return messages[checkName] || "Verification rule matched";

@@ -118,7 +118,12 @@ const CHECK_NAME_LABELS = {
     // different fields, so this needs to say which one.
     cert_year_match: "Certificate Year Issued",
     identity_match: "Identity & Legal Name",
-    residency_geofence: "Residency Geofence",
+    // "residency_geofence" is the stored check_name (unchanged, already
+    // in seeded/production data) — overridden here because the check
+    // itself is a plain OCR text match of the printed barangay against
+    // "Mamatid", not a GPS/coordinate-based geofence of any kind. The old
+    // label overstated what the check actually does.
+    residency_geofence: "Residency Check",
     repeated_auto_reupload_escalation: "Repeated Re-upload Issue",
     // "institution_match" is the stored check_name (unchanged, already in
     // seeded/production data) — overridden here only so the displayed

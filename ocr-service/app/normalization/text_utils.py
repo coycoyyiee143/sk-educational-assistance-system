@@ -24,8 +24,21 @@ def strip_diacritics(text: str) -> str:
 def normalize_name(name: str) -> str:
     name = clean_text(name)
     name = strip_diacritics(name)
+    # Comma specifically becomes a space, not deleted outright -- OCR
+    # commonly reads a "Last,First" formatted name with NO space after
+    # the comma (confirmed on a real PUP School ID: "DELA ROSA,ELA
+    # MARIE..."). Blindly deleting the comma the way every other
+    # punctuation mark below is deleted glues the two genuinely separate
+    # words together ("ROSAELA"), which can then coincidentally
+    # fuzzy-match a DIFFERENT surname entirely -- here, "Dela Rosario"
+    # partial-matched the glued "ROSAELA" well enough to pass
+    # fuzzy_match_name at 90.9%, despite the actual printed surname being
+    # "Dela Rosa". Every other punctuation mark stays deleted (not
+    # spaced), since that's already relied on elsewhere (e.g. "Sch.Yr."
+    # collapsing to one token).
+    name = name.replace(',', ' ')
     name = re.sub(r'[^\w\s]', '', name)
-    return name.upper().strip()
+    return re.sub(r'\s+', ' ', name).upper().strip()
 
 
 def trim_to_match_window(text: str, expected: str, padding: int = 20, max_length: int = 150) -> str:
@@ -127,6 +140,23 @@ def _component_present(target: str, text: str, threshold: int = 85) -> bool:
         alignment = fuzz.partial_ratio_alignment(target, text)
         window = text[alignment.dest_start:alignment.dest_end]
         return Levenshtein.distance(target, window) <= 1
+
+    # partial_ratio's score formula only weighs the LENGTH OF THE MATCHED
+    # WINDOW, not how much of target it actually covers -- so a target
+    # that's a strict extension of a shorter real word (e.g. "Rosario"
+    # starting with "Rosa") can clear the threshold from the shared
+    # prefix ALONE, even with the rest of target completely absent.
+    # Confirmed on a real PUP School ID: target "DELA ROSARIO" scored
+    # 85.7% against text containing only "DELA ROSA" (no "RIO" anywhere),
+    # since the 9-of-12-character prefix match alone was enough under
+    # that formula. Requiring the matched window to cover most of
+    # target's own length closes that gap -- a genuine OCR misread still
+    # aligns across nearly the whole target, just with a few wrong
+    # characters inside the window, not a chunk of it simply missing.
+    alignment = fuzz.partial_ratio_alignment(target, text)
+    window_len = alignment.dest_end - alignment.dest_start
+    if window_len < 0.8 * len(target):
+        return False
     return fuzz.partial_ratio(target, text) >= threshold
 
 

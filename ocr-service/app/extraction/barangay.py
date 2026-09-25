@@ -86,9 +86,17 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
     Extract barangay data. Triggers Suggested Disapproval with bounding box
     metadata if a contrasting local Laguna barangay layout is read.
     """
+    # Cabuyao, Laguna's full 18 barangays -- confirmed missing "Casile" on
+    # a real Voter's Certificate (label "Barangay" / value "CASILE" both
+    # read cleanly, but with no entry to match against it fell all the way
+    # through to a generic "not captured cleanly" instead of flagging the
+    # contradiction). Filled in the rest of the real list at the same time
+    # rather than waiting to hit each remaining gap one at a time.
     known_laguna_barangays = [
         "banlic", "pulo", "sala", "niugan", "san isidro", "marinig",
-        "diezmo", "gulod", "baclaran", "mamatid", "bigaa", "butong"
+        "diezmo", "gulod", "baclaran", "mamatid", "bigaa", "butong",
+        "casile", "banay-banay", "pittland", "bagumbayan",
+        "poblacion uno", "poblacion dos", "poblacion tres",
     ]
 
     result = extract_via_keyword(blocks, "barangay")
@@ -120,7 +128,7 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
                 # that shouldn't be the ONLY place it shows up.
                 return ExtractionResult(
                     value=brgy.title(), raw=raw, method="keyword", confidence=combined_confidence,
-                    context=f"Contradiction: Detected residency layout pointing to Brgy. {brgy.title()}.",
+                    context=f"Contradiction: Detected Brgy. {brgy.title()} on the document, not the declared Mamatid.",
                     found=False,
                     metadata={"flag": "SUGGESTED_DISAPPROVAL", "bbox": [target_block.x_min, target_block.y_min, target_block.x_max, target_block.y_max]}
                 )
@@ -153,9 +161,43 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
                 # carry the detected barangay instead of None here.
                 return ExtractionResult(
                     value=brgy.title(), raw=block.text, method="pattern_scan", confidence=block.confidence,
-                    context=f"Contradiction: Detected residency layout pointing to Brgy. {brgy.title()}.",
+                    context=f"Contradiction: Detected Brgy. {brgy.title()} on the document, not the declared Mamatid.",
                     found=False,
                     metadata={"flag": "SUGGESTED_DISAPPROVAL", "bbox": [block.x_min, block.y_min, block.x_max, block.y_max]}
                 )
-            
+
+    # Last-resort fallback: a genuine barangay name appearing as its own
+    # whole word in TWO OR MORE separate blocks, independently, is a much
+    # stronger signal than the single-block context-word gate above
+    # requires -- an unrelated coincidental whole-word match (the "officer
+    # surname" false-positive class _residency_context_present() guards
+    # against) is very unlikely to repeat across more than one distinct
+    # block on the same page purely by chance. This specifically rescues
+    # documents where BOTH the "Barangay:" label AND the nearby context
+    # word are independently garbled by OCR in different, unrelated ways
+    # -- confirmed on a real Voter's Certificate reading "Rranguy" (label,
+    # too corrupted even for the fuzzy label fallback in keyword_engine.py)
+    # and "Resldence" (context word, typo'd, so _residency_context_present
+    # never matches it either) while the actual barangay name "MARINIG"
+    # still came through cleanly -- twice, in two unrelated places
+    # (once next to the garbled label, once in the address block).
+    match_blocks = {}
+    for block in blocks:
+        txt_lower = block.text.lower()
+        if "mamatid" in txt_lower:
+            continue
+        for brgy in known_laguna_barangays:
+            if brgy != "mamatid" and _contains_word(txt_lower, brgy):
+                match_blocks.setdefault(brgy, []).append(block)
+
+    for brgy, matching in match_blocks.items():
+        if len(matching) >= 2:
+            anchor = matching[0]
+            return ExtractionResult(
+                value=brgy.title(), raw=anchor.text, method="pattern_scan", confidence=anchor.confidence,
+                context=f"Contradiction: Detected Brgy. {brgy.title()} on the document, not the declared Mamatid.",
+                found=False,
+                metadata={"flag": "SUGGESTED_DISAPPROVAL", "bbox": [anchor.x_min, anchor.y_min, anchor.x_max, anchor.y_max]}
+            )
+
     return extraction_failed("barangay", "Barangay text line not captured cleanly")

@@ -1,6 +1,7 @@
 # app/extraction/keyword_engine.py
 import re
 from typing import List, Tuple, Optional
+from rapidfuzz import fuzz
 from app.models import OcrBlock
 from app.utils.spatial import get_block_to_right, get_block_below, get_block_above
 
@@ -19,6 +20,17 @@ FIELD_KEYWORDS = {
     "barangay": ["barangay", "brgy", "brgy.", "precinct"],
     "date_issued": ["date issued", "date of issuance", "issuance date", "issued"],
 }
+
+# Keywords shorter than this are excluded from the fuzzy fallback below --
+# too easy to false-positive when fuzzy-matching a 2-3 letter acronym-like
+# label ("sy", "ay", "brgy") against arbitrary short OCR noise. Long enough
+# labels get a meaningful similarity signal instead.
+_FUZZY_LABEL_MIN_LENGTH = 6
+
+# Same "confident similarity" bar used elsewhere for text matching (e.g.
+# fuzzy_match_school's pass threshold) -- kept consistent rather than
+# introducing a second, arbitrary cutoff.
+_FUZZY_LABEL_THRESHOLD = 85
 
 def find_label_block(blocks: List[OcrBlock], field_name: str) -> Optional[OcrBlock]:
     """
@@ -49,6 +61,30 @@ def find_label_block(blocks: List[OcrBlock], field_name: str) -> Optional[OcrBlo
                 return block
             if len(kw) <= 3 and re.search(r'\b' + re.escape(kw) + r'\b', t):
                 return block
+
+    # Fuzzy fallback -- tried only after every keyword's exact/substring/
+    # word-boundary check above has already failed for every block. OCR
+    # drops or substitutes a letter in a label often enough (e.g. a real
+    # Voter's Certificate reading "Brangay" for "Barangay") that
+    # hardcoding every specific typo variant into FIELD_KEYWORDS isn't
+    # sustainable -- a similarity check catches that family of mistake
+    # generically instead of needing a new list entry each time a new
+    # variant shows up. Scoped to keywords long enough for a high
+    # similarity ratio to be meaningful (see _FUZZY_LABEL_MIN_LENGTH).
+    for kw in keywords:
+        if len(kw) < _FUZZY_LABEL_MIN_LENGTH:
+            continue
+        for block in blocks:
+            t = block.text.lower().strip().rstrip(':').strip()
+            if fuzz.ratio(t, kw) >= _FUZZY_LABEL_THRESHOLD:
+                return block
+            # Also check individual words, in case the label is only
+            # part of a longer line -- mirrors the exact branch's
+            # `kw in t` substring check above, just fuzzy.
+            for word in t.split():
+                if len(word) >= 4 and fuzz.ratio(word, kw) >= _FUZZY_LABEL_THRESHOLD:
+                    return block
+
     return None
 
 def extract_via_keyword(blocks: List[OcrBlock], field_name: str) -> Optional[Tuple[str, str, OcrBlock, OcrBlock]]:

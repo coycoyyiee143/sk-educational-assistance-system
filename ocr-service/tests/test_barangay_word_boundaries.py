@@ -157,6 +157,39 @@ def test_san_isidro_multiword_barangay_still_works():
     assert "San Isidro" in result.context
 
 
+def test_brangay_ocr_typo_label_still_recognized():
+    # Regression test for a real Voter's Certificate: the label read as
+    # "Brangay" (missing the first "a"), which didn't match any keyword
+    # in FIELD_KEYWORDS["barangay"] at all -- not a wrong VALUE read, the
+    # LABEL itself went unrecognized, so extract_via_keyword returned
+    # nothing and the whole check fell through to the generic "not
+    # captured cleanly" instead of the specific contradiction, even
+    # though the value line (":MARINIG") was read cleanly right below it.
+    # Caught by find_label_block's generic fuzzy fallback (see
+    # keyword_engine.py), not a hardcoded "brangay" entry -- see the next
+    # test for a different typo hitting the same mechanism.
+    label = OcrBlock(text="Brangay", confidence=0.81, x_min=0, y_min=0, x_max=100, y_max=20)
+    value = OcrBlock(text=":MARINIG", confidence=0.93, x_min=0, y_min=25, x_max=100, y_max=45)
+    result = extract_barangay([label, value])
+    assert result.found is False
+    assert result.value == "Marinig"
+    assert result.metadata.get("flag") == "SUGGESTED_DISAPPROVAL"
+    assert "Marinig" in result.context
+
+
+def test_fuzzy_label_fallback_generalizes_to_other_typos():
+    # Confirms the fallback is genuinely generic -- catches a DIFFERENT
+    # single-letter OCR typo ("Barnagay", a transposition) without
+    # needing its own dedicated FIELD_KEYWORDS entry the way "brangay"
+    # would have needed before this fallback existed.
+    label = OcrBlock(text="Barnagay", confidence=0.85, x_min=0, y_min=0, x_max=100, y_max=20)
+    value = OcrBlock(text=":PULO", confidence=0.9, x_min=0, y_min=25, x_max=100, y_max=45)
+    result = extract_barangay([label, value])
+    assert result.found is False
+    assert result.value == "Pulo"
+    assert result.metadata.get("flag") == "SUGGESTED_DISAPPROVAL"
+
+
 def test_contradiction_populates_value_not_just_context():
     # A SUGGESTED_DISAPPROVAL contradiction used to leave value/raw as
     # None (via extraction_failed()), so a verifier saw "not extracted"
@@ -174,3 +207,64 @@ def test_contradiction_populates_value_not_just_context():
     result2 = extract_barangay(unanchored)
     assert result2.found is False
     assert result2.value == "Banlic"
+
+
+def test_casile_recognized_as_a_known_barangay():
+    # Regression test for a real Voter's Certificate: label "Barangay"
+    # and value "CASILE" both read cleanly, but "Casile" (a real Cabuyao,
+    # Laguna barangay) was missing from known_laguna_barangays entirely,
+    # so it fell all the way through to a generic "not captured cleanly"
+    # instead of flagging the contradiction -- unlike e.g. "Butong",
+    # which was already in the list and worked correctly.
+    label = OcrBlock(text="Barangay", confidence=0.99, x_min=0, y_min=0, x_max=100, y_max=20)
+    value = OcrBlock(text=":CASILE", confidence=0.92, x_min=0, y_min=25, x_max=100, y_max=45)
+    result = extract_barangay([label, value])
+    assert result.found is False
+    assert result.value == "Casile"
+    assert result.metadata.get("flag") == "SUGGESTED_DISAPPROVAL"
+
+
+def test_contradiction_reason_does_not_mention_layout():
+    # The flag_reason previously said "Detected residency layout pointing
+    # to Brgy. X" -- "layout" was misleading (this is a text match, not a
+    # layout/positional analysis) and has been dropped from the wording.
+    blocks = [block("Barangay: Banlic, Cabuyao, Laguna")]
+    result = extract_barangay(blocks)
+    assert "layout" not in result.context.lower()
+    assert "Banlic" in result.context
+
+
+def test_repeated_barangay_rescued_when_label_and_context_both_garbled():
+    # Regression test for a real Voter's Certificate: the label OCR'd as
+    # "Rranguy" (too corrupted even for the fuzzy label fallback in
+    # keyword_engine.py) and the residency context word OCR'd as
+    # "Resldence" (typo'd, so _residency_context_present never matches
+    # it either) -- both the labeled path AND the single-block context-
+    # gated fallback miss this document entirely. But "MARINIG" itself
+    # was read cleanly in TWO separate, independent blocks (once next to
+    # the garbled label, once in the address block) -- that repetition
+    # is itself a strong enough signal to flag the contradiction without
+    # needing a context word in the same block.
+    blocks = [
+        OcrBlock(text="Rranguy", confidence=0.68, x_min=0, y_min=0, x_max=100, y_max=20),
+        OcrBlock(text=":MARINIG", confidence=0.93, x_min=0, y_min=25, x_max=100, y_max=45),
+        OcrBlock(text="Resldence", confidence=0.78, x_min=0, y_min=200, x_max=100, y_max=220),
+        OcrBlock(text=": B53 L35 P5", confidence=0.99, x_min=0, y_min=225, x_max=100, y_max=245),
+        OcrBlock(text="MARINIG", confidence=0.998, x_min=0, y_min=250, x_max=100, y_max=270),
+        OcrBlock(text="CITY OF CABUYAO", confidence=0.99, x_min=0, y_min=275, x_max=100, y_max=295),
+    ]
+    result = extract_barangay(blocks)
+    assert result.found is False
+    assert result.value == "Marinig"
+    assert result.metadata.get("flag") == "SUGGESTED_DISAPPROVAL"
+
+
+def test_single_incidental_whole_word_still_not_flagged():
+    # The repeated-match fallback must still require 2+ SEPARATE blocks --
+    # a single genuine whole-word match with no residency context (e.g.
+    # an officer's surname happening to be a real barangay name) must
+    # stay unflagged, same as before this fallback existed.
+    blocks = [block("Certified by: Atty. Juan Pulo, Election Officer")]
+    result = extract_barangay(blocks)
+    assert result.found is False
+    assert result.metadata.get("flag") != "SUGGESTED_DISAPPROVAL"
