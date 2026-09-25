@@ -257,6 +257,36 @@ class SeedOcrUiSamplesSeeder extends Seeder
                 80 => 'Gado|Fernandez|Maderazzo',
             ],
         ],
+        [
+            'folder' => 'NU',
+            'school' => 'National University',
+            // Same UPHS-style convention: space-separated filenames
+            // ("ID 101.jpg") and an "ID" (not "SID") School ID subfolder.
+            'separator' => ' ',
+            'id_folder' => 'ID',
+            'people' => [
+                101 => 'Erika Joy|Baltazar|Villamor',
+                102 => 'Miguel Antonio|Padilla|Soriano',
+                103 => 'Bianca Marie|Gonzales|Lacson',
+                104 => 'John Patrick|Villafuerte|Regalado',
+                105 => 'Danielle Faith|Ocampo|Marquez',
+                106 => 'Lorenzo Gabriel|Santos|Camacho',
+                107 => 'Kyla Marie|Espiritu|Baldoza',
+                108 => 'Russel Andrew|Cruz|Tibayan',
+                109 => 'Allyssa Nicole|Reyes|Montemayor',
+                110 => 'Gian Carlo|Dimaano|Paras',
+                111 => 'Mary Rose|Liwanag|Abrigo',
+                112 => 'Dexter James|Abad|Sebastian',
+                113 => 'Francine Mae|Toledo|Narciso',
+                114 => 'Ian Carlos|Matias|Briones',
+                115 => 'Jezreel Ann|Pascual|Calderon',
+                116 => 'Mark Louie|Fernando|Ortiz',
+                117 => 'Dyan Carla|Mendiola|Velasquez',
+                118 => 'Noel Justine|Bagsic|Arellano',
+                119 => 'Catherine Joy|Ramos|Espino',
+                120 => 'Rico Angelo|De Leon|Buenaventura',
+            ],
+        ],
     ];
 
     public function run(): void
