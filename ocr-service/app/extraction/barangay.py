@@ -47,6 +47,54 @@ def _contains_word(text_lower: str, word: str) -> bool:
     return False
 
 
+# Confirmed on real Voter's Certificates: the barangay/residence field
+# always sits between ~25% and ~48% down the page. Unlike a school-specific
+# Registration Form (layout varies per school, no single "right" region),
+# a Voter's Certificate is one fixed national COMELEC template, so this is
+# a meaningful, reusable signal. Generous margin on both sides (10%-65%)
+# to tolerate real scan/skew variance without being so wide it stops
+# excluding the class of bug this exists for: a stray "Mamatid"/barangay
+# mention buried in unrelated footer/disclaimer text near the bottom of
+# the page (confirmed on the institution-name equivalent of this exact
+# bug -- see AUTO_REUPLOAD_VERIFICATION_RULES.md). A gamed/forged document
+# that prints "Barangay: Mamatid" somewhere off in a footer, hoping to
+# slip past a bare text search, no longer counts unless it's actually
+# printed where COMELEC's real form puts it.
+_RESIDENCY_REGION = (0.10, 0.65)
+
+
+def _in_residency_region(block: OcrBlock, page_h: float) -> bool:
+    if not page_h:
+        return True  # can't judge position without a page height -- don't block on it
+    y_center = (block.y_min + block.y_max) / 2
+    return _RESIDENCY_REGION[0] <= (y_center / page_h) <= _RESIDENCY_REGION[1]
+
+
+def _municipal_context_present(blocks: List[OcrBlock], page_h: float) -> bool:
+    """
+    Combines with _in_residency_region rather than replacing it: position
+    alone only says "this text is roughly where the address should be" --
+    it says nothing about whether the SURROUNDING content actually reads
+    like a Cabuyao, Laguna address at all. Confirmed on 3 real Voter's
+    Certificates that "Cabuyao"/"Laguna" always appears SOMEWHERE within
+    the same residency region as the barangay line (not necessarily
+    adjacent to it -- the "Barangay:" label and the fuller "Residence: ...
+    City of Cabuyao, Laguna" line are often separate blocks a fair
+    distance apart), so this checks the whole region rather than requiring
+    tight proximity to the specific matched block. Skipped entirely (True)
+    when page_h isn't available, same as _in_residency_region.
+    """
+    if not page_h:
+        return True
+    for b in blocks:
+        if not _in_residency_region(b, page_h):
+            continue
+        t = b.text.lower()
+        if _contains_word(t, "cabuyao") or _contains_word(t, "laguna"):
+            return True
+    return False
+
+
 def _residency_context_present(text_lower: str) -> bool:
     """
     Whether this block plausibly represents address/residency
@@ -81,10 +129,17 @@ def _residency_context_present(text_lower: str) -> bool:
     return any(w in text_lower for w in _RESIDENCY_CONTEXT_WORDS)
 
 
-def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
+def extract_barangay(blocks: List[OcrBlock], page_h: float = None) -> ExtractionResult:
     """
     Extract barangay data. Triggers Suggested Disapproval with bounding box
     metadata if a contrasting local Laguna barangay layout is read.
+
+    page_h is optional (defaults to no position check at all, for any
+    caller/test that doesn't have it handy) but should be passed whenever
+    available -- see _in_residency_region for why it matters: without it,
+    a barangay name mentioned ANYWHERE on the page (a disclaimer, a
+    footer, unrelated boilerplate) would count exactly the same as a
+    genuine residency field.
     """
     # Cabuyao, Laguna's full 18 barangays -- confirmed missing "Casile" on
     # a real Voter's Certificate (label "Barangay" / value "CASILE" both
@@ -101,10 +156,21 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
 
     result = extract_via_keyword(blocks, "barangay")
 
-    if result:
-        # Anchored to an actual "Barangay"-labeled field -- already
-        # inherently residency-context, no additional filtering needed
-        # here the way the unanchored fallback below needs it.
+    # Combined with _in_residency_region below: position says "roughly
+    # the right place", this says "the surrounding content actually reads
+    # like a Cabuyao, Laguna address" -- computed once, reused by every
+    # match branch below. See _municipal_context_present's docstring.
+    municipal_context_ok = _municipal_context_present(blocks, page_h)
+
+    # A genuine "Barangay:" LABEL is a strong signal on its own, but not
+    # an unconditional one -- a forged/edited document could print
+    # "Barangay: Mamatid" anywhere, including somewhere far from where
+    # COMELEC's real form ever puts it, specifically to slip past a bare
+    # text search. Requiring the label to actually sit where it should,
+    # AND that "Cabuyao"/"Laguna" genuinely appears somewhere in that same
+    # region, closes that gap the same way the unanchored fallback below
+    # needs to.
+    if result and _in_residency_region(result[2], page_h) and municipal_context_ok:
         raw, context, target_block, label_block = result
         raw_lower = raw.lower()
         combined_confidence = min(target_block.confidence, label_block.confidence)
@@ -118,7 +184,7 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
         # still needs the stricter word-boundary check.
         if "mamatid" in raw_lower:
             return ExtractionResult(value="Mamatid", raw=raw, method="keyword", confidence=combined_confidence, context=f'found {context}')
-        
+
         for brgy in known_laguna_barangays:
             if brgy != "mamatid" and _contains_word(raw_lower, brgy):
                 # value/raw carry the actually-detected barangay (not None,
@@ -134,16 +200,21 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
                 )
 
     # Fallback: no "Barangay" label found anywhere on the page at all.
-    # Confirming "Mamatid" here is still allowed without extra context
-    # -- if wrong, the worst case is a missed positive match (falls
-    # through to "not captured cleanly" below, verifier-routed anyway).
-    # But flagging a CONTRADICTION here requires the matching block to
+    # Restricted to the expected residency region from here on -- without
+    # it, a "Mamatid"/barangay mention ANYWHERE on the page (a disclaimer,
+    # a footer, unrelated boilerplate) would count exactly the same as a
+    # genuine residency field. Confirmed necessary on the institution-name
+    # equivalent of this exact bug (see AUTO_REUPLOAD_VERIFICATION_RULES.md)
+    # -- a full-page match with no positional check let a wrong document
+    # pass simply because the right words appeared somewhere unrelated.
+    # Flagging a CONTRADICTION additionally requires the matching block to
     # also look like it's actually about residency (see
-    # _residency_context_present) -- without that, a name, signature,
-    # or any other unrelated text block could trigger an accusatory
-    # false flag on a document that never said anything about the
-    # applicant's address at all.
+    # _residency_context_present) -- without that, a name, signature, or
+    # any other unrelated text block in the region could still trigger an
+    # accusatory false flag.
     for block in blocks:
+        if not _in_residency_region(block, page_h) or not municipal_context_ok:
+            continue
         txt_lower = block.text.lower()
 
         # Same reasoning as the anchored-match branch above: stay loose
@@ -181,8 +252,14 @@ def extract_barangay(blocks: List[OcrBlock]) -> ExtractionResult:
     # never matches it either) while the actual barangay name "MARINIG"
     # still came through cleanly -- twice, in two unrelated places
     # (once next to the garbled label, once in the address block).
+    # Still restricted to the residency region -- otherwise a forged
+    # document could just repeat the target barangay name twice in a
+    # footer/disclaimer to slip past the region gate above via THIS tier
+    # instead, defeating the point of adding it to the other two.
     match_blocks = {}
     for block in blocks:
+        if not _in_residency_region(block, page_h) or not municipal_context_ok:
+            continue
         txt_lower = block.text.lower()
         if "mamatid" in txt_lower:
             continue

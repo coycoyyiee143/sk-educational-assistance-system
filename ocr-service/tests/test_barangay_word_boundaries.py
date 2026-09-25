@@ -268,3 +268,102 @@ def test_single_incidental_whole_word_still_not_flagged():
     result = extract_barangay(blocks)
     assert result.found is False
     assert result.metadata.get("flag") != "SUGGESTED_DISAPPROVAL"
+
+
+# ── Residency region gate ──────────────────────────────────────────────
+#
+# Regression tests for the same class of bug found on institution
+# matching (see AUTO_REUPLOAD_VERIFICATION_RULES.md): a bare "does this
+# text appear ANYWHERE on the page" check is gameable -- a wrong/forged
+# document could print "Mamatid" or "Barangay: Mamatid" somewhere with no
+# real connection to the applicant's actual address (a stray footer line,
+# a disclaimer, deliberately inserted boilerplate) and still pass. Since a
+# Voter's Certificate is one fixed national COMELEC template (unlike a
+# school-specific Registration Form), the residency field reliably sits
+# in the same region -- confirmed at 21%-48% down the page on 3 real
+# samples. page_h=1000 below puts the "region" at y=100-650 (10%-65%).
+
+def block_at(text, y_center, page_h=1000, conf=0.95):
+    half = 10
+    return OcrBlock(text=text, confidence=conf, x_min=0, y_min=y_center - half, x_max=200, y_max=y_center + half)
+
+
+def test_mamatid_outside_region_does_not_count_as_positive_match():
+    # "Mamatid" printed far down the page (e.g. a footer/disclaimer) must
+    # NOT count the same as a genuine residency field.
+    far_footer = block_at("Mamatid mentioned here for no real reason", y_center=900)
+    result = extract_barangay([far_footer], page_h=1000)
+    assert result.found is False
+    assert result.value != "Mamatid"
+
+
+def test_mamatid_inside_region_still_counts():
+    in_region = block_at("Barangay Mamatid City of Cabuyao", y_center=300)
+    result = extract_barangay([in_region], page_h=1000)
+    assert result.found is True
+    assert result.value == "Mamatid"
+
+
+def test_contradiction_outside_region_does_not_flag():
+    far_footer = block_at("Address: Brgy. Banlic, Cabuyao, Laguna", y_center=920)
+    result = extract_barangay([far_footer], page_h=1000)
+    assert result.metadata.get("flag") != "SUGGESTED_DISAPPROVAL"
+
+
+def test_contradiction_inside_region_still_flags():
+    in_region = block_at("Address: Brgy. Banlic, Cabuyao, Laguna", y_center=300)
+    result = extract_barangay([in_region], page_h=1000)
+    assert result.found is False
+    assert result.value == "Banlic"
+    assert result.metadata.get("flag") == "SUGGESTED_DISAPPROVAL"
+
+
+def test_repeated_match_tier_requires_both_occurrences_in_region():
+    # Regression guard for a gaming attempt: repeating the target barangay
+    # name once in-region and once far outside it must NOT be enough --
+    # otherwise a forger could bypass the region gate above simply by
+    # adding a second, off-region mention.
+    in_region = block_at("Marinig", y_center=300)
+    out_of_region = block_at("Marinig", y_center=950)
+    result = extract_barangay([in_region, out_of_region], page_h=1000)
+    assert result.metadata.get("flag") != "SUGGESTED_DISAPPROVAL"
+
+
+def test_repeated_match_tier_still_works_when_both_in_region():
+    # Confirms the real "Rranguy"/garbled-context rescue (see
+    # test_repeated_barangay_rescued_when_label_and_context_both_garbled)
+    # still works now that it's also region- AND municipal-context-gated --
+    # real y-positions from that actual document (page height 3331):
+    # "Rranguy"/"MARINIG" at 21%, "Resldence"/"MARINIG" at 31-32%, and
+    # "CITY OF CABUYAO"/"LAGUNA" immediately after at 33-35%.
+    label = block_at("Rranguy", y_center=214)
+    value = block_at(":MARINIG", y_center=214)
+    context = block_at("Resldence", y_center=311)
+    value2 = block_at("MARINIG", y_center=322)
+    city = block_at("CITY OF CABUYAO", y_center=335)
+    province = block_at("LAGUNA", y_center=346)
+    result = extract_barangay([label, value, context, value2, city, province], page_h=1000)
+    assert result.found is False
+    assert result.value == "Marinig"
+    assert result.metadata.get("flag") == "SUGGESTED_DISAPPROVAL"
+
+
+def test_no_page_h_provided_skips_region_check():
+    # page_h is optional -- callers/tests that don't pass it get the old,
+    # unrestricted behavior rather than an error.
+    far_footer = block_at("Mamatid mentioned here", y_center=900)
+    result = extract_barangay([far_footer])
+    assert result.found is True
+    assert result.value == "Mamatid"
+
+
+def test_mamatid_in_region_without_cabuyao_laguna_anywhere_does_not_count():
+    # Position alone isn't enough -- a lone "Mamatid" mention in the right
+    # VERTICAL band but with no "Cabuyao"/"Laguna" anywhere in that same
+    # region doesn't read like a genuine Cabuyao, Laguna address at all.
+    # Combines with the region gate rather than replacing it (see
+    # _municipal_context_present).
+    lone_mention = block_at("Mamatid was mentioned in passing", y_center=300)
+    result = extract_barangay([lone_mention], page_h=1000)
+    assert result.found is False
+    assert result.value != "Mamatid"

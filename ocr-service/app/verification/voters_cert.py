@@ -144,7 +144,7 @@ def verify_voters_certificate(ocr_result, avg_confidence, first_name, middle_nam
             name_result = _flag("identity_match", name_result["reason"], expected=expected_name)
         checks = {"identity_match": name_result}
 
-    brgy_res = extract_barangay(blocks)
+    brgy_res = extract_barangay(blocks, page_h)
     if brgy_res.found and brgy_res.value == "Mamatid" and brgy_res.confidence >= RAW_FIELD_CONFIDENCE_FLOOR:
         residency_check = _pass("residency_geofence", extracted=brgy_res.value, raw=brgy_res.raw, context=brgy_res.context, expected="Mamatid")
     elif brgy_res.found and brgy_res.value == "Mamatid":
