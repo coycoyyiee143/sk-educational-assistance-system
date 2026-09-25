@@ -9,21 +9,39 @@ from app.normalization.schools.cdc import CalambaDoctorsCollegeStrategy
 from app.normalization.schools.nu import NuStrategy
 from app.normalization.schools.uplb import UplbStrategy
 
-# Central registry mapping the dropdown option strings to their strategies
+# Central registry mapping the dropdown option strings to their strategies.
+# Aliases of the SAME school below MUST share one strategy INSTANCE (not
+# just the same class) -- get_known_school_names() dedupes/excludes by
+# id(strategy) for the "which OTHER school is this" cross-check, so two
+# separately-constructed instances of e.g. StVincentCabuyaoStrategy() would
+# look like two different schools and let "SVCC" get offered back as a
+# candidate mismatch against the very same declared school "St. Vincent
+# College of Cabuyao" -- confirmed as a real false positive, not
+# hypothetical: a real SVCC Registration Form correctly declared as
+# "St. Vincent College of Cabuyao" was auto-flagged as institution_mismatch
+# ("appears to be SVCC instead") for exactly this reason.
+_pnc = PamantasanNgCabuyaoStrategy()
+_svcc = StVincentCabuyaoStrategy()
+_pup = PupStrategy()
+_uphsd = UphsdStrategy()
+_cdc = CalambaDoctorsCollegeStrategy()
+_nu = NuStrategy()
+_uplb = UplbStrategy()
+
 SCHOOL_STRATEGY_REGISTRY = {
     "STI College Calamba": StiCalambaStrategy(),
-    "Pamantasan ng Cabuyao": PamantasanNgCabuyaoStrategy(),
-    "University of Cabuyao": PamantasanNgCabuyaoStrategy(),
-    "St. Vincent College of Cabuyao": StVincentCabuyaoStrategy(),
-    "SVCC": StVincentCabuyaoStrategy(),
-    "Polytechnic University of the Philippines": PupStrategy(),
-    "PUP": PupStrategy(),
-    "University of Perpetual Help System DALTA": UphsdStrategy(),
-    "University of Perpetual Help System DALTA Calamba": UphsdStrategy(),
-    "Perpetual Help Calamba": UphsdStrategy(),
-    "Calamba Doctor's College": CalambaDoctorsCollegeStrategy(),
-    "Calamba Doctors College": CalambaDoctorsCollegeStrategy(),
-    "NU": NuStrategy(),
+    "Pamantasan ng Cabuyao": _pnc,
+    "University of Cabuyao": _pnc,
+    "St. Vincent College of Cabuyao": _svcc,
+    "SVCC": _svcc,
+    "Polytechnic University of the Philippines": _pup,
+    "PUP": _pup,
+    "University of Perpetual Help System DALTA": _uphsd,
+    "University of Perpetual Help System DALTA Calamba": _uphsd,
+    "Perpetual Help Calamba": _uphsd,
+    "Calamba Doctor's College": _cdc,
+    "Calamba Doctors College": _cdc,
+    "NU": _nu,
     # Full official name, same strategy instance -- registering this
     # matters beyond just letting the dropdown value resolve: without a
     # longer alias, get_known_school_names() (used for "which OTHER
@@ -36,9 +54,9 @@ SCHOOL_STRATEGY_REGISTRY = {
     # Laguna" -- confirmed the actual printed IDs/reg forms only say
     # "National University", no campus suffix, so matching against a
     # name that includes "Laguna" would never find it.
-    "National University": NuStrategy(),
-    "UPLB": UplbStrategy(),
-    "University of the Philippines Los Baños": UplbStrategy(),
+    "National University": _nu,
+    "UPLB": _uplb,
+    "University of the Philippines Los Baños": _uplb,
 
     # Every other school on SK's actual declared-school roster --
     # registered here so get_known_school_names() (the "which OTHER
