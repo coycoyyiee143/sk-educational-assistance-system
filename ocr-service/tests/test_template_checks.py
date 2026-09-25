@@ -135,7 +135,7 @@ def test_base_strategy_region_hint_flags_wrong_region():
     blocks = [block("Registration Form", x_min=0, y_min=950, x_max=200, y_max=980)]
     result = strategy.check(blocks)
     assert result.passed is False
-    assert any("not in expected top region" in f for f in result.flags)
+    assert any("not where it normally appears" in f for f in result.flags)
 
 
 def test_base_strategy_region_hint_passes_when_in_expected_region():

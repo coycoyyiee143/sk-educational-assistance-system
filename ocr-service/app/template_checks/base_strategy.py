@@ -72,18 +72,27 @@ class BaseTemplateStrategy:
 
         for kw in self.required_keywords:
             if not fuzzy_contains(full_text, kw, self.fuzzy_threshold):
-                flags.append(f"Missing expected text: '{kw}'")
+                # Verifier-facing (SK staff, not IT) -- plain sentence, no
+                # code-like quoting, so it reads the same as every other
+                # check's flag_reason instead of standing out as a raw
+                # internal value.
+                flags.append(f'This document is missing expected text: "{kw}".')
                 continue
 
             expected_region = self.region_hints.get(kw)
             if expected_region:
                 block = self._find_closest_block(blocks, kw)
                 if block and not self._in_region(block, page_height, expected_region):
-                    flags.append(f"'{kw}' found but not in expected {expected_region} region")
+                    flags.append(f'"{kw}" was found, but not where it normally appears on this document.')
 
         for group in self.required_keyword_groups:
             if not any(fuzzy_contains(full_text, kw, self.fuzzy_threshold) for kw in group):
-                flags.append(f"Missing expected text: one of {group}")
+                # Was f"Missing expected text: one of {group}" -- printed
+                # Python's raw list repr (e.g. "one of ['university',
+                # 'philippines', 'polytechnic']"), which read as an
+                # internal/code value rather than a plain explanation.
+                options = " / ".join(f'"{kw}"' for kw in group)
+                flags.append(f"None of the expected text was found on this document (expected one of: {options}).")
 
         flags.extend(self.extra_checks(blocks, page_width, page_height))
         score = max(0.0, 1.0 - (0.2 * len(flags)))
