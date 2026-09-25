@@ -71,7 +71,7 @@ SCHOOL_STRATEGY_REGISTRY = {
     "Philippine Women's University": BaseSchoolStrategy(),
     "University of Perpetual Help System JONELTA Biñan": BaseSchoolStrategy(),
     "University of Perpetual Help Las Piñas": BaseSchoolStrategy(),
-    "Unibersidad ng Pilipinas": BaseSchoolStrategy(),
+    "University of the Philippines": BaseSchoolStrategy(),
     "Westbridge Institute of Technology": BaseSchoolStrategy(),
     "Our Lady of Fatima University": BaseSchoolStrategy(),
     "Saint Benilde International School": BaseSchoolStrategy(),
