@@ -177,6 +177,12 @@ class SeedOcrUiSamplesSeeder extends Seeder
         [
             'folder' => 'SVCC',
             'school' => 'St. Vincent College of Cabuyao',
+            // RF/VC use a dash ("RF-041.jpg"), but the School ID scans are
+            // in an "ID" (not "SID") subfolder with a space separator
+            // ("ID 041.jpg") -- confirmed by inspecting the actual SVCC
+            // folder.
+            'id_folder' => 'ID',
+            'id_separator' => ' ',
             'people' => [
                 41 => 'Anthony Miguel|Santos|Del Rosario',
                 42 => 'Natalia Mae|Ramos|Villanueva',
@@ -409,13 +415,18 @@ class SeedOcrUiSamplesSeeder extends Seeder
             // folder is named "ID" rather than every other school's "SID".
             $sep = $school['separator'] ?? '-';
             $idFolder = $school['id_folder'] ?? 'SID';
+            // Lets a school's School ID filenames use a different
+            // separator than its RF/VC filenames (SVCC: "ID 041.jpg" vs
+            // "RF-041.jpg"/"VC-041.jpg"). Defaults to $sep for every
+            // other school, where all three doc types share one pattern.
+            $idSep = $school['id_separator'] ?? $sep;
 
             foreach ($school['people'] as $number => $nameSpec) {
                 [$first, $middle, $last] = array_pad(explode('|', $nameSpec), 3, '');
                 $padded = str_pad((string) $number, 3, '0', STR_PAD_LEFT);
 
                 $allDocuments = [
-                    'school_id' => self::DATA_ROOT."/{$school['folder']}/{$idFolder}/ID{$sep}{$padded}.jpg",
+                    'school_id' => self::DATA_ROOT."/{$school['folder']}/{$idFolder}/ID{$idSep}{$padded}.jpg",
                     'registration_form' => self::DATA_ROOT."/{$school['folder']}/RF/RF{$sep}{$padded}.jpg",
                     // PUP's 20th voter's certificate was scanned without
                     // a zero-padded filename (VC-20.jpg, not VC-020.jpg).
