@@ -151,6 +151,16 @@ class SeedOcrUiSamplesSeeder extends Seeder
         [
             'folder' => 'STI',
             'school' => 'STI College Calamba',
+            // School ID scans are in an "ID" (not "SID") subfolder with a
+            // space separator ("ID 021.jpg"), like UPHS/NU. Registration
+            // Form scans use a different separator AND extension from
+            // every other doc type/school ("RF - 021.png", not
+            // "RF-021.jpg") -- confirmed by inspecting the actual STI
+            // folder. VC scans ("VC-021.jpg") match the shared default.
+            'id_folder' => 'ID',
+            'id_separator' => ' ',
+            'rf_separator' => ' - ',
+            'rf_extension' => 'png',
             'people' => [
                 21 => 'Joshua Miguel|Reyes|Alvarez',
                 22 => 'Angela Mae|Flores|Miranda',
@@ -420,6 +430,11 @@ class SeedOcrUiSamplesSeeder extends Seeder
             // "RF-041.jpg"/"VC-041.jpg"). Defaults to $sep for every
             // other school, where all three doc types share one pattern.
             $idSep = $school['id_separator'] ?? $sep;
+            // STI's Registration Form scans use both a different
+            // separator AND a different image extension from every other
+            // doc type/school ("RF - 021.png", not "RF-021.jpg").
+            $rfSep = $school['rf_separator'] ?? $sep;
+            $rfExt = $school['rf_extension'] ?? 'jpg';
 
             foreach ($school['people'] as $number => $nameSpec) {
                 [$first, $middle, $last] = array_pad(explode('|', $nameSpec), 3, '');
@@ -427,7 +442,7 @@ class SeedOcrUiSamplesSeeder extends Seeder
 
                 $allDocuments = [
                     'school_id' => self::DATA_ROOT."/{$school['folder']}/{$idFolder}/ID{$idSep}{$padded}.jpg",
-                    'registration_form' => self::DATA_ROOT."/{$school['folder']}/RF/RF{$sep}{$padded}.jpg",
+                    'registration_form' => self::DATA_ROOT."/{$school['folder']}/RF/RF{$rfSep}{$padded}.{$rfExt}",
                     // PUP's 20th voter's certificate was scanned without
                     // a zero-padded filename (VC-20.jpg, not VC-020.jpg).
                     'voters_certificate' => ($school['folder'] === 'PUP' && $number === 20)
