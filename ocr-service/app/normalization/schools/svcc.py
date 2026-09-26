@@ -13,6 +13,19 @@ from app.normalization.base_strategy import BaseSchoolStrategy
 # punctuation difference.
 _HEADER_KEYWORDS = ["vincent", "cabuyao"]
 
+# The campus address line ("Mamatid, Cabuyao City, Laguna") sits directly
+# below the institution header on these forms and also contains "cabuyao",
+# so it satisfies both the keyword filter AND the contiguous-line proximity
+# check below -- confirmed on a real Registration Form where this glued the
+# whole address onto the extracted school name ("ST.VINCENT COLLEGE OF
+# CABUYAO Mamatid, Cabuyao City,Laguna"). SVCC's own official name never
+# contains "city" or a digit, so excluding lines with either reliably keeps
+# the address out without risking a genuine header line.
+def _looks_like_address_line(text: str) -> bool:
+    if any(ch.isdigit() for ch in text):
+        return True
+    return "city" in text.lower()
+
 
 class StVincentCabuyaoStrategy(BaseSchoolStrategy):
     """Custom formatting parsing layer dedicated to St. Vincent College of Cabuyao (SVCC)."""
@@ -26,6 +39,7 @@ class StVincentCabuyaoStrategy(BaseSchoolStrategy):
         candidates = [
             b for b in blocks
             if any(kw in b.text.lower() for kw in _HEADER_KEYWORDS)
+            and not _looks_like_address_line(b.text)
         ]
         if len(candidates) < 2:
             return blocks

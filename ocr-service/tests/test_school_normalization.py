@@ -184,6 +184,22 @@ def test_svcc_preprocess_blocks_only_one_header_keyword_is_passthrough():
     assert s.preprocess_blocks(blocks) == blocks
 
 
+def test_svcc_header_merge_excludes_adjacent_address_line():
+    # The campus address line sits directly below the header on real forms
+    # and also contains "cabuyao", so it used to satisfy both the keyword
+    # filter and the contiguous-line check and get glued onto the
+    # extracted school name (confirmed on a real Registration Form:
+    # "ST.VINCENT COLLEGE OF CABUYAO Mamatid, Cabuyao City,Laguna").
+    s = StVincentCabuyaoStrategy()
+    b1 = block("ST.VINCENT", x_min=0, y_min=0, x_max=100, y_max=20, conf=0.8)
+    b2 = block("COLLEGE OF CABUYAO", x_min=0, y_min=25, x_max=150, y_max=45, conf=0.9)
+    address = block("Mamatid, Cabuyao City,Laguna", x_min=0, y_min=48, x_max=150, y_max=68)
+    merged = s.preprocess_blocks([b1, b2, address])
+    merged_texts = [b.text for b in merged]
+    assert "ST.VINCENT COLLEGE OF CABUYAO" in merged_texts
+    assert "Mamatid, Cabuyao City,Laguna" in merged_texts
+
+
 # ── PupStrategy ───────────────────────────────────────────────────────────
 
 def test_pup_merges_institution_header_split_across_lines():
@@ -191,7 +207,14 @@ def test_pup_merges_institution_header_split_across_lines():
     b1 = block("POLYTECHNIC", x_min=0, y_min=0, x_max=100, y_max=20)
     b2 = block("UNIVERSITY", x_min=0, y_min=25, x_max=100, y_max=45)
     b3 = block("PHILIPPINES", x_min=0, y_min=50, x_max=100, y_max=70)
-    noise = block("eftf", x_min=0, y_min=75, x_max=50, y_max=95)
+    # _merge_institution_header computes "header region" as the top 25% of
+    # a page height inferred from the given blocks -- with only these 3
+    # short blocks, that inferred height is unrealistically tiny, so b2/b3
+    # would land OUTSIDE their own artificially-shrunk "header". A filler
+    # block far down the page (mimicking a real full page's actual height,
+    # same pattern UPHSD/UPLB's equivalent tests use) fixes the
+    # header-region math without changing any production code.
+    noise = block("eftf", x_min=0, y_min=800, x_max=50, y_max=820)
     merged = s.preprocess_blocks([b1, b2, b3, noise])
     merged_texts = [b.text for b in merged]
     # "of the" is spliced in even though no block for it was detected --
@@ -210,7 +233,8 @@ def test_pup_merge_tolerates_spacing_artifact_in_keyword():
     b1 = block("P OLYTECHNIC", x_min=0, y_min=0, x_max=100, y_max=20)
     b2 = block("UNIVERSITY", x_min=0, y_min=25, x_max=100, y_max=45)
     b3 = block("PHILIPPINES", x_min=0, y_min=50, x_max=100, y_max=70)
-    merged = s.preprocess_blocks([b1, b2, b3])
+    noise = block("eftf", x_min=0, y_min=800, x_max=50, y_max=820)
+    merged = s.preprocess_blocks([b1, b2, b3, noise])
     merged_texts = [b.text for b in merged]
     assert "P OLYTECHNIC UNIVERSITY of the PHILIPPINES" in merged_texts
 
@@ -222,7 +246,8 @@ def test_pup_merge_does_not_insert_of_the_when_already_present():
     b3 = block("OF", x_min=0, y_min=50, x_max=30, y_max=65)
     b4 = block("THE", x_min=35, y_min=50, x_max=60, y_max=65)
     b5 = block("PHILIPPINES", x_min=0, y_min=70, x_max=100, y_max=90)
-    merged = s.preprocess_blocks([b1, b2, b3, b4, b5])
+    noise = block("eftf", x_min=0, y_min=800, x_max=50, y_max=820)
+    merged = s.preprocess_blocks([b1, b2, b3, b4, b5, noise])
     merged_texts = [b.text for b in merged]
     assert "POLYTECHNIC UNIVERSITY OF THE PHILIPPINES" in merged_texts
 
@@ -231,6 +256,24 @@ def test_pup_header_merge_requires_at_least_two_keyword_blocks():
     s = PupStrategy()
     blocks = [block("POLYTECHNIC")]
     assert s.preprocess_blocks(blocks) == blocks
+
+
+def test_pup_header_merge_ignores_stray_keyword_outside_header_region():
+    # A body/table line elsewhere on the page happening to contain one of
+    # PUP's institution keywords (e.g. "UNIVERSITY") should NOT get glued
+    # onto a genuine header fragment just because both matched the keyword
+    # set -- only blocks actually in the header region qualify. Before the
+    # header-region scoping fix, this merged into a false
+    # "POLYTECHNIC UNIVERSITY" institution block.
+    s = PupStrategy()
+    b1 = block("POLYTECHNIC", x_min=0, y_min=0, x_max=100, y_max=20)
+    stray = block("UNIVERSITY", x_min=0, y_min=900, x_max=100, y_max=920)
+    filler = block("filler", x_min=0, y_min=990, x_max=50, y_max=1000)
+    merged = s.preprocess_blocks([b1, stray, filler])
+    merged_texts = [b.text for b in merged]
+    assert "POLYTECHNIC" in merged_texts
+    assert "UNIVERSITY" in merged_texts
+    assert not any("POLYTECHNIC UNIVERSITY" in t for t in merged_texts)
 
 
 def test_pup_merges_name_lines_above_student_number():
@@ -243,6 +286,25 @@ def test_pup_merges_name_lines_above_student_number():
     merged_texts = [b.text for b in merged]
     assert "JEAN GRAY B. HEMENEZ" in merged_texts
     assert "2023-00000-AB-0" in merged_texts
+
+
+def test_pup_name_merge_excludes_institution_header_line():
+    # On a compact Certificate of Registration, the institution header can
+    # sit close enough above the student number (within the same loose
+    # distance window used to find stacked name lines) to be picked up as
+    # if it were part of the applicant's name -- confirmed on a real PUP
+    # Registration Form where this produced "POLYTECHNIC UNIVERSITY OF THE
+    # PHILIPPINES PASCUAL, ELLA MAE C." as a single merged name/school
+    # value. A genuine name line never contains the institution's own
+    # wording, so the header must never end up glued onto it.
+    s = PupStrategy()
+    header = block("POLYTECHNIC UNIVERSITY OF THE PHILIPPINES", x_min=0, y_min=0, x_max=150, y_max=20)
+    name = block("PASCUAL, ELLA MAE C.", x_min=0, y_min=22, x_max=150, y_max=42)
+    student_no = block("2023-05678-CD-0", x_min=0, y_min=44, x_max=150, y_max=64)
+    merged = s.preprocess_blocks([header, name, student_no])
+    merged_texts = [b.text for b in merged]
+    assert "PASCUAL, ELLA MAE C." in merged_texts
+    assert not any("POLYTECHNIC" in t and "PASCUAL" in t for t in merged_texts)
 
 
 def test_pup_no_student_number_anchor_leaves_name_lines_untouched():

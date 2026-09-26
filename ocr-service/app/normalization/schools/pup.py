@@ -3,6 +3,7 @@ from typing import List
 from rapidfuzz import fuzz
 from app.models import OcrBlock
 from app.normalization.base_strategy import BaseSchoolStrategy
+from app.utils.spatial import get_blocks_in_region
 
 
 # Header fragments genuinely part of "Polytechnic University of the Philippines"
@@ -33,7 +34,21 @@ class PupStrategy(BaseSchoolStrategy):
         return blocks
 
     def _merge_institution_header(self, blocks: List[OcrBlock]) -> List[OcrBlock]:
-        header_parts = [b for b in blocks if self._is_institution_keyword(b.text)]
+        # Scoped to the header region ONLY -- scanning the WHOLE page for
+        # these keywords risks sweeping in a stray, unrelated match further
+        # down the page (e.g. a subject/body line that happens to contain
+        # "OF" or "THE") into the institution header. Same bug, same fix as
+        # UPHSD's and UPLB's _merge_institution_header. page_w/page_h are
+        # computed from these blocks directly rather than imported from
+        # app.extraction, to avoid a circular import with app.normalization's
+        # own package init.
+        if not blocks:
+            return blocks
+        page_w = max(b.x_max for b in blocks)
+        page_h = max(b.y_max for b in blocks)
+        header_region = get_blocks_in_region(blocks, page_w, page_h, "header")
+
+        header_parts = [b for b in header_region if self._is_institution_keyword(b.text)]
         if len(header_parts) < 2:
             return blocks
 
@@ -94,6 +109,18 @@ class PupStrategy(BaseSchoolStrategy):
             for kw in _INSTITUTION_KEYWORDS
         )
 
+    def _contains_institution_wording(self, text: str) -> bool:
+        """
+        True if ANY word in `text` is one of PUP's distinctive institution
+        keywords -- unlike _is_institution_keyword() (which tests whether
+        the WHOLE block text IS a single keyword fragment, for OCR lines
+        already split word-by-word), this checks a full, unsplit line
+        (e.g. "POLYTECHNIC UNIVERSITY OF THE PHILIPPINES") for containing
+        that wording anywhere in it.
+        """
+        words = re.findall(r"[A-Za-z]+", text.upper())
+        return any(w in _INSTITUTION_KEYWORDS for w in words if len(w) >= 4)
+
     def _merge_name_above_student_number(self, blocks: List[OcrBlock]) -> List[OcrBlock]:
         # PUP prints the name as up to two stacked lines directly above the
         # student number. Anchoring on the student number is reliable since
@@ -111,6 +138,23 @@ class PupStrategy(BaseSchoolStrategy):
             and b.y_center < anchor.y_center
             and (anchor.y_min - b.y_max) < line_height * 3
             and abs(b.x_min - anchor.x_min) < (anchor.x_max - anchor.x_min) * 2
+            # A compact Certificate of Registration slip can pack the
+            # institution header, the name, and other short label lines
+            # (e.g. "A.Y.:", "TERM:") all within this same loose distance
+            # window -- if those other lines fail the x-proximity check
+            # above, the header can end up as one of only 2 remaining
+            # candidates and get merged straight into the "name," producing
+            # "POLYTECHNIC UNIVERSITY OF THE PHILIPPINES PASCUAL, ELLA MAE
+            # C." as a single extracted name/school value (confirmed on a
+            # real PUP Registration Form). A genuine name line never
+            # contains the institution's own wording, so excluding any
+            # candidate that does is a direct, targeted guard against this
+            # regardless of the exact geometry involved. Uses
+            # _contains_institution_wording() (whole-line, substring-aware)
+            # rather than _is_institution_keyword() (single isolated
+            # keyword fragment) since the header here is already one
+            # complete, unsplit OCR line by this point.
+            and not self._contains_institution_wording(b.text)
         ]
         if not candidates:
             return blocks
