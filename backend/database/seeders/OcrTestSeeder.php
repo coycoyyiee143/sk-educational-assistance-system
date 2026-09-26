@@ -41,18 +41,18 @@ use Illuminate\Support\Facades\Storage;
  * CLI memory_limit on large scanned images. Set OCR_BATCH (1-indexed)
  * to seed 3 applications at a time instead of the whole set:
  *
- *   php artisan db:seed --class=SeedOcrUiSamplesSeeder            # batch 1 (cases 1-3)
- *   OCR_BATCH=2 php artisan db:seed --class=SeedOcrUiSamplesSeeder # batch 2 (cases 4-6)
+ *   php artisan db:seed --class=OcrTestSeeder            # batch 1 (cases 1-3)
+ *   OCR_BATCH=2 php artisan db:seed --class=OcrTestSeeder # batch 2 (cases 4-6)
  *   ...
- *   OCR_BATCH=all php artisan db:seed --class=SeedOcrUiSamplesSeeder # everything in one run
+ *   OCR_BATCH=all php artisan db:seed --class=OcrTestSeeder # everything in one run
  *
- * (PowerShell: `$env:OCR_BATCH=2; php artisan db:seed --class=SeedOcrUiSamplesSeeder`)
+ * (PowerShell: `$env:OCR_BATCH=2; php artisan db:seed --class=OcrTestSeeder`)
  *
  * If you still hit "Out of memory" (check the number in the error —
  * "allocated 41943040 bytes" means a 40MB memory_limit, well under
  * PHP's usual 128M+ default), raise it just for this run instead of
  * shrinking the batch further:
- *   php -d memory_limit=512M artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *   php -d memory_limit=512M artisan db:seed --class=OcrTestSeeder
  *
  * DOC TYPE: matches the workbook's per-document-type tabs — test a
  * subset of document types per application instead of all three.
@@ -79,9 +79,9 @@ use Illuminate\Support\Facades\Storage;
  * PUP template-check strategies against all 20 PUP applicants with all
  * 3 document types:
  *
- *   OCR_SCHOOL=PUP OCR_DOC_TYPE=all OCR_BATCH=all php artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *   OCR_SCHOOL=PUP OCR_DOC_TYPE=all OCR_BATCH=all php artisan db:seed --class=OcrTestSeeder
  *
- * (PowerShell: `$env:OCR_SCHOOL='PUP'; $env:OCR_DOC_TYPE='all'; $env:OCR_BATCH='all'; php artisan db:seed --class=SeedOcrUiSamplesSeeder`)
+ * (PowerShell: `$env:OCR_SCHOOL='PUP'; $env:OCR_DOC_TYPE='all'; $env:OCR_BATCH='all'; php artisan db:seed --class=OcrTestSeeder`)
  *
  * Note: PUP's SID folder only has real School ID scans for cases 1-5
  * (ID-001.jpg through ID-005.jpg) — cases 6-20 will skip school_id
@@ -91,9 +91,9 @@ use Illuminate\Support\Facades\Storage;
  * batch. Set it to 1 to seed exactly one application per command, then
  * bump OCR_BATCH for the next one:
  *
- *   $env:OCR_SCHOOL='PUP'; $env:OCR_DOC_TYPE='all'; $env:OCR_BATCH_SIZE='1'; $env:OCR_BATCH='1'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
- *   $env:OCR_BATCH='2'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
- *   $env:OCR_BATCH='3'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *   $env:OCR_SCHOOL='PUP'; $env:OCR_DOC_TYPE='all'; $env:OCR_BATCH_SIZE='1'; $env:OCR_BATCH='1'; php artisan db:seed --class=OcrTestSeeder
+ *   $env:OCR_BATCH='2'; php artisan db:seed --class=OcrTestSeeder
+ *   $env:OCR_BATCH='3'; php artisan db:seed --class=OcrTestSeeder
  *   ...
  *
  * ONE SPECIFIC PERSON: OCR_CASE targets an exact case number (the key
@@ -105,10 +105,10 @@ use Illuminate\Support\Facades\Storage;
  * that hit a since-fixed bug) without touching every other still-
  * unseeded case for that school:
  *
- *   $env:OCR_SCHOOL='UP-LB'; $env:OCR_DOC_TYPE='registration_form'; $env:OCR_CASE='186'; php artisan db:seed --class=SeedOcrUiSamplesSeeder
+ *   $env:OCR_SCHOOL='UP-LB'; $env:OCR_DOC_TYPE='registration_form'; $env:OCR_CASE='186'; php artisan db:seed --class=OcrTestSeeder
  *   $env:OCR_CASE='186,190' ...                        # multiple specific people
  */
-class SeedOcrUiSamplesSeeder extends Seeder
+class OcrTestSeeder extends Seeder
 {
     private const BATCH_SIZE = 3;
 
@@ -474,13 +474,22 @@ class SeedOcrUiSamplesSeeder extends Seeder
     private function seedCase(array $case, ApplicationConfiguration $config): void
     {
         $label = $case['label'];
-        $emailSlug = 'ocr-sample-' . preg_replace('/[^a-z0-9]+/i', '-', $label);
+        // Numbered by case number (same number the application id itself
+        // is forced to below) rather than the old school-label slug
+        // ("ocr-sample-sti-029@ocrtest.local") -- simpler to read/type,
+        // and ties every seeded artifact (email, application id) to the
+        // same one number. ".test" is an IANA-reserved TLD (RFC 2606)
+        // that's GUARANTEED to never resolve or be delegated to anyone --
+        // unlike a real registered domain (e.g. "@gmail.com"), there's no
+        // chance this ever reaches an actual person's inbox if a
+        // notification email ever fires for one of these test accounts.
+        $emailSlug = 'ocrtest' . $case['number'];
 
         // middle_name is optional on a real applicant too — cases that
         // omit the key just get stored as an empty string, same as a
         // real applicant leaving it blank.
         $user = User::firstOrCreate(
-            ['email' => "{$emailSlug}@ocrtest.local"],
+            ['email' => "{$emailSlug}@sample.test"],
             [
                 'first_name'        => $case['first_name'],
                 'middle_name'       => $case['middle_name'] ?? '',
@@ -511,17 +520,43 @@ class SeedOcrUiSamplesSeeder extends Seeder
             ]
         );
 
-        $application = Application::updateOrCreate(
-            ['user_id' => $user->id, 'config_id' => $config->id],
-            [
-                'school_name'       => $case['declared_school'],
-                'course'            => 'BS Sample Course',
-                'year_level'        => '3rd Year',
-                'student_id_number' => '2023-' . str_pad((string) $user->id, 5, '0', STR_PAD_LEFT),
-                'status'            => 'pending_prescreening',
-                'submitted_at'      => now(),
-            ]
-        );
+        // The application's own id is forced to equal the seeder's case
+        // number (the $schools[...]['people'] key, e.g. 29 for STI's
+        // Kevin James Ong Samson) instead of whatever the next
+        // auto-increment value happens to be. This is what makes
+        // OCR_CASE=29 in the guide/console output actually mean
+        // something stable -- and if a verifier deletes application #29
+        // to force a clean re-seed (see OCR_SEEDING_GUIDE.md), re-running
+        // this same case recreates it at #29 again rather than drifting
+        // to a new id every time. 'id' isn't in Application::$fillable
+        // (mass-assigning a primary key is a real foreign-key/IDOR risk
+        // for every OTHER path that creates an Application, e.g. a real
+        // applicant's submission) -- forceCreate() bypasses that guard
+        // here ONLY, without loosening it anywhere else.
+        $applicationId = $case['number'];
+        $application = Application::find($applicationId);
+
+        if ($application && $application->user_id !== $user->id) {
+            $this->command->error("  Case '{$label}': application #{$applicationId} already belongs to a different user (id {$application->user_id}), not this seeder's own '{$emailSlug}' account -- skipping so real/unrelated data isn't overwritten.");
+            return;
+        }
+
+        $attributes = [
+            'user_id'           => $user->id,
+            'config_id'         => $config->id,
+            'school_name'       => $case['declared_school'],
+            'course'            => 'BS Sample Course',
+            'year_level'        => '3rd Year',
+            'student_id_number' => '2023-' . str_pad((string) $user->id, 5, '0', STR_PAD_LEFT),
+            'status'            => 'pending_prescreening',
+            'submitted_at'      => now(),
+        ];
+
+        if ($application) {
+            $application->update($attributes);
+        } else {
+            $application = Application::forceCreate(['id' => $applicationId] + $attributes);
+        }
 
         $this->command->info("Case '{$label}': Application #{$application->id} ({$case['first_name']} {$case['last_name']})");
 
@@ -564,10 +599,29 @@ class SeedOcrUiSamplesSeeder extends Seeder
             // Same job the real upload flow dispatches to the queue —
             // dispatchSync runs it immediately, in this process, so no
             // queue worker needs to be running for this to work.
-            ProcessOcrDocument::dispatchSync($application, $document, $storagePath);
+            //
+            // School ID's document-type/face-presence check is bypassed
+            // for seeded fixtures ONLY (see verify_school_id's docstring
+            // comment in ocr-service) -- these are real scanned photos
+            // framed differently than a phone-camera applicant upload
+            // and can trip the face-size heuristic on documents that are
+            // otherwise fine for reviewing institution/name/school-year
+            // checks. The check still RUNS and its result is still shown
+            // to the verifier (a "Document Type / Photo Check" row,
+            // flagged if it would have failed) -- only the auto-reupload
+            // block itself is skipped.
+            $bypassDocumentTypeCheck = $docType === 'school_id';
+            ProcessOcrDocument::dispatchSync($application, $document, $storagePath, $bypassDocumentTypeCheck);
 
             $document->refresh();
             $this->command->info("  [{$docType}] document #{$document->id} -> status: {$document->status}");
+
+            if ($bypassDocumentTypeCheck) {
+                $docTypeCheck = $document->verificationChecks()->where('check_name', 'document_type_check')->first();
+                if ($docTypeCheck && !$docTypeCheck->passed) {
+                    $this->command->warn("  [{$docType}] NOTE: document-type/photo check bypassed for seeding -- would otherwise have been auto-reupload flagged: {$docTypeCheck->flag_reason}");
+                }
+            }
         }
 
         // updateOrCreate() above always resets a re-run's status back to

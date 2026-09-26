@@ -131,6 +131,12 @@ const CHECK_NAME_LABELS = {
     // (School ID, School Year Match, school_name), instead of the
     // auto-titlecased "Institution Match".
     institution_match: "School Match",
+    // Only ever present on a School ID that was seeded via
+    // OcrTestSeeder with its document-type/face-presence gate
+    // bypassed, or a panel/demo "debug" OCR run — never on a real
+    // applicant's document, since in production a failing document type
+    // check auto-reuploads before this check row is ever created.
+    document_type_check: "Document Type / Photo Check",
 };
 
 export function getCheckDisplayLabel(checkName) {

@@ -39,7 +39,7 @@ os.environ.setdefault("KMP_DUPLICATE_LIB_OK", "TRUE")
 
 from paddleocr import PaddleOCR  # noqa: E402
 
-# Mirrors the DATA_ROOT convention in SeedOcrUiSamplesSeeder.php so this
+# Mirrors the DATA_ROOT convention in OcrTestSeeder.php so this
 # script can be pointed at the same real-document corpus by default.
 DEFAULT_GLOB = "C:/Users/DELL/Documents/Data testing/UP-LB/RF/*.jpg"
 

@@ -205,7 +205,11 @@ def process_school_id():
             first_name, middle_name, last_name,
             declared_school,
             image_path=tmp_path,
-            debug=get_debug_mode(request.form)
+            debug=get_debug_mode(request.form),
+            # Sent only by OcrTestSeeder -- see verify_school_id's
+            # own docstring comment for why. Absent/false for every real
+            # applicant upload and the verifier's "Retry OCR" button.
+            bypass_document_type_check=request.form.get("bypass_document_type_check", "false").lower() == "true",
         )
 
         if verification.get("flag_reason") != "auto_reupload":

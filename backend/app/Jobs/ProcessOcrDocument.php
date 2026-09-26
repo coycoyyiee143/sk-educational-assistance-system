@@ -35,13 +35,20 @@ class ProcessOcrDocument implements ShouldQueue
     protected $application;
     protected $document;
     protected $filePath;
+    protected $bypassDocumentTypeCheck;
 
 
-    public function __construct(Application $application, ApplicationDocument $document, string $filePath)
+    // $bypassDocumentTypeCheck is for OcrTestSeeder ONLY -- see
+    // ocr-service's verify_school_id() docstring comment. Every other
+    // caller (real applicant upload, verifier "Retry OCR"/"Retry All
+    // Failed OCR") omits it and gets the default false, so production
+    // behavior is unaffected.
+    public function __construct(Application $application, ApplicationDocument $document, string $filePath, bool $bypassDocumentTypeCheck = false)
     {
         $this->application = $application;
         $this->document = $document;
         $this->filePath = $filePath;
+        $this->bypassDocumentTypeCheck = $bypassDocumentTypeCheck;
         $this->onQueue('ocr');
     }
 
@@ -113,6 +120,9 @@ class ProcessOcrDocument implements ShouldQueue
 
         if ($this->document->document_type === 'school_id') {
             $multipart[] = ['name' => 'declared_school', 'contents' => $this->application->school_name];
+            if ($this->bypassDocumentTypeCheck) {
+                $multipart[] = ['name' => 'bypass_document_type_check', 'contents' => 'true'];
+            }
         }
 
 

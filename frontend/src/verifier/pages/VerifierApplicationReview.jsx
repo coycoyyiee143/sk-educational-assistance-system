@@ -86,6 +86,7 @@ const ASSESSMENT_CHECK_NAMES = [
   "template_consistency",
   "image_integrity",
   "ai_generation_provenance",
+  "document_type_check",
 ];
 
 function getValueColumnLabel(checkName) {
@@ -527,7 +528,13 @@ function VerifierApplicationReview() {
   const hasFailedCheck = (app.verification_checks || []).some(
     (c) =>
       latestDocIds.includes(c.document_id) &&
-      !c.passed
+      !c.passed &&
+      // document_type_check only ever appears on a seeded/debug run
+      // where its normal auto-reupload gate was deliberately bypassed
+      // (see OcrTestSeeder) -- it's informational, not a real
+      // eligibility failure, so it shouldn't drive the generic "Failed
+      // Eligibility Check(s)" badge the way a genuine mismatch does.
+      c.check_name !== "document_type_check"
   );
 
   const hasAiProvenanceFlag = (
@@ -536,6 +543,15 @@ function VerifierApplicationReview() {
     (c) =>
       latestDocIds.includes(c.document_id) &&
       c.check_name === "ai_generation_provenance" &&
+      !c.passed
+  );
+
+  const hasBypassedDocumentTypeFlag = (
+    app.verification_checks || []
+  ).some(
+    (c) =>
+      latestDocIds.includes(c.document_id) &&
+      c.check_name === "document_type_check" &&
       !c.passed
   );
 
@@ -548,7 +564,7 @@ function VerifierApplicationReview() {
   );
 
   const showFlagSummary =
-    hasLowConfidence || hasFailedCheck;
+    hasLowConfidence || hasFailedCheck || hasBypassedDocumentTypeFlag;
 
   function getDocumentTabStatus(documentType) {
     const latestDoc = latestDocsMap[documentType];
@@ -877,6 +893,15 @@ function VerifierApplicationReview() {
                     {hasFailedCheck && (
                       <span className="badge bg-danger verifier-review-flag-badge">
                         Failed Eligibility Check(s)
+                      </span>
+                    )}
+
+                    {hasBypassedDocumentTypeFlag && (
+                      <span
+                        className="badge bg-secondary verifier-review-flag-badge"
+                        title="This document's document-type/photo check was bypassed for seeded test data, but would have been auto-reupload flagged in production."
+                      >
+                        Would Auto-Reupload (Doc Type/Photo, Seeded)
                       </span>
                     )}
                   </div>

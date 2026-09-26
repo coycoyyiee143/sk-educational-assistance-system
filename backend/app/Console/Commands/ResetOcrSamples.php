@@ -7,8 +7,8 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 
 /**
- * Undoes SeedOcrUiSamplesSeeder — deletes every OCR test applicant
- * (email ocr-sample-*@ocrtest.local), which cascades away their
+ * Undoes OcrTestSeeder — deletes every OCR test applicant
+ * (email ocrtest*@sample.test), which cascades away their
  * student_profiles, applications, and application_documents rows
  * (see the users/student_profiles/applications/application_documents
  * migrations' onDelete('cascade')). Also removes each application's
@@ -22,11 +22,11 @@ class ResetOcrSamples extends Command
 {
     protected $signature = 'ocr:reset-samples';
 
-    protected $description = 'Delete all SeedOcrUiSamplesSeeder test applicants, applications, and their uploaded document files';
+    protected $description = 'Delete all OcrTestSeeder test applicants, applications, and their uploaded document files';
 
     public function handle(): int
     {
-        $users = User::where('email', 'like', 'ocr-sample-%@ocrtest.local')
+        $users = User::where('email', 'like', 'ocrtest%@sample.test')
             ->with('applications')
             ->get();
 

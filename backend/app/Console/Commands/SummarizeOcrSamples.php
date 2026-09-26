@@ -6,8 +6,8 @@ use App\Models\ApplicationDocument;
 use Illuminate\Console\Command;
 
 /**
- * Quick pass/fail readout for the applications SeedOcrUiSamplesSeeder
- * created (email ocr-sample-*@ocrtest.local), without opening each one
+ * Quick pass/fail readout for the applications OcrTestSeeder
+ * created (email ocrtest*@sample.test), without opening each one
  * in the Verifier Review UI. A document "PASSED" here means every
  * VerificationCheck row on it has passed=true — matches the workbook's
  * "System Result = Eligible if the relevant checks passed" rule.
@@ -16,7 +16,7 @@ class SummarizeOcrSamples extends Command
 {
     protected $signature = 'ocr:sample-summary {type=registration_form : registration_form, school_id, voters_certificate, or all}';
 
-    protected $description = 'Print pass/fail status for OCR test documents seeded by SeedOcrUiSamplesSeeder';
+    protected $description = 'Print pass/fail status for OCR test documents seeded by OcrTestSeeder';
 
     public function handle(): int
     {
@@ -28,7 +28,7 @@ class SummarizeOcrSamples extends Command
         }
 
         $query = ApplicationDocument::query()
-            ->whereHas('application.user', fn ($q) => $q->where('email', 'like', 'ocr-sample-%@ocrtest.local'))
+            ->whereHas('application.user', fn ($q) => $q->where('email', 'like', 'ocrtest%@sample.test'))
             ->with(['application.user', 'verificationChecks'])
             ->orderBy('application_id');
 

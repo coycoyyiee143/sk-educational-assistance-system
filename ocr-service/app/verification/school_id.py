@@ -1,6 +1,7 @@
 # app/verification/school_id.py
 from app.extraction import parse_ocr_blocks, get_page_dimensions
 from app.verification.shared import CONFIDENCE_THRESHOLD, _pass, _flag, _check_name_or_reupload, _check_school_or_reupload
+from app.upload_checks.document_type_check import check_document_type
 from app.upload_checks.image_quality_check import check_image_quality
 from app.upload_checks.skew_check import check_skew
 from app.utils.spatial import get_blocks_in_region
@@ -10,7 +11,7 @@ from app.template_checks.base_strategy import describe_score
 
 
 def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_name, declared_school,
-                      image_path=None, debug=False, *args, **kwargs):
+                      image_path=None, debug=False, bypass_document_type_check=False, *args, **kwargs):
     # debug=True is for panel/demo use only (see routes.py) -- see
     # reg_form.py's verify_registration_form for the full explanation.
     # The quality gate below (blur/skew/header confidence) always
@@ -66,6 +67,62 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
             "auto_reupload_category": "low_quality",
             "auto_reupload_reason": reason,
         }
+
+    # Upload check 2: wrong document type entirely, OR no cardholder
+    # photo detected at all (School ID has no reliable text marker of
+    # its own -- see DOCUMENT_TYPE_MARKERS -- so its half of this check
+    # is really a face-presence check). Restored after being deliberately
+    # removed in commit 1e1d07a for producing false auto-reupload flags
+    # on genuine School IDs (unreliable text-marker matches and missing-
+    # photo detection on real ID layouts) -- see OCR_SEEDING_GUIDE.md.
+    # Re-added now that Registration Form/Voter's Certificate template
+    # checks and institution/name matching have had their own round of
+    # false-positive fixes; if this starts misfiring the same way, the
+    # underlying text-marker/face-detection reliability needs fixing
+    # directly rather than removing the check again.
+    #
+    # bypass_document_type_check exists ONLY for the OCR sample seeder
+    # (see OcrTestSeeder) -- real scanned test photos are framed
+    # differently than a phone-camera applicant upload and can trip the
+    # face-size heuristic on documents that are otherwise fine to seed
+    # for reviewing OTHER checks. It never blocks the check from running,
+    # only from being treated as a blocking gate: a bypassed mismatch is
+    # still recorded and surfaced to the verifier as
+    # "document_type_check_bypassed" (see the bottom of this function),
+    # not silently dropped. Never sent by the real applicant upload flow
+    # or the verifier's "Retry OCR" button (both leave it False), so
+    # production behavior is unaffected.
+    type_mismatch = check_document_type(blocks, "school_id", image_path=image_path)
+
+    # Recorded as an ordinary (non-blocking) check entry further down --
+    # see where `checks` is assembled below -- so a bypassed run still
+    # shows a verifier exactly what this check found, instead of the
+    # bypass silently hiding it. Deliberately kept OUT of
+    # has_check_failure's calculation: this only exists to inform, never
+    # to flag, a bypassed document.
+    document_type_check_result = None
+    if bypass_document_type_check:
+        document_type_check_result = (
+            _flag(
+                "document_type_check",
+                f"[Seeding bypass -- would have been auto-reupload flagged] {type_mismatch['reason']}",
+                extracted=type_mismatch.get("detected_type"),
+                metadata={"seeder_bypassed": True},
+            )
+            if type_mismatch
+            else _pass("document_type_check", extracted="Correct document type and cardholder photo detected")
+        )
+    elif type_mismatch:
+        gate_result = {
+            "document": "school_id",
+            "flagged": True,
+            "flag_reason": "auto_reupload",
+            "auto_reupload_category": "wrong_document_type",
+            "auto_reupload_reason": type_mismatch["reason"],
+        }
+        if not debug:
+            return gate_result
+        gate_failures.append(gate_result)
 
     strategy = get_strategy_for_school(declared_school)
     blocks = strategy.preprocess_blocks(blocks)
@@ -135,6 +192,12 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
         )
 
     has_check_failure = any(not c["passed"] for c in checks.values())
+
+    # Added AFTER has_check_failure is computed -- see the comment where
+    # document_type_check_result is built above.
+    if document_type_check_result:
+        checks["document_type_check"] = document_type_check_result
+
     result = {
         "document": "school_id",
         "avg_confidence": avg_confidence,

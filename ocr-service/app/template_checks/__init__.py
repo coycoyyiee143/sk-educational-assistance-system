@@ -9,7 +9,7 @@ from app.template_checks.comelec import ComelecVotersCertTemplateStrategy
 # documents where the expected layout differs per school (Reg Form, School ID).
 #
 # Coverage is intentionally partial: each strategy below was built and
-# verified against real OCR'd sample documents (see SeedOcrUiSamplesSeeder).
+# verified against real OCR'd sample documents (see OcrTestSeeder).
 # STI (no real Reg Form/School ID samples available) and CDC/NU/UPHSD (no
 # real samples of any kind, despite having normalization strategies in
 # app/normalization/schools/) are NOT registered here -- writing a
