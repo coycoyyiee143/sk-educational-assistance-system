@@ -76,3 +76,32 @@ def test_component_present_short_target_unaffected():
     assert _component_present("PANA", "JUAN PANA DELA CRUZ") is True
     assert _component_present("PANA", "JUAN PARA DELA CRUZ") is True  # 1-edit tolerance
     assert _component_present("PANA", "JUAN XYZW DELA CRUZ") is False
+
+
+# ── conflicting middle name (real STI Voter's Certificate bug) ────────
+#
+# component_present() above only guards first/last name. Middle name was
+# never independently checked, so a first+last match could still pass
+# with a completely different middle name attached, since several of
+# fuzzy_match_name's own candidate strings omit the middle name entirely
+# and partial_ratio scores 100 against a candidate that's just a prefix
+# of the extracted text. Real case: extracted "BAES,JEROME ALEX" against
+# declared "Jerome Louis Baes" scored a perfect match and was shown to a
+# verifier as "Exact identity match" despite "ALEX" being a different
+# middle name than the declared "LOUIS".
+
+def test_wrong_middle_name_does_not_pass():
+    result = fuzzy_match_name("BAES,JEROME ALEX", "Jerome", "Louis", "Baes")
+    assert result["passed"] is False
+
+
+def test_correct_middle_name_still_passes():
+    result = fuzzy_match_name("BAES,JEROME LOUIS", "Jerome", "Louis", "Baes")
+    assert result["passed"] is True
+
+
+def test_middle_name_omitted_on_document_still_passes():
+    # Many real layouts only print "Last, First" with no middle name at
+    # all -- that must stay a pass, not be misread as a conflict.
+    result = fuzzy_match_name("BAES, JEROME", "Jerome", "Louis", "Baes")
+    assert result["passed"] is True

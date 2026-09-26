@@ -160,6 +160,48 @@ def _component_present(target: str, text: str, threshold: int = 85) -> bool:
     return fuzz.partial_ratio(target, text) >= threshold
 
 
+def _has_conflicting_middle_name(mn: str, extracted_norm: str, fn: str, ln: str) -> bool:
+    """
+    component_present() below only guards first/last name -- middle name
+    is never independently checked, because several of fuzzy_match_name's
+    OWN candidate strings (f"{fn} {ln}", f"{ln} {fn}", f"{ln}, {fn}") omit
+    it entirely, and partial_ratio happily scores 100 when extracted is
+    just one of those candidates PLUS extra trailing text. Confirmed on a
+    real STI Voter's Certificate: extracted "BAES,JEROME ALEX" against
+    declared "Jerome Louis Baes" scored a perfect partial_ratio against
+    candidate "BAES, JEROME" (a true substring/prefix of the extracted
+    text) and passed as an "Exact identity match" despite "ALEX" being a
+    completely different middle name than the declared "LOUIS" -- exactly
+    the kind of different-person mismatch component_present's fn/ln check
+    exists to catch, just missed because it never looks at mn.
+
+    Finds where fn and ln each best-align inside extracted_norm and
+    strips those windows out; whatever's left over is checked against mn.
+    Leftover words shorter than 3 characters are ignored as alignment-
+    boundary noise (e.g. a stray trailing letter from a surname whose
+    match window didn't cover 100% of it) rather than being treated as a
+    conflicting middle name/initial -- this deliberately mirrors how a
+    genuine middle-initial-only read ("Juan R. Dela Cruz") already passes
+    today, so that behavior isn't disturbed.
+    """
+    if not mn:
+        return False
+
+    leftover = extracted_norm
+    for target in (fn, ln):
+        if not target:
+            continue
+        alignment = fuzz.partial_ratio_alignment(target, leftover)
+        if alignment.dest_end > alignment.dest_start:
+            leftover = leftover[:alignment.dest_start] + " " + leftover[alignment.dest_end:]
+
+    leftover_words = [w for w in leftover.split() if len(w) >= 3]
+    if not leftover_words:
+        return False
+
+    return not any(_component_present(mn, w) or _component_present(w, mn) for w in leftover_words)
+
+
 def fuzzy_match_name(extracted: str, first_name: str, middle_name: str,
                      last_name: str, threshold: int = 85) -> dict:
     if not extracted:
@@ -203,6 +245,9 @@ def fuzzy_match_name(extracted: str, first_name: str, middle_name: str,
         return _component_present(target, extracted_norm, threshold)
 
     if not (component_present(fn) and component_present(ln)):
+        return {"score": best_score, "passed": False}
+
+    if _has_conflicting_middle_name(mn, extracted_norm, fn, ln):
         return {"score": best_score, "passed": False}
 
     return {"score": best_score, "passed": best_score >= threshold}
