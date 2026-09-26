@@ -162,12 +162,39 @@ export function stripTechnicalDetail(rawReason) {
 // evidence, e.g. which AI tool's C2PA signature matched) since a reason
 // offered to reject/re-upload on needs to stand on its own. To show the
 // underlying evidence itself, use `stripTechnicalDetail` instead.
-export function translateFlagReason(checkName, rawReason) {
+//
+// `extractedValue` (the check's own "extracted"/assessment field, e.g.
+// describe_ela_score()'s tier label or describe_image_metadata_score()'s
+// confidence label) is optional, only used by image_integrity/
+// ai_generation_provenance to pick which of several tiered messages to
+// show — every other check ignores it.
+export function translateFlagReason(checkName, rawReason, extractedValue) {
     if (checkName === "image_integrity") {
-        return "This image shows signs of digital editing and could not be verified as an unaltered original.";
+        // ELA is a heuristic pre-screening signal (see compute_ela's own
+        // docstring in ocr-service) -- it flags for manual review, it
+        // does not confirm forgery. Legitimate screenshots, re-saves, and
+        // some phone camera JPEG pipelines can trip the lower tiers with
+        // zero actual tampering involved, so the message has to say what
+        // to actually DO (compare visually against the applicant's other
+        // documents) rather than just naming the finding.
+        if (extractedValue === "Minor Compression Irregularities Detected") {
+            return "Minor compression differences were detected — common on legitimate screenshots, re-saved images, or certain phone camera formats, not necessarily tampering. Compare it against the applicant's other documents, and only treat it as a real concern if something looks visibly altered.";
+        }
+        if (extractedValue === "Moderate Edit Artifacts Detected") {
+            return "A moderate compression difference was detected, which can indicate an edited region (e.g. a pasted photo, altered text, or replaced seal) but can also happen from simply re-saving a genuine file. Inspect the document closely and compare it against the applicant's other submissions before deciding.";
+        }
+        return "A significant compression difference was detected, consistent with a spliced or edited region (e.g. a pasted photo, altered text, or replaced seal). Treat this as a strong signal to inspect closely — but it is still a pre-screening heuristic, not proof of tampering, so confirm visually before rejecting.";
     }
     if (checkName === "ai_generation_provenance") {
-        return "This image appears to be AI-generated or AI-edited.";
+        // Two signals of very different strength (see check_image_metadata's
+        // docstring in ocr-service) -- a C2PA hit is the AI tool's own
+        // signed assertion, a filename-only hit is trivially defeated by
+        // renaming the file. Conflating them into one sentence would
+        // overstate the weak case and undersell the strong one.
+        if (extractedValue === "AI-Generation Confirmed (Signed Content Credentials Found)") {
+            return "This image carries embedded content-credential metadata identifying it as AI-generated or AI-edited — a signed assertion from the tool itself, not a guess. Treat this as strong evidence, though still confirm manually before acting on it.";
+        }
+        return "Weak signal only: the uploaded filename matches a common AI-tool default naming pattern, which is trivially avoided by renaming the file before upload. This alone is not reliable evidence of AI generation — inspect the image itself for other signs before acting on it.";
     }
     if (checkName === "repeated_auto_reupload_escalation") {
         return "This document has been flagged for the same issue multiple times and needs manual review.";

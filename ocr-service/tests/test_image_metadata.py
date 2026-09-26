@@ -21,12 +21,24 @@ def test_describe_score_above_one_is_still_no_signals_detected():
     assert im.describe_image_metadata_score(1.5) == "No AI-Generation Provenance Signals Detected"
 
 
-def test_describe_score_below_one_is_signals_detected():
-    assert im.describe_image_metadata_score(0.99) == "AI-Generation or Editing Signals Detected"
+def test_describe_score_just_below_one_is_weak_signal():
+    # 0.99 isn't a score check_image_metadata() actually produces (its
+    # only outputs are 1.0, 0.8, 0.2, 0.0), but describe_image_metadata_score()
+    # is a plain threshold function -- confirm anything above the 0.2
+    # confirmed-signal cutoff still reads as the weaker tier.
+    assert im.describe_image_metadata_score(0.99) == "Weak AI-Generation Signal (Filename Pattern Only)"
 
 
-def test_describe_score_zero_is_signals_detected():
-    assert im.describe_image_metadata_score(0.0) == "AI-Generation or Editing Signals Detected"
+def test_describe_score_filename_only_is_weak_signal():
+    assert im.describe_image_metadata_score(0.8) == "Weak AI-Generation Signal (Filename Pattern Only)"
+
+
+def test_describe_score_zero_is_confirmed():
+    assert im.describe_image_metadata_score(0.0) == "AI-Generation Confirmed (Signed Content Credentials Found)"
+
+
+def test_describe_score_c2pa_only_is_confirmed():
+    assert im.describe_image_metadata_score(0.2) == "AI-Generation Confirmed (Signed Content Credentials Found)"
 
 
 # ── _check_filename() ────────────────────────────────────────────────

@@ -39,9 +39,17 @@ class ImageMetadataResult:
 
 
 def describe_image_metadata_score(score: float) -> str:
+    # Score deltas come straight from check_image_metadata() below: a
+    # C2PA hit subtracts 0.8 (score <=0.2 whether or not filename also
+    # matched), a filename-only hit subtracts 0.2 (score == 0.8). These
+    # are NOT equally trustworthy -- see check_image_metadata()'s
+    # docstring -- so the label said to a verifier has to say which one
+    # fired, not just "something matched".
     if score >= 1.0:
         return "No AI-Generation Provenance Signals Detected"
-    return "AI-Generation or Editing Signals Detected"
+    if score <= 0.2:
+        return "AI-Generation Confirmed (Signed Content Credentials Found)"
+    return "Weak AI-Generation Signal (Filename Pattern Only)"
 
 
 def _check_c2pa(file_path: str) -> List[str]:
@@ -97,6 +105,15 @@ def _check_filename(original_filename: Optional[str]) -> List[str]:
 
 
 def check_image_metadata(file_path: str, original_filename: Optional[str] = None) -> ImageMetadataResult:
+    """
+    Combines two signals of very different strength -- see _check_c2pa's
+    and _check_filename's own docstrings for why. A C2PA hit alone drops
+    the score to 0.2 (or 0.0 with both), a filename-only hit only to 0.8
+    -- describe_image_metadata_score() and the frontend's
+    translateFlagReason() both key off that same 0.2 threshold to tell a
+    verifier which kind of signal they're actually looking at, rather
+    than presenting both as equally certain.
+    """
     lower_path = file_path.lower()
     if lower_path.endswith('.pdf'):
         return ImageMetadataResult(passed=True, flags=[], score=1.0)

@@ -126,7 +126,7 @@ function getAutoDetectedFailures(app, reasonsByDocType) {
           dynamicReasons.push({
             key: `check-${c.id}`,
             checkName: c.check_name,
-            text: translateFlagReason(c.check_name, c.flag_reason),
+            text: translateFlagReason(c.check_name, c.flag_reason, c.extracted_value),
             checked: true,
           });
         }
@@ -162,7 +162,7 @@ function getApprovalWarnings(app) {
     checks
       .filter((c) => !c.passed)
       .forEach((c) => {
-        const reason = translateFlagReason(c.check_name, c.flag_reason);
+        const reason = translateFlagReason(c.check_name, c.flag_reason, c.extracted_value);
         warnings.push(`${docLabel} — ${getCheckDisplayLabel(c.check_name)}: ${reason}`);
       });
   });

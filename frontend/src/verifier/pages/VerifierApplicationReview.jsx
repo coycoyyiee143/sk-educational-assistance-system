@@ -525,16 +525,30 @@ function VerifierApplicationReview() {
     (d) => d.ocr_result?.is_low_confidence
   );
 
+  // Forgery/authenticity signals -- conceptually different from an
+  // eligibility mismatch (identity/school/school-year/residency), same
+  // distinction AUTO_REUPLOAD_VERIFICATION_RULES.md already draws
+  // ("verifier -- always"). Each gets its own dedicated badge below
+  // instead of being lumped into the generic "Failed Eligibility
+  // Check(s)" badge, which used to make e.g. a passed image_integrity
+  // check still show alongside that badge when some OTHER check failed,
+  // and double-counted ai_generation_provenance into both its own badge
+  // AND the generic one.
+  const NON_ELIGIBILITY_CHECK_NAMES = [
+    "image_integrity",
+    "ai_generation_provenance",
+    // document_type_check only ever appears on a seeded/debug run where
+    // its normal auto-reupload gate was deliberately bypassed (see
+    // OcrTestSeeder) -- it's informational, not a real eligibility
+    // failure, so it shouldn't drive this badge either.
+    "document_type_check",
+  ];
+
   const hasFailedCheck = (app.verification_checks || []).some(
     (c) =>
       latestDocIds.includes(c.document_id) &&
       !c.passed &&
-      // document_type_check only ever appears on a seeded/debug run
-      // where its normal auto-reupload gate was deliberately bypassed
-      // (see OcrTestSeeder) -- it's informational, not a real
-      // eligibility failure, so it shouldn't drive the generic "Failed
-      // Eligibility Check(s)" badge the way a genuine mismatch does.
-      c.check_name !== "document_type_check"
+      !NON_ELIGIBILITY_CHECK_NAMES.includes(c.check_name)
   );
 
   const hasAiProvenanceFlag = (
@@ -544,6 +558,21 @@ function VerifierApplicationReview() {
       latestDocIds.includes(c.document_id) &&
       c.check_name === "ai_generation_provenance" &&
       !c.passed
+  );
+
+  // Mirrors hasAiProvenanceFlag's treatment, but excludes the "Minor"
+  // ELA tier (see isMinorElaFlag) -- that tier is common on legitimate
+  // screenshots/re-saved images and already gets its own softer amber
+  // badge at the per-check row level, so it shouldn't also trigger the
+  // stronger "Tampered/Edited" summary badge here.
+  const hasImageIntegrityFlag = (
+    app.verification_checks || []
+  ).some(
+    (c) =>
+      latestDocIds.includes(c.document_id) &&
+      c.check_name === "image_integrity" &&
+      !c.passed &&
+      !isMinorElaFlag(c)
   );
 
   const hasBypassedDocumentTypeFlag = (
@@ -564,7 +593,10 @@ function VerifierApplicationReview() {
   );
 
   const showFlagSummary =
-    hasLowConfidence || hasFailedCheck || hasBypassedDocumentTypeFlag;
+    hasLowConfidence ||
+    hasFailedCheck ||
+    hasImageIntegrityFlag ||
+    hasBypassedDocumentTypeFlag;
 
   function getDocumentTabStatus(documentType) {
     const latestDoc = latestDocsMap[documentType];
@@ -887,6 +919,12 @@ function VerifierApplicationReview() {
                       <span className="badge bg-dark verifier-review-flag-badge">
                         ⚠ AI-Generated/Edited Image Signals
                         Detected
+                      </span>
+                    )}
+
+                    {hasImageIntegrityFlag && (
+                      <span className="badge bg-dark verifier-review-flag-badge">
+                        ⚠ Tampered/Edited Image Detected
                       </span>
                     )}
 
@@ -1615,7 +1653,7 @@ function VerifierApplicationReview() {
                                       </span>
                                     </div>
                                   ) : (() => {
-                                    const translated = translateFlagReason(check.check_name, check.flag_reason);
+                                    const translated = translateFlagReason(check.check_name, check.flag_reason, check.extracted_value);
                                     const showTechnical =
                                       check.flag_reason && check.flag_reason !== translated;
                                     return (
@@ -1801,7 +1839,7 @@ function VerifierApplicationReview() {
                                                   </span>
                                                   <span className="verifier-ocr-check-reason-value-fail">
                                                     <span className="verifier-ocr-check-reason-icon">!</span>
-                                                    {translateFlagReason(check.check_name, check.flag_reason)}
+                                                    {translateFlagReason(check.check_name, check.flag_reason, check.extracted_value)}
                                                   </span>
                                                 </div>
                                               )}
