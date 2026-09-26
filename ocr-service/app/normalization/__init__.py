@@ -119,24 +119,37 @@ def get_strategy_for_school(school_name: str) -> BaseSchoolStrategy:
 # The registry above has multiple aliases per school (e.g. "PUP" and
 # "Polytechnic University of the Philippines" both point at the same
 # strategy) so callers can look up by whatever the applicant selected.
-# For displaying "this looks like X" to a user, that same aliasing would
-# show duplicates of the same school under different names -- so this
-# keeps only the longest (most official-looking) alias per distinct
-# strategy instance.
+#
+# Returns EVERY non-excluded alias, not one deduped name per school --
+# both callers (school.py's "which OTHER school is this" cross-check)
+# only ever try each returned name as a MATCH CANDIDATE and keep
+# whichever single one actually scores best, so there's no list ever
+# shown to a user raw that duplicate aliases could clutter. A prior
+# version deduped down to "the longest alias per strategy" specifically
+# to avoid that (nonexistent) display clutter -- confirmed as a real bug,
+# not just redundant caution: "Pamantasan ng Cabuyao" and "University of
+# Cabuyao" tie at 21 characters, so that dedup arbitrarily kept only
+# "Pamantasan ng Cabuyao" (inserted first) and silently discarded
+# "University of Cabuyao" -- on a real Registration Form whose header
+# read exactly "UNIVERSITY OF CABUYAO", the surviving alias shares only
+# the word "Cabuyao" with that header (fails fuzzy_match_school), while
+# the discarded one would have matched it almost verbatim. That let a
+# genuine wrong-school upload (declared SVCC, header confidently showing
+# a real, different, KNOWN school) pass as an undetected institution
+# mismatch, purely because of which same-length alias happened to be
+# registered first.
 def get_known_school_names(exclude: str = None) -> list:
     """
-    Returns one canonical display name per distinct registered school
-    strategy. If `exclude` is given, the strategy it maps to (i.e. every
-    alias of that same school, not just the literal string) is left out
-    -- so e.g. excluding "PUP" also excludes "Polytechnic University of
-    the Philippines", the same school under its full name.
+    Returns every registered alias except those of `exclude`'s own
+    school (i.e. every alias mapping to the same strategy instance, not
+    just the literal string) -- so e.g. excluding "PUP" also excludes
+    "Polytechnic University of the Philippines", the same school under
+    its full name.
     """
     exclude_strategy_id = id(SCHOOL_STRATEGY_REGISTRY[exclude]) if exclude in SCHOOL_STRATEGY_REGISTRY else None
-    best_by_strategy = {}
-    for name, strategy in SCHOOL_STRATEGY_REGISTRY.items():
-        if id(strategy) == exclude_strategy_id:
-            continue
-        current = best_by_strategy.get(id(strategy))
-        if current is None or len(name) > len(current):
-            best_by_strategy[id(strategy)] = name
-    return list(best_by_strategy.values())
+    return [
+        name for name, strategy in SCHOOL_STRATEGY_REGISTRY.items()
+        if id(strategy) != exclude_strategy_id
+    ]
+
+

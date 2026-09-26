@@ -23,14 +23,41 @@ class StVincentCabuyaoStrategy(BaseSchoolStrategy):
         return blocks
 
     def _merge_institution_header(self, blocks: List[OcrBlock]) -> List[OcrBlock]:
-        header_parts = [
+        candidates = [
             b for b in blocks
             if any(kw in b.text.lower() for kw in _HEADER_KEYWORDS)
         ]
+        if len(candidates) < 2:
+            return blocks
+
+        candidates.sort(key=lambda b: b.y_center)
+
+        # Only merge a CONTIGUOUS run of lines starting at the topmost match
+        # -- a genuine split header ("ST.VINCENT" / "COLLEGE OF CABUYAO") is
+        # always two lines stacked directly on top of each other near the
+        # top of the page. Without this, any other "cabuyao"/"vincent" match
+        # ANYWHERE on the page (a decorative watermark ribbon mid-page, an
+        # enrollment stamp near the bottom -- both real, confirmed template
+        # artifacts on these scans) gets glued onto the header string too.
+        # Confirmed as a real false-negative on a genuine wrong-school test
+        # image: the page's actual header read "UNIVERSITY OF CABUYAO" (a
+        # different, real school), but a leftover SVCC watermark/stamp
+        # elsewhere on the page also matched "cabuyao", and merging it in
+        # made the combined string contain "ST.VINCENT COLLEGE OF CABUYAO"
+        # as a literal substring -- passing institution_match for the WRONG
+        # declared school instead of flagging the mismatch it should have.
+        header_parts = [candidates[0]]
+        for block in candidates[1:]:
+            prev = header_parts[-1]
+            gap = block.y_min - prev.y_max
+            line_height = max(prev.height, block.height, 1)
+            if gap > line_height * 1.5:
+                break
+            header_parts.append(block)
+
         if len(header_parts) < 2:
             return blocks
 
-        header_parts.sort(key=lambda b: b.y_center)
         merged_text = " ".join(b.text.strip() for b in header_parts)
         avg_conf = sum(b.confidence for b in header_parts) / len(header_parts)
 

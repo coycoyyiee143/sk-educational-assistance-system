@@ -3,7 +3,8 @@ from typing import List
 from app.models import OcrBlock, ExtractionResult
 from app.utils.spatial import get_blocks_in_region
 from app.normalization.text_utils import fuzzy_match_school, combine_confidence, trim_to_match_window, normalize_name
-from app.normalization import get_known_school_names
+from app.normalization import get_known_school_names, get_strategy_for_school
+from app.normalization.base_strategy import BaseSchoolStrategy
 
 # Institution-name banners always contain one of these words in practice --
 # used to recognize a confident header reading as SOME school's name even
@@ -15,6 +16,36 @@ from app.normalization import get_known_school_names
 # school's match via an unrelated body disclaimer ("...National University
 # Student Handbook...") passed unopposed.
 _INSTITUTION_NAME_KEYWORDS = ("university", "college", "institute", "polytechnic", "academy")
+
+
+def _full_page_scan_blocks(school_name: str, header_region_blocks: List[OcrBlock], all_blocks: List[OcrBlock]) -> List[OcrBlock]:
+    """
+    A school with a DEDICATED strategy (its own normalization/schools/*.py,
+    e.g. SVCC, PUP, UPLB) already gets its header pre-merged by that
+    strategy's preprocess_blocks() -- it has every reasonable chance to
+    pass via the header-only tiers (position, then header_join) with a
+    strong, well-formed match. Falling through to a full-PAGE scan for
+    those schools only adds risk: it lets any stray text ANYWHERE on the
+    page (a watermark, a reused stamp, unrelated boilerplate) stand in for
+    the institution header. Confirmed as a real false-negative: a
+    Registration Form declared as SVCC, whose actual header read a
+    completely different real school, passed institution_match anyway
+    because a leftover enrollment stamp elsewhere on the page happened to
+    read "St. Vincent College of Cabuyao" verbatim.
+
+    A school with NO dedicated strategy (falls back to bare
+    BaseSchoolStrategy) has no such pre-merge to lean on, so restricting
+    it to the header region only would leave it far more likely to miss
+    a real, valid match on a genuinely correct upload -- the full-page
+    scan stays a reasonable, necessary fallback there. A bad-quality
+    photo that could produce a false match this way is also likely to
+    fail OTHER checks (blur, low OCR confidence) and auto-reupload
+    regardless, so this isn't trading away real protection.
+    """
+    strategy = get_strategy_for_school(school_name)
+    if type(strategy) is BaseSchoolStrategy:
+        return all_blocks
+    return header_region_blocks
 
 
 def _looks_like_institution_name(text: str) -> bool:
@@ -131,7 +162,8 @@ def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declare
     # header.
     header_blocks_sorted = sorted(header_region_blocks, key=lambda b: (b.y_min, b.x_min))
 
-    result, declared_best_block = _find_school_match(header_region_blocks, blocks, header_blocks_sorted, declared_school)
+    declared_search_blocks = _full_page_scan_blocks(declared_school, header_region_blocks, blocks)
+    result, declared_best_block = _find_school_match(header_region_blocks, declared_search_blocks, header_blocks_sorted, declared_school)
 
     # Even when the declared school matched, that match might have come
     # from body/boilerplate text (method != "position") rather than the
@@ -229,7 +261,8 @@ def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declare
     detected_school = None
     detected_result = None
     for other_school in get_known_school_names(exclude=declared_school):
-        other_result, _ = _find_school_match(header_region_blocks, blocks, header_blocks_sorted, other_school)
+        other_search_blocks = _full_page_scan_blocks(other_school, header_region_blocks, blocks)
+        other_result, _ = _find_school_match(header_region_blocks, other_search_blocks, header_blocks_sorted, other_school)
         if other_result and (detected_result is None or other_result.confidence > detected_result.confidence):
             detected_school, detected_result = other_school, other_result
 

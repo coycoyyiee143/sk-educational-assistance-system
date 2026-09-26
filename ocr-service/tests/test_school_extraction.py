@@ -66,17 +66,27 @@ def test_declared_school_matching_in_header_itself_is_not_overridden():
     assert res.found is True
 
 
-def test_no_override_when_header_shows_no_other_known_school():
-    # The declared school matched via body text, and the header says
-    # nothing recognizable at all -- must NOT be overridden (there's
-    # nothing confident to override it WITH).
+def test_declared_school_mentioned_only_in_body_text_is_not_enough():
+    # A dedicated-strategy school (National University) only gets a
+    # confident auto-pass via its own strong header-merge (position or
+    # header_join) -- a bare mention of the declared school's name in body
+    # text, with an illegible header, is no longer enough on its own.
+    # Previously this DID auto-pass, purely because a full-page fallback
+    # scan found the declared school's name anywhere on the page --
+    # confirmed as a real false-positive risk on a DIFFERENT case (a
+    # leftover watermark/stamp elsewhere on an SVCC page let a wrong-school
+    # document pass institution_match outright). Losing this doesn't
+    # auto-reject a genuine applicant: it falls through to a verifier-
+    # routed "please confirm manually" case instead of a silent pass, the
+    # same as any other genuinely ambiguous read.
     body = block(
         "This is a National University Student Handbook disclaimer notice.",
         0.9, y=900,
     )
     unrelated_header = block("Some illegible header text", 0.6, y=50)
     res = extract_school([unrelated_header, body], PAGE_W, PAGE_H, "National University")
-    assert res.found is True
+    assert res.found is False
+    assert res.metadata.get("detected_school") is None
 
 
 def test_confident_unlisted_institution_in_header_overrides_body_match():
