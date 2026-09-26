@@ -63,6 +63,7 @@ function ApplicantSubmission() {
   const [docUrls, setDocUrls] = useState({});
   const [previewFile, setPreviewFile] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [ageExempt, setAgeExempt] = useState(false);
   const [reverifyRequired, setReverifyRequired] = useState(false);
   const periodStatus = getApplicationPeriodStatus(activeConfig);
 
@@ -422,9 +423,10 @@ function ApplicantSubmission() {
   useEffect(() => {
     api
       .get("/profile")
-      .then((res) =>
-        setProfile(res.data.profile)
-      )
+      .then((res) => {
+        setProfile(res.data.profile);
+        setAgeExempt(res.data.age_exempt ?? false);
+      })
       .catch(() => { });
   }, []);
 
@@ -437,6 +439,8 @@ function ApplicantSubmission() {
 
   const isMinor =
     profile?.is_minor ?? false;
+  const isAgeIneligible =
+    (profile?.is_age_ineligible ?? false) && !ageExempt;
   const DOC_FIELDS =
     getDocFields(isMinor);
   const isProfileComplete =
@@ -853,6 +857,28 @@ function ApplicantSubmission() {
                         longer being accepted.
                       </div>
                     )}
+                  {step === "form" && !reverifyRequired && isAgeIneligible && (
+                    <div className="profile-completion-card">
+                      <div className="profile-completion-icon">
+                        <i className="bi bi-person-x"></i>
+                      </div>
+                      <div className="profile-completion-content">
+                        <div className="profile-completion-heading">
+                          <h4>Not Eligible for SK Assistance</h4>
+                          <span className="profile-completion-badge">
+                            Age Limit
+                          </span>
+                        </div>
+                        <p>
+                          You are no longer eligible to apply for SK
+                          assistance, as SK-funded programs are limited to
+                          applicants aged 17-30. Your account and past
+                          applications remain accessible. Please contact the
+                          SK office if you believe this is an error.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {step === "form" && reverifyRequired && (
                     <div className="profile-completion-card">
                       <div className="profile-completion-icon">
@@ -881,7 +907,7 @@ function ApplicantSubmission() {
                       </div>
                     </div>
                   )}
-                  {step === "form" && !reverifyRequired && (
+                  {step === "form" && !reverifyRequired && !isAgeIneligible && (
                     <FormStep
                       form={form}
                       setForm={setForm}

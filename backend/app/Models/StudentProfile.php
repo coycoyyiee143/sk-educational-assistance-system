@@ -35,7 +35,7 @@ class StudentProfile extends Model
     // Ensures is_minor and is_barangay_resident are always included when
     // this model is serialized to JSON, so frontend code (verifier review,
     // etc.) can use them directly without recomputing.
-    protected $appends = ['is_minor', 'is_barangay_resident'];
+    protected $appends = ['is_minor', 'is_barangay_resident', 'is_age_ineligible'];
 
     public function user()
     {
@@ -60,6 +60,19 @@ class StudentProfile extends Model
             return null;
         }
         return strtolower(trim($this->barangay)) === 'mamatid';
+    }
+
+    // SK youth bracket is 17-30. Computed live off birthdate (same
+    // approach as is_minor above) rather than a stored flag that a
+    // scheduled job would need to keep in sync — this way the cutoff is
+    // always exact, including the day of the 31st birthday itself, with
+    // no cron/drift to worry about.
+    public function getIsAgeIneligibleAttribute(): ?bool
+    {
+        if (!$this->birthdate) {
+            return null;
+        }
+        return $this->birthdate->age >= 31;
     }
 
     public function hasCompleteGuardianInfo(): bool

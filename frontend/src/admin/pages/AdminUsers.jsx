@@ -348,6 +348,7 @@ function AdminUsers() {
   const [deleteTarget, setDeleteTarget] = useState(null); // confirm-dialog target (delete)
   const [deleting, setDeleting] = useState(false);
   const [togglingId, setTogglingId] = useState(null); // id currently being (re)activated — guards double-click
+  const [togglingAgeId, setTogglingAgeId] = useState(null); // id currently having its age exemption toggled
   const [pendingTwoFARequests, setPendingTwoFARequests] = useState([]);
   const [dismissingRequestId, setDismissingRequestId] = useState(null);
   const roleMenuRef = useRef(null);
@@ -391,6 +392,28 @@ function AdminUsers() {
       setError("Failed to update status.");
     } finally {
       setTogglingId(null);
+    }
+  }
+  // Grants/revokes the age-bracket exemption (StudentProfile.is_age_ineligible
+  // override) — separate from is_active above, since this only affects
+  // whether the applicant can submit NEW applications, not login access.
+  async function toggleAgeExemption(applicant) {
+    const grantingNow = !applicant.age_exempt;
+    let reason = null;
+    if (grantingNow) {
+      reason = window.prompt(
+        `Grant an age-bracket exemption for ${applicant.first_name} ${applicant.last_name}? They will be allowed to apply for SK assistance despite being over 30.\n\nOptional reason (e.g. birthdate encoding mistake):`
+      );
+      if (reason === null) return; // cancelled
+    }
+    setTogglingAgeId(applicant.id);
+    try {
+      await api.patch(`/admin/users/${applicant.id}/toggle-age-exemption`, { reason: reason || null });
+      loadUsers();
+    } catch {
+      setError("Failed to update age exemption.");
+    } finally {
+      setTogglingAgeId(null);
     }
   }
   // Deactivating locks the account out immediately, so it goes through a
@@ -713,7 +736,23 @@ function AdminUsers() {
                           <td>{a.first_name} {a.last_name}</td>
                           <td>{a.email}</td>
                           <td><RoleBadge role={a.role} /></td>
-                          <td><StatusBadge active={a.is_active} /></td>
+                          <td>
+                            <StatusBadge active={a.is_active} />
+                            {a.profile?.is_age_ineligible && (
+                              <span
+                                className="status-badge"
+                                style={{
+                                  display: "block",
+                                  marginTop: 4,
+                                  background: a.age_exempt ? "#d4edda" : "#fff3cd",
+                                  color: a.age_exempt ? "#155724" : "#856404",
+                                }}
+                                title={a.age_exempt ? "Over 30, but an admin has granted an exemption allowing them to apply." : "Over 30 — blocked from submitting new applications."}
+                              >
+                                {a.age_exempt ? "Age Exempt" : "Age Limit (31+)"}
+                              </span>
+                            )}
+                          </td>
                           <td>
                             <div className="user-action-group">
                               <button className="user-icon-btn user-icon-btn-view" onClick={() => setViewApplicant(a)} title="View" aria-label="View">
@@ -728,6 +767,17 @@ function AdminUsers() {
                               >
                                 {a.is_active ? <BanIcon /> : <CheckCircleIcon />}
                               </button>
+                              {a.profile?.is_age_ineligible && (
+                                <button
+                                  className={`user-icon-btn ${a.age_exempt ? "user-icon-btn-deactivate" : "user-icon-btn-activate"}`}
+                                  onClick={() => toggleAgeExemption(a)}
+                                  disabled={togglingAgeId === a.id}
+                                  title={a.age_exempt ? "Revoke age exemption" : "Grant age exemption (allow applying despite being 31+)"}
+                                  aria-label={a.age_exempt ? "Revoke age exemption" : "Grant age exemption"}
+                                >
+                                  {a.age_exempt ? <BanIcon /> : <CheckCircleIcon />}
+                                </button>
+                              )}
                               <button
                                 className="user-icon-btn user-icon-btn-reset-2fa"
                                 onClick={() => setTwoFATarget(a)}

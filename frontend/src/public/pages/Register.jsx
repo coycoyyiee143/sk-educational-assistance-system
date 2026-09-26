@@ -27,6 +27,18 @@ function FieldError({ errors, field }) {
 // which lists email before mobile_number even though mobile_number
 // renders above email on screen. Used to pick which erroring field to
 // scroll to when several come back at once.
+// SK youth bracket is 17-30 — mirrors AuthController::minAgeRule()/
+// maxAgeRule() on the backend so the date picker itself won't offer an
+// out-of-range date, though the backend re-validates regardless.
+function isoDateYearsAgo(years, extraDays = 0) {
+  const d = new Date();
+  d.setFullYear(d.getFullYear() - years);
+  d.setDate(d.getDate() + extraDays);
+  return d.toISOString().slice(0, 10);
+}
+const BIRTHDATE_MAX = isoDateYearsAgo(17); // latest birthdate allowed (exactly 17 today)
+const BIRTHDATE_MIN = isoDateYearsAgo(31, 1); // earliest birthdate allowed (one day short of turning 31)
+
 const FIELD_ORDER = [
   "first_name",
   "middle_name",
@@ -1053,8 +1065,13 @@ const Register = () => {
                         className={`form-control${invalidClass("birthdate")}`}
                         value={form.birthdate}
                         onChange={handleChange}
+                        min={BIRTHDATE_MIN}
+                        max={BIRTHDATE_MAX}
                         required
                       />
+                      <div className="form-text">
+                        SK assistance is open to applicants aged 17-30.
+                      </div>
                       <FieldError errors={fieldErrors} field="birthdate" />
                     </div>
 

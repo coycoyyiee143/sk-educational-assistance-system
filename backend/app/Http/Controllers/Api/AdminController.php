@@ -74,8 +74,11 @@ class AdminController extends Controller
     public function users(Request $request)
     {
         $applicants = User::where('role', 'applicant')
-            ->select('id', 'first_name', 'last_name', 'email', 'role', 'is_active', 'created_at', 'privacy_consent_at')
-            ->with(['faceVerification:id,user_id,status,registration_match_score,verified_at'])
+            ->select('id', 'first_name', 'last_name', 'email', 'role', 'is_active', 'age_exempt', 'created_at', 'privacy_consent_at')
+            ->with([
+                'faceVerification:id,user_id,status,registration_match_score,verified_at',
+                'profile:id,user_id,birthdate',
+            ])
             ->get();
 
         $personnel = User::whereIn('role', self::ALL_PERSONNEL_ROLES)
@@ -406,6 +409,43 @@ class AdminController extends Controller
         return response()->json([
             'message'   => 'Status updated.',
             'is_active' => $user->is_active,
+        ]);
+    }
+
+    /**
+     * Admin override for the SK 17-30 age bracket — lets an applicant who
+     * has aged past 30 (StudentProfile::is_age_ineligible) keep applying,
+     * for cases like a birthdate encoding mistake or a legitimate
+     * exception. Deliberately separate from toggleStatus/is_active, which
+     * controls login access, not application eligibility — an age-exempt
+     * grant never affects whether the account can log in.
+     */
+    public function toggleAgeExemption(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+        $this->assertCanManageTarget($request, $user);
+
+        $request->validate([
+            'reason' => 'nullable|string|max:255',
+        ]);
+
+        $newValue = !$user->age_exempt;
+        $user->update([
+            'age_exempt'        => $newValue,
+            'age_exempt_reason' => $newValue ? $request->reason : null,
+        ]);
+
+        $statusLabel = $newValue ? 'granted' : 'revoked';
+        \App\Models\AuditLog::record(
+            'age_exemption_changed',
+            $user,
+            "{$statusLabel} age-bracket exemption for {$user->first_name} {$user->last_name}" .
+                ($newValue && $request->reason ? ": {$request->reason}" : '')
+        );
+
+        return response()->json([
+            'message'    => 'Age exemption updated.',
+            'age_exempt' => $user->age_exempt,
         ]);
     }
 

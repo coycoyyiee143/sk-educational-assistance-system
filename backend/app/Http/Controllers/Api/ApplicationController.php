@@ -69,6 +69,17 @@ class ApplicationController extends Controller
             ], 400);
         }
 
+        // Soft age-out: SK assistance covers ages 17-30. An applicant who
+        // has turned 31 keeps their account and can still view past
+        // applications — they're just blocked from submitting NEW ones,
+        // unless an admin has granted an explicit age_exempt override
+        // (e.g. a birthdate encoding mistake).
+        if ($profile->is_age_ineligible && !$request->user()->age_exempt) {
+            return response()->json([
+                'message' => 'You are no longer eligible to apply for SK assistance, as SK-funded programs are limited to applicants aged 17-30. Please contact the SK office if you believe this is an error.',
+            ], 403);
+        }
+
         // Duplicate-applicant check: block a new registration if the person's
         // first name + last name + birthdate already matches someone who has
         // an approved or claimed application on file — regardless of which

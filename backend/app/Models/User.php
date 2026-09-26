@@ -22,6 +22,8 @@ class User extends Authenticatable implements MustVerifyEmail
         'password',
         'role',
         'is_active',
+        'age_exempt',
+        'age_exempt_reason',
         'privacy_consent_at',
         'avatar_path',
     ];
@@ -46,6 +48,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected $casts = [
         'email_verified_at'  => 'datetime',
         'is_active'          => 'boolean',
+        'age_exempt'         => 'boolean',
         'privacy_consent_at' => 'datetime',
     ];
 

@@ -59,6 +59,24 @@ class AuthController extends Controller
         ];
     }
 
+    // SK youth bracket is 17-30 — shared between checkDuplicate() and
+    // register() so both reject the same way. Someone already 31+ can't
+    // even create an account (no point registering into an account that
+    // can never apply); an EXISTING applicant who ages past 30 keeps their
+    // account and just gets blocked from new applications instead (see
+    // StudentProfile::getIsAgeIneligibleAttribute() and
+    // ApplicationController::store()) — that distinction only matters
+    // after registration, so it isn't relevant here.
+    public static function minAgeRule(): string
+    {
+        return 'before_or_equal:' . now()->subYears(17)->format('Y-m-d');
+    }
+
+    public static function maxAgeRule(): string
+    {
+        return 'after:' . now()->subYears(31)->format('Y-m-d');
+    }
+
     public function __construct(FaceMatchingService $faceService, TwoFactorService $twoFactor)
     {
         $this->faceService = $faceService;
@@ -106,10 +124,13 @@ class AuthController extends Controller
             'first_name'    => 'required|string|max:255',
             'middle_name'   => 'nullable|string|max:255',
             'last_name'     => 'required|string|max:255',
-            'birthdate'     => 'required|date|before:today',
+            'birthdate'     => ['required', 'date', 'before:today', self::minAgeRule(), self::maxAgeRule()],
             'email'         => 'required|email',
             'mobile_number' => 'required|string',
             'password'      => self::passwordRules(),
+        ], [
+            'birthdate.before_or_equal' => 'You must be at least 17 years old to register.',
+            'birthdate.after'           => 'SK assistance is limited to applicants aged 17-30. You are not eligible to register.',
         ]);
 
         // Both checked and collected together, rather than embedding
@@ -195,11 +216,14 @@ class AuthController extends Controller
             'email'         => 'required|email|unique:users,email',
             'mobile_number' => 'required|string|unique:users,mobile_number',
             'password'      => self::passwordRules(),
-            'birthdate'     => 'required|date|before:today',
+            'birthdate'     => ['required', 'date', 'before:today', self::minAgeRule(), self::maxAgeRule()],
             'barangay'      => 'required|string|max:255',
             'id_image'      => 'required|file|mimes:jpg,jpeg,png,webp,heic,heif|max:5120',
             'live_photo'    => 'required|file|mimes:jpg,jpeg,png,webp,heic,heif|max:5120',
             'privacy_consent' => 'required|accepted',
+        ], [
+            'birthdate.before_or_equal' => 'You must be at least 17 years old to register.',
+            'birthdate.after'           => 'SK assistance is limited to applicants aged 17-30. You are not eligible to register.',
         ]);
 
         // Duplicate-applicant check (registration-time): block a new account

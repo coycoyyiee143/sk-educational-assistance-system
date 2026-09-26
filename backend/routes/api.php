@@ -60,6 +60,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/admin/users/personnel', [AdminController::class, 'createPersonnel']);
         Route::put('/admin/users/{id}', [AdminController::class, 'updateUser']);
         Route::patch('/admin/users/{id}/toggle-status', [AdminController::class, 'toggleStatus']);
+        Route::patch('/admin/users/{id}/toggle-age-exemption', [AdminController::class, 'toggleAgeExemption']);
         Route::delete('/admin/users/{id}', [AdminController::class, 'deleteUser']);
         Route::post('/admin/users/{id}/reset-password', [AdminController::class, 'resetPassword']);
         // Works for personnel AND applicant accounts — see resetTwoFactor()
