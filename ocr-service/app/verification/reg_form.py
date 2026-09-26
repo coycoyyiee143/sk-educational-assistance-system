@@ -174,8 +174,15 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
             return gate_result
         gate_failures.append(gate_result)
 
+    # "Expected" shown to a verifier should look like what this school's
+    # own documents actually print (see BaseSchoolStrategy.
+    # expected_school_year_display) -- e.g. STI's "2526" rather than a
+    # bare "2025-2026" next to its own "2526/2T" printed read, which
+    # otherwise looks like a mismatch at a glance despite passing.
+    expected_sy_display = strategy.expected_school_year_display(configured_school_year)
+
     if sy_res.found and sy_res.value == configured_school_year and sy_res.confidence >= RAW_FIELD_CONFIDENCE_FLOOR:
-        checks["school_year_match"] = _pass("school_year_match", extracted=sy_res.raw, raw=sy_res.raw, context=sy_res.context, expected=configured_school_year)
+        checks["school_year_match"] = _pass("school_year_match", extracted=sy_res.raw, raw=sy_res.raw, context=sy_res.context, expected=expected_sy_display)
     elif sy_res.found and sy_res.value == configured_school_year:
         # Text matched, but the OCR read behind it was too weak to trust
         # outright — could be a coincidental/lucky partial read on a
@@ -184,7 +191,7 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
         checks["school_year_match"] = _flag(
             "school_year_match",
             f"School year matched, but the OCR read itself was low-confidence ({sy_res.confidence:.2f}) — please verify manually.",
-            extracted=sy_res.raw, raw=sy_res.raw, expected=configured_school_year, context=sy_res.context,
+            extracted=sy_res.raw, raw=sy_res.raw, expected=expected_sy_display, context=sy_res.context,
         )
     else:
         # Reachable here for: not found at all, a mismatch on a school
@@ -200,7 +207,7 @@ def verify_registration_form(ocr_result, avg_confidence, first_name, middle_name
             reason = f"Detected school year is {sy_res.value}, but this cycle requires {configured_school_year}."
         else:
             reason = f"Detected school year appears to be {sy_res.value} (low-confidence read, {sy_res.confidence:.2f}) — please verify manually against the required {configured_school_year}."
-        checks["school_year_match"] = _flag("school_year_match", reason, extracted=sy_res.raw, raw=sy_res.raw, expected=configured_school_year, context=sy_res.context)
+        checks["school_year_match"] = _flag("school_year_match", reason, extracted=sy_res.raw, raw=sy_res.raw, expected=expected_sy_display, context=sy_res.context)
 
     template_strategy = get_template_strategy(declared_school, "registration_form")
     template_result = template_strategy.check(blocks)

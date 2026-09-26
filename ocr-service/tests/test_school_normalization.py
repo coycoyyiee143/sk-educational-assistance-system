@@ -142,6 +142,19 @@ def test_sti_extract_school_year_falls_back_to_base_strategy():
     assert s.extract_school_year("SY 2024-2025") == "2024-2025"
 
 
+def test_sti_expected_school_year_display_uses_compact_code():
+    # STI's own documents never print a plain "2025-2026" -- only the
+    # compact "2526/XT" header code -- so the verifier-facing "Expected"
+    # value should match that, not the raw configured string.
+    s = StiCalambaStrategy()
+    assert s.expected_school_year_display("2025-2026") == "2526"
+
+
+def test_sti_expected_school_year_display_falls_back_on_unparseable_input():
+    s = StiCalambaStrategy()
+    assert s.expected_school_year_display("garbage") == "garbage"
+
+
 # ── StVincentCabuyaoStrategy (SVCC) ───────────────────────────────────────
 
 def test_svcc_single_year_interpreted_as_start_of_range():

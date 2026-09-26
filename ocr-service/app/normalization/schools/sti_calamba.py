@@ -39,6 +39,19 @@ class StiCalambaStrategy(BaseSchoolStrategy):
             variants.append(stripped)
         return variants
 
+    def expected_school_year_display(self, configured_school_year: str) -> str:
+        # STI's Registration Form/Voter's Certificate never prints a plain
+        # "2025-2026" anywhere -- only the compact "2526/XT" header code
+        # (see decode_sti_term_code). Showing the configured value as-is
+        # next to a genuinely correct "2526/2T" read looks like a mismatch
+        # to a verifier. The term digit isn't shown here since it isn't
+        # part of the configured school year and isn't itself validated
+        # (decode_sti_term_code discards it) -- only the year pair is.
+        match = re.match(r'(\d{4})-(\d{4})', configured_school_year)
+        if match:
+            return f"{match.group(1)[-2:]}{match.group(2)[-2:]}"
+        return configured_school_year
+
     def id_card_expected_name(self, official_name: str) -> str:
         # The School ID's "Expected" value shown to a verifier should
         # match what the card actually prints ("STI Calamba") rather

@@ -57,3 +57,16 @@ class BaseSchoolStrategy:
         short of the full name, reading as a mismatch to a verifier.
         """
         return official_name
+
+    def expected_school_year_display(self, configured_school_year: str) -> str:
+        """
+        Optional hook: the value to show a verifier as school_year_match's
+        "Expected" value. Default: the configured "YYYY-YYYY" string as-is.
+        Override this when a school's own documents structurally never
+        print that plain format at all (see extract_school_year) --
+        otherwise a genuinely correct, passing match displays an
+        "Expected" value that looks nothing like what the document
+        actually shows (e.g. STI's own printed "2526/2T" vs. a bare
+        "2025-2026"), reading as a mismatch to a verifier at a glance.
+        """
+        return configured_school_year
