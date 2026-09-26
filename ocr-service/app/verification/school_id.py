@@ -94,7 +94,14 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
         expected_name = f"{first_name} {middle_name} {last_name}".strip()
         name_result = _flag("identity_match", name_result["reason"], expected=expected_name)
 
-    institution_tag, institution_result = _check_school_or_reupload(blocks, page_w, page_h, declared_school)
+    # The "Expected" value shown to a verifier should match what the ID
+    # card actually prints -- for most schools that's the full declared
+    # name, but e.g. STI's card structurally never prints "College" at
+    # all, so showing the full name next to a genuinely correct match
+    # would read as a mismatch. See BaseSchoolStrategy.id_card_expected_name.
+    expected_display = strategy.id_card_expected_name(declared_school)
+
+    institution_tag, institution_result = _check_school_or_reupload(blocks, page_w, page_h, declared_school, expected_display)
     if institution_tag == "auto_reupload":
         gate_result = {
             "document": "school_id",
@@ -106,7 +113,7 @@ def verify_school_id(ocr_result, avg_confidence, first_name, middle_name, last_n
         if not debug:
             return gate_result
         gate_failures.append(gate_result)
-        institution_result = _flag("institution_match", institution_result["reason"], expected=declared_school)
+        institution_result = _flag("institution_match", institution_result["reason"], expected=expected_display)
 
     checks = {
         "identity_match":    name_result,

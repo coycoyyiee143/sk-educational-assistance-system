@@ -33,6 +33,22 @@ def test_confident_match_passes():
     assert result["passed"] is True
 
 
+def test_expected_display_override_replaces_declared_school_in_result():
+    # school_id.py passes STI's shorter card-printed form ("STI Calamba")
+    # as expected_display, since the actual ID never prints "College" --
+    # showing the full declared name next to a genuinely correct match
+    # would read as a mismatch to a verifier. Only the DISPLAYED expected
+    # value should change; matching itself still runs against the full
+    # declared name.
+    blocks = [make_block("STI", 0.95), make_block("CALAMBA", 0.95, y=140)]
+    tag, result = _check_school_or_reupload(
+        blocks, PAGE_W, PAGE_H, "STI College Calamba", expected_display="STI Calamba",
+    )
+    assert tag == "check"
+    assert result["passed"] is True
+    assert result["expected"] == "STI Calamba"
+
+
 def test_confident_different_school_triggers_auto_reupload():
     # Declared school is PUP, but the page's header confidently reads as
     # a DIFFERENT known, registered school at high OCR confidence.

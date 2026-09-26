@@ -3,6 +3,11 @@ import re
 from typing import Optional, Tuple
 from app.normalization.base_strategy import BaseSchoolStrategy
 
+def _strip_college(official_name: str) -> str:
+    stripped = re.sub(r'\bcollege\b', '', official_name, flags=re.IGNORECASE)
+    return re.sub(r'\s+', ' ', stripped).strip()
+
+
 class StiCalambaStrategy(BaseSchoolStrategy):
     """Parsing layer utilizing the required header pattern: 2X2X/XT."""
 
@@ -29,8 +34,15 @@ class StiCalambaStrategy(BaseSchoolStrategy):
         # the full declared name "STI College Calamba", misflagging every
         # genuine STI School ID as an institution mismatch.
         variants = [official_name]
-        stripped = re.sub(r'\bcollege\b', '', official_name, flags=re.IGNORECASE)
-        stripped = re.sub(r'\s+', ' ', stripped).strip()
+        stripped = _strip_college(official_name)
         if stripped and stripped not in variants:
             variants.append(stripped)
         return variants
+
+    def id_card_expected_name(self, official_name: str) -> str:
+        # The School ID's "Expected" value shown to a verifier should
+        # match what the card actually prints ("STI Calamba") rather
+        # than the full declared name ("STI College Calamba") -- showing
+        # the full name next to a correctly-matched "STI CALAMBA" read
+        # looks like a mismatch to a verifier even though it passed.
+        return _strip_college(official_name) or official_name

@@ -151,8 +151,17 @@ def _check_name(blocks, page_w, page_h, first_name, middle_name, last_name):
         return _pass("name_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=expected_name)
     return _flag("name_match", res.context, extracted=res.value, raw=res.raw, expected=expected_name)
 
-def _check_school_or_reupload(blocks, page_w, page_h, declared_school):
+def _check_school_or_reupload(blocks, page_w, page_h, declared_school, expected_display=None):
     """
+    `expected_display` overrides the "expected" value shown in the check
+    result (default: `declared_school` itself) -- for a school whose ID
+    card structurally never prints the full official name (see
+    BaseSchoolStrategy.id_card_expected_name), showing the full declared
+    name next to a genuinely correct, passing match reads as a mismatch
+    to a verifier. The MATCHING logic and mismatch-reason wording below
+    still use the full `declared_school` throughout -- only this display
+    value changes.
+
     Same underlying extraction as the old _check_school, but splits out a
     CONFIDENT MISMATCH auto_reupload-eligible tier the same way
     _check_name_or_reupload does for names:
@@ -180,15 +189,16 @@ def _check_school_or_reupload(blocks, page_w, page_h, declared_school):
     or ("check", check_dict) — callers branch on the first element, same
     contract as _check_name_or_reupload.
     """
+    expected = expected_display or declared_school
     res = extract_school(blocks, page_w, page_h, declared_school)
     if res.found and res.confidence < NAME_SCHOOL_CONFIDENCE_FLOOR:
         return "check", _flag(
             "school_match",
             f"School text matched, but the OCR read itself was low-confidence ({res.confidence:.2f}) — please verify manually.",
-            extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=declared_school,
+            extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=expected,
         )
     if res.found:
-        return "check", _pass("school_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=declared_school)
+        return "check", _pass("school_match", extracted=res.value, raw=res.raw, score=res.confidence, context=res.context, expected=expected)
 
     # Three distinct cases, not two -- "no matching school name was found"
     # is only true when nothing on the page scored high enough against
@@ -235,4 +245,4 @@ def _check_school_or_reupload(blocks, page_w, page_h, declared_school):
         )
     else:
         reason = f"Could not confirm this is a {declared_school} document — no matching school name was found on the page."
-    return "check", _flag("school_match", reason, extracted=res.value, raw=res.raw, expected=declared_school, metadata=res.metadata)
+    return "check", _flag("school_match", reason, extracted=res.value, raw=res.raw, expected=expected, metadata=res.metadata)

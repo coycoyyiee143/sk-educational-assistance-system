@@ -46,3 +46,14 @@ class BaseSchoolStrategy:
         ever matching the full official name.
         """
         return [official_name]
+
+    def id_card_expected_name(self, official_name: str) -> str:
+        """
+        Optional hook: the value to show a verifier as the School ID's
+        "Expected" institution name. Default: the declared name itself.
+        Override this when a school's ID card structurally never prints
+        the full official name (see match_target_names) -- otherwise a
+        genuinely correct, passing match still displays as if it were
+        short of the full name, reading as a mismatch to a verifier.
+        """
+        return official_name
