@@ -61,13 +61,33 @@ class UphsdStrategy(BaseSchoolStrategy):
         page_h = max(b.y_max for b in blocks)
         header_region = get_blocks_in_region(blocks, page_w, page_h, "header")
 
-        header_parts = [
+        candidates = [
             b for b in header_region
             if _text_has_keyword(b.text, _INSTITUTION_KEYWORDS)
         ]
+        if len(candidates) < 2:
+            return blocks
+
+        # Header-region scoping alone still allows two matches that are
+        # merely both somewhere in the top 25% of the page, not
+        # necessarily adjacent split-header lines -- tightened further
+        # to a CONTIGUOUS run from the topmost match, the same guard
+        # added to SVCC/PUP's equivalent merges after a real
+        # false-positive there (a stray keyword match elsewhere in that
+        # same broad region got glued onto the real header).
+        candidates.sort(key=lambda b: b.y_center)
+        header_parts = [candidates[0]]
+        for block_ in candidates[1:]:
+            prev = header_parts[-1]
+            gap = block_.y_min - prev.y_max
+            line_height = max(prev.height, block_.height, 1)
+            if gap > line_height * 1.5:
+                break
+            header_parts.append(block_)
+
         if len(header_parts) < 2:
             return blocks
-        header_parts.sort(key=lambda b: b.y_center)
+
         merged_text = " ".join(b.text.strip() for b in header_parts)
         avg_conf = sum(b.confidence for b in header_parts) / len(header_parts)
         merged_block = OcrBlock(
