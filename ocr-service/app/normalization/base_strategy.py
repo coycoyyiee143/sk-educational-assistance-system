@@ -33,3 +33,16 @@ class BaseSchoolStrategy:
         Default behavior: no changes, blocks pass through unmodified.
         """
         return blocks
+
+    def match_target_names(self, official_name: str) -> list:
+        """
+        Optional hook returning every acceptable form of `official_name`
+        to try when matching header text against it. Default: just the
+        name itself. Override this when a school's printed ID/header
+        STRUCTURALLY omits a word from its official name -- i.e. the
+        card design never shows it at all, not an OCR miss on an
+        otherwise-present word -- since fuzzy_match_school()'s length-
+        ratio guard would otherwise block a perfectly genuine header from
+        ever matching the full official name.
+        """
+        return [official_name]

@@ -42,8 +42,17 @@ def _full_page_scan_blocks(school_name: str, header_region_blocks: List[OcrBlock
     fail OTHER checks (blur, low OCR confidence) and auto-reupload
     regardless, so this isn't trading away real protection.
     """
+    # "Does this strategy actually merge/rescue the header" is the real
+    # question, not "is it not literally BaseSchoolStrategy" -- NU, PNC,
+    # and CDC subclass BaseSchoolStrategy only to override
+    # extract_school_year() (School Year parsing), with zero header-merge
+    # logic of their own. The old identity check treated them as if they
+    # had PUP/SVCC/UPLB/UPHSD-style header pre-merging and denied them the
+    # full-page fallback, silently making them MORE likely to miss a
+    # genuine institution match than a school with no dedicated strategy
+    # at all.
     strategy = get_strategy_for_school(school_name)
-    if type(strategy) is BaseSchoolStrategy:
+    if type(strategy).preprocess_blocks is BaseSchoolStrategy.preprocess_blocks:
         return all_blocks
     return header_region_blocks
 
@@ -75,6 +84,32 @@ def _header_missing_declared_school_words(header_text: str, declared_school: str
     return not declared_words.issubset(header_words)
 
 
+def _header_words_all_belong_to_declared(header_text: str, declared_school: str) -> bool:
+    """
+    True when every word actually read in the header also appears in the
+    declared school's own name -- i.e. the header contains nothing that
+    CONTRADICTS the declared school, just fewer of its words than a full
+    read would have. This is the mirror check to
+    _header_missing_declared_school_words(): that one asks "is a declared
+    word missing from the header," this one asks "does the header contain
+    any word that ISN'T part of the declared name at all" (the latter is
+    the actual signal of a genuinely different school).
+
+    Confirmed as a real false positive without this check: a real PUP
+    School ID where OCR simply never detected the "UNIVERSITY" line (a
+    detection miss, not a misread), leaving PUP's own header-merge to
+    splice together "POLYTECHNIC of the PHILIPPINES" -- every one of those
+    words belongs to "Polytechnic University of the Philippines," so this
+    is the SAME school read incompletely, not evidence of a different one.
+    The missing-word check alone still fired and reported the applicant's
+    own, correct school back to them as if it were a wrong one ("appears
+    to be Polytechnic Of The Philippines instead").
+    """
+    declared_words = set(normalize_name(declared_school).split())
+    header_words = set(normalize_name(header_text).split())
+    return header_words.issubset(declared_words)
+
+
 def _find_school_match(header_region_blocks: List[OcrBlock], all_blocks: List[OcrBlock],
                         header_blocks_sorted: List[OcrBlock], school_name: str):
     """
@@ -90,12 +125,20 @@ def _find_school_match(header_region_blocks: List[OcrBlock], all_blocks: List[Oc
     school is this" fallback below, so both get the identical matching
     strategy rather than the fallback settling for whatever text
     happened to score best against a DIFFERENT school.
+
+    Tries every acceptable name form for `school_name` (see
+    BaseSchoolStrategy.match_target_names) -- normally just the name
+    itself, but a school like STI whose printed ID structurally omits a
+    word ("College") from its official name needs a shorter accepted
+    form too, or a genuine header can never pass the match at all.
     """
+    match_targets = get_strategy_for_school(school_name).match_target_names(school_name)
+
     def score(text: str) -> float:
-        return fuzzy_match_school(text, school_name)["score"]
+        return max(fuzzy_match_school(text, target)["score"] for target in match_targets)
 
     def passes(text: str) -> bool:
-        return fuzzy_match_school(text, school_name)["passed"]
+        return any(fuzzy_match_school(text, target)["passed"] for target in match_targets)
 
     best_block, best_score = None, 0
 
@@ -232,6 +275,7 @@ def extract_school(blocks: List[OcrBlock], page_w: float, page_h: float, declare
             top_header.confidence >= 0.85
             and _looks_like_institution_name(top_header.text)
             and _header_missing_declared_school_words(top_header.text, declared_school)
+            and not _header_words_all_belong_to_declared(top_header.text, declared_school)
         ):
             return ExtractionResult(
                 value=top_header.text, raw=top_header.text,
