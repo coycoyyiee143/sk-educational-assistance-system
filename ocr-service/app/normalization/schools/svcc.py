@@ -77,7 +77,19 @@ class StVincentCabuyaoStrategy(BaseSchoolStrategy):
     def extract_school_year(self, text: str, sy_format_hint: Optional[str] = None) -> Optional[str]:
         # SVCC prints a single year meaning the START of the AY range
         # (ex. "School Year: 2025" -> "2025-2026")
-        match = re.search(r"\b(20\d{2})\b", text)
+        #
+        # \b requires a word-boundary on BOTH sides -- fine on the left
+        # (preceded by ":"/whitespace), but the right side breaks when
+        # OCR runs the year straight into the next word with no space,
+        # e.g. "2022Semester:1ST" (confirmed on a real SVCC sample after
+        # a header-region OCR retry recovered this line: no space
+        # survived between the year and "Semester"). Both '2' and 'S'
+        # are \w characters, so \b never matches between them and the
+        # whole regex silently fails to find a year that's plainly
+        # there. (?!\d) only blocks matching part of a LONGER run of
+        # digits (e.g. never grab "2022" out of "20225"), without caring
+        # what non-digit character (or none) follows.
+        match = re.search(r"\b(20\d{2})(?!\d)", text)
         if match:
             start_year = int(match.group(1))
             return f"{start_year}-{start_year + 1}"

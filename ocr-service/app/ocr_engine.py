@@ -201,40 +201,107 @@ def ensure_uplb_reg_form_header(image_path: str, extracted: list, declared_schoo
     return extracted
 
 
-# SVCC's Registration Form prints "Name: <LAST>, <FIRST> <MIDDLE>" directly
-# under a diagonal watermark ribbon that runs right through that one line.
-# Confirmed on a real SVCC sample (RF-046.jpg): PaddleOCR's text DETECTOR
-# (not just recognition) drops that line entirely on the raw color image --
-# the Student# line right above it and the Course line right below it both
-# read at 95%+, while nothing else on the page is affected -- so run_ocr()'s
+# SVCC's Registration Form prints its "Name:" line, and separately its
+# "School Year:" line, directly under a diagonal watermark ribbon that
+# runs right through the middle of the page. Confirmed on two different
+# real SVCC samples that PaddleOCR's text DETECTOR (not just recognition)
+# drops whichever one of those lines happens to sit closest to the
+# watermark's thickest band entirely on the raw color image -- RF-046
+# lost its Name line, RF-056 lost its School Year line instead, while
+# the Student# line above and Course line below both read at 95%+ either
+# time, and nothing else on the page is affected. So run_ocr()'s
 # confidence-based retry above never triggers: a fully MISSING line adds
-# nothing to avg/min confidence, it just isn't in the output to drag either
-# stat down. The existing grayscale+CLAHE+sharpen+Otsu preprocess_image()
-# pass already recovers it fine once actually tried (confirmed: 0.836
-# confidence on the enhanced pass vs. zero detection on the raw one) -- same
-# shape of fix as ensure_uplb_reg_form_header above, just SVCC's watermark
-# in place of UPLB's red header ink as the thing silently defeating the
-# raw-image detector.
+# nothing to avg/min confidence, it just isn't in the output to drag
+# either stat down -- and RF-056's case is worse than a bare miss: with
+# the real "School Year: 2022" line gone, school-year extraction fell
+# back to matching the unrelated "Print date: 06-16-2026" line instead,
+# reporting a confidently wrong detected year (2026) rather than the
+# document's actual (also wrong, but different) declared year (2022).
+#
+# Two DIFFERENT root causes turned out to need two different rescues:
+#  - RF-046's Name line: a pure contrast problem (watermark ink vs. text
+#    ink at the SAME resolution) -- the existing grayscale+CLAHE+
+#    sharpen+Otsu preprocess_image() pass recovers it fine (confirmed:
+#    0.836 confidence vs. zero detection on the raw pass).
+#  - RF-056's School Year line: a RESOLUTION problem instead -- PaddleOCR
+#    downscales the whole page to det_limit_side_len=1600 before
+#    detecting text, and at that scale this line's small font falls
+#    below the detector's minimum. preprocess_image() doesn't change the
+#    image's size, so it does nothing for this case (confirmed: still
+#    missing after that pass too). Cropping to just the header region
+#    (top 25% of the page, same definition get_blocks_in_region() uses)
+#    and re-running OCR on that crop alone needs no downscaling to fit
+#    the same size budget, which recovers the line fine (confirmed:
+#    0.971 confidence). The crop starts at (0, 0), so its block
+#    coordinates already line up with the full page -- no offset math
+#    needed when merging a recovered line back in.
+#
+# Tries the cheaper whole-page preprocess first, then the header-crop
+# pass only for whichever label(s) are still missing after that -- one
+# retry sequence covers both known failure modes and whichever of the
+# two labels (or both) is affected, rather than a separate retry per
+# field or per cause.
 _SVCC_SCHOOL_NAMES = {"ST. VINCENT COLLEGE OF CABUYAO", "ST VINCENT COLLEGE OF CABUYAO", "SVCC"}
+_SVCC_CRITICAL_LABELS = ["name", "school_year"]
+_SVCC_HEADER_CROP_FRACTION = 0.25  # matches get_blocks_in_region()'s "header" region
 
 
-def _has_name_label(extracted: list) -> bool:
+def _missing_labels(extracted: list, labels: list) -> list:
     from app.extraction.blocks import parse_ocr_blocks
     from app.extraction.keyword_engine import find_label_block
-    return find_label_block(parse_ocr_blocks(extracted), "name") is not None
+    blocks = parse_ocr_blocks(extracted)
+    return [label for label in labels if find_label_block(blocks, label) is None]
 
 
-def ensure_svcc_reg_form_name(image_path: str, extracted: list, declared_school: str) -> list:
+def _ocr_header_crop(image_path: str, ocr) -> list:
+    import cv2
+    import tempfile
+    import os
+
+    img = cv2.imread(image_path)
+    if img is None:
+        return []
+    h, w = img.shape[:2]
+    crop = img[0:int(h * _SVCC_HEADER_CROP_FRACTION), 0:w]
+
+    suffix = os.path.splitext(image_path)[1] or '.jpg'
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        cv2.imwrite(tmp.name, crop)
+        crop_path = tmp.name
+    try:
+        results = ocr.ocr(crop_path, cls=True)
+        return parse_results(results)
+    finally:
+        if os.path.exists(crop_path):
+            os.unlink(crop_path)
+
+
+def ensure_svcc_reg_form_labels(image_path: str, extracted: list, declared_school: str) -> list:
     from app.normalization.text_utils import strip_diacritics, clean_text
     from app.extraction.blocks import parse_ocr_blocks
     from app.extraction.keyword_engine import find_label_block
 
     if strip_diacritics(declared_school or "").strip().upper() not in _SVCC_SCHOOL_NAMES:
         return extracted
-    if _has_name_label(extracted):
+
+    missing = _missing_labels(extracted, _SVCC_CRITICAL_LABELS)
+    if not missing:
         return extracted
 
     ocr = get_ocr()
+
+    def recover_from(extracted_candidate: list) -> list:
+        blocks_candidate = parse_ocr_blocks(extracted_candidate)
+        recovered_texts = []
+        for label in missing:
+            label_block = find_label_block(blocks_candidate, label)
+            if label_block is not None:
+                recovered_texts.append(label_block.text)
+        return [
+            item for item in extracted_candidate
+            if clean_text(item.get("text", "")) in recovered_texts
+        ]
+
     preprocessed_path = preprocess_image(image_path)
     try:
         results2 = ocr.ocr(preprocessed_path, cls=True)
@@ -244,18 +311,15 @@ def ensure_svcc_reg_form_name(image_path: str, extracted: list, declared_school:
         if preprocessed_path != image_path and os.path.exists(preprocessed_path):
             os.unlink(preprocessed_path)
 
-    name_block2 = find_label_block(parse_ocr_blocks(extracted2), "name")
-    if name_block2 is None:
-        return extracted
+    recovered_items = recover_from(extracted2)
 
-    # Merge in just the recovered Name line's ORIGINAL dict entry (not the
-    # OcrBlock reconstruction) so downstream extraction gets the same
-    # bbox/confidence shape every other line has -- same approach as the
-    # UPLB header merge above.
-    for item in extracted2:
-        if clean_text(item.get("text", "")) == name_block2.text:
-            return extracted + [item]
-    return extracted
+    still_missing = _missing_labels(extracted + recovered_items, _SVCC_CRITICAL_LABELS)
+    if still_missing:
+        missing = still_missing
+        extracted3 = _ocr_header_crop(image_path, ocr)
+        recovered_items += recover_from(extracted3)
+
+    return extracted + recovered_items
 
 
 def parse_results(results) -> list:
